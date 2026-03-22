@@ -9,7 +9,6 @@
 #include <memory>
 
 #include "coordinator.hpp"
-#include "device/flow.hpp"
 #include "roce_communicator.hpp"
 
 namespace tnn {
@@ -35,10 +34,9 @@ public:
    */
   RoCECoordinator(CoordinatorConfig config)
       : Coordinator(std::move(config)) {
-    // Initialize RoCE communicator for the coordinator
-    auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-    auto communicator = std::make_unique<RoCECommunicator>(this->coordinator_endpoint_, allocator,
-                                                           RoCECommunicator::Config{});
+    auto communicator =
+        RoCECommunicator::create(this->coordinator_endpoint_, RoCECommunicator::Config{});
+
     communicator->start_server();
     this->comm_ = std::move(communicator);
     this->add_message_callback();

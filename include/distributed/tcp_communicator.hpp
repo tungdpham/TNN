@@ -26,21 +26,35 @@
 
 #include "asio/buffer.hpp"
 #include "asio/error.hpp"
-#include "binary_serializer.hpp"
-#include "channels.hpp"
+#include "common/archiver.hpp"
 #include "communicator.hpp"
 #include "device/device_manager.hpp"
 #include "device/iallocator.hpp"
 #include "device/pool_allocator.hpp"
-#include "distributed/endian.hpp"
+#include "distributed/binary_serializer.hpp"
 #include "distributed/endpoint.hpp"
-#include "distributed/ibuffer.hpp"
+#include "distributed/io.hpp"
+#include "distributed/tcp_channel.hpp"
 #include "io_context_pool.hpp"
 #include "message.hpp"
 #include "packet.hpp"
 #include "profiling/event.hpp"
 
 namespace tnn {
+
+struct IdentityMessage {
+  int32_t listening_port;
+};
+
+template <typename Archiver>
+void archive(Archiver &archiver, const IdentityMessage &identity) {
+  archiver(identity.listening_port);
+}
+
+template <typename Archiver>
+void archive(Archiver &archiver, IdentityMessage &identity) {
+  archiver(identity.listening_port);
+}
 
 constexpr uint32_t DEFAULT_IO_THREADS = 4;
 constexpr uint32_t DEFAULT_MAX_PACKET_SIZE = 4 * 1024 * 1024 + 64;  // 4MB + header
@@ -61,9 +75,9 @@ private:
         throw std::runtime_error("Failed to insert new peer context for endpoint: " +
                                  endpoint.id());
       }
-      std::cout << "Successfully connected to peer: " << endpoint.id() << std::endl;
       it = new_it;
     }
+    std::cout << "Successfully connected to peer: " << endpoint.id() << std::endl;
     channel->set_context(it->second);
     auto &channels = endpoint_channels_[endpoint];
     channels.push_back(channel);
@@ -81,7 +95,7 @@ public:
       : Communicator(endpoint),
         int_allocator_(PoolAllocator::instance(getHost(), defaultFlowHandle)),
         out_allocator_(out_allocator),
-        serializer_(out_allocator),
+        serializer_(int_allocator_),
         config_(config),
         io_context_pool_(config.num_io_threads),
         acceptor_(io_context_pool_.acceptor()) {
@@ -91,12 +105,12 @@ public:
   ~TCPCommunicator() override { stop(); }
 
   void start_server() {
-    if (endpoint_.get_parameter<int>("port") <= 0) {
+    int listen_port = endpoint_.get_parameter<int>("port");
+    if (listen_port <= 0) {
       throw std::invalid_argument("Listen port must be greater than 0");
     }
-    asio::ip::tcp::endpoint endpoint(
-        asio::ip::tcp::v4(),
-        static_cast<asio::ip::port_type>(endpoint_.get_parameter<int>("port")));
+    asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(),
+                                     static_cast<asio::ip::port_type>(listen_port));
     acceptor_.open(endpoint.protocol());
     acceptor_.set_option(asio::ip::tcp::acceptor::reuse_address(true));
     acceptor_.bind(endpoint);
@@ -192,12 +206,17 @@ public:
           std::cerr << "Failed to set TCP_NODELAY: " << ec.message() << std::endl;
           return false;
         }
-        IdentityMessage identity;
-        identity.listening_port = endpoint_.get_parameter<int>("port");
-        IBuffer identity_buffer(int_allocator_, IdentityMessage::size());
-        identity.serialize(identity_buffer);
+        IdentityMessage identity{
+            .listening_port = endpoint_.get_parameter<int>("port"),
+        };
+        Sizer sizer;
+        sizer(identity);
+        size_t identity_size = sizer.size();
+        dptr identity_buffer = int_allocator_.allocate(identity_size);
+        Writer writer(identity_buffer);
+        writer(identity);
 
-        asio::write(channel->socket, asio::buffer(identity_buffer.data(), IdentityMessage::size()));
+        asio::write(channel->socket, asio::buffer(identity_buffer.get(), identity_size));
 
         init_peer_ctx(endpoint, channel);
 
@@ -230,22 +249,6 @@ public:
   }
 
 private:
-  struct IdentityMessage {
-    int32_t listening_port;
-    static constexpr size_t size() { return sizeof(Endianness) + sizeof(listening_port); }
-    void serialize(IBuffer &buffer) const {
-      size_t offset = 0;
-      buffer.write(offset, tnn::sys_endianness);
-      buffer.write(offset, listening_port);
-    }
-    void deserialize(IBuffer &buffer, size_t &offset) {
-      Endianness endianess;
-      buffer.read(offset, endianess);
-      buffer.set_endianess(endianess);
-      buffer.read(offset, listening_port);
-    }
-  };
-
   IAllocator &int_allocator_;
   IAllocator &out_allocator_;
   BinarySerializer serializer_;
@@ -284,23 +287,23 @@ private:
       std::error_code ec;
       auto err = channel->socket.set_option(asio::ip::tcp::no_delay(true), ec);
       if (ec || err) std::cerr << "Failed to set TCP_NODELAY: " << ec.message() << std::endl;
-      IBuffer identity_buffer(int_allocator_, IdentityMessage::size());
-      identity_buffer.resize(IdentityMessage::size());
-      co_await asio::async_read(channel->socket,
-                                asio::buffer(identity_buffer.data(), IdentityMessage::size()),
-                                asio::use_awaitable);
       IdentityMessage identity;
-      size_t offset = 0;
-      identity.deserialize(identity_buffer, offset);
-
+      Sizer sizer;
+      sizer(identity);
+      size_t identity_size = sizer.size();
+      dptr identity_buffer = int_allocator_.allocate(identity_size);
+      co_await asio::async_read(channel->socket, asio::buffer(identity_buffer.get(), identity_size),
+                                asio::use_awaitable);
+      Reader reader(identity_buffer);
+      reader(identity);
       auto raw_endpoint = channel->socket.remote_endpoint();
       Endpoint endpoint =
           Endpoint::tcp(raw_endpoint.address().to_string(), identity.listening_port);
 
       init_peer_ctx(endpoint, channel);
-
       co_await receive_loop(channel);
     } catch (const std::exception &e) {
+      std::cerr << "Error processing channel: " << e.what() << std::endl;
       handle_channel_error(channel, asio::error::operation_aborted);
     }
   }
@@ -308,20 +311,19 @@ private:
   asio::awaitable<void> receive_loop(std::shared_ptr<TCPChannel> channel) {
     try {
       while (is_running_.load(std::memory_order_acquire)) {
+        // Read header
         PacketHeader packet_header;
-        auto header_dptr = int_allocator_.allocate(PacketHeader::size());
-        auto header_buffer = IBuffer(std::move(header_dptr));
-        header_buffer.resize(PacketHeader::size());
-
-        co_await asio::async_read(channel->socket,
-                                  asio::buffer(header_buffer.data(), header_buffer.size()),
+        Sizer sizer;
+        sizer(packet_header);
+        size_t header_size = sizer.size();
+        dptr header_buf = int_allocator_.allocate(header_size);
+        co_await asio::async_read(channel->socket, asio::buffer(header_buf.get(), header_size),
                                   asio::use_awaitable);
+        Reader reader(header_buf);
+        reader(packet_header);
 
-        size_t header_offset = 0;
-        serializer_.deserialize(header_buffer, header_offset, packet_header);
-
+        // Get buffer and read body.
         dptr read_buffer = channel->context()->fetch_packet(packet_header);
-
         auto read_start = Clock::now();
         co_await asio::async_read(channel->socket,
                                   asio::buffer(read_buffer.get(), packet_header.packet_length),
@@ -341,11 +343,9 @@ private:
                       << channel->context()->endpoint().id() << std::endl;
             continue;
           }
-          auto msg_buffer = IBuffer(std::move(data_buffer));
-          msg_buffer.resize(packet_header.msg_length);
           Message msg;
-          size_t msg_offset = 0;
-          serializer_.deserialize(msg_buffer, msg_offset, msg);
+          Reader reader(data_buffer);
+          serializer_.deserialize(reader, msg);
           auto deserialize_end = Clock::now();
           GlobalProfiler::add_event({EventType::COMMUNICATION, deserialize_start, deserialize_end,
                                      "Message Deserialize", endpoint_.id()});
@@ -353,6 +353,7 @@ private:
         }
       }
     } catch (const std::exception &e) {
+      std::cerr << "Error in receive_loop: " << e.what() << std::endl;
       handle_channel_error(channel, asio::error::operation_aborted);
     }
   }
@@ -426,19 +427,21 @@ private:
 
   std::vector<Packet> get_write(PeerContext peer_ctx, const Message &message) {
     auto serialize_start = Clock::now();
-    size_t msg_size = message.size();
-    auto data = int_allocator_.allocate(msg_size);
-    auto buffer = IBuffer(std::move(data));
-    size_t offset = 0;
-    serializer_.serialize(buffer, offset, message);
-    std::vector<Packet> packets = peer_ctx->slice(std::move(buffer));
+    Sizer sizer;
+    sizer(message);
+    size_t msg_size = sizer.size();
+    dptr data_buf = int_allocator_.allocate(msg_size);
+    Writer writer(data_buf);
+    serializer_.serialize(writer, message);
+
+    std::vector<Packet> packets = peer_ctx->slice(std::move(data_buf));
     auto serialize_end = Clock::now();
     GlobalProfiler::add_event({EventType::COMMUNICATION, serialize_start, serialize_end,
                                "Message Serialize", peer_ctx->endpoint().id()});
     return packets;
   }
 
-  asio::awaitable<void> write_packets(std::unique_ptr<Channel::WriteHandle> write_handle,
+  asio::awaitable<void> write_packets(std::unique_ptr<WriteHandle> write_handle,
                                       std::shared_ptr<TCPChannel> channel) {
     if (!write_handle) co_return;
 
@@ -446,12 +449,15 @@ private:
       while (is_running_.load(std::memory_order_acquire)) {
         Packet packet;
         if (!write_handle->queue().try_pop(packet)) break;
-        size_t offset = 0;
-        auto header_buffer = IBuffer(int_allocator_, PacketHeader::size());
-        serializer_.serialize(header_buffer, offset, packet.header);
+        Sizer sizer;
+        sizer(packet.header);
+        size_t header_size = sizer.size();
+        dptr header_buf = int_allocator_.allocate(header_size);
+        Writer writer(header_buf);
+        writer(packet.header);
 
         std::array<asio::const_buffer, 2> buffers = {
-            asio::buffer(header_buffer.data(), header_buffer.size()),
+            asio::buffer(header_buf.get(), header_size),
             asio::buffer(packet.data.get(), packet.header.packet_length)};
 
         auto write_start = Clock::now();
@@ -461,6 +467,7 @@ private:
                                    channel->context()->endpoint().id()});
       }
     } catch (const std::exception &e) {
+      std::cerr << "Error in write_packets: " << e.what() << std::endl;
       handle_channel_error(channel, asio::error::operation_aborted);
     }
   }

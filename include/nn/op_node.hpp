@@ -2,8 +2,6 @@
 
 #include <vector>
 
-#include "device/iallocator.hpp"
-#include "nn/graph_context.hpp"
 #include "nn/io_node.hpp"
 #include "nn/layer.hpp"
 #include "nn/node.hpp"
@@ -13,19 +11,11 @@ namespace tnn {
 // Simple op node. 1 Input, 1 Output.
 class OpNode : public INode {
 public:
-  OpNode(std::string uid, GraphContextDescriptor &context, std::unique_ptr<Layer> layer)
+  OpNode(std::string uid, std::unique_ptr<Layer> layer)
       : INode(uid),
-        layer_(std::move(layer)) {
-    auto param_descriptors = layer_->param_descriptors();
-    for (const auto &desc : param_descriptors) {
-      context.register_desc(desc);
-    }
-  }
+        layer_(std::move(layer)) {}
 
-  void init(IAllocator &allocator) {
-    layer_->set_allocator(allocator);
-    layer_->init();
-  }
+  void init() { layer_->init(); }
 
   std::vector<ParamDescriptor> param_descriptors() const { return layer_->param_descriptors(); }
 
@@ -54,13 +44,7 @@ public:
   void save_state(std::ofstream &file) override {}
   NodeConfig get_config() const override;
 
-  static OpNode create_from_config(GraphContextDescriptor &ctx_desc, const NodeConfig &config);
-
-  void add_input(IONode *io_node) { inputs_.push_back(io_node); }
-  const std::vector<IONode *> &inputs() const { return inputs_; }
-
-  void add_output(IONode *io_node) { outputs_.push_back(io_node); }
-  const std::vector<IONode *> &outputs() const { return outputs_; }
+  static OpNode create_from_config(const NodeConfig &config);
 
   const Device &device() const { return layer_->device(); }
 
@@ -71,8 +55,6 @@ public:
 
 private:
   std::unique_ptr<Layer> layer_;
-  std::vector<IONode *> inputs_;
-  std::vector<IONode *> outputs_;
 };
 
 }  // namespace tnn

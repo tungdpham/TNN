@@ -28,8 +28,6 @@ inline size_t align_up(size_t size, size_t alignment) {
   return (size + alignment - 1) & ~(alignment - 1);
 }
 
-inline size_t align_down(size_t size, size_t alignment) { return size & ~(alignment - 1); }
-
 // Double-ended List Allocator. Thread-safe, efficient workspace allocator that flips for
 // input/output allocation patterns, with fallback to coalescing free-lists.
 class DELAllocator : public IAllocator, public std::enable_shared_from_this<DELAllocator> {
@@ -41,14 +39,14 @@ private:
         capacity_(0),
         left_offset_(0),
         right_offset_(0),
-        side_(0) {}
+        active_allocations_(0),
+        side_(0) {}  // Added tracking counter
 
 public:
   static std::shared_ptr<DELAllocator> create(const Device &device, flowHandle_t flow) {
     return std::shared_ptr<DELAllocator>(new DELAllocator(device, flow));
   }
 
-  // should be kept alive longer than any allocated dptrs
   ~DELAllocator() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (slab_ptr_) {
@@ -79,11 +77,12 @@ public:
       if (right_offset_ >= left_offset_ + aligned_size) {
         right_offset_ -= aligned_size;
         offset = right_offset_;
+      } else {
+        fallback = true;
       }
     }
 
     if (!fallback) {
-      side_ = 1 - side_;  // flip
       return create_dptr(offset, aligned_size);
     }
 
@@ -99,7 +98,6 @@ public:
         add_block(block_offset + aligned_size, remainder);
       }
 
-      side_ = 1 - side_;  // keep flipping behavior consistent
       return create_dptr(block_offset, aligned_size);
     }
 
@@ -111,8 +109,20 @@ public:
     side_ = 1 - side_;
   }
 
+  void set_side(int side) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (side != 0 && side != 1) {
+      throw std::invalid_argument("DELAllocator: Side must be 0 or 1");
+    }
+    side_ = side;
+  }
+
   void clear() override {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (active_allocations_ > 0) {
+      throw std::runtime_error("DELAllocator: Cannot clear while allocations are active");
+    }
+
     left_offset_ = 0;
     right_offset_ = capacity_;
     free_by_offset_.clear();
@@ -124,11 +134,18 @@ public:
     if (capacity_ >= size) {
       return;  // already have enough capacity
     }
-    if (left_offset_ != 0 || right_offset_ != capacity_) {
+
+    if (active_allocations_ > 0 || left_offset_ != 0 || right_offset_ != capacity_) {
       throw std::runtime_error(
           "DELAllocator: Cannot reserve while there are outstanding allocations");
     }
+
     capacity_ = align_up(size, DEFAULT_ALIGNMENT);
+
+    if (slab_ptr_) {
+      device_.deallocateAlignedMemory(slab_ptr_);
+    }
+
     slab_ptr_ = device_.allocateAlignedMemory(capacity_, DEFAULT_ALIGNMENT);
     if (!slab_ptr_) {
       throw std::runtime_error("DELAllocator: Failed to allocate master slab of size " +
@@ -161,6 +178,7 @@ private:
   size_t capacity_;
   size_t left_offset_;
   size_t right_offset_;
+  size_t active_allocations_;
 
   std::map<size_t, size_t> free_by_offset_;          // offset -> size
   std::map<size_t, std::set<size_t>> free_by_size_;  // size -> set of offsets
@@ -186,14 +204,14 @@ private:
   dptr create_dptr(size_t offset, size_t size) {
     void *slice_ptr = static_cast<uint8_t *>(slab_ptr_) + offset;
 
-    std::weak_ptr<DELAllocator> self_weak = shared_from_this();
+    active_allocations_++;
+
+    auto self_shared = shared_from_this();
 
     auto storage = std::shared_ptr<device_storage>(
         new device_storage(device_, slice_ptr, size, DEFAULT_ALIGNMENT),
-        [self_weak, offset, size](device_storage *storage) {
-          if (auto self = self_weak.lock()) {
-            self->reclaim(offset, size);
-          }
+        [self_shared, offset, size](device_storage *storage) {
+          self_shared->reclaim(offset, size);
           delete storage;
         });
 
@@ -203,13 +221,17 @@ private:
   void reclaim(size_t offset, size_t size) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto next_it = free_by_offset_.upper_bound(offset);
+    if (active_allocations_ > 0) {
+      active_allocations_--;
+    }
+
+    auto next_it = free_by_offset_.lower_bound(offset + size);
     if (next_it != free_by_offset_.end() && offset + size == next_it->first) {
       size += next_it->second;
       remove_block(next_it->first, next_it->second);
     }
 
-    auto prev_it = free_by_offset_.upper_bound(offset);
+    auto prev_it = free_by_offset_.lower_bound(offset);
     if (prev_it != free_by_offset_.begin()) {
       --prev_it;
       if (prev_it->first + prev_it->second == offset) {
@@ -222,7 +244,7 @@ private:
     if (offset + size == left_offset_) {
       left_offset_ = offset;
     } else if (offset == right_offset_) {
-      right_offset_ += size;
+      right_offset_ = offset + size;
     } else {
       add_block(offset, size);
     }

@@ -281,10 +281,7 @@ void LegacyConv2DLayer::cudnn_forward(const ConstTensor &input, const Tensor &ou
   size_t shape_key = get_shape_hash(input->shape());
   const ConvolutionStats &stats = stats_cache.at(shape_key);
 
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
-  size_t workspace_elements = (stats.fwd_workspace_size + io_dtype_size - 1) / io_dtype_size;
-  std::cout << "Conv2D forward workspace size (bytes): " << stats.fwd_workspace_size << std::endl;
-  Tensor cudnn_workspace = this->get_workspace({workspace_elements});
+  Tensor cudnn_workspace = this->get_workspace({stats.fwd_workspace_size}, DType_t::BYTE);
 
   if (this->is_training_) {
     ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
@@ -316,12 +313,10 @@ void LegacyConv2DLayer::cudnn_backward(const ConstTensor &grad_output, const Ten
 
   size_t shape_key = get_shape_hash(input_shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
-  size_t bwd_workspace =
-      stats.bgrad_workspace_size + stats.wgrad_workspace_size + stats.dgrad_workspace_size;
+  size_t bwd_workspace = std::max(
+      {stats.wgrad_workspace_size, stats.dgrad_workspace_size, stats.bgrad_workspace_size});
 
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
-  size_t workspace_elements = (bwd_workspace + io_dtype_size - 1) / io_dtype_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_elements, 1, 1, 1});
+  Tensor cudnn_workspace = this->get_workspace({bwd_workspace}, DType_t::BYTE);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_backward_filter, input, grad_output, weight_gradients_,
                                  batch_size, input_h, input_w, output_h, output_w, cudnn_workspace,
@@ -354,8 +349,7 @@ std::unique_ptr<Task> LegacyConv2DLayer::cudnn_compute_fwd(
   return create_cuda_task(handle, cuda::cudnn_conv2d::forward_with_bias<IO_T>, convolution_handle,
                           input->data(), weight->data(), bias ? bias->data() : nullptr,
                           output->data(), batch_size, in_channels_, input_h, input_w, out_channels_,
-                          output_h, output_w, cudnn_workspace->data(),
-                          cudnn_workspace->capacity() * get_dtype_size(io_dtype_));
+                          output_h, output_w, cudnn_workspace->data(), cudnn_workspace->capacity());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -375,8 +369,7 @@ std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_data(
   return create_cuda_task(handle, cuda::cudnn_conv2d::backward_data<IO_T>, convolution_handle,
                           grad_output->data(), weight->data(), input_grad->data(), batch_size,
                           in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                          cudnn_workspace->data(),
-                          cudnn_workspace->capacity() * get_dtype_size(io_dtype_));
+                          cudnn_workspace->data(), cudnn_workspace->capacity());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -396,8 +389,7 @@ std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_filter(
   return create_cuda_task(handle, cuda::cudnn_conv2d::backward_filter<IO_T>, convolution_handle,
                           input->data(), grad_output->data(), weight_grad->data(), batch_size,
                           in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                          cudnn_workspace->data(),
-                          cudnn_workspace->capacity() * get_dtype_size(io_dtype_));
+                          cudnn_workspace->data(), cudnn_workspace->capacity());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -668,6 +660,18 @@ std::unique_ptr<LegacyConv2DLayer> LegacyConv2DLayer::create_from_config(
   return std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, kernel_h, kernel_w,
                                              stride_h, stride_w, pad_h, pad_w, use_bias,
                                              config.name);
+}
+
+size_t LegacyConv2DLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  auto &shape = input_shapes[0];
+  if (shape.empty() || shape.size() < 4) return 0;
+  size_t batch_size = shape[0];
+  size_t input_h = shape[2];
+  size_t input_w = shape[3];
+  size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
+  return batch_size * in_channels_ * kernel_h_ * kernel_w_ * sizeof(float) +
+         batch_size * out_channels_ * output_h * output_w * sizeof(float);
 }
 
 size_t LegacyConv2DLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {

@@ -6,6 +6,7 @@
 #include <mutex>
 #include <vector>
 
+#include "common/blob.hpp"
 #include "event.hpp"
 
 namespace tnn {
@@ -66,7 +67,12 @@ public:
     events_.push_back(event);
   }
 
-  std::vector<Event> get_events() const {
+  std::vector<Event> &get_events() {
+    std::lock_guard<std::mutex> lock(event_mutex_);
+    return events_;
+  }
+
+  const std::vector<Event> &get_events() const {
     std::lock_guard<std::mutex> lock(event_mutex_);
     return events_;
   }
@@ -100,6 +106,28 @@ private:
   mutable std::mutex start_mutex_;
   Clock::time_point profiler_start_time_;
 };
+
+template <typename Archiver>
+void archive(Archiver &archiver, const Profiler &profiler) {
+  auto events = profiler.get_events();
+  archiver(static_cast<int64_t>(profiler.start_time().time_since_epoch().count()));
+  archiver(static_cast<uint32_t>(events.size()));
+  archiver(make_blob(events.data(), events.size()));
+}
+
+template <typename Archiver>
+void archive(Archiver &archiver, Profiler &profiler) {
+  auto &events = profiler.get_events();
+  int64_t start_time_count;
+  archiver(start_time_count);
+  profiler.init_start_time(Clock::time_point(Clock::duration(start_time_count)));
+  size_t event_count = 0;
+  archiver(event_count);
+  events.resize(event_count);
+  if (event_count > 0) {
+    archiver(make_blob(events.data(), events.size()));
+  }
+}
 
 class GlobalProfiler {
   static Profiler global_profiler_;

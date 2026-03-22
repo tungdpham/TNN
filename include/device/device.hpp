@@ -42,6 +42,7 @@ public:
   void deallocateAlignedMemory(void *ptr) const;
   void copyToDevice(void *dest, const void *src, size_t size) const;
   void copyToHost(void *dest, const void *src, size_t size) const;
+  Endianness get_endianness() const;
   void createFlow(flowHandle_t handle) const;
   Flow *getFlow(flowHandle_t handle) const;
   Context *context() const { return context_.get(); }

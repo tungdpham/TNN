@@ -16,7 +16,7 @@ class IAllocator {
 public:
   virtual ~IAllocator() = default;
 
-  // allocate a ptr with capacity == size
+  // allocate a ptr with byte size capacity == size
   virtual dptr allocate(size_t size) = 0;
 
   // clear all cached memory blocks in the allocator

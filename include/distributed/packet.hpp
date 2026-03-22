@@ -2,8 +2,8 @@
 
 #include <cstdint>
 
+#include "common/endian.hpp"
 #include "device/dptr.hpp"
-#include "endian.hpp"
 
 namespace tnn {
 
@@ -28,7 +28,7 @@ struct PacketHeader {
   CompressionType compression_type = CompressionType::NONE;
 
   PacketHeader()
-      : endianess(get_system_endianness()) {}
+      : endianess(host_endianness) {}
 
   PacketHeader(PacketType t, uint64_t packet_len, uint64_t msg_len, uint32_t pkt_offset,
                uint32_t total_pkts, CompressionType comp_type = CompressionType::NONE)
@@ -38,31 +38,34 @@ struct PacketHeader {
         packet_offset(pkt_offset),
         total_packets(total_pkts),
         compression_type(comp_type) {
-    endianess = get_system_endianness();
-  }
-
-  static constexpr uint64_t size() {
-    return sizeof(uint8_t) +         // PROTOCOL_VERSION
-           sizeof(PacketType) +      // type
-           sizeof(Endianness) +      // endianess
-           sizeof(uint64_t) +        // packet_length
-           sizeof(uint64_t) +        // msg_length
-           sizeof(uint64_t) +        // msg_serial_id
-           sizeof(uint32_t) +        // packet_offset
-           sizeof(uint32_t) +        // total_packets
-           sizeof(CompressionType);  // compression_type
-  }
-
-  template <typename Archiver>
-  void archive(Archiver &archiver) {
-    archiver & PROTOCOL_VERSION & type & endianess & packet_length & msg_length & msg_serial_id &
-        packet_offset & total_packets & compression_type;
+    endianess = host_endianness;
   }
 };
+
+template <typename Archiver>
+void archive(Archiver &archiver, const PacketHeader &header) {
+  archiver(header.PROTOCOL_VERSION, header.type, header.endianess, header.packet_length,
+           header.msg_length, header.msg_serial_id, header.packet_offset, header.total_packets,
+           header.compression_type);
+}
+
+template <typename Archiver>
+void archive(Archiver &archiver, PacketHeader &header) {
+  archiver(header.PROTOCOL_VERSION, header.type, header.endianess, header.packet_length,
+           header.msg_length, header.msg_serial_id, header.packet_offset, header.total_packets,
+           header.compression_type);
+}
 
 struct Packet {
   PacketHeader header;
   dptr data;
 };
+
+template <typename Archiver>
+void archive(Archiver &archiver, const Packet &packet) {
+  archiver(packet.header, packet.data);
+}
+
+// for deserialization, dptr is dynamically allocated so we can't know where to allocate.
 
 }  // namespace tnn

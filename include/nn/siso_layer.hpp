@@ -6,11 +6,21 @@ namespace tnn {
 class SISOLayer : virtual public Layer {
 public:
   SISOLayer() = default;
+  void forward_impl(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
+                    size_t mb_id) override {
+    if (inputs.size() != 1 || outputs.size() != 1) {
+      throw std::runtime_error("SISOLayer only supports single input and single output");
+    }
+    forward_impl(inputs[0], outputs[0], mb_id);
+  }
+  void backward_impl(const std::vector<ConstTensor> &grad_outputs,
+                     const std::vector<Tensor> &grad_inputs, size_t mb_id) override {
+    if (grad_outputs.size() != 1 || grad_inputs.size() != 1) {
+      throw std::runtime_error("SISOLayer only supports single grad output and single grad input");
+    }
+    backward_impl(grad_outputs[0], grad_inputs[0], mb_id);
+  }
 
-  void forward(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
-               size_t mb_id = 0) override;
-  void backward(const std::vector<ConstTensor> &gradients, const std::vector<Tensor> &grad_inputs,
-                size_t mb_id = 0) override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
 
 protected:

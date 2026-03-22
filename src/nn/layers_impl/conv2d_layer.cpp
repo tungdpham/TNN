@@ -6,6 +6,8 @@
  */
 #include "nn/layers_impl/conv2d_layer.hpp"
 
+#include <numeric>
+
 #include "device/device_type.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/conv2d_nhwc_ops.hpp"
@@ -303,12 +305,7 @@ void Conv2DLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, 
   ConvolutionStats &current_stats = stats_cache.at(shape_key);
 
   size_t ws_bytes = current_stats.fwd_workspace_size;
-  Tensor cudnn_workspace = this->get_workspace({ws_bytes}, DType_t::INT64_T);
-
-  if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
-    cached_input = input;
-  }
+  Tensor cudnn_workspace = this->get_workspace({ws_bytes}, DType_t::BYTE);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_forward_task, fe_handle, current_stats, input, output,
                                  weights_, bias_, cudnn_workspace, batch_size, input_h, input_w,
@@ -337,13 +334,11 @@ void Conv2DLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &g
   cuda::cudnn_conv2d::feHandle_t *fe_handle = fe_handle_cache.at(shape_key);
   ConvolutionStats &current_stats = stats_cache.at(shape_key);
 
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
   size_t max_workspace_size =
-      std::max({current_stats.fwd_workspace_size, current_stats.wgrad_workspace_size,
-                current_stats.dgrad_workspace_size, current_stats.bgrad_workspace_size});
+      std::max({current_stats.wgrad_workspace_size, current_stats.dgrad_workspace_size,
+                current_stats.bgrad_workspace_size});
 
-  size_t workspace_elements = (max_workspace_size + io_dtype_size - 1) / io_dtype_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_elements});
+  Tensor cudnn_workspace = this->get_workspace({max_workspace_size}, DType_t::BYTE);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_backward_weights_and_bias_task, fe_handle, current_stats,
                                  input, grad_output, weight_gradients_, bias_gradients_,
@@ -399,13 +394,22 @@ std::unique_ptr<Conv2DLayer> Conv2DLayer::create_from_config(const LayerConfig &
                                        stride_w, pad_h, pad_w, use_bias, config.name);
 }
 
+size_t Conv2DLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  // Cache the input for backward pass
+  auto &shape = input_shapes[0];
+  size_t input_bytes = std::accumulate(shape.begin(), shape.end(), get_dtype_size(io_dtype_),
+                                       std::multiplies<size_t>());
+  return input_bytes;
+}
+
 size_t Conv2DLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto &shape = input_shapes[0];
 #ifdef USE_CUDNN
   build_graph(shape);
   const size_t shape_key = get_shape_hash(shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
-  return stats.fwd_workspace_size;
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif
@@ -414,11 +418,15 @@ size_t Conv2DLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
 size_t Conv2DLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto &shape = input_shapes[0];
 #ifdef USE_CUDNN
-  if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) return 0;
+  if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) {
+    std::cerr << "Conv2DLayer::inf_workspace: No GPU allocator available, returning 0\n";
+    return 0;
+  }
   build_graph(shape);
   const size_t shape_key = get_shape_hash(shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
-  return stats.fwd_workspace_size;
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif
@@ -430,7 +438,14 @@ size_t Conv2DLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   build_graph(shape);
   const size_t shape_key = get_shape_hash(shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
-  return stats.wgrad_workspace_size + stats.dgrad_workspace_size + stats.bgrad_workspace_size;
+  size_t max_workspace_size = std::max(
+      {stats.wgrad_workspace_size, stats.dgrad_workspace_size, stats.bgrad_workspace_size});
+  size_t grad_input_bytes = 0;
+  for (const auto &in_shape : input_shapes) {
+    grad_input_bytes += std::accumulate(in_shape.begin(), in_shape.end(), get_dtype_size(io_dtype_),
+                                        std::multiplies<size_t>());
+  }
+  return max_workspace_size + grad_input_bytes;
 #else
   return 0;
 #endif

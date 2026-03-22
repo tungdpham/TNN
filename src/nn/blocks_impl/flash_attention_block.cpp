@@ -56,8 +56,8 @@ FlashAttentionBlock::~FlashAttentionBlock() {
 #endif
 }
 
-void FlashAttentionBlock::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                                  size_t mb_id) {
+void FlashAttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                                       size_t mb_id) {
   const ConstTensor &input = inputs[0];
   const Tensor &output = outputs[0];
 
@@ -307,8 +307,8 @@ void FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, const T
 }
 #endif
 
-void FlashAttentionBlock::backward(const Vec<ConstTensor> &grad_outputs,
-                                   const Vec<Tensor> &grad_inputs, size_t mb_id) {
+void FlashAttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
+                                        const Vec<Tensor> &grad_inputs, size_t mb_id) {
   const ConstTensor &grad_output = grad_outputs[0];
   const Tensor &grad_input = grad_inputs[0];
 #ifdef USE_CUDNN
@@ -332,6 +332,23 @@ LayerConfig FlashAttentionBlock::get_config() const {
 
 Vec<Vec<size_t>> FlashAttentionBlock::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   return input_shapes;
+}
+
+size_t FlashAttentionBlock::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  const auto &shape = input_shapes[0];
+  size_t batch_size = shape[0], seq_len = shape[1];
+  size_t dtype_size = get_dtype_size(io_dtype_);
+
+  // Cache input for backward: [B, S, E]
+  size_t input_cache_bytes = batch_size * seq_len * embed_dim_ * dtype_size;
+
+  // Cache attn output for backward: [B, S, E]
+  size_t attn_out_cache_bytes = batch_size * seq_len * embed_dim_ * dtype_size;
+
+  // Cache stats tensor for backward: [B, H, S, 1] in float
+  size_t stats_cache_bytes = batch_size * num_heads_ * seq_len * get_dtype_size(DType_t::FP32);
+
+  return input_cache_bytes + attn_out_cache_bytes + stats_cache_bytes;
 }
 
 size_t FlashAttentionBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
@@ -365,7 +382,8 @@ size_t FlashAttentionBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) 
     proj_ws = q_proj_->fwd_workspace({{batch_size, seq_len, embed_dim_}});
   }
 
-  return qkv_bytes + qkv_heads_bytes + attn_heads_bytes + cudnn_ws_bytes + proj_ws;
+  size_t total = qkv_bytes + qkv_heads_bytes + attn_heads_bytes + cudnn_ws_bytes + proj_ws;
+  return (total + 255) & ~static_cast<size_t>(255);
 }
 
 size_t FlashAttentionBlock::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
@@ -405,7 +423,8 @@ size_t FlashAttentionBlock::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) 
     proj_ws = q_proj_->bwd_workspace({{batch_size, seq_len, embed_dim_}});
   }
 
-  return qkv_bytes + qkv_heads_bytes + attn_heads_bytes + cudnn_ws_bytes + proj_ws;
+  size_t total = qkv_bytes + qkv_heads_bytes + attn_heads_bytes + cudnn_ws_bytes + proj_ws;
+  return (total + 255) & ~static_cast<size_t>(255);
 }
 
 std::unique_ptr<FlashAttentionBlock> FlashAttentionBlock::create_from_config(

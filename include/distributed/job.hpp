@@ -46,4 +46,15 @@ struct Job {
     return *this;
   }
 };
+
+template <typename Archiver>
+void archive(Archiver &archiver, const Job &job) {
+  archiver(job.mb_id, job.data);
+}
+
+template <typename Archiver>
+void archive(Archiver &archiver, Job &job) {
+  archiver(job.mb_id, job.data);
+}
+
 }  // namespace tnn

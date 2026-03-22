@@ -2,6 +2,7 @@
 
 #include <sys/types.h>
 
+#include <atomic>
 #include <cstdint>
 #include <iostream>
 #include <mutex>
@@ -10,14 +11,13 @@
 
 #include "device/dptr.hpp"
 #include "device/iallocator.hpp"
-#include "distributed/ibuffer.hpp"
 #include "packet.hpp"
 
 namespace tnn {
 class ISlicer {
 public:
   // Slices a buffer into multiple packets according to the implemented chunking strategy.
-  virtual std::vector<Packet> slice(IBuffer &&buffer) = 0;
+  virtual std::vector<Packet> slice(dptr &&buffer) = 0;
 
 protected:
   uint64_t get_id() { return current_id_.fetch_add(1); }
@@ -49,9 +49,9 @@ public:
   BlockSlicer(uint64_t block_size)
       : block_size_(block_size) {}
 
-  std::vector<Packet> slice(IBuffer &&buffer) override {
+  std::vector<Packet> slice(dptr &&buffer) override {
     uint64_t msg_id = get_id();
-    uint64_t total_size = buffer.size();
+    uint64_t total_size = buffer.capacity();
     uint32_t num_packets = static_cast<uint32_t>((total_size + block_size_ - 1) / block_size_);
     std::vector<Packet> packets;
     for (uint32_t i = 0; i < num_packets; ++i) {
@@ -76,9 +76,9 @@ public:
   NWaySlicer(uint64_t num_ways)
       : num_ways_(num_ways) {}
 
-  std::vector<Packet> slice(IBuffer &&buffer) override {
+  std::vector<Packet> slice(dptr &&buffer) override {
     uint64_t msg_id = this->get_id();
-    uint64_t total_size = buffer.size();
+    uint64_t total_size = buffer.capacity();
     uint32_t num_packets = static_cast<uint32_t>(num_ways_);
     std::vector<Packet> packets;
     uint64_t packet_size = (total_size + num_ways_ - 1) / num_ways_;

@@ -15,6 +15,7 @@
 
 #include "nn/activations_impl/base_activation.hpp"
 #include "nn/block.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "nn/layer.hpp"
 
 namespace tnn {
@@ -27,23 +28,25 @@ namespace tnn {
  */
 class ResidualBlock : public Block {
 private:
-  std::vector<std::unique_ptr<Layer>> main_path_;
-  std::vector<std::unique_ptr<Layer>> shortcut_path_;
+  std::unique_ptr<Sequential> main_path_;
+  std::unique_ptr<Sequential> shortcut_path_;
   std::unique_ptr<ActivationFunction> final_activation_;
   std::unordered_map<size_t, Tensor> pre_activation_cache_;
   std::unordered_map<size_t, Vec<Vec<size_t>>> input_shape_cache_;
   std::string activation_type_;
 
   std::vector<Layer *> layers() override {
-    std::vector<Layer *> layers;
-    for (auto &layer : main_path_) {
-      layers.push_back(layer.get());
+    std::vector<Layer *> all_layers{main_path_.get()};
+    if (shortcut_path_) {
+      all_layers.push_back(shortcut_path_.get());
     }
-    for (auto &layer : shortcut_path_) {
-      layers.push_back(layer.get());
-    }
-    return layers;
+    return all_layers;
   }
+
+  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                    size_t mb_id = 0) override;
+  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                     size_t mb_id = 0) override;
 
 public:
   /**
@@ -58,16 +61,16 @@ public:
                 const std::string &final_activation = "relu",
                 const std::string &name = "residual_block");
 
+  ResidualBlock(std::unique_ptr<Sequential> main_path, std::unique_ptr<Sequential> shortcut_path,
+                const std::string &final_activation = "relu",
+                const std::string &name = "residual_block");
+
   ResidualBlock(const ResidualBlock &other);
 
   static constexpr const char *TYPE_NAME = "residual_block";
 
-  void forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-               size_t mb_id = 0) override;
-  void backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                size_t mb_id = 0) override;
-
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;

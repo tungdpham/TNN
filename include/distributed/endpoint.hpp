@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include <any>
 #include <string>
 #include <unordered_map>
 
@@ -23,9 +24,11 @@ private:
   std::unordered_map<std::string, std::any> parameters_;
 
 public:
-  Endpoint() : type_(CommunicationType::NONE) {}
+  Endpoint()
+      : type_(CommunicationType::NONE) {}
 
-  explicit Endpoint(CommunicationType comm_type) : type_(comm_type) {}
+  explicit Endpoint(CommunicationType comm_type)
+      : type_(comm_type) {}
 
   CommunicationType type() const { return type_; }
 
@@ -213,6 +216,24 @@ public:
     return endpoint;
   }
 };
+
+template <typename Archiver>
+void archive(Archiver &archiver, const Endpoint &endpoint) {
+  std::string json_str = endpoint.to_json().dump();
+  archiver(json_str);
+}
+
+template <typename Archiver>
+void archive(Archiver &archiver, Endpoint &endpoint) {
+  std::string json_str;
+  archiver(json_str);
+  if (!json_str.empty()) {
+    nlohmann::json j = nlohmann::json::parse(json_str);
+    endpoint = Endpoint::from_json(j);
+  } else {
+    endpoint = Endpoint::empty();  // Reset to empty if empty JSON is provided
+  }
+}
 
 }  // namespace tnn
 

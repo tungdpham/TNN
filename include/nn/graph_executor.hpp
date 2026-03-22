@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-#include "device/del_allocator.hpp"
+#include "device/del_allocator_v2.hpp"
 #include "device/iallocator.hpp"
 #include "nn/graph.hpp"
 #include "type/type.hpp"
@@ -21,9 +21,9 @@ public:
     for (auto& [uid, node] : graph_.io_nodes()) {
       node_outputs_[&node] = Output{nullptr, nullptr};
     }
-    ws_allocator_ = DELAllocator::create(graph_.device(), defaultFlowHandle);
-    for (auto& op : graph_.ops()) {
-      op->layer()->set_allocator(*ws_allocator_);
+    ws_allocator_ = DELAllocatorV2::create(graph_.device(), defaultFlowHandle);
+    for (auto& edge : graph_.edges()) {
+      edge.op_node().layer()->set_allocator(*ws_allocator_);
     }
   }
 
@@ -44,10 +44,10 @@ public:
       }
       node_outputs_[&output_node].act = tensor;
     }
-    // assuming topologically sorted layers, execute forward pass
-    const auto& ops = graph_.ops();
-    for (OpNode* op : ops) {
-      forward(*op);
+    // assuming topologically sorted edges, execute forward pass
+    const auto& edges = graph_.edges();
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      forward(*it);
     }
   }
 
@@ -68,16 +68,16 @@ public:
       }
       node_outputs_[&input_node].grad = tensor;
     }
-    const auto& ops = graph_.ops();
-    for (auto it = ops.rbegin(); it != ops.rend(); ++it) {
-      backward(**it);
+    const auto& edges = graph_.edges();
+    for (auto it = edges.rbegin(); it != edges.rend(); ++it) {
+      backward(*it);
     }
   }
 
 private:
   Graph& graph_;
-  IAllocator& allocator_;                       // long lived tensors
-  std::shared_ptr<DELAllocator> ws_allocator_;  // workspace allocator. short lived tensors
+  IAllocator& allocator_;                         // long lived tensors
+  std::shared_ptr<DELAllocatorV2> ws_allocator_;  // workspace allocator. short lived tensors
 
   struct Output {
     Tensor act;
@@ -86,10 +86,11 @@ private:
 
   std::unordered_map<const IONode*, Output> node_outputs_;
 
-  void forward(OpNode& node) {
+  void forward(const Edge& edge) {
+    Layer* layer = edge.op_node().layer();
     Vec<Vec<size_t>> input_shapes;
     // gather inputs
-    const std::vector<IONode*>& input_nodes = node.inputs();
+    const std::vector<const IONode*>& input_nodes = edge.producers();
     Vec<ConstTensor> inputs;
     for (const auto& input_node : input_nodes) {
       const ConstTensor& act = node_outputs_[input_node].act;
@@ -101,12 +102,12 @@ private:
     }
 
     // gather outputs
-    const std::vector<IONode*>& output_nodes = node.outputs();
+    const std::vector<const IONode*>& output_nodes = edge.consumers();
     Vec<Tensor> outputs;
-    auto out_shapes = node.output_shapes(input_shapes);
+    auto out_shapes = layer->output_shapes(input_shapes);
     DType_t dtype = inputs[0]->data_type();
     for (size_t i = 0; i < output_nodes.size(); ++i) {
-      IONode* output_node = output_nodes[i];
+      const IONode* output_node = output_nodes[i];
       Vec<size_t> out_shape = out_shapes[i];
       Tensor& act = node_outputs_[output_node].act;
       if (!act) {
@@ -117,17 +118,18 @@ private:
       outputs.push_back(act);
     }
 
-    size_t ws_bytes = node.layer()->is_training()
-                          ? std::max(node.layer()->fwd_workspace(input_shapes),
-                                     node.layer()->bwd_workspace(input_shapes))
-                          : node.layer()->inf_workspace(input_shapes);
+    size_t ws_bytes = layer->is_training() ? layer->fwd_cache_bytes(input_shapes) +
+                                                 std::max(layer->fwd_workspace(input_shapes),
+                                                          layer->bwd_workspace(input_shapes))
+                                           : layer->inf_workspace(input_shapes);
     ws_allocator_->reserve(ws_bytes);
-    node.forward(inputs, outputs);
+    layer->forward(inputs, outputs);
   }
 
-  void backward(OpNode& node) {
+  void backward(const Edge& edge) {
+    Layer* layer = edge.op_node().layer();
     // gather upstream grad_output
-    const std::vector<IONode*>& output_nodes = node.outputs();
+    const std::vector<const IONode*>& output_nodes = edge.consumers();
     Vec<ConstTensor> gradients;
     for (const auto& output_node : output_nodes) {
       Tensor& grad = node_outputs_[output_node].grad;
@@ -139,7 +141,7 @@ private:
 
     // gather downstream grad_output
     Vec<Vec<size_t>> input_shapes;
-    const std::vector<IONode*>& input_nodes = node.inputs();
+    const std::vector<const IONode*>& input_nodes = edge.producers();
     Vec<Tensor> grad_inputs;
     for (const auto& input_node : input_nodes) {
       Tensor& grad = node_outputs_[input_node].grad;
@@ -157,7 +159,7 @@ private:
       grad_inputs.push_back(grad);
       input_shapes.push_back(input_act->shape());
     }
-    node.backward(gradients, grad_inputs);
+    layer->backward(gradients, grad_inputs);
   }
 };
 }  // namespace tnn

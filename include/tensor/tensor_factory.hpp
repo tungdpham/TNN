@@ -5,7 +5,6 @@
 #include "device/device_allocator.hpp"
 #include "device/iallocator.hpp"
 #include "tensor/tensor.hpp"
-#include "tensor/typed_tensor.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
@@ -13,69 +12,69 @@ namespace tnn {
 template <typename T>
 inline Tensor make_tensor(std::vector<size_t> shape, const Device &device = getHost()) {
   auto &allocator = DeviceAllocator::instance(device);
-  return std::make_shared<TypedTensor>(allocator, dtype_of<T>(), shape);
+  return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), shape);
 }
 
 template <typename T>
 inline Tensor make_tensor(std::vector<size_t> shape, const dptr &data,
                           const Device &device = getHost()) {
   auto &allocator = DeviceAllocator::instance(device);
-  return std::make_shared<TypedTensor>(allocator, dtype_of<T>(), shape, data);
+  return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), shape, data);
 }
 
 template <typename T>
 inline Tensor make_tensor(std::initializer_list<size_t> shape = {},
                           const Device &device = getHost()) {
   auto &allocator = DeviceAllocator::instance(device);
-  return std::make_shared<TypedTensor>(allocator, dtype_of<T>(), shape);
+  return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), shape);
 }
 
 template <typename T>
 inline Tensor make_tensor(std::initializer_list<size_t> shape, const dptr &data,
                           const Device &device = getHost()) {
   auto &allocator = DeviceAllocator::instance(device);
-  return std::make_shared<TypedTensor>(allocator, dtype_of<T>(), shape, data);
+  return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), shape, data);
 }
 
 inline Tensor make_tensor(DType_t dtype, std::vector<size_t> shape,
                           const Device &device = getHost()) {
   auto &allocator = DeviceAllocator::instance(device);
-  return std::make_shared<TypedTensor>(allocator, dtype, shape);
+  return std::make_shared<TensorImpl>(allocator, dtype, shape);
 }
 
 inline Tensor make_tensor(DType_t dtype, std::initializer_list<size_t> shape = {},
                           const Device &device = getHost()) {
   auto &allocator = DeviceAllocator::instance(device);
-  return std::make_shared<TypedTensor>(allocator, dtype, shape);
+  return std::make_shared<TensorImpl>(allocator, dtype, shape);
 }
 
 template <typename T>
 inline Tensor make_tensor(IAllocator &allocator, std::vector<size_t> shape, dptr &&data) {
-  return std::make_shared<TypedTensor>(allocator, dtype_of<T>(), std::move(data), shape);
+  return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), std::move(data), shape);
 }
 
 inline Tensor make_tensor(IAllocator &allocator, DType_t dtype, std::vector<size_t> shape,
                           dptr &&data) {
-  return std::make_shared<TypedTensor>(allocator, dtype, shape, std::move(data));
+  return std::make_shared<TensorImpl>(allocator, dtype, shape, std::move(data));
 }
 
 template <typename T>
 inline Tensor make_tensor(IAllocator &allocator, std::vector<size_t> shape) {
-  return std::make_shared<TypedTensor>(allocator, dtype_of<T>(), shape);
+  return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), shape);
 }
 
 template <typename T>
 inline Tensor make_tensor(IAllocator &allocator, std::initializer_list<size_t> shape = {}) {
-  return std::make_shared<TypedTensor>(allocator, dtype_of<T>(), std::vector<size_t>(shape));
+  return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), std::vector<size_t>(shape));
 }
 
 inline Tensor make_tensor(IAllocator &allocator, DType_t dtype, std::vector<size_t> shape) {
-  return std::make_shared<TypedTensor>(allocator, dtype, shape);
+  return std::make_shared<TensorImpl>(allocator, dtype, shape);
 }
 
 inline Tensor make_tensor(IAllocator &allocator, DType_t dtype,
                           std::initializer_list<size_t> shape = {}) {
-  return std::make_shared<TypedTensor>(allocator, dtype, shape);
+  return std::make_shared<TensorImpl>(allocator, dtype, shape);
 }
 
 inline Tensor create_like(const ConstTensor &other) {

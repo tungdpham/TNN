@@ -8,7 +8,6 @@
 
 #include <memory>
 
-#include "device/flow.hpp"
 #include "roce_communicator.hpp"
 #include "worker.hpp"
 
@@ -32,9 +31,7 @@ public:
    */
   explicit RoCEWorker(Endpoint worker_endpoint, bool use_gpu)
       : Worker(use_gpu) {
-    auto &allocator = PoolAllocator::instance(use_gpu ? getGPU() : getHost(), defaultFlowHandle);
-    auto communicator =
-        std::make_unique<RoCECommunicator>(worker_endpoint, allocator, RoCECommunicator::Config{});
+    auto communicator = RoCECommunicator::create(worker_endpoint, RoCECommunicator::Config{});
 
     communicator->start_server();
 

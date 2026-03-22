@@ -104,6 +104,11 @@ void CUDAContext::createFlow(flowHandle_t handle) {
   }
 }
 
+Endianness CUDAContext::get_endianness() const {
+  // CUDA devices are little-endian
+  return Endianness::LITTLE;
+}
+
 Flow *CUDAContext::getFlow(flowHandle_t handle) {
   auto it = flows_.find(handle);
   if (it == flows_.end()) {

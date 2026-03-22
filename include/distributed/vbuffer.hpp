@@ -10,17 +10,15 @@
 
 #include "device/dptr.hpp"
 #include "device/iallocator.hpp"
-#include "distributed/endian.hpp"
 
 namespace tnn {
 // the buffer of all time. almost like linked list of buffers
 class VBuffer {
 private:
-  constexpr static size_t MAX_K_INLINE_BUFFERS = 4;  // max number of inline buffers
+  constexpr static size_t MAX_K_INLINE_BUFFERS = 10;  // max number of inline buffers
   IAllocator &allocator_;
   std::deque<dptr> buffers_;  // inline buffer list
   size_t size_ = 0;
-  mutable Endianness endianess_ = get_system_endianness();
 
   void ensure(size_t required_size) {
     if (capacity() < required_size) {
@@ -61,9 +59,6 @@ public:
   }
 
   void reset() { size_ = 0; }
-
-  void set_endianess(Endianness endianess) const { endianess_ = endianess; }
-  Endianness get_endianess() const { return endianess_; }
 
   void clear() {
     buffers_.clear();
@@ -113,102 +108,5 @@ public:
   }
 
   const dptr get(size_t offset) const { return const_cast<VBuffer *>(this)->get(offset); }
-
-  template <typename T>
-  inline void write(size_t &offset, const T &value) {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Type must be trivially copyable (primitive or POD type)");
-    ensure(offset + sizeof(T));
-    dptr ptr = get(offset);
-    if (ptr.capacity() < sizeof(T)) {
-      throw std::runtime_error("Write operation spans multiple buffers, which is not supported");
-    }
-    ptr.copy_from_host(&value, sizeof(T));
-    offset += sizeof(T);
-  }
-
-  template <typename T>
-  inline void write(size_t &offset, const T *arr, size_t length) {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Type must be trivially copyable (primitive or POD type)");
-    ensure(offset + sizeof(T) * length);
-    size_t byte_size = sizeof(T) * length;
-    dptr ptr = get(offset);
-    if (ptr.capacity() < byte_size) {
-      throw std::runtime_error(
-          "Write operation spans multiple buffers, which is not supported yet");
-    }
-    ptr.copy_from_host(arr, byte_size);
-    offset += byte_size;
-  }
-
-  inline void write(size_t &offset, std::string str) {
-    write(offset, static_cast<uint64_t>(str.size()));
-    if (!str.empty()) {
-      write(offset, str.data(), str.size());
-    }
-  }
-
-  // append an existing buffer to the end
-  inline void append(dptr &&src) {
-    // shrink capacity of last buffer to fit current size if needed
-    if (!buffers_.empty() && size_ < capacity()) {
-      size_t excess_capacity = capacity() - size_;
-      while (excess_capacity > buffers_.back().capacity()) {
-        excess_capacity -= buffers_.back().capacity();
-        buffers_.pop_back();
-      }
-      auto &last_buf = buffers_.back();
-      last_buf = last_buf.span(0, last_buf.capacity() - excess_capacity);
-    }
-    size_ += src.capacity();
-    buffers_.emplace_back(std::move(src));
-  }
-
-  template <typename T>
-  inline void read(size_t &offset, T &value) const {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Type must be trivially copyable (primitive or POD type)");
-    check_offset(offset + sizeof(T));
-    const dptr ptr = get(offset);
-    if (ptr.capacity() < sizeof(T)) {
-      throw std::runtime_error("Read operation spans multiple buffers, which is not supported");
-    }
-    ptr.copy_to_host(&value, sizeof(T));
-    offset += sizeof(T);
-    if (endianess_ != get_system_endianness()) {
-      bswap(value);
-    }
-  }
-
-  template <typename T>
-  inline void read(size_t &offset, T *arr, size_t length) const {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Type must be trivially copyable (primitive or POD type)");
-    check_offset(offset + sizeof(T) * length);
-    size_t byte_size = sizeof(T) * length;
-    const dptr ptr = get(offset);
-    if (ptr.capacity() < byte_size) {
-      throw std::runtime_error("Read operation spans multiple buffers, which is not supported yet");
-    }
-    ptr.copy_to_host(arr, byte_size);
-    offset += byte_size;
-    if (endianess_ != get_system_endianness()) {
-      for (size_t i = 0; i < length; ++i) {
-        bswap(arr[i]);
-      }
-    }
-  }
-
-  inline void read(size_t &offset, std::string &str) const {
-    uint64_t str_length;
-    read(offset, str_length);
-    if (str_length > 0) {
-      str.resize(str_length);
-      read(offset, str.data(), str_length);
-    } else {
-      str.clear();
-    }
-  }
 };
 }  // namespace tnn

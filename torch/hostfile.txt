@@ -1,0 +1,2 @@
+10.10.0.2 slots=1   # node 0 (master)
+10.10.0.1 slots=1   # node 1

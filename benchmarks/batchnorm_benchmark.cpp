@@ -33,7 +33,19 @@ signed main() {
   auto relu_layer = make_unique<ActivationLayer>(std::make_unique<ReLU>(), "relu_activation");
   auto &legacy_bn_node = builder.add_layer(std::move(legacy_batchnorm_layer));
   auto &relu_node = builder.add_layer(std::move(relu_layer));
-  builder.output(bn_node, builder.input());
+
+  // Connect bn_node with input and output
+  IONode &input_node = builder.io("input");
+  IONode &output_node = builder.io("output");
+  builder.add_edge({&input_node}, {&output_node}, bn_node);
+
+  // Connect legacy_bn_node and relu_node in sequence
+  IONode &legacy_input_node = builder.io("legacy_input");
+  IONode &legacy_output_node = builder.io("relu_output");
+  IONode &legacy_intermediate = builder.io("legacy_bn_output");
+  builder.add_edge({&legacy_input_node}, {&legacy_intermediate}, legacy_bn_node);
+  builder.add_edge({&legacy_intermediate}, {&legacy_output_node}, relu_node);
+
   Graph graph = builder.compile(allocator);
 
   Tensor input = make_tensor<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, getGPU());

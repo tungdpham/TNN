@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "common/blob.hpp"
 #include "device/device.hpp"
 #include "device/device_type.hpp"
 #include "device/sref.hpp"
@@ -54,6 +55,16 @@ public:
     }
   }
 
+  dptr(void *ptr, size_t byte_size, const Device &device) {
+    if (ptr == nullptr && byte_size > 0) {
+      throw std::invalid_argument("Cannot create dptr with null pointer and non-zero size");
+    }
+    auto storage = std::make_shared<device_storage>(device, ptr, byte_size, DEFAULT_ALIGNMENT);
+    storage_ = storage;
+    offset_ = 0;
+    capacity_ = byte_size;
+  }
+
   dptr(std::nullptr_t)
       : storage_(nullptr),
         offset_(0),
@@ -61,7 +72,7 @@ public:
 
   operator bool() const { return storage_ != nullptr && storage_->data() != nullptr; }
 
-  const Device &getDevice() const { return storage_->device(); }
+  const Device &device() const { return storage_->device(); }
 
   DeviceType device_type() const {
     if (!storage_) {
@@ -140,6 +151,12 @@ public:
                                      byte_size);
   }
 };
+
+template <typename Archiver>
+void archive(Archiver &archiver, const dptr &dptr) {
+  archiver(static_cast<uint64_t>(dptr.capacity()));
+  archiver(make_blob(dptr.get<unsigned char>(), dptr.capacity(), dptr.device()));
+}
 
 inline dptr make_dptr(csref<Device> device, size_t byte_size,
                       size_t alignment = DEFAULT_ALIGNMENT) {

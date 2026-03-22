@@ -37,4 +37,15 @@ struct StageConfig {
   }
 };
 
+template <typename Archiver>
+void archive(Archiver &archiver, const StageConfig &config) {
+  archiver(config.model_config, config.optimizer_config, config.scheduler_config,
+           config.next_stage_endpoint, config.prev_stage_endpoint, config.coordinator_endpoint);
+}
+
+template <typename Archiver>
+void archive(Archiver &archiver, StageConfig &config) {
+  archiver(config.model_config, config.optimizer_config, config.scheduler_config,
+           config.next_stage_endpoint, config.prev_stage_endpoint, config.coordinator_endpoint);
+}
 }  // namespace tnn

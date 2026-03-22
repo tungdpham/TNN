@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <random>
 #include <type_traits>
@@ -470,6 +471,21 @@ template <typename A_T, typename B_T>
 void cast(const A_T *a, B_T *b, size_t size) {
   for (size_t i = 0; i < size; ++i) {
     b[i] = static_cast<B_T>(a[i]);
+  }
+}
+
+template <typename T>
+void bswap(const T *a, T *c, size_t size) {
+  for (size_t i = 0; i < size; ++i) {
+    c[i] = a[i];
+    if constexpr (sizeof(T) > 1) {
+      auto *bytes = reinterpret_cast<uint8_t *>(&c[i]);
+      for (size_t j = 0; j < sizeof(T) / 2; ++j) {
+        uint8_t tmp = bytes[j];
+        bytes[j] = bytes[sizeof(T) - 1 - j];
+        bytes[sizeof(T) - 1 - j] = tmp;
+      }
+    }
   }
 }
 

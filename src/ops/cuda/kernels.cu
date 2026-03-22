@@ -1,3 +1,5 @@
+#include "distributed/command_type.hpp"
+#include "distributed/packet.hpp"
 #include "ops/cuda/kernels.hpp"
 #include "type/type.hpp"
 
@@ -497,6 +499,56 @@ template <typename T>
 T cuda_sum_squared_diff(const T* a, T mean, size_t size, cudaStream_t stream) {
   return dispatch_reduce<T, 2>(a, nullptr, mean, size, stream);
 }
+
+// Bswap kernel implementation
+template <typename T>
+__device__ __forceinline__ T device_bswap(T val) {
+  if constexpr (sizeof(T) == 1) {
+    return val;
+  } else if constexpr (sizeof(T) == 2) {
+    uint32_t u = 0;
+    memcpy(&u, &val, 2);
+    u = __byte_perm(u, 0, 0x0001);
+    memcpy(&val, &u, 2);
+    return val;
+  } else if constexpr (sizeof(T) == 4) {
+    uint32_t u;
+    memcpy(&u, &val, 4);
+    u = __byte_perm(u, 0, 0x0123);
+    memcpy(&val, &u, 4);
+    return val;
+  } else if constexpr (sizeof(T) == 8) {
+    uint32_t lo, hi;
+    memcpy(&lo, (const char*)&val + 0, 4);
+    memcpy(&hi, (const char*)&val + 4, 4);
+    uint32_t new_lo = __byte_perm(hi, 0, 0x0123);
+    uint32_t new_hi = __byte_perm(lo, 0, 0x0123);
+    memcpy((char*)&val + 0, &new_lo, 4);
+    memcpy((char*)&val + 4, &new_hi, 4);
+    return val;
+  } else {
+    static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
+                  "cuda_bswap: unsupported type size");
+    return val;
+  }
+}
+
+template <typename T>
+__global__ void bswap_kernel(const T* __restrict__ a, T* __restrict__ c, size_t size) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    c[idx] = device_bswap(a[idx]);
+  }
+}
+
+template <typename T>
+void cuda_bswap(const T* a, T* c, size_t size, cudaStream_t stream) {
+  if (size == 0) return;
+  int blocks = get_num_blocks(size);
+  bswap_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, c, size);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "bswap", __FILE__, __LINE__);
+}
+
 // Cast kernel implementation
 template <typename A_T, typename B_T>
 __global__ void cast_kernel(const A_T* __restrict__ a, B_T* __restrict__ b, size_t size) {
@@ -578,7 +630,8 @@ INSTANTIATE_CAST(int, double)
 
 #define INSTANTIATE_UNARY(T)                                      \
   template void cuda_sqrt<T>(const T*, T*, size_t, cudaStream_t); \
-  template void cuda_abs<T>(const T*, T*, size_t, cudaStream_t);
+  template void cuda_abs<T>(const T*, T*, size_t, cudaStream_t);  \
+  template void cuda_bswap<T>(const T*, T*, size_t, cudaStream_t);
 
 #define INSTANTIATE_UTILS(T)                                                                     \
   template void cuda_copy<T>(const T*, T*, size_t, cudaStream_t);                                \
@@ -649,6 +702,23 @@ INSTANTIATE_UTILS(double)
 INSTANTIATE_UTILS(int)
 INSTANTIATE_UTILS(unsigned long)
 
+#define INSTANTIATE_COPY(T)                                           \
+  template void cuda_copy<T>(const T*, T*, size_t, cudaStream_t);     \
+  template void cuda_h2d_copy<T>(const T*, T*, size_t, cudaStream_t); \
+  template void cuda_d2h_copy<T>(const T*, T*, size_t, cudaStream_t); \
+  template void cuda_bswap<T>(const T*, T*, size_t, cudaStream_t);
+
+INSTANTIATE_COPY(bool)
+INSTANTIATE_COPY(unsigned short)
+INSTANTIATE_COPY(long)
+INSTANTIATE_COPY(unsigned int)
+INSTANTIATE_COPY(tnn::DType_t)
+INSTANTIATE_COPY(tnn::CommandType)
+INSTANTIATE_COPY(tnn::CompressionType)
+INSTANTIATE_COPY(tnn::PacketType)
+INSTANTIATE_COPY(tnn::Endianness)
+
+#undef INSTANTIATE_COPY
 #undef INSTANTIATE_BIN
 #undef INSTANTIATE_BIN_INT
 

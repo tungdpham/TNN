@@ -17,10 +17,10 @@ namespace ops {
 template <typename T>
 std::unique_ptr<Task> add(const dptr a, const dptr b, dptr c, size_t size,
                           flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("add: All device pointers must be on the same device");
   }
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -39,11 +39,11 @@ std::unique_ptr<Task> add(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> sub(const dptr a, const dptr b, dptr c, size_t size,
                           flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("sub: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -62,11 +62,11 @@ std::unique_ptr<Task> sub(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> mul(const dptr a, const dptr b, dptr c, size_t size,
                           flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("mul: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -85,11 +85,11 @@ std::unique_ptr<Task> mul(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> div(const dptr a, const dptr b, dptr c, size_t size,
                           flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("div: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -108,11 +108,11 @@ std::unique_ptr<Task> div(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> fmadd(const dptr a, const dptr b, dptr c, size_t size,
                             flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("fmadd: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -131,11 +131,11 @@ std::unique_ptr<Task> fmadd(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> fmsub(const dptr a, const dptr b, dptr c, size_t size,
                             flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("fmsub: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -154,11 +154,11 @@ std::unique_ptr<Task> fmsub(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> fnmadd(const dptr a, const dptr b, dptr c, size_t size,
                              flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("fnmadd: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -177,11 +177,11 @@ std::unique_ptr<Task> fnmadd(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> add_scalar(const dptr a, T scalar, dptr c, size_t size,
                                  flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("add_scalar: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -200,11 +200,11 @@ std::unique_ptr<Task> add_scalar(const dptr a, T scalar, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> sub_scalar(const dptr a, T scalar, dptr c, size_t size,
                                  flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("sub_scalar: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -223,11 +223,11 @@ std::unique_ptr<Task> sub_scalar(const dptr a, T scalar, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> mul_scalar(const dptr a, T scalar, dptr c, size_t size,
                                  flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("mul_scalar: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -246,11 +246,11 @@ std::unique_ptr<Task> mul_scalar(const dptr a, T scalar, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> div_scalar(const dptr a, T scalar, dptr c, size_t size,
                                  flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("div_scalar: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -269,7 +269,7 @@ std::unique_ptr<Task> div_scalar(const dptr a, T scalar, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> set_scalar(dptr c, T scalar, size_t size,
                                  flowHandle_t handle = defaultFlowHandle) {
-  const auto &device = c.getDevice();
+  const auto &device = c.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -288,11 +288,11 @@ std::unique_ptr<Task> set_scalar(dptr c, T scalar, size_t size,
 template <typename T>
 std::unique_ptr<Task> axpy(T alpha, const dptr x, dptr y, size_t size,
                            flowHandle_t handle = defaultFlowHandle) {
-  if (x.getDevice() != y.getDevice()) {
+  if (x.device() != y.device()) {
     throw std::runtime_error("axpy: All device pointers must be on the same device");
   }
 
-  const auto &device = x.getDevice();
+  const auto &device = x.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -311,11 +311,11 @@ std::unique_ptr<Task> axpy(T alpha, const dptr x, dptr y, size_t size,
 template <typename T>
 std::unique_ptr<Task> sqrt(const dptr a, dptr c, size_t size,
                            flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("sqrt: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -334,11 +334,11 @@ std::unique_ptr<Task> sqrt(const dptr a, dptr c, size_t size,
 template <typename T>
 inline std::unique_ptr<Task> rsqrt(const dptr a, dptr c, size_t size,
                                    flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("rsqrt: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -357,11 +357,11 @@ inline std::unique_ptr<Task> rsqrt(const dptr a, dptr c, size_t size,
 template <typename T>
 inline std::unique_ptr<Task> rcp(const dptr a, dptr c, size_t size,
                                  flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("rcp: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -380,11 +380,11 @@ inline std::unique_ptr<Task> rcp(const dptr a, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> abs(const dptr a, dptr c, size_t size,
                           flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("abs: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -403,11 +403,11 @@ std::unique_ptr<Task> abs(const dptr a, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> min(const dptr a, const dptr b, dptr c, size_t size,
                           flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("min: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -426,11 +426,11 @@ std::unique_ptr<Task> min(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> max(const dptr a, const dptr b, dptr c, size_t size,
                           flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("max: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -449,11 +449,11 @@ std::unique_ptr<Task> max(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> scalar_max(const dptr a, T scalar, dptr c, size_t size,
                                  flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("scalar_max: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -472,11 +472,11 @@ std::unique_ptr<Task> scalar_max(const dptr a, T scalar, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> clamp(const dptr a, T min_val, T max_val, dptr c, size_t size,
                             flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("clamp: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -496,11 +496,11 @@ std::unique_ptr<Task> clamp(const dptr a, T min_val, T max_val, dptr c, size_t s
 template <typename T>
 std::unique_ptr<Task> equal(const dptr a, const dptr b, dptr c, size_t size,
                             flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("equal: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -519,11 +519,11 @@ std::unique_ptr<Task> equal(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> greater(const dptr a, const dptr b, dptr c, size_t size,
                               flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+  if (a.device() != b.device() || a.device() != c.device()) {
     throw std::runtime_error("greater: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -543,7 +543,7 @@ std::unique_ptr<Task> greater(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> copy(const dptr a, dptr c, size_t size,
                            flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("copy: All device pointers must be on the same device");
   }
 
@@ -551,7 +551,7 @@ std::unique_ptr<Task> copy(const dptr a, dptr c, size_t size,
     throw std::runtime_error("copy: Null pointer exception in copy operation");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -571,8 +571,8 @@ std::unique_ptr<Task> copy(const dptr a, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> cd_copy(const dptr a, dptr c, size_t size,
                               flowHandle_t handle = defaultFlowHandle) {
-  const auto &a_device = a.getDevice();
-  const auto &c_device = c.getDevice();
+  const auto &a_device = a.device();
+  const auto &c_device = c.device();
   if (a_device == c_device) {
     // same device copy
     return copy<T>(a, c, size, handle);
@@ -600,8 +600,31 @@ std::unique_ptr<Task> cd_copy(const dptr a, dptr c, size_t size,
 }
 
 template <typename T>
+std::unique_ptr<Task> bswap(const dptr a, dptr c, size_t size,
+                            flowHandle_t handle = defaultFlowHandle) {
+  if (a.device() != c.device()) {
+    throw std::runtime_error("bswap: All device pointers must be on the same device");
+  }
+
+  const auto &device = a.device();
+  auto device_type = device.device_type();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(handle, cpu::bswap<T>, a.get<T>(), c.get<T>(), size);
+  } else if (device_type == DeviceType::GPU) {
+#ifdef USE_CUDA
+    return create_cuda_task(handle, cuda::cuda_bswap<T>, a.get<T>(), c.get<T>(), size);
+#else
+    throw std::runtime_error("bswap: CUDA support not compiled in");
+#endif
+  } else {
+    throw std::runtime_error("bswap: Unsupported device type");
+  }
+}
+
+template <typename T>
 std::unique_ptr<Task> zero(dptr c, size_t size, flowHandle_t handle = defaultFlowHandle) {
-  const auto &device = c.getDevice();
+  const auto &device = c.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -619,7 +642,7 @@ std::unique_ptr<Task> zero(dptr c, size_t size, flowHandle_t handle = defaultFlo
 
 template <typename T>
 T sum(dptr a, size_t size) {
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -637,11 +660,11 @@ T sum(dptr a, size_t size) {
 
 template <typename T>
 T dot_product(dptr a, dptr b, size_t size) {
-  if (a.getDevice() != b.getDevice()) {
+  if (a.device() != b.device()) {
     throw std::runtime_error("dot_product: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -659,7 +682,7 @@ T dot_product(dptr a, dptr b, size_t size) {
 
 template <typename T>
 T norm_squared(dptr a, size_t size) {
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -677,7 +700,7 @@ T norm_squared(dptr a, size_t size) {
 
 template <typename T>
 T sum_squared_diff(const dptr a, T mean, size_t size) {
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -696,11 +719,11 @@ T sum_squared_diff(const dptr a, T mean, size_t size) {
 template <typename T>
 std::unique_ptr<Task> sub_mul_scalar(const dptr a, T sub_scalar, T mul_scalar, dptr c, size_t size,
                                      flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("sub_mul_scalar: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -721,11 +744,11 @@ std::unique_ptr<Task> sub_mul_scalar(const dptr a, T sub_scalar, T mul_scalar, d
 template <typename T>
 std::unique_ptr<Task> mul_add_scalar(const dptr a, T mul_scalar, T add_scalar, dptr c, size_t size,
                                      flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != c.getDevice()) {
+  if (a.device() != c.device()) {
     throw std::runtime_error("mul_add_scalar: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -747,7 +770,7 @@ template <typename T>
 std::unique_ptr<Task> fill_random_uniform(dptr data, size_t size, T min_val, T max_val,
                                           unsigned long long seed,
                                           flowHandle_t handle = defaultFlowHandle) {
-  const auto &device = data.getDevice();
+  const auto &device = data.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -769,7 +792,7 @@ template <typename T>
 std::unique_ptr<Task> fill_random_normal(dptr data, size_t size, T mean, T stddev,
                                          unsigned long long seed,
                                          flowHandle_t handle = defaultFlowHandle) {
-  const auto &device = data.getDevice();
+  const auto &device = data.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -790,11 +813,11 @@ std::unique_ptr<Task> fill_random_normal(dptr data, size_t size, T mean, T stdde
 template <typename A_T, typename B_T>
 std::unique_ptr<Task> cast(const dptr a, dptr b, size_t size,
                            flowHandle_t handle = defaultFlowHandle) {
-  if (a.getDevice() != b.getDevice()) {
+  if (a.device() != b.device()) {
     throw std::runtime_error("cast: All device pointers must be on the same device");
   }
 
-  const auto &device = a.getDevice();
+  const auto &device = a.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {

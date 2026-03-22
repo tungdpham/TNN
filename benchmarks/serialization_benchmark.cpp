@@ -3,16 +3,13 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include "device/device_allocator.hpp"
 #include "device/device_manager.hpp"
+#include "device/flow.hpp"
+#include "device/pool_allocator.hpp"
 #include "distributed/binary_serializer.hpp"
-#include "distributed/ibuffer.hpp"
 #include "distributed/job.hpp"
 #include "distributed/message.hpp"
-#include "distributed/vbuffer.hpp"
-#include "distributed/vserializer.hpp"
 #include "tensor/tensor.hpp"
-#include "type/type.hpp"
 #include "utils/misc.hpp"
 
 using namespace tnn;
@@ -22,43 +19,43 @@ constexpr size_t data_size = 256 * 512 * 16 * 16;
 
 signed main() {
   Tensor tensor = make_tensor<float>({data_size});
+  tensor->fill_random_normal(0.0, 0.5);
   Job job;
   job.mb_id = microbatch_id;
   job.data = tensor->clone();
   Message message(CommandType::FORWARD_JOB, std::move(job));
 
-  auto &device_allocator = DeviceAllocator::instance(getHost());
+  auto &device_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
 
   BinarySerializer bserializer(device_allocator);
-  IBuffer tbuffer(device_allocator, data_size * sizeof(float) + 1024);  // extra space for metadata
+  dptr buffer = device_allocator.allocate(data_size * sizeof(float) + 1024);
 
   std::vector<float> raw_data(data_size, 1.2345f);
   Tensor temp = make_tensor<float>({data_size});
 
-  VSerializer vserializer(device_allocator);
-  VBuffer vbuffer(device_allocator);
-  vbuffer.alloc(device_allocator.allocate(message.size()));
-  vbuffer.resize(message.size());
-
   benchmark(
       "BinarySerializer - Serialization",
       [&]() {
-        size_t serialize_offset = 0;
-        bserializer.serialize(tbuffer, serialize_offset, message);
+        Writer writer(buffer);
+        bserializer.serialize(writer, message);
       },
       10);
 
   benchmark(
       "BinarySerializer - Deserialization",
       [&]() {
-        size_t deserialize_offset = 0;
-        bserializer.deserialize(tbuffer, deserialize_offset, message);
+        // size_t deserialize_offset = 0
+        Reader reader(buffer);
+        bserializer.deserialize(reader, message);
       },
       10);
 
   // verify integrity
   {
-    std::cout << message.size() << " vs " << tbuffer.size() << std::endl;
+    Sizer sizer;
+    sizer(message);
+    size_t msg_size = sizer.size();
+    std::cout << msg_size << " vs " << buffer.capacity() << std::endl;
     auto &deserialized_job = message.get<Job>();
     auto &deserialized_tensor = deserialized_job.data;
     std::cout << "Deserialized tensor size: " << deserialized_tensor->size() << std::endl;
@@ -80,26 +77,6 @@ signed main() {
                     data_size * sizeof(float));
       },
       10);
-
-  benchmark(
-      "VSerializer - Serialization",
-      [&]() {
-        size_t serialize_offset = 0;
-        std::cout << "Message size: " << message.size() << std::endl;
-        vserializer.serialize(vbuffer, serialize_offset, std::move(message));
-        std::cout << "vbuffer capacity: " << vbuffer.capacity() << ", size: " << vbuffer.size()
-                  << std::endl;
-        size_t deserialize_offset = 0;
-        vserializer.deserialize(vbuffer, deserialize_offset, message);
-        auto deserialized_tensor = message.get<Job>().data;
-        assert(deserialized_tensor->size() == data_size);
-        assert(deserialized_tensor->dims() == 1);
-        assert(deserialized_tensor->data_type() == DType_t::FP32);
-        for (size_t i = 0; i < data_size; i++) {
-          assert(std::abs(raw_data[i] - deserialized_tensor->at<float>({i})) < 1e-6);
-        }
-      },
-      1);
 
   return 0;
 }

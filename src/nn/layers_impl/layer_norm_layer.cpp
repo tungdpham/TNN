@@ -10,6 +10,7 @@
 #include <type_traits>
 
 #include "device/task.hpp"
+#include "nn/layer.hpp"
 #include "nn/layers_impl/common/layer_norm.hpp"
 #include "nn/layers_impl/cpu/layer_norm_ops.hpp"
 #include "utils/misc.hpp"
@@ -207,14 +208,12 @@ void LayerNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
   size_t shape_key = get_shape_hash({batch_size, channels});
 
   cuda::cudnn_layer_norm::feHandle_t *fe_handle = nullptr;
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
 
   fe_handle = fe_handle_cache.at(shape_key);
   LayerNormStats &current_stats = stats_cache.at(shape_key);
 
   size_t workspace_size = current_stats.fwd_workspace_size;
-  size_t workspace_elements = (workspace_size + io_dtype_size - 1) / io_dtype_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_elements});
+  Tensor cudnn_workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
 
   // Cache mean and inv_variance for backward pass (like batch norm)
   Tensor &batch_mean = this->get_mutable_tensor(mb_id, "batch_mean");
@@ -257,10 +256,8 @@ void LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor
   cuda::cudnn_layer_norm::feHandle_t *fe_handle = fe_handle_cache.at(shape_key);
   LayerNormStats &current_stats = stats_cache.at(shape_key);
 
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
   size_t workspace_size = current_stats.bwd_workspace_size;
-  size_t workspace_elements = (workspace_size + io_dtype_size - 1) / io_dtype_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_elements});
+  Tensor cudnn_workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
 
   // Retrieve cached mean and inv_variance from forward pass (like batch norm)
   const Tensor &batch_mean = this->get_mutable_tensor(mb_id, "batch_mean");
@@ -343,6 +340,16 @@ void LayerNormLayer::backward_impl(const ConstTensor &grad_output, const Tensor 
   }
 }
 
+size_t LayerNormLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  auto &shape = input_shapes[0];
+  if (shape.empty() || shape.size() < 2) return 0;
+  size_t batch_size = 1;
+  for (size_t i = 0; i < shape.size() - 1; ++i) {
+    batch_size *= shape[i];
+  }
+  return batch_size * sizeof(float) + batch_size * sizeof(float);  // mean + inv_variance
+}
+
 size_t LayerNormLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto &shape = input_shapes[0];
   if (shape.empty() || shape.size() < 2) return 0;
@@ -354,7 +361,8 @@ size_t LayerNormLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const
   for (size_t i = 0; i < shape.size() - 1; ++i) batch_size *= shape[i];
   size_t shape_key = get_shape_hash({batch_size, channels});
   const LayerNormStats &stats = stats_cache.at(shape_key);
-  return stats.fwd_workspace_size;
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif
@@ -375,7 +383,7 @@ size_t LayerNormLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const
   for (size_t i = 0; i < shape.size() - 1; ++i) batch_size *= shape[i];
   size_t shape_key = get_shape_hash({batch_size, channels});
   const LayerNormStats &stats = stats_cache.at(shape_key);
-  return stats.bwd_workspace_size;
+  return stats.bwd_workspace_size + get_shapes_bytes(input_shapes, io_dtype_);
 #else
   return 0;
 #endif

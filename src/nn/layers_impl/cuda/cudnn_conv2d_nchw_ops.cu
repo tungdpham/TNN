@@ -95,7 +95,7 @@ ConvolutionHandle* initialize_convolution_handle(cudnnHandle_t shared_handle,
     if (fwd_perf[i].status == CUDNN_STATUS_SUCCESS &&
         (workspace_limit_bytes == 0 || fwd_perf[i].memory <= workspace_limit_bytes)) {
       handle->fwd_algo = fwd_perf[i].algo;
-      stats.fwd_workspace_size = fwd_perf[i].memory;
+      stats.fwd_workspace_size = (fwd_perf[i].memory + 255) & ~static_cast<size_t>(255);
       found_fwd = true;
 
       break;
@@ -115,7 +115,7 @@ ConvolutionHandle* initialize_convolution_handle(cudnnHandle_t shared_handle,
     if (bwd_data_perf[i].status == CUDNN_STATUS_SUCCESS &&
         (workspace_limit_bytes == 0 || bwd_data_perf[i].memory <= workspace_limit_bytes)) {
       handle->bwd_data_algo = bwd_data_perf[i].algo;
-      stats.dgrad_workspace_size = bwd_data_perf[i].memory;
+      stats.dgrad_workspace_size = (bwd_data_perf[i].memory + 255) & ~static_cast<size_t>(255);
       found_bwd_data = true;
 
       break;
@@ -135,7 +135,7 @@ ConvolutionHandle* initialize_convolution_handle(cudnnHandle_t shared_handle,
     if (bwd_filter_perf[i].status == CUDNN_STATUS_SUCCESS &&
         (workspace_limit_bytes == 0 || bwd_filter_perf[i].memory <= workspace_limit_bytes)) {
       handle->bwd_filter_algo = bwd_filter_perf[i].algo;
-      stats.wgrad_workspace_size = bwd_filter_perf[i].memory;
+      stats.wgrad_workspace_size = (bwd_filter_perf[i].memory + 255) & ~static_cast<size_t>(255);
       found_bwd_filter = true;
 
       break;

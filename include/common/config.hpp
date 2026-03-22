@@ -102,4 +102,22 @@ private:
   static std::any json_to_value(const nlohmann::json &type_value_pair);
 };
 
+template <typename Archiver>
+void archive(Archiver &archiver, const TConfig &config) {
+  const std::string json_str = config.to_json().dump();
+  archiver(json_str);
+}
+
+template <typename Archiver>
+void archive(Archiver &archiver, TConfig &config) {
+  std::string json_str;
+  archiver(json_str);
+  if (!json_str.empty()) {
+    nlohmann::json j = nlohmann::json::parse(json_str);
+    config = TConfig::from_json(j);
+  } else {
+    config = TConfig();  // Reset to default if empty JSON is provided
+  }
+}
+
 }  // namespace tnn

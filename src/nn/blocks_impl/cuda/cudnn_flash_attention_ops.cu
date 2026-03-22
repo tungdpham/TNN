@@ -142,7 +142,8 @@ static void build_fwd_graph(feHandle_t* handle, AttentionStats& stats) {
   handle->fwd_v = V;
   handle->fwd_o = O;
   handle->fwd_stats = Stats;
-  stats.fwd_workspace_size = static_cast<size_t>(workspace_size);
+  stats.fwd_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void build_bwd_graph(feHandle_t* handle, AttentionStats& stats) {
@@ -231,7 +232,8 @@ static void build_bwd_graph(feHandle_t* handle, AttentionStats& stats) {
   handle->bwd_dQ = dQ;
   handle->bwd_dK = dK;
   handle->bwd_dV = dV;
-  stats.bwd_workspace_size = static_cast<size_t>(workspace_size);
+  stats.bwd_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void rebuild_all_graphs(feHandle_t* handle, AttentionStats& stats) {

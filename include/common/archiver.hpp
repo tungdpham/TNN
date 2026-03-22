@@ -1,19 +1,32 @@
 #pragma once
 
-#include <cstddef>
 #include <cstring>
 #include <type_traits>
+#include <utility>
+#include <variant>
 
 #include "common/blob.hpp"
-#include "device/dptr.hpp"
 
 namespace tnn {
 
 template <typename Derived>
 class IArchiver;
 
+template <typename T>
+struct ExactType {
+  template <typename U>
+  operator U() const
+    requires(std::is_same_v<T, U>);
+};
+
 template <typename T, typename Derived>
-concept Archivable = requires(T t, IArchiver<Derived>& archiver) { t.archive(archiver); };
+concept ModifiableArchivable = requires(T& t, IArchiver<Derived>& a) { archive(a, t); };
+
+template <typename T, typename Derived>
+concept ConstArchivable = requires(const T& t, IArchiver<Derived>& a) { archive(a, t); };
+
+template <typename T, typename Derived>
+concept Archivable = ModifiableArchivable<T, Derived> || ConstArchivable<T, Derived>;
 
 template <typename T>
 concept TriviallyArchivable = (std::is_fundamental_v<T> || std::is_enum_v<T>) &&
@@ -31,116 +44,111 @@ concept IsBlob = is_blob<std::remove_cvref_t<T>>::value;
 template <typename T>
 concept always_false = false;
 
-// Derived archiver class should implement archive_impl(const T* data, size_t count)
-// Optionally implement archive_dptr_impl(dptr& data) for dptr type if supported.
+// Derived class should implement archive_impl(const T* data, size_t count, const Device& device)
+// Archivable types should implement archive(Archiver& archiver, const Derived& obj) method outside
+// of the class definition for read only archivers and possibly archive(Archiver& archiver, Derived&
+// obj) for write archivers.
 template <typename Derived>
 class IArchiver {
 public:
-  template <typename T>
-  Derived& operator&(T& data) {
-    process(data);
+  template <typename... Args>
+  Derived& operator()(const Args&... args) {
+    (dispatch<true>(args), ...);  // Force true (const) path
     return static_cast<Derived&>(*this);
   }
 
-  template <typename T>
-  Derived& operator&(const T& data) {
-    process(data);
+  template <typename... Args>
+  Derived& operator()(Args&... args) {
+    (dispatch<false>(args), ...);
     return static_cast<Derived&>(*this);
   }
 
-  template <typename T>
-  Derived& operator&(T&& data) {
-    process(data);
+  template <typename... Args>
+  Derived& operator()(Args&&... args) {
+    (dispatch_rvalue(std::forward<Args>(args)), ...);
     return static_cast<Derived&>(*this);
   }
 
 private:
   template <typename T>
-  void process(T& data) {
+  void dispatch_rvalue(T&& data) {
+    using RawT = std::remove_cvref_t<T>;
+    if constexpr (IsBlob<RawT>) {
+      constexpr bool IsConstBlob = std::is_const_v<typename RawT::value_type>;
+      dispatch<IsConstBlob>(data);
+    } else {
+      dispatch<std::is_const_v<std::remove_reference_t<T>>>(data);
+    }
+  }
+
+  // preserves constness of parent.
+  template <bool IsConstContext, typename T>
+  void dispatch(T& data) {
     auto& self = static_cast<Derived&>(*this);
-    using RawT = std::remove_cv_t<T>;
+    using EffectiveT = std::conditional_t<IsConstContext, const T, T>;
+    EffectiveT& ref = static_cast<EffectiveT&>(data);
+
+    using RawT = std::remove_cvref_t<T>;
+
     if constexpr (Archivable<RawT, Derived>) {
-      data.archive(self);
+      archive(self, ref);
     } else if constexpr (TriviallyArchivable<RawT>) {
-      self.archive_impl(&data, 1);
+      self.archive_impl(&ref, 1, getHost());
     } else if constexpr (IsBlob<RawT>) {
-      self.archive_impl(&data.count, 1);
-      self.archive_impl(data.ptr, data.count);
-    } else if constexpr (std::is_same_v<RawT, dptr>) {
-      self.archive_dptr_impl(data);
+      if constexpr (TriviallyArchivable<typename RawT::value_type>) {
+        self.archive_impl(ref.ptr, ref.count, ref.device);
+      } else {
+        for (size_t i = 0; i < ref.count; ++i) {
+          this->dispatch<IsConstContext>(ref.ptr[i]);
+        }
+      }
     } else {
       static_assert(always_false<RawT>, "Type is not archivable");
     }
   }
 };
 
-// Examples of concrete archivers
-class SizeArchiver : public IArchiver<SizeArchiver> {
-private:
-  size_t size_ = 0;
+// common types
+template <typename Archiver>
+void archive(Archiver& archiver, const std::monostate&) {
+  // No data to archive for std::monostate
+}
 
-public:
-  template <typename T>
-  void archive_impl(const T* data, size_t count) {
-    size_ += sizeof(T) * count;
+template <typename Archiver>
+void archive(Archiver& archiver, std::monostate&) {
+  // No data to archive for std::monostate
+}
+
+template <typename Archiver>
+void archive(Archiver& archiver, const std::string& str) {
+  archiver(static_cast<uint64_t>(str.size()));
+  archiver(make_blob(str.data(), str.size()));
+}
+
+template <typename Archiver>
+void archive(Archiver& archiver, std::string& str) {
+  uint64_t str_size = str.size();
+  archiver(str_size);
+  str.resize(str_size);
+  archiver(make_blob(str.data(), str.size()));
+}
+
+template <typename Archiver>
+void archive(Archiver& archiver, const std::vector<size_t>& vec) {
+  archiver(static_cast<uint64_t>(vec.size()));
+  if (!vec.empty()) {
+    archiver(make_blob(vec.data(), vec.size(), getHost()));
   }
+}
 
-  void archive_dptr_impl(dptr& data) {
-    size_ += sizeof(uint64_t);  // for storing the size
-    size_ += data.capacity();
+template <typename Archiver>
+void archive(Archiver& archiver, std::vector<size_t>& vec) {
+  uint64_t vec_size = vec.size();
+  archiver(vec_size);
+  vec.resize(vec_size);
+  if (!vec.empty()) {
+    archiver(make_blob(vec.data(), vec.size(), getHost()));
   }
-
-  size_t size() const { return size_; }
-};
-
-class OutArchiver : public IArchiver<OutArchiver> {
-private:
-  char* buffer_;
-  size_t offset_ = 0;
-
-public:
-  OutArchiver(char* buffer, size_t size)
-      : buffer_(buffer) {}
-
-  template <typename T>
-  void archive_impl(const T* data, size_t count) {
-    std::memcpy(buffer_ + offset_, data, sizeof(T) * count);
-    offset_ += sizeof(T) * count;
-  }
-
-  void archive_dptr_impl(dptr& data) {
-    uint64_t byte_size = data.capacity();
-    archive_impl(&byte_size, 1);
-    data.copy_to_host(buffer_ + offset_, byte_size);
-    offset_ += data.capacity();
-  }
-
-  size_t bytes_written() const { return offset_; }
-};
-
-class InArchiver : public IArchiver<InArchiver> {
-private:
-  const char* buffer_;
-  size_t offset_ = 0;
-
-public:
-  InArchiver(const char* buffer, size_t size)
-      : buffer_(buffer) {}
-
-  template <typename T>
-  void archive_impl(T* data, size_t count) {
-    std::memcpy(data, buffer_ + offset_, sizeof(T) * count);
-    offset_ += sizeof(T) * count;
-  }
-
-  void archive_dptr_impl(dptr& data) {
-    uint64_t byte_size;
-    archive_impl(&byte_size, 1);
-    data.copy_from_host(buffer_ + offset_, byte_size);
-    offset_ += byte_size;
-  }
-
-  size_t bytes_read() const { return offset_; }
-};
+}
 
 }  // namespace tnn

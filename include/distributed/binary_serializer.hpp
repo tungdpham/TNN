@@ -2,29 +2,17 @@
 
 #include <sys/types.h>
 
-#include <concepts>
 #include <cstdint>
+#include <variant>
 
-#include "device/dptr.hpp"
 #include "device/iallocator.hpp"
-#include "endian.hpp"
+#include "distributed/io.hpp"
+#include "distributed/stage_config.hpp"
 #include "message.hpp"
 #include "packet.hpp"
 #include "profiling/profiler.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
-
-template <typename VariantType, typename T, uint64_t index = 0>
-constexpr uint64_t variant_index() {
-  static_assert(std::variant_size_v<VariantType> > index, "Type not found in variant");
-  if constexpr (index == std::variant_size_v<VariantType>) {
-    return index;
-  } else if constexpr (std::is_same_v<std::variant_alternative_t<index, VariantType>, T>) {
-    return index;
-  } else {
-    return variant_index<VariantType, T, index + 1>();
-  }
-}
 
 /**
  * Very Important Note: size_t is platform dependent. On 64-bit systems, it is usually
@@ -34,25 +22,6 @@ constexpr uint64_t variant_index() {
  */
 namespace tnn {
 
-template <typename T>
-concept Buffer =
-    requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t len, dptr &dev_ptr,
-             const dptr &cdev_ptr, std::string &str, uint64_t &val, Endianness endianess) {
-      t.write(offset, val);
-      t.write(offset, ptr, len);
-      t.write(offset, cdev_ptr, len);
-      t.write(offset, static_cast<const std::string &>(str));
-
-      ct.read(offset, val);
-      ct.read(offset, ptr, len);
-      ct.read(offset, dev_ptr, len);
-      ct.read(offset, str);
-
-      ct.set_endianess(endianess);
-
-      { ct.size() } -> std::convertible_to<size_t>;
-    };
-
 class BinarySerializer {
 private:
   IAllocator &allocator_;
@@ -61,211 +30,114 @@ public:
   BinarySerializer(IAllocator &allocator)
       : allocator_(allocator) {}
 
-  template <Buffer BufferType>
-  void serialize(BufferType &buffer, size_t &offset, const ConstTensor &tensor) {
-    DType_t dtype = tensor->data_type();
-    buffer.template write<uint32_t>(offset, static_cast<uint32_t>(dtype));
-    std::vector<size_t> shape = tensor->shape();
-    uint64_t shape_size = static_cast<uint64_t>(shape.size());
-    buffer.write(offset, shape_size);
-    for (size_t dim : shape) {
-      buffer.write(offset, static_cast<uint64_t>(dim));
-    }
-    const auto &dptr = tensor->data_ptr();
-    size_t byte_size = tensor->size() * get_dtype_size(dtype);
-    buffer.write(offset, dptr, byte_size);
+  void serialize(Writer &writer, const Job &job) { writer(job); }
+
+  void serialize(Writer &writer, const std::monostate &) {
+    // No data to serialize for std::monostate
   }
 
-  template <Buffer BufferType>
-  void serialize(BufferType &buffer, size_t &offset, const Event &event) {
-    buffer.write(offset, static_cast<int64_t>(event.start_time.time_since_epoch().count()));
-    buffer.write(offset, static_cast<int64_t>(event.end_time.time_since_epoch().count()));
-    buffer.write(offset, static_cast<uint8_t>(event.type));
-    buffer.write(offset, event.name);
-    buffer.write(offset, event.source);
+  void serialize(Writer &writer, const bool &flag) {
+    uint8_t value = flag ? 1 : 0;
+    writer(value);
   }
 
-  template <Buffer BufferType>
-  void serialize(BufferType &buffer, size_t &offset, const Profiler &profiler) {
-    auto events = profiler.get_events();
-    buffer.write(offset, static_cast<int64_t>(profiler.start_time().time_since_epoch().count()));
-    int64_t event_count = static_cast<int64_t>(events.size());
-    buffer.write(offset, event_count);
-    for (const auto &event : events) {
-      serialize(buffer, offset, event);
-    }
+  void serialize(Writer &writer, const std::string &str) { writer(str); }
+
+  void serialize(Writer &writer, const Profiler &profiler) { writer(profiler); }
+
+  void serialize(Writer &writer, const StageConfig &config) { writer(config); }
+
+  void serialize(Writer &writer, const PacketHeader &header) { writer(header); }
+
+  void serialize(Writer &writer, const MessageHeader &header) { writer(header); }
+
+  void serialize(Writer &writer, const MessageData &data) {
+    writer(data.payload.index());
+    data.payload.visit([&](const auto &value) { serialize(writer, value); });
   }
 
-  template <Buffer BufferType>
-  void serialize(BufferType &buffer, size_t &offset, const PacketHeader &header) {
-    buffer.write(offset, header.PROTOCOL_VERSION);
-    buffer.write(offset, header.endianess);
-    buffer.write(offset, header.type);
-    buffer.write(offset, header.packet_length);
-    buffer.write(offset, header.msg_length);
-    buffer.write(offset, header.msg_serial_id);
-    buffer.write(offset, header.packet_offset);
-    buffer.write(offset, header.total_packets);
-    buffer.write(offset, static_cast<uint8_t>(header.compression_type));
+  void serialize(Writer &writer, const Message &message) {
+    serialize(writer, message.header());
+    serialize(writer, message.data());
   }
 
-  template <Buffer BufferType>
-  void serialize(BufferType &buffer, size_t &offset, const MessageHeader &header) {
-    buffer.write(offset, static_cast<uint16_t>(header.command_type));
+  void deserialize(Reader &reader, PacketHeader &header) {
+    reader(header.PROTOCOL_VERSION, header.endianess);
+    reader.set_endianess(header.endianess);
+    reader(header.type, header.packet_length, header.msg_length, header.msg_serial_id,
+           header.packet_offset, header.total_packets, header.compression_type);
   }
 
-  template <Buffer BufferType>
-  void serialize(BufferType &buffer, size_t &offset, const MessageData &data) {
-    buffer.write(offset, static_cast<uint64_t>(data.payload.index()));
-    std::visit(
-        [&]<typename T>(const T &v) {
-          if constexpr (std::is_same_v<T, std::monostate>) {
-          } else if constexpr (std::is_same_v<T, Job>) {
-            buffer.write(offset, static_cast<uint64_t>(v.mb_id));
-            serialize(buffer, offset, v.data);
-          } else if constexpr (std::is_same_v<T, std::string>) {
-            buffer.write(offset, v);
-          } else if constexpr (std::is_same_v<T, bool>) {
-            buffer.write(offset, static_cast<uint8_t>(v ? 1 : 0));
-          } else if constexpr (std::is_same_v<T, Profiler>) {
-            serialize(buffer, offset, v);
-          } else if constexpr (std::is_same_v<T, StageConfig>) {
-            std::string json_dump = v.to_json().dump();
-            buffer.write(offset, json_dump);
-          }
-        },
-        data.payload);
-  }
+  void deserialize(Reader &reader, MessageHeader &header) { reader(header); }
 
-  template <Buffer BufferType>
-  void serialize(BufferType &buffer, size_t &offset, const Message &message) {
-    serialize(buffer, offset, message.header());
-    serialize(buffer, offset, message.data());
-  }
-
-  template <Buffer BufferType>
-  void deserialize(const BufferType &buffer, size_t &offset, PacketHeader &header) {
-    buffer.read(offset, header.PROTOCOL_VERSION);
-    buffer.read(offset, header.endianess);
-    buffer.set_endianess(header.endianess);
-    buffer.template read<PacketType>(offset, header.type);
-    buffer.read(offset, header.packet_length);
-    buffer.read(offset, header.msg_length);
-    buffer.read(offset, header.msg_serial_id);
-    buffer.read(offset, header.packet_offset);
-    buffer.read(offset, header.total_packets);
-    buffer.template read<uint8_t>(offset, reinterpret_cast<uint8_t &>(header.compression_type));
-  }
-
-  template <Buffer BufferType>
-  void deserialize(const BufferType &buffer, size_t &offset, MessageHeader &header) {
-    uint16_t cmd_type;
-    buffer.template read<uint16_t>(offset, cmd_type);
-    header.command_type = static_cast<CommandType>(cmd_type);
-  }
-
-  template <Buffer BufferType>
-  void deserialize(const BufferType &buffer, size_t &offset, Tensor &tensor) {
+  void deserialize(Reader &reader, Tensor &tensor) {
     size_t dtype_size;
     DType_t dtype;
-    uint32_t dtype_value;
-    buffer.template read<uint32_t>(offset, dtype_value);
-    dtype = static_cast<DType_t>(dtype_value);
+    reader(dtype);
     dtype_size = get_dtype_size(dtype);
     uint64_t shape_size;
-    buffer.read(offset, shape_size);
+    reader(shape_size);
     std::vector<uint64_t> shape(shape_size);
     for (uint64_t i = 0; i < shape_size; ++i) {
-      buffer.template read<uint64_t>(offset, shape[i]);
+      reader(shape[i]);
     }
     tensor = make_tensor(allocator_, dtype, std::vector<size_t>(shape.begin(), shape.end()));
     if (tensor->size() > 0) {
       auto dptr = tensor->data_ptr();
-      size_t byte_size = tensor->size() * dtype_size;
-      buffer.read(offset, dptr, byte_size);
+      reader(make_blob(dptr.get<unsigned char>(), tensor->size() * dtype_size, dptr.device()));
     }
   }
 
-  template <Buffer BufferType>
-  void deserialize(const BufferType &buffer, size_t &offset, Job &job) {
-    buffer.template read<uint64_t>(offset, reinterpret_cast<uint64_t &>(job.mb_id));
-    deserialize(buffer, offset, job.data);
+  void deserialize(Reader &reader, Job &job) {
+    uint64_t mb_id;
+    reader(mb_id);
+    job.mb_id = static_cast<size_t>(mb_id);
+    deserialize(reader, job.data);
   }
 
-  template <Buffer BufferType>
-  void deserialize(const BufferType &buffer, size_t &offset, std::string &str) {
-    buffer.read(offset, str);
-  }
+  void deserialize(Reader &reader, std::string &str) { reader(str); }
 
-  template <Buffer BufferType>
-  void deserialize(const BufferType &buffer, size_t &offset, bool &flag) {
+  void deserialize(Reader &reader, bool &flag) {
     uint8_t value;
-    buffer.read(offset, value);
+    reader(value);
     flag = (value != 0);
   }
 
-  template <Buffer BufferType>
-  void deserialize(const BufferType &buffer, size_t &offset, Event &event) {
-    int64_t start_time_count;
-    int64_t end_time_count;
-    uint8_t type_value;
-    buffer.read(offset, start_time_count);
-    buffer.read(offset, end_time_count);
-    buffer.read(offset, type_value);
-    event.start_time = Clock::time_point(Clock::duration(start_time_count));
-    event.end_time = Clock::time_point(Clock::duration(end_time_count));
-    event.type = static_cast<EventType>(type_value);
-    buffer.read(offset, event.name);
-    buffer.read(offset, event.source);
-  }
+  void deserialize(Reader &reader, Profiler &profiler) { reader(profiler); }
 
-  template <Buffer BufferType>
-  void deserialize(const BufferType &buffer, size_t &offset, Profiler &profiler) {
-    int64_t start_time_count;
-    buffer.read(offset, start_time_count);
-    profiler.init_start_time(Clock::time_point(Clock::duration(start_time_count)));
-    uint64_t event_count;
-    buffer.read(offset, event_count);
-    for (uint64_t i = 0; i < event_count; ++i) {
-      Event event;
-      deserialize(buffer, offset, event);
-      profiler.add_event(event);
-    }
-  }
+  void deserialize(Reader &reader, StageConfig &config) { reader(config); }
 
-  template <Buffer BufferType>
-  void deserialize(const BufferType &buffer, size_t &offset, MessageData &data) {
+  void deserialize(Reader &reader, MessageData &data) {
     // Determine payload type based on payload_type
-    uint64_t payload_type;
-    buffer.read(offset, payload_type);
+    uint32_t payload_type;
+    reader(payload_type);
     switch (payload_type) {
-      case variant_index<PayloadType, std::monostate>():  // std::monostate
+      case PayloadType::index_of<std::monostate>():  // std::monostate
         data.payload = std::monostate{};
         break;
-      case variant_index<PayloadType, Job>(): {  // Job
+      case PayloadType::index_of<Job>(): {  // Job
         Job job;
-        deserialize(buffer, offset, job);
+        deserialize(reader, job);
         data.payload = std::move(job);
       } break;
-      case variant_index<PayloadType, std::string>(): {  // std::string
+      case PayloadType::index_of<std::string>(): {  // std::string
         std::string str;
-        deserialize(buffer, offset, str);
+        deserialize(reader, str);
         data.payload = std::move(str);
       } break;
-      case variant_index<PayloadType, bool>(): {  // bool
+      case PayloadType::index_of<bool>(): {  // bool
         bool flag;
-        deserialize(buffer, offset, flag);
+        deserialize(reader, flag);
         data.payload = flag;
       } break;
-      case variant_index<PayloadType, Profiler>(): {  // Profiler
+      case PayloadType::index_of<Profiler>(): {  // Profiler
         Profiler profiler;
-        deserialize(buffer, offset, profiler);
+        deserialize(reader, profiler);
         data.payload = std::move(profiler);
       } break;
-      case variant_index<PayloadType, StageConfig>(): {  // StageConfig
-        std::string json_str;
-        buffer.read(offset, json_str);
-        StageConfig config = StageConfig::from_json(nlohmann::json::parse(json_str));
+      case PayloadType::index_of<StageConfig>(): {  // StageConfig
+        StageConfig config;
+        deserialize(reader, config);
         data.payload = std::move(config);
       } break;
       default:
@@ -273,10 +145,9 @@ public:
     }
   }
 
-  template <Buffer BufferType>
-  void deserialize(const BufferType &buffer, size_t &offset, Message &message) {
-    deserialize(buffer, offset, message.header());
-    deserialize(buffer, offset, message.data());
+  void deserialize(Reader &reader, Message &message) {
+    deserialize(reader, message.header());
+    deserialize(reader, message.data());
   }
 
 };  // namespace BinarySerializer
