@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
                      Env::get<int>("LOCAL_WORKER_PORT", 8000), cfg.device_name, cfg.gid_index);
   int worker_position = Env::get<std::string>("LOCAL_WORKER_POSITION", "last") == "first" ? 0 : 1;
 
-  std::vector<Endpoint> endpoints = {
+  Vec<Endpoint> endpoints = {
       Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
                      Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
   };

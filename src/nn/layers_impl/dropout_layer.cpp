@@ -133,8 +133,7 @@ LayerConfig DropoutLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> DropoutLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> DropoutLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   return input_shape;
 }
 

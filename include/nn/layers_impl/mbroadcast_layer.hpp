@@ -32,7 +32,7 @@ private:
   void compute_backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs) {
     const auto &output_shape = grad_outputs[0]->shape();
 
-    std::vector<const IO_T *> grad_output_ptrs;
+    Vec<const IO_T *> grad_output_ptrs;
     for (const auto &grad_output : grad_outputs) {
       grad_output_ptrs.push_back(grad_output->data_as<IO_T>());
     }
@@ -76,7 +76,7 @@ public:
     return output_shapes;
   }
 
-  std::vector<ParamDescriptor> param_descriptors() override { return {}; }
+  Vec<ParamDescriptor> param_descriptors() override { return {}; }
 
   LayerConfig get_config() const override {
     LayerConfig config;

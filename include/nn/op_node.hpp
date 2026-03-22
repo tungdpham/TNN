@@ -17,14 +17,13 @@ public:
 
   void init() { layer_->init(); }
 
-  std::vector<ParamDescriptor> param_descriptors() const { return layer_->param_descriptors(); }
+  Vec<ParamDescriptor> param_descriptors() const { return layer_->param_descriptors(); }
 
-  void forward(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
-               size_t mb_id = 0) {
+  void forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs, size_t mb_id = 0) {
     layer_->forward(inputs, outputs, mb_id);
   }
 
-  void backward(const std::vector<ConstTensor> &gradients, const std::vector<Tensor> &grad_inputs,
+  void backward(const Vec<ConstTensor> &gradients, const Vec<Tensor> &grad_inputs,
                 size_t mb_id = 0) {
     layer_->backward(gradients, grad_inputs, mb_id);
   }

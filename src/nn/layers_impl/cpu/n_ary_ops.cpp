@@ -17,7 +17,7 @@ namespace tnn {
 namespace cpu {
 
 // Helper to compute total number of elements
-static size_t compute_total_elements(const std::vector<size_t> &shape) {
+static size_t compute_total_elements(const Vec<size_t> &shape) {
   size_t total = 1;
   for (auto dim : shape) {
     total *= dim;
@@ -26,7 +26,7 @@ static size_t compute_total_elements(const std::vector<size_t> &shape) {
 }
 
 template <typename T>
-void nary_forward(const std::vector<const T *> &inputs, T *output, const std::vector<size_t> &shape,
+void nary_forward(const Vec<const T *> &inputs, T *output, const Vec<size_t> &shape,
                   const NAryOp &op_type) {
   if (inputs.empty()) {
     throw std::runtime_error("nary_forward: requires at least one input");
@@ -97,9 +97,8 @@ void nary_forward(const std::vector<const T *> &inputs, T *output, const std::ve
 }
 
 template <typename T>
-void nary_backward(const T *grad_output, std::vector<T *> &grad_inputs,
-                   const std::vector<const T *> &fwd_inputs, const std::vector<size_t> &shape,
-                   const NAryOp &op_type) {
+void nary_backward(const T *grad_output, Vec<T *> &grad_inputs, const Vec<const T *> &fwd_inputs,
+                   const Vec<size_t> &shape, const NAryOp &op_type) {
   if (fwd_inputs.empty() || grad_inputs.empty()) {
     throw std::runtime_error("nary_backward: requires at least one input");
   }
@@ -160,7 +159,7 @@ void nary_backward(const T *grad_output, std::vector<T *> &grad_inputs,
       // d(output)/d(i_j) = -i0 / (i1 * i2 * ... * in * i_j) for j >= 1
 
       // Compute denominator product: i1 * i2 * ... * in
-      std::vector<T> denom_prod(total_elements, static_cast<T>(1.0));
+      Vec<T> denom_prod(total_elements, static_cast<T>(1.0));
       for (size_t input_idx = 1; input_idx < n_inputs; ++input_idx) {
         for (size_t i = 0; i < total_elements; ++i) {
           denom_prod[i] *= fwd_inputs[input_idx][i];
@@ -193,11 +192,10 @@ void nary_backward(const T *grad_output, std::vector<T *> &grad_inputs,
   }
 }
 
-#define INSTANTIATE_NARY_OPS(T)                                                                   \
-  template void nary_forward<T>(const std::vector<const T *> &, T *, const std::vector<size_t> &, \
-                                const NAryOp &);                                                  \
-  template void nary_backward<T>(const T *, std::vector<T *> &, const std::vector<const T *> &,   \
-                                 const std::vector<size_t> &, const NAryOp &);
+#define INSTANTIATE_NARY_OPS(T)                                                                    \
+  template void nary_forward<T>(const Vec<const T *> &, T *, const Vec<size_t> &, const NAryOp &); \
+  template void nary_backward<T>(const T *, Vec<T *> &, const Vec<const T *> &,                    \
+                                 const Vec<size_t> &, const NAryOp &);
 
 INSTANTIATE_NARY_OPS(fp16)
 INSTANTIATE_NARY_OPS(bf16)

@@ -61,7 +61,7 @@ void MaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output
 void MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                    size_t mb_id) {
   const ConstTensor &mask_indices = this->get_mutable_cache(mb_id, "mask_indices");
-  const std::vector<size_t> &input_shape = micro_batch_input_shapes_[mb_id];
+  const Vec<size_t> &input_shape = micro_batch_input_shapes_[mb_id];
 
   const size_t batch_size = input_shape[0];
   const size_t input_h = input_shape[1];
@@ -172,8 +172,7 @@ LayerConfig MaxPool2DLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> MaxPool2DLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> MaxPool2DLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("MaxPool2DLayer: input shape must be 4D (NHWC format)");
   }

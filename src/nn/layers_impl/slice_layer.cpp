@@ -23,7 +23,7 @@ SliceLayer::SliceLayer(size_t axis, size_t start, size_t length, const std::stri
 void SliceLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
 
-  std::vector<size_t> output_shape = compute_output_shape(input->shape());
+  Vec<size_t> output_shape = compute_output_shape(input->shape());
   output->ensure(output_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_forward, input, output, this->flow_handle_);
@@ -35,7 +35,7 @@ void SliceLayer::backward_impl(const ConstTensor &grad_output, const Tensor &gra
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in SliceLayer");
   }
-  const std::vector<size_t> &original_shape = it->second;
+  const Vec<size_t> &original_shape = it->second;
 
   grad_input->ensure(original_shape);
 
@@ -78,7 +78,7 @@ std::unique_ptr<Task> SliceLayer::slice_forward(const ConstTensor &input, const 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> SliceLayer::slice_backward(const ConstTensor &grad_output,
                                                  const Tensor &grad_input,
-                                                 const std::vector<size_t> &original_shape,
+                                                 const Vec<size_t> &original_shape,
                                                  flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
@@ -109,7 +109,7 @@ std::unique_ptr<Task> SliceLayer::slice_backward(const ConstTensor &grad_output,
   return nullptr;
 }
 
-std::vector<size_t> SliceLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+Vec<size_t> SliceLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (axis_ >= input_shape.size()) {
     throw std::invalid_argument("Slice axis out of bounds");
   }
@@ -117,7 +117,7 @@ std::vector<size_t> SliceLayer::compute_output_shape(const std::vector<size_t> &
     throw std::invalid_argument("Slice range out of bounds");
   }
 
-  std::vector<size_t> output_shape = input_shape;
+  Vec<size_t> output_shape = input_shape;
   output_shape[axis_] = length_;
   return output_shape;
 }

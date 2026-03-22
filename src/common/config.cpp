@@ -11,6 +11,8 @@
 #include <stdexcept>
 #include <typeinfo>
 
+#include "type/type.hpp"
+
 namespace tnn {
 
 template <typename T>
@@ -43,16 +45,12 @@ template bool TConfig::get<bool>(const std::string &, const bool &) const;
 template std::string TConfig::get<std::string>(const std::string &, const std::string &) const;
 template nlohmann::json TConfig::get<nlohmann::json>(const std::string &,
                                                      const nlohmann::json &) const;
-template std::vector<size_t> TConfig::get<std::vector<size_t>>(const std::string &,
-                                                               const std::vector<size_t> &) const;
-template std::vector<int> TConfig::get<std::vector<int>>(const std::string &,
-                                                         const std::vector<int> &) const;
-template std::vector<float> TConfig::get<std::vector<float>>(const std::string &,
-                                                             const std::vector<float> &) const;
-template std::vector<double> TConfig::get<std::vector<double>>(const std::string &,
-                                                               const std::vector<double> &) const;
-template std::vector<std::string> TConfig::get<std::vector<std::string>>(
-    const std::string &, const std::vector<std::string> &) const;
+template Vec<size_t> TConfig::get<Vec<size_t>>(const std::string &, const Vec<size_t> &) const;
+template Vec<int> TConfig::get<Vec<int>>(const std::string &, const Vec<int> &) const;
+template Vec<float> TConfig::get<Vec<float>>(const std::string &, const Vec<float> &) const;
+template Vec<double> TConfig::get<Vec<double>>(const std::string &, const Vec<double> &) const;
+template Vec<std::string> TConfig::get<Vec<std::string>>(const std::string &,
+                                                         const Vec<std::string> &) const;
 
 template <typename T>
 void TConfig::set(const std::string &key, const T &value) {
@@ -71,12 +69,11 @@ template void TConfig::set<double>(const std::string &, const double &);
 template void TConfig::set<bool>(const std::string &, const bool &);
 template void TConfig::set<std::string>(const std::string &, const std::string &);
 template void TConfig::set<nlohmann::json>(const std::string &, const nlohmann::json &);
-template void TConfig::set<std::vector<size_t>>(const std::string &, const std::vector<size_t> &);
-template void TConfig::set<std::vector<int>>(const std::string &, const std::vector<int> &);
-template void TConfig::set<std::vector<float>>(const std::string &, const std::vector<float> &);
-template void TConfig::set<std::vector<double>>(const std::string &, const std::vector<double> &);
-template void TConfig::set<std::vector<std::string>>(const std::string &,
-                                                     const std::vector<std::string> &);
+template void TConfig::set<Vec<size_t>>(const std::string &, const Vec<size_t> &);
+template void TConfig::set<Vec<int>>(const std::string &, const Vec<int> &);
+template void TConfig::set<Vec<float>>(const std::string &, const Vec<float> &);
+template void TConfig::set<Vec<double>>(const std::string &, const Vec<double> &);
+template void TConfig::set<Vec<std::string>>(const std::string &, const Vec<std::string> &);
 
 bool TConfig::has(const std::string &key) const {
   return parameters_.find(key) != parameters_.end();
@@ -111,15 +108,15 @@ std::string TConfig::type_name_from_any(const std::any &value) {
     return "string";
   } else if (value.type() == typeid(nlohmann::json)) {
     return "json";
-  } else if (value.type() == typeid(std::vector<size_t>)) {
+  } else if (value.type() == typeid(Vec<size_t>)) {
     return "vector<size_t>";
-  } else if (value.type() == typeid(std::vector<int>)) {
+  } else if (value.type() == typeid(Vec<int>)) {
     return "vector<int>";
-  } else if (value.type() == typeid(std::vector<float>)) {
+  } else if (value.type() == typeid(Vec<float>)) {
     return "vector<float>";
-  } else if (value.type() == typeid(std::vector<double>)) {
+  } else if (value.type() == typeid(Vec<double>)) {
     return "vector<double>";
-  } else if (value.type() == typeid(std::vector<std::string>)) {
+  } else if (value.type() == typeid(Vec<std::string>)) {
     return "vector<string>";
   }
   return "unknown";
@@ -160,16 +157,16 @@ nlohmann::json TConfig::value_to_json(const std::any &value) {
     assign_value<std::string>(result, value);
   } else if (value.type() == typeid(nlohmann::json)) {
     assign_value<nlohmann::json>(result, value);
-  } else if (value.type() == typeid(std::vector<size_t>)) {
-    assign_value<std::vector<size_t>>(result, value);
-  } else if (value.type() == typeid(std::vector<int>)) {
-    assign_value<std::vector<int>>(result, value);
-  } else if (value.type() == typeid(std::vector<float>)) {
-    assign_value<std::vector<float>>(result, value);
-  } else if (value.type() == typeid(std::vector<double>)) {
-    assign_value<std::vector<double>>(result, value);
-  } else if (value.type() == typeid(std::vector<std::string>)) {
-    assign_value<std::vector<std::string>>(result, value);
+  } else if (value.type() == typeid(Vec<size_t>)) {
+    assign_value<Vec<size_t>>(result, value);
+  } else if (value.type() == typeid(Vec<int>)) {
+    assign_value<Vec<int>>(result, value);
+  } else if (value.type() == typeid(Vec<float>)) {
+    assign_value<Vec<float>>(result, value);
+  } else if (value.type() == typeid(Vec<double>)) {
+    assign_value<Vec<double>>(result, value);
+  } else if (value.type() == typeid(Vec<std::string>)) {
+    assign_value<Vec<std::string>>(result, value);
   }
 
   return result;
@@ -208,15 +205,15 @@ std::any TConfig::json_to_value(const nlohmann::json &type_value_pair) {
   } else if (type_name == "json") {
     return value.get<nlohmann::json>();
   } else if (type_name == "vector<size_t>") {
-    return value.get<std::vector<size_t>>();
+    return value.get<Vec<size_t>>();
   } else if (type_name == "vector<int>") {
-    return value.get<std::vector<int>>();
+    return value.get<Vec<int>>();
   } else if (type_name == "vector<float>") {
-    return value.get<std::vector<float>>();
+    return value.get<Vec<float>>();
   } else if (type_name == "vector<double>") {
-    return value.get<std::vector<double>>();
+    return value.get<Vec<double>>();
   } else if (type_name == "vector<string>") {
-    return value.get<std::vector<std::string>>();
+    return value.get<Vec<std::string>>();
   }
 
   throw std::runtime_error("Unknown type in JSON: " + type_name);

@@ -24,22 +24,25 @@ namespace tnn {
 // needs an overhaul
 class WiFiDataLoader : public BaseDataLoader {
 private:
-  std::vector<std::vector<float>> features_;
-  std::vector<std::vector<float>> targets_;
+  Vec<Vec<float>> features_;
+  Vec<Vec<float>> targets_;
 
   size_t num_features_;
   size_t num_outputs_;
   bool is_regression_;
 
-  std::vector<float> feature_means_;
-  std::vector<float> feature_stds_;
-  std::vector<float> target_means_;
-  std::vector<float> target_stds_;
+  Vec<float> feature_means_;
+  Vec<float> feature_stds_;
+  Vec<float> target_means_;
+  Vec<float> target_stds_;
   bool is_normalized_;
 
 public:
   WiFiDataLoader(bool is_regression = true)
-      : num_features_(0), num_outputs_(0), is_regression_(is_regression), is_normalized_(false) {
+      : num_features_(0),
+        num_outputs_(0),
+        is_regression_(is_regression),
+        is_normalized_(false) {
     features_.reserve(20000);
     targets_.reserve(20000);
   }
@@ -70,7 +73,7 @@ public:
 
       std::stringstream ss(line);
       std::string cell;
-      std::vector<std::string> row;
+      Vec<std::string> row;
 
       while (std::getline(ss, cell, ',')) {
         row.push_back(cell);
@@ -90,7 +93,7 @@ public:
         }
       }
 
-      std::vector<float> feature_row;
+      Vec<float> feature_row;
       for (size_t i = feature_start_col; i < std::min(feature_end_col, row.size()); ++i) {
         try {
           float value = std::stof(row[i]);
@@ -104,7 +107,7 @@ public:
         }
       }
 
-      std::vector<float> target_row;
+      Vec<float> target_row;
       for (size_t i = target_start_col; i < std::min(target_end_col, row.size()); ++i) {
         try {
           target_row.push_back(std::stof(row[i]));
@@ -255,10 +258,8 @@ public:
     std::cout << "Data normalization completed!" << std::endl;
   }
 
-  void apply_normalization(const std::vector<float> &feature_means,
-                           const std::vector<float> &feature_stds,
-                           const std::vector<float> &target_means,
-                           const std::vector<float> &target_stds) {
+  void apply_normalization(const Vec<float> &feature_means, const Vec<float> &feature_stds,
+                           const Vec<float> &target_means, const Vec<float> &target_stds) {
     if (features_.empty()) {
       std::cerr << "Warning: No data to normalize!" << std::endl;
       return;
@@ -298,17 +299,17 @@ public:
     std::cout << "Data normalization using external statistics completed!" << std::endl;
   }
 
-  std::vector<float> get_feature_means() const { return feature_means_; }
-  std::vector<float> get_feature_stds() const { return feature_stds_; }
-  std::vector<float> get_target_means() const { return target_means_; }
-  std::vector<float> get_target_stds() const { return target_stds_; }
+  Vec<float> get_feature_means() const { return feature_means_; }
+  Vec<float> get_feature_stds() const { return feature_stds_; }
+  Vec<float> get_target_means() const { return target_means_; }
+  Vec<float> get_target_stds() const { return target_stds_; }
 
   void shuffle() override {
     if (features_.empty()) return;
 
-    std::vector<size_t> indices = this->generate_shuffled_indices(features_.size());
+    Vec<size_t> indices = this->generate_shuffled_indices(features_.size());
 
-    std::vector<std::vector<float>> shuffled_features, shuffled_targets;
+    Vec<Vec<float>> shuffled_features, shuffled_targets;
     shuffled_features.reserve(features_.size());
     shuffled_targets.reserve(targets_.size());
 
@@ -325,18 +326,18 @@ public:
   void reset() override { this->current_index_ = 0; }
 
   size_t size() const override { return features_.size(); }
-  std::vector<size_t> get_data_shape() const override { return {num_features_, 1, 1}; }
+  Vec<size_t> get_data_shape() const override { return {num_features_, 1, 1}; }
   size_t num_features() const { return num_features_; }
   size_t num_outputs() const { return num_outputs_; }
   bool is_regression() const { return is_regression_; }
   bool is_normalized() const { return is_normalized_; }
 
-  std::vector<float> denormalize_targets(const std::vector<float> &normalized_targets) const {
+  Vec<float> denormalize_targets(const Vec<float> &normalized_targets) const {
     if (!is_normalized_ || !is_regression_) {
       return normalized_targets;
     }
 
-    std::vector<float> denormalized(normalized_targets.size());
+    Vec<float> denormalized(normalized_targets.size());
     for (size_t i = 0; i < normalized_targets.size() && i < target_means_.size(); ++i) {
       denormalized[i] = normalized_targets[i] * target_stds_[i] + target_means_[i];
     }

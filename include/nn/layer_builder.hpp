@@ -18,7 +18,7 @@ private:
 public:
   explicit LayerBuilder(const Vec<Vec<size_t>> &batchless_shape) {
     for (const auto &shape : batchless_shape) {
-      std::vector<size_t> batch_shape = shape;
+      Vec<size_t> batch_shape = shape;
       batch_shape.insert(batch_shape.begin(), 1);  // Prepend batch dimension
       input_shapes_.push_back(batch_shape);
     }
@@ -62,7 +62,7 @@ public:
                        size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                        bool use_bias = true, const std::string &name = "") {
     Vec<Vec<size_t>> current_shapes = get_current_shape();
-    std::vector<size_t> current_shape = current_shapes.back();
+    Vec<size_t> current_shape = current_shapes.back();
 
     if (current_shape.size() != 4) {
       throw std::runtime_error(
@@ -83,7 +83,7 @@ public:
   LayerBuilder &batchnorm(float epsilon = 1e-5f, float momentum = 0.1f, bool affine = true,
                           SBool use_relu = SBool::FALSE, const std::string &name = "") {
     Vec<Vec<size_t>> current_shapes = get_current_shape();
-    std::vector<size_t> current_shape = current_shapes.back();
+    Vec<size_t> current_shape = current_shapes.back();
 
     if (current_shape.size() < 2) {
       throw std::runtime_error("BatchNorm requires at least 2D input (batch, features)");
@@ -119,7 +119,7 @@ public:
   LayerBuilder &legacy_dense(size_t output_features, bool use_bias = true,
                              const std::string &name = "") {
     Vec<Vec<size_t>> current_shapes = get_current_shape();
-    std::vector<size_t> current_shape = current_shapes.back();
+    Vec<size_t> current_shape = current_shapes.back();
     size_t input_features = current_shape.back();
 
     auto layer = std::make_unique<LegacyDenseLayer>(
@@ -134,7 +134,7 @@ public:
                               size_t pad_w = 0, bool use_bias = true,
                               const std::string &name = "") {
     Vec<Vec<size_t>> current_shapes = get_current_shape();
-    std::vector<size_t> current_shape = current_shapes.back();
+    Vec<size_t> current_shape = current_shapes.back();
 
     if (current_shape.size() < 4) {
       throw std::runtime_error(
@@ -155,7 +155,7 @@ public:
   LayerBuilder &legacy_batchnorm(float epsilon = 1e-5f, float momentum = 0.1f, bool affine = true,
                                  const std::string &name = "") {
     Vec<Vec<size_t>> current_shapes = get_current_shape();
-    std::vector<size_t> current_shape = current_shapes.back();
+    Vec<size_t> current_shape = current_shapes.back();
 
     if (current_shape.size() < 2) {
       throw std::runtime_error("BatchNorm requires at least 2D input (batch, features)");
@@ -193,7 +193,7 @@ public:
   LayerBuilder &groupnorm(float num_groups, float epsilon = 1e-5f, bool affine = true,
                           const std::string &name = "") {
     Vec<Vec<size_t>> current_shapes = get_current_shape();
-    std::vector<size_t> current_shape = current_shapes.back();
+    Vec<size_t> current_shape = current_shapes.back();
 
     if (current_shape.size() < 2) {
       throw std::runtime_error("GroupNorm requires at least 2D input (batch, features)");
@@ -210,7 +210,7 @@ public:
 
   LayerBuilder &layernorm(float epsilon = 1e-5f, bool affine = true, const std::string &name = "") {
     Vec<Vec<size_t>> current_shapes = get_current_shape();
-    std::vector<size_t> current_shape = current_shapes.back();
+    Vec<size_t> current_shape = current_shapes.back();
 
     if (current_shape.size() < 2) {
       throw std::runtime_error("LayerNorm requires at least 2D input (batch, features)");
@@ -313,7 +313,7 @@ public:
         std::move(paths), std::move(join_layer),
         name.empty() ? "mseq_" + std::to_string(layers_.size()) : name);
 
-    std::vector<std::unique_ptr<Layer>> wrapper_layers;
+    Vec<std::unique_ptr<Layer>> wrapper_layers;
     wrapper_layers.push_back(std::move(broadcast_layer));
     wrapper_layers.push_back(std::move(m_seq_layer));
 
@@ -324,8 +324,8 @@ public:
     return *this;
   }
 
-  LayerBuilder &residual_block(std::vector<std::unique_ptr<Layer>> main_path,
-                               std::vector<std::unique_ptr<Layer>> shortcut_path,
+  LayerBuilder &residual_block(Vec<std::unique_ptr<Layer>> main_path,
+                               Vec<std::unique_ptr<Layer>> shortcut_path,
                                const std::string &activation, const std::string &name = "") {
     auto layer = std::make_unique<ResidualBlock>(
         std::move(main_path), std::move(shortcut_path), activation,
@@ -346,7 +346,7 @@ public:
                          .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::FALSE, "bn0")
                          .build();
 
-    std::vector<std::unique_ptr<Layer>> shortcut;
+    Vec<std::unique_ptr<Layer>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
                      .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
@@ -418,7 +418,7 @@ public:
                          .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn2")
                          .build();
 
-    std::vector<std::unique_ptr<Layer>> shortcut;
+    Vec<std::unique_ptr<Layer>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
                      .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
@@ -445,7 +445,7 @@ public:
                          .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn0")
                          .build();
 
-    std::vector<std::unique_ptr<Layer>> shortcut;
+    Vec<std::unique_ptr<Layer>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
                      .legacy_conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
@@ -481,7 +481,7 @@ public:
 
     auto main_path = main_builder.build();
 
-    std::vector<std::unique_ptr<Layer>> shortcut;
+    Vec<std::unique_ptr<Layer>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
                      .legacy_conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
@@ -511,7 +511,7 @@ public:
                          .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn2")
                          .build();
 
-    std::vector<std::unique_ptr<Layer>> shortcut;
+    Vec<std::unique_ptr<Layer>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
                      .legacy_conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
@@ -537,7 +537,7 @@ public:
 
     Vec<Vec<size_t>> batchless_shape;
     for (const auto &shape : current_shape) {
-      std::vector<size_t> batch_shape = shape;
+      Vec<size_t> batch_shape = shape;
       batch_shape.erase(batch_shape.begin());  // Remove batch dimension
       batchless_shape.push_back(batch_shape);
     }
@@ -549,9 +549,8 @@ public:
                          .dropout(dropout_rate)
                          .build();
 
-    auto attn_res =
-        std::make_unique<ResidualBlock>(std::move(attn_main), std::vector<std::unique_ptr<Layer>>(),
-                                        "linear", valid_name + "_attn");
+    auto attn_res = std::make_unique<ResidualBlock>(
+        std::move(attn_main), Vec<std::unique_ptr<Layer>>(), "linear", valid_name + "_attn");
     layers_.push_back(std::move(attn_res));
 
     // 2. Feed-Forward Sub-block (Residual)
@@ -564,7 +563,7 @@ public:
                         .build();
 
     auto ffn_res = std::make_unique<ResidualBlock>(
-        std::move(ffn_main), std::vector<std::unique_ptr<Layer>>(), "linear", valid_name + "_ffn");
+        std::move(ffn_main), Vec<std::unique_ptr<Layer>>(), "linear", valid_name + "_ffn");
     layers_.push_back(std::move(ffn_res));
 
     return *this;
@@ -583,7 +582,7 @@ public:
 
     Vec<Vec<size_t>> batchless_shape;
     for (const auto &shape : current_shape) {
-      std::vector<size_t> batch_shape = shape;
+      Vec<size_t> batch_shape = shape;
       batch_shape.erase(batch_shape.begin());  // Remove batch dimension
       batchless_shape.push_back(batch_shape);
     }
@@ -595,9 +594,8 @@ public:
                          .dropout(dropout_rate)
                          .build();
 
-    auto attn_res =
-        std::make_unique<ResidualBlock>(std::move(attn_main), std::vector<std::unique_ptr<Layer>>(),
-                                        "linear", valid_name + "_attn");
+    auto attn_res = std::make_unique<ResidualBlock>(
+        std::move(attn_main), Vec<std::unique_ptr<Layer>>(), "linear", valid_name + "_attn");
     layers_.push_back(std::move(attn_res));
 
     // 2. Feed-Forward Sub-block (Residual)
@@ -610,7 +608,7 @@ public:
                         .build();
 
     auto ffn_res = std::make_unique<ResidualBlock>(
-        std::move(ffn_main), std::vector<std::unique_ptr<Layer>>(), "linear", valid_name + "_ffn");
+        std::move(ffn_main), Vec<std::unique_ptr<Layer>>(), "linear", valid_name + "_ffn");
     layers_.push_back(std::move(ffn_res));
 
     return *this;

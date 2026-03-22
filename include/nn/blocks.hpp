@@ -7,8 +7,8 @@
 
 namespace tnn {
 
-inline std::unique_ptr<ResidualBlock> residual_block(std::vector<std::unique_ptr<Layer>> main_path,
-                                                     std::vector<std::unique_ptr<Layer>> shortcut,
+inline std::unique_ptr<ResidualBlock> residual_block(Vec<std::unique_ptr<Layer>> main_path,
+                                                     Vec<std::unique_ptr<Layer>> shortcut,
                                                      const std::string &activation_name = "relu",
                                                      const std::string &name = "") {
   return std::make_unique<ResidualBlock>(

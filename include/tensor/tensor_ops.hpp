@@ -212,7 +212,7 @@ std::unique_ptr<Task> slice_batch(const ConstTensor &input, const Tensor &result
     batch_stride *= shape[i];
   }
 
-  std::vector<size_t> result_shape = shape;
+  Vec<size_t> result_shape = shape;
   result_shape[0] = end_batch - start_batch;
   result->resize(result_shape);
 
@@ -237,8 +237,8 @@ std::unique_ptr<Task> slice_batch(const ConstTensor &input, const Tensor &result
 }
 
 template <typename T>
-std::unique_ptr<Task> split(const ConstTensor &input, std::vector<Tensor> &results,
-                            size_t num_splits, flowHandle_t handle = defaultFlowHandle) {
+std::unique_ptr<Task> split(const ConstTensor &input, Vec<Tensor> &results, size_t num_splits,
+                            flowHandle_t handle = defaultFlowHandle) {
   const auto &shape = input->shape();
   const size_t batch_size = shape[0];
 
@@ -255,7 +255,7 @@ std::unique_ptr<Task> split(const ConstTensor &input, std::vector<Tensor> &resul
     size_t end = (i == num_splits - 1) ? batch_size : start + split_size;
 
     // Calculate the shape for this split
-    std::vector<size_t> split_shape = shape;
+    Vec<size_t> split_shape = shape;
     split_shape[0] = end - start;
 
     // Create a properly initialized tensor for this split

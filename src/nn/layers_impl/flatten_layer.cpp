@@ -18,7 +18,7 @@ FlattenLayer::FlattenLayer(int start_dim, int end_dim, const std::string &name)
 void FlattenLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
 
-  std::vector<size_t> output_shape = compute_output_shape(input->shape());
+  Vec<size_t> output_shape = compute_output_shape(input->shape());
   output->ensure(output_shape);
 
   input->copy_to(output);
@@ -31,7 +31,7 @@ void FlattenLayer::backward_impl(const ConstTensor &grad_output, const Tensor &g
     throw std::runtime_error("No cached shape found for micro-batch ID in FlattenLayer: " +
                              std::to_string(mb_id));
   }
-  const std::vector<size_t> &original_shape = it->second;
+  const Vec<size_t> &original_shape = it->second;
   size_t expected_size =
       std::accumulate(original_shape.begin(), original_shape.end(), 1, std::multiplies<size_t>());
   if (grad_output->size() != expected_size) {
@@ -50,13 +50,12 @@ LayerConfig FlattenLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> FlattenLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> FlattenLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.empty()) {
     throw std::invalid_argument("FlattenLayer expects non-empty input shape");
   }
 
-  std::vector<size_t> output_shape;
+  Vec<size_t> output_shape;
 
   output_shape.push_back(input_shape[0]);
 

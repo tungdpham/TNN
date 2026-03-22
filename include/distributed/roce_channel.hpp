@@ -302,7 +302,7 @@ public:
   ibv_qp *qp = nullptr;
   Endpoint endpoint;
   uint32_t psn = 0;
-  std::vector<dptr *> recv_buffers;
+  Vec<dptr *> recv_buffers;
 
   std::mutex mutex;
   std::unordered_map<uint64_t, dptr *> pending_sends;

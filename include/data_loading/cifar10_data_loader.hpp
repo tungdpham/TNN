@@ -35,16 +35,16 @@ namespace tnn {
  */
 class CIFAR10DataLoader : public ImageDataLoader {
 private:
-  std::vector<std::vector<float>> data_;
-  std::vector<int> labels_;
+  Vec<Vec<float>> data_;
+  Vec<int> labels_;
 
   DType_t dtype_ = DType_t::FP32;
 
-  std::vector<std::string> class_names_ = {"airplane", "automobile", "bird",  "cat",  "deer",
-                                           "dog",      "frog",       "horse", "ship", "truck"};
+  Vec<std::string> class_names_ = {"airplane", "automobile", "bird",  "cat",  "deer",
+                                   "dog",      "frog",       "horse", "ship", "truck"};
 
   template <typename T>
-  bool load_multiple_files_impl(const std::vector<std::string> &filenames) {
+  bool load_multiple_files_impl(const Vec<std::string> &filenames) {
     data_.clear();
     labels_.clear();
 
@@ -60,7 +60,7 @@ private:
 
       while (file.read(buffer, cifar10_constants::RECORD_SIZE)) {
         labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[0])));
-        std::vector<float> image_data;
+        Vec<float> image_data;
         image_data.reserve(cifar10_constants::IMAGE_SIZE);
 
         for (size_t i = 1; i < cifar10_constants::RECORD_SIZE; ++i) {
@@ -101,7 +101,7 @@ private:
     T *labels = batch_labels->data_as<T>();
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
-      const std::vector<float> &image_data = data_[this->current_index_ + i];
+      const Vec<float> &image_data = data_[this->current_index_ + i];
 
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
@@ -144,7 +144,7 @@ public:
    * @return true if successful, false otherwise
    */
   bool load_data(const std::string &source) override {
-    std::vector<std::string> filenames;
+    Vec<std::string> filenames;
 
     if (source.find(".bin") != std::string::npos) {
       filenames.push_back(source);
@@ -161,7 +161,7 @@ public:
    * @param filenames Vector of file paths to load
    * @return true if successful, false otherwise
    */
-  bool load_multiple_files(const std::vector<std::string> &filenames) {
+  bool load_multiple_files(const Vec<std::string> &filenames) {
     DISPATCH_DTYPE(dtype_, T, return load_multiple_files_impl<T>(filenames));
   }
 
@@ -184,10 +184,10 @@ public:
   void shuffle() override {
     if (data_.empty()) return;
 
-    std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
+    Vec<size_t> indices = this->generate_shuffled_indices(data_.size());
 
-    std::vector<std::vector<float>> shuffled_data;
-    std::vector<int> shuffled_labels;
+    Vec<Vec<float>> shuffled_data;
+    Vec<int> shuffled_labels;
     shuffled_data.reserve(data_.size());
     shuffled_labels.reserve(labels_.size());
 
@@ -209,7 +209,7 @@ public:
   /**
    * Get image dimensions (height, width, channels) for NHWC format
    */
-  std::vector<size_t> get_data_shape() const override {
+  Vec<size_t> get_data_shape() const override {
     return {cifar10_constants::IMAGE_HEIGHT, cifar10_constants::IMAGE_WIDTH,
             cifar10_constants::NUM_CHANNELS};
   }
@@ -222,7 +222,7 @@ public:
   /**
    * Get class names for CIFAR-10
    */
-  std::vector<std::string> get_class_names() const override { return class_names_; }
+  Vec<std::string> get_class_names() const override { return class_names_; }
 
   /**
    * Get data statistics for debugging
@@ -233,7 +233,7 @@ public:
       return;
     }
 
-    std::vector<int> label_counts(cifar10_constants::NUM_CLASSES, 0);
+    Vec<int> label_counts(cifar10_constants::NUM_CLASSES, 0);
     for (const auto &label : labels_) {
       if (label >= 0 && label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
         label_counts[label]++;

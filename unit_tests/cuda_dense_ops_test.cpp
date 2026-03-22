@@ -26,7 +26,7 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+    Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_gpu_ = false;
     for (const std::string &id : device_ids) {
@@ -46,7 +46,7 @@ protected:
 
   static void TearDownTestSuite() {}
 
-  void compareArrays(const std::vector<float> &expected, const std::vector<float> &actual,
+  void compareArrays(const Vec<float> &expected, const Vec<float> &actual,
                      float tolerance = 1e-4f) {
     ASSERT_EQ(expected.size(), actual.size())
         << "Array sizes don't match: expected " << expected.size() << ", got " << actual.size();
@@ -65,17 +65,17 @@ TEST_F(CUDADenseOpsTest, DenseForwardBasic) {
   const size_t input_features = 3;
   const size_t output_features = 4;
 
-  std::vector<float> input_data(batch_size * input_features);
+  Vec<float> input_data(batch_size * input_features);
   for (size_t i = 0; i < input_data.size(); ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<float> weight_data(input_features * output_features);
+  Vec<float> weight_data(input_features * output_features);
   for (size_t i = 0; i < weight_data.size(); ++i) {
     weight_data[i] = static_cast<float>(i + 1) * 0.1f;
   }
 
-  std::vector<float> cpu_output(batch_size * output_features, 0.0f);
+  Vec<float> cpu_output(batch_size * output_features, 0.0f);
   cpu::legacy_dense::compute_dense_forward<float>(input_data.data(), weight_data.data(),
                                                   cpu_output.data(), batch_size, input_features,
                                                   output_features);
@@ -95,7 +95,7 @@ TEST_F(CUDADenseOpsTest, DenseForwardBasic) {
       input_features, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU legacy_dense forward task failed";
 
-  std::vector<float> gpu_output_cpu(batch_size * output_features);
+  Vec<float> gpu_output_cpu(batch_size * output_features);
   getGPU().copyToHost(gpu_output_cpu.data(), gpu_output.get<float>(),
                       (batch_size * output_features) * sizeof(float));
 
@@ -107,17 +107,17 @@ TEST_F(CUDADenseOpsTest, DenseForwardLargeBatch) {
   const size_t input_features = 128;
   const size_t output_features = 64;
 
-  std::vector<float> input_data(batch_size * input_features);
+  Vec<float> input_data(batch_size * input_features);
   for (size_t i = 0; i < input_data.size(); ++i) {
     input_data[i] = static_cast<float>(i % 100) * 0.01f;
   }
 
-  std::vector<float> weight_data(input_features * output_features);
+  Vec<float> weight_data(input_features * output_features);
   for (size_t i = 0; i < weight_data.size(); ++i) {
     weight_data[i] = static_cast<float>(i % 50) * 0.02f;
   }
 
-  std::vector<float> cpu_output(batch_size * output_features, 0.0f);
+  Vec<float> cpu_output(batch_size * output_features, 0.0f);
   cpu::legacy_dense::compute_dense_forward<float>(input_data.data(), weight_data.data(),
                                                   cpu_output.data(), batch_size, input_features,
                                                   output_features);
@@ -137,7 +137,7 @@ TEST_F(CUDADenseOpsTest, DenseForwardLargeBatch) {
       input_features, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU legacy_dense forward task failed";
 
-  std::vector<float> gpu_output_cpu(batch_size * output_features);
+  Vec<float> gpu_output_cpu(batch_size * output_features);
   getGPU().copyToHost(gpu_output_cpu.data(), gpu_output.get<float>(),
                       (batch_size * output_features) * sizeof(float));
 
@@ -149,17 +149,17 @@ TEST_F(CUDADenseOpsTest, DenseForwardSingleSample) {
   const size_t input_features = 10;
   const size_t output_features = 5;
 
-  std::vector<float> input_data(batch_size * input_features);
+  Vec<float> input_data(batch_size * input_features);
   for (size_t i = 0; i < input_data.size(); ++i) {
     input_data[i] = static_cast<float>(i + 1) * 0.5f;
   }
 
-  std::vector<float> weight_data(input_features * output_features);
+  Vec<float> weight_data(input_features * output_features);
   for (size_t i = 0; i < weight_data.size(); ++i) {
     weight_data[i] = static_cast<float>(i + 1) * 0.1f;
   }
 
-  std::vector<float> cpu_output(batch_size * output_features, 0.0f);
+  Vec<float> cpu_output(batch_size * output_features, 0.0f);
   cpu::legacy_dense::compute_dense_forward<float>(input_data.data(), weight_data.data(),
                                                   cpu_output.data(), batch_size, input_features,
                                                   output_features);
@@ -179,7 +179,7 @@ TEST_F(CUDADenseOpsTest, DenseForwardSingleSample) {
       input_features, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU legacy_dense forward task failed";
 
-  std::vector<float> gpu_output_cpu(batch_size * output_features);
+  Vec<float> gpu_output_cpu(batch_size * output_features);
   getGPU().copyToHost(gpu_output_cpu.data(), gpu_output.get<float>(),
                       (batch_size * output_features) * sizeof(float));
 
@@ -191,17 +191,17 @@ TEST_F(CUDADenseOpsTest, WeightGradientsBasic) {
   const size_t input_features = 3;
   const size_t output_features = 4;
 
-  std::vector<float> input_data(batch_size * input_features);
+  Vec<float> input_data(batch_size * input_features);
   for (size_t i = 0; i < input_data.size(); ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<float> gradient_data(batch_size * output_features);
+  Vec<float> gradient_data(batch_size * output_features);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
     gradient_data[i] = static_cast<float>(i + 1) * 0.1f;
   }
 
-  std::vector<float> cpu_weight_grad(input_features * output_features, 0.0f);
+  Vec<float> cpu_weight_grad(input_features * output_features, 0.0f);
   cpu::legacy_dense::compute_weight_gradients(input_data.data(), gradient_data.data(),
                                               cpu_weight_grad.data(), batch_size, input_features,
                                               output_features);
@@ -215,7 +215,7 @@ TEST_F(CUDADenseOpsTest, WeightGradientsBasic) {
   getGPU().copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                         gradient_data.size() * sizeof(float));
 
-  std::vector<float> zero_grad(input_features * output_features, 0.0f);
+  Vec<float> zero_grad(input_features * output_features, 0.0f);
   getGPU().copyToDevice(gpu_weight_grad.get<float>(), zero_grad.data(),
                         zero_grad.size() * sizeof(float));
 
@@ -225,7 +225,7 @@ TEST_F(CUDADenseOpsTest, WeightGradientsBasic) {
       input_features, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU weight grad_output task failed";
 
-  std::vector<float> gpu_weight_grad_cpu(input_features * output_features);
+  Vec<float> gpu_weight_grad_cpu(input_features * output_features);
   getGPU().copyToHost(gpu_weight_grad_cpu.data(), gpu_weight_grad.get<float>(),
                       (input_features * output_features) * sizeof(float));
 
@@ -237,17 +237,17 @@ TEST_F(CUDADenseOpsTest, WeightGradientsLarge) {
   const size_t input_features = 64;
   const size_t output_features = 32;
 
-  std::vector<float> input_data(batch_size * input_features);
+  Vec<float> input_data(batch_size * input_features);
   for (size_t i = 0; i < input_data.size(); ++i) {
     input_data[i] = static_cast<float>(i % 100) * 0.01f;
   }
 
-  std::vector<float> gradient_data(batch_size * output_features);
+  Vec<float> gradient_data(batch_size * output_features);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
     gradient_data[i] = static_cast<float>(i % 50) * 0.02f;
   }
 
-  std::vector<float> cpu_weight_grad(input_features * output_features, 0.0f);
+  Vec<float> cpu_weight_grad(input_features * output_features, 0.0f);
   cpu::legacy_dense::compute_weight_gradients(input_data.data(), gradient_data.data(),
                                               cpu_weight_grad.data(), batch_size, input_features,
                                               output_features);
@@ -261,7 +261,7 @@ TEST_F(CUDADenseOpsTest, WeightGradientsLarge) {
   getGPU().copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                         gradient_data.size() * sizeof(float));
 
-  std::vector<float> zero_grad(input_features * output_features, 0.0f);
+  Vec<float> zero_grad(input_features * output_features, 0.0f);
   getGPU().copyToDevice(gpu_weight_grad.get<float>(), zero_grad.data(),
                         zero_grad.size() * sizeof(float));
 
@@ -271,7 +271,7 @@ TEST_F(CUDADenseOpsTest, WeightGradientsLarge) {
       input_features, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU weight grad_output task failed";
 
-  std::vector<float> gpu_weight_grad_cpu(input_features * output_features);
+  Vec<float> gpu_weight_grad_cpu(input_features * output_features);
   getGPU().copyToHost(gpu_weight_grad_cpu.data(), gpu_weight_grad.get<float>(),
                       (input_features * output_features) * sizeof(float));
 
@@ -283,17 +283,17 @@ TEST_F(CUDADenseOpsTest, InputGradientsBasic) {
   const size_t input_features = 3;
   const size_t output_features = 4;
 
-  std::vector<float> gradient_data(batch_size * output_features);
+  Vec<float> gradient_data(batch_size * output_features);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
     gradient_data[i] = static_cast<float>(i + 1) * 0.1f;
   }
 
-  std::vector<float> weight_data(input_features * output_features);
+  Vec<float> weight_data(input_features * output_features);
   for (size_t i = 0; i < weight_data.size(); ++i) {
     weight_data[i] = static_cast<float>(i + 1) * 0.1f;
   }
 
-  std::vector<float> cpu_grad_input(batch_size * input_features, 0.0f);
+  Vec<float> cpu_grad_input(batch_size * input_features, 0.0f);
   cpu::legacy_dense::compute_input_gradients(gradient_data.data(), weight_data.data(),
                                              cpu_grad_input.data(), batch_size, input_features,
                                              output_features);
@@ -307,7 +307,7 @@ TEST_F(CUDADenseOpsTest, InputGradientsBasic) {
   getGPU().copyToDevice(gpu_weight.get<float>(), weight_data.data(),
                         weight_data.size() * sizeof(float));
 
-  std::vector<float> zero_grad(batch_size * input_features, 0.0f);
+  Vec<float> zero_grad(batch_size * input_features, 0.0f);
   getGPU().copyToDevice(gpu_grad_input.get<float>(), zero_grad.data(),
                         zero_grad.size() * sizeof(float));
 
@@ -317,7 +317,7 @@ TEST_F(CUDADenseOpsTest, InputGradientsBasic) {
       input_features, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU input grad_output task failed";
 
-  std::vector<float> gpu_grad_input_cpu(batch_size * input_features);
+  Vec<float> gpu_grad_input_cpu(batch_size * input_features);
   getGPU().copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get<float>(),
                       (batch_size * input_features) * sizeof(float));
 
@@ -329,17 +329,17 @@ TEST_F(CUDADenseOpsTest, InputGradientsLarge) {
   const size_t input_features = 64;
   const size_t output_features = 32;
 
-  std::vector<float> gradient_data(batch_size * output_features);
+  Vec<float> gradient_data(batch_size * output_features);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
     gradient_data[i] = static_cast<float>(i % 50) * 0.02f;
   }
 
-  std::vector<float> weight_data(input_features * output_features);
+  Vec<float> weight_data(input_features * output_features);
   for (size_t i = 0; i < weight_data.size(); ++i) {
     weight_data[i] = static_cast<float>(i % 100) * 0.01f;
   }
 
-  std::vector<float> cpu_grad_input(batch_size * input_features, 0.0f);
+  Vec<float> cpu_grad_input(batch_size * input_features, 0.0f);
   cpu::legacy_dense::compute_input_gradients(gradient_data.data(), weight_data.data(),
                                              cpu_grad_input.data(), batch_size, input_features,
                                              output_features);
@@ -353,7 +353,7 @@ TEST_F(CUDADenseOpsTest, InputGradientsLarge) {
   getGPU().copyToDevice(gpu_weight.get<float>(), weight_data.data(),
                         weight_data.size() * sizeof(float));
 
-  std::vector<float> zero_grad(batch_size * input_features, 0.0f);
+  Vec<float> zero_grad(batch_size * input_features, 0.0f);
   getGPU().copyToDevice(gpu_grad_input.get<float>(), zero_grad.data(),
                         zero_grad.size() * sizeof(float));
 
@@ -363,7 +363,7 @@ TEST_F(CUDADenseOpsTest, InputGradientsLarge) {
       input_features, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU input grad_output task failed";
 
-  std::vector<float> gpu_grad_input_cpu(batch_size * input_features);
+  Vec<float> gpu_grad_input_cpu(batch_size * input_features);
   getGPU().copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get<float>(),
                       (batch_size * input_features) * sizeof(float));
 
@@ -374,12 +374,12 @@ TEST_F(CUDADenseOpsTest, BiasGradientsBasic) {
   const size_t batch_size = 2;
   const size_t output_features = 4;
 
-  std::vector<float> gradient_data(batch_size * output_features);
+  Vec<float> gradient_data(batch_size * output_features);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
     gradient_data[i] = static_cast<float>(i + 1) * 0.1f;
   }
 
-  std::vector<float> cpu_bias_grad(output_features, 0.0f);
+  Vec<float> cpu_bias_grad(output_features, 0.0f);
   cpu::legacy_dense::compute_bias_gradients(gradient_data.data(), cpu_bias_grad.data(), batch_size,
                                             output_features);
 
@@ -389,7 +389,7 @@ TEST_F(CUDADenseOpsTest, BiasGradientsBasic) {
   getGPU().copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                         gradient_data.size() * sizeof(float));
 
-  std::vector<float> zero_bias_grad(output_features, 0.0f);
+  Vec<float> zero_bias_grad(output_features, 0.0f);
   getGPU().copyToDevice(gpu_bias_grad.get<float>(), zero_bias_grad.data(),
                         zero_bias_grad.size() * sizeof(float));
 
@@ -398,7 +398,7 @@ TEST_F(CUDADenseOpsTest, BiasGradientsBasic) {
       gpu_gradient.get<float>(), gpu_bias_grad.get<float>(), batch_size, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU bias grad_output task failed";
 
-  std::vector<float> gpu_bias_grad_cpu(output_features);
+  Vec<float> gpu_bias_grad_cpu(output_features);
   getGPU().copyToHost(gpu_bias_grad_cpu.data(), gpu_bias_grad.get<float>(),
                       output_features * sizeof(float));
 
@@ -409,12 +409,12 @@ TEST_F(CUDADenseOpsTest, BiasGradientsLargeBatch) {
   const size_t batch_size = 32;
   const size_t output_features = 128;
 
-  std::vector<float> gradient_data(batch_size * output_features);
+  Vec<float> gradient_data(batch_size * output_features);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
     gradient_data[i] = static_cast<float>(i % 100) * 0.01f;
   }
 
-  std::vector<float> cpu_bias_grad(output_features, 0.0f);
+  Vec<float> cpu_bias_grad(output_features, 0.0f);
   cpu::legacy_dense::compute_bias_gradients(gradient_data.data(), cpu_bias_grad.data(), batch_size,
                                             output_features);
 
@@ -424,7 +424,7 @@ TEST_F(CUDADenseOpsTest, BiasGradientsLargeBatch) {
   getGPU().copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                         gradient_data.size() * sizeof(float));
 
-  std::vector<float> zero_bias_grad(output_features, 0.0f);
+  Vec<float> zero_bias_grad(output_features, 0.0f);
   getGPU().copyToDevice(gpu_bias_grad.get<float>(), zero_bias_grad.data(),
                         zero_bias_grad.size() * sizeof(float));
 
@@ -433,7 +433,7 @@ TEST_F(CUDADenseOpsTest, BiasGradientsLargeBatch) {
       gpu_gradient.get<float>(), gpu_bias_grad.get<float>(), batch_size, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU bias grad_output task failed";
 
-  std::vector<float> gpu_bias_grad_cpu(output_features);
+  Vec<float> gpu_bias_grad_cpu(output_features);
   getGPU().copyToHost(gpu_bias_grad_cpu.data(), gpu_bias_grad.get<float>(),
                       output_features * sizeof(float));
 
@@ -444,17 +444,17 @@ TEST_F(CUDADenseOpsTest, AddBiasBasic) {
   const size_t batch_size = 2;
   const size_t output_features = 4;
 
-  std::vector<float> output_data(batch_size * output_features);
+  Vec<float> output_data(batch_size * output_features);
   for (size_t i = 0; i < output_data.size(); ++i) {
     output_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<float> bias_data(output_features);
+  Vec<float> bias_data(output_features);
   for (size_t i = 0; i < bias_data.size(); ++i) {
     bias_data[i] = static_cast<float>(i + 1) * 0.5f;
   }
 
-  std::vector<float> cpu_output = output_data;
+  Vec<float> cpu_output = output_data;
   cpu::legacy_dense::add_bias_vector(cpu_output.data(), bias_data.data(), batch_size,
                                      output_features);
 
@@ -470,7 +470,7 @@ TEST_F(CUDADenseOpsTest, AddBiasBasic) {
       gpu_output.get<float>(), gpu_bias.get<float>(), batch_size, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU add bias task failed";
 
-  std::vector<float> gpu_output_cpu(batch_size * output_features);
+  Vec<float> gpu_output_cpu(batch_size * output_features);
   getGPU().copyToHost(gpu_output_cpu.data(), gpu_output.get<float>(),
                       (batch_size * output_features) * sizeof(float));
 
@@ -481,17 +481,17 @@ TEST_F(CUDADenseOpsTest, AddBiasLarge) {
   const size_t batch_size = 32;
   const size_t output_features = 128;
 
-  std::vector<float> output_data(batch_size * output_features);
+  Vec<float> output_data(batch_size * output_features);
   for (size_t i = 0; i < output_data.size(); ++i) {
     output_data[i] = static_cast<float>(i % 100) * 0.01f;
   }
 
-  std::vector<float> bias_data(output_features);
+  Vec<float> bias_data(output_features);
   for (size_t i = 0; i < bias_data.size(); ++i) {
     bias_data[i] = static_cast<float>(i % 50) * 0.02f;
   }
 
-  std::vector<float> cpu_output = output_data;
+  Vec<float> cpu_output = output_data;
   cpu::legacy_dense::add_bias_vector(cpu_output.data(), bias_data.data(), batch_size,
                                      output_features);
 
@@ -507,7 +507,7 @@ TEST_F(CUDADenseOpsTest, AddBiasLarge) {
       gpu_output.get<float>(), gpu_bias.get<float>(), batch_size, output_features);
   ASSERT_FALSE(gpu_task->sync()) << "GPU add bias task failed";
 
-  std::vector<float> gpu_output_cpu(batch_size * output_features);
+  Vec<float> gpu_output_cpu(batch_size * output_features);
   getGPU().copyToHost(gpu_output_cpu.data(), gpu_output.get<float>(),
                       (batch_size * output_features) * sizeof(float));
 

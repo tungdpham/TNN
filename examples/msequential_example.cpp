@@ -118,7 +118,7 @@ void example_msequential_basic() {
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
 
   // Create two branches with simple dense layers
-  std::vector<std::unique_ptr<Sequential>> sequences;
+  Vec<std::unique_ptr<Sequential>> sequences;
 
   // Branch 1: Dense -> ReLU
   {
@@ -211,7 +211,7 @@ void example_msequential_heterogeneous() {
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
 
   // Create three branches with different depths
-  std::vector<std::unique_ptr<Sequential>> sequences;
+  Vec<std::unique_ptr<Sequential>> sequences;
 
   // Branch 1: Shallow network (low M_b - O)
   {

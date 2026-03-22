@@ -115,7 +115,7 @@ public:
 
   int padding_token_id() const { return padding_token_id_; }
 
-  std::vector<size_t> get_data_shape() const override { return {context_length_}; }
+  Vec<size_t> get_data_shape() const override { return {context_length_}; }
 
 private:
   int fd_ = -1;

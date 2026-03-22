@@ -69,8 +69,8 @@ private:
 #endif
   mutable std::unordered_map<size_t, GemmStats> stats_cache;
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     auto weight_desc = ParamDescriptor{
         param_dtype_,
         {output_features_, input_features_},
@@ -105,7 +105,7 @@ public:
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;

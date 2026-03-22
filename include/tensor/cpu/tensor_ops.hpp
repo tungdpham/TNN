@@ -443,7 +443,7 @@ void cpu_slice_batch(const T *input_data, T *result_data, size_t start_batch, si
  * @param stride_0 Stride for the batch dimension (product of all dimensions except batch)
  */
 template <typename T>
-void cpu_split(const T *input_data, std::vector<T *> &results, size_t batch_size, size_t num_splits,
+void cpu_split(const T *input_data, Vec<T *> &results, size_t batch_size, size_t num_splits,
                size_t stride_0) {
   size_t split_size = batch_size / num_splits;
 

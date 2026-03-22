@@ -25,7 +25,7 @@
 
 namespace tnn {
 
-MSequential::MSequential(std::vector<std::unique_ptr<Sequential>> sequences,
+MSequential::MSequential(Vec<std::unique_ptr<Sequential>> sequences,
                          std::unique_ptr<Layer> join_layer, const std::string &name)
     : Block(name),
       sequences_(std::move(sequences)),
@@ -62,14 +62,13 @@ MSequential::SequenceMemInfo MSequential::compute_sequence_memory(
   return info;
 }
 
-std::vector<size_t> MSequential::compute_execution_order(
-    const Vec<Vec<size_t>> &input_shapes) const {
+Vec<size_t> MSequential::compute_execution_order(const Vec<Vec<size_t>> &input_shapes) const {
   if (input_shapes.size() != sequences_.size()) {
     throw std::runtime_error(fmt::format("MSequential: Expected {} inputs, got {}",
                                          sequences_.size(), input_shapes.size()));
   }
 
-  std::vector<SequenceMemInfo> mem_infos;
+  Vec<SequenceMemInfo> mem_infos;
   mem_infos.reserve(sequences_.size());
 
   for (size_t i = 0; i < sequences_.size(); ++i) {
@@ -80,7 +79,7 @@ std::vector<size_t> MSequential::compute_execution_order(
       mem_infos.begin(), mem_infos.end(),
       [](const SequenceMemInfo &a, const SequenceMemInfo &b) { return a.priority > b.priority; });
 
-  std::vector<size_t> order;
+  Vec<size_t> order;
   order.reserve(sequences_.size());
   for (const auto &info : mem_infos) {
     order.push_back(info.index);
@@ -258,7 +257,7 @@ size_t MSequential::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
 
   size_t dtype_size = get_dtype_size(io_dtype_);
 
-  std::vector<size_t> order = compute_execution_order(input_shapes);
+  Vec<size_t> order = compute_execution_order(input_shapes);
 
   size_t k = 0;
   size_t accumulated = 0;
@@ -317,7 +316,7 @@ void MSequential::print_summary(const Vec<Vec<size_t>> &input_shapes) const {
     return;
   }
 
-  auto format_shape = [](const std::vector<size_t> &shape) {
+  auto format_shape = [](const Vec<size_t> &shape) {
     std::string shape_str = "(";
     for (size_t j = 0; j < shape.size(); ++j) {
       if (j > 0) shape_str += ",";
@@ -364,7 +363,7 @@ void MSequential::print_summary(const Vec<Vec<size_t>> &input_shapes) const {
   std::cout << "Forward workspace: " << fwd_workspace(input_shapes) / (1024.0 * 1024.0) << " MB\n";
   std::cout << "Backward workspace: " << bwd_workspace(input_shapes) / (1024.0 * 1024.0) << " MB\n";
 
-  std::vector<size_t> order = compute_execution_order(input_shapes);
+  Vec<size_t> order = compute_execution_order(input_shapes);
   std::cout << "\nOptimal execution order (by priority M_b,i - O_i): ";
   for (size_t i = 0; i < order.size(); ++i) {
     if (i > 0) std::cout << " -> ";
@@ -375,8 +374,8 @@ void MSequential::print_summary(const Vec<Vec<size_t>> &input_shapes) const {
   std::cout << std::string(100, '-') << "\n";
 }
 
-std::vector<Sequential *> MSequential::get_sequences() {
-  std::vector<Sequential *> seqs;
+Vec<Sequential *> MSequential::get_sequences() {
+  Vec<Sequential *> seqs;
   seqs.reserve(sequences_.size());
   for (auto &seq : sequences_) {
     seqs.push_back(seq.get());
@@ -412,7 +411,7 @@ std::unique_ptr<MSequential> MSequential::create_from_config(const LayerConfig &
     throw std::runtime_error("MSequential config 'sequences' parameter must be an array");
   }
 
-  std::vector<std::unique_ptr<Sequential>> sequences;
+  Vec<std::unique_ptr<Sequential>> sequences;
   LayerFactory::register_defaults();
 
   for (const auto &seq_json : sequences_json) {

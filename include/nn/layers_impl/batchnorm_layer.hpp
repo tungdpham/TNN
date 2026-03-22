@@ -79,8 +79,8 @@ private:
   void cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
 #endif
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     auto gamma_desc = ParamDescriptor{
         param_dtype_,
         {num_features_},
@@ -133,7 +133,7 @@ public:
   size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   static std::unique_ptr<BatchNormLayer> create_from_config(const LayerConfig &config);
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 };
 
 }  // namespace tnn

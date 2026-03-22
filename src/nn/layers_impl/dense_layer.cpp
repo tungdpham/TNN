@@ -67,7 +67,7 @@ void DenseLayer::init_impl() {
 }
 
 void DenseLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
-  const std::vector<size_t> &in_shape = input->shape();
+  const Vec<size_t> &in_shape = input->shape();
   size_t last_dim = in_shape.back();
 
   if (last_dim != input_features_) {
@@ -80,7 +80,7 @@ void DenseLayer::forward_impl(const ConstTensor &input, const Tensor &output, si
     set_immutable_cache(mb_id, "input", input);
   }
 
-  std::vector<size_t> out_shape = in_shape;
+  Vec<size_t> out_shape = in_shape;
   out_shape.back() = output_features_;
   output->ensure(out_shape);
 
@@ -131,7 +131,7 @@ void DenseLayer::build_graph(const Vec<size_t> &input_shape) const {
 }
 
 void DenseLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id) {
-  const std::vector<size_t> &in_shape = input->shape();
+  const Vec<size_t> &in_shape = input->shape();
 
   build_graph(in_shape);
 
@@ -161,7 +161,7 @@ void DenseLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &gr
 
   grad_input->ensure(input->shape());
 
-  const std::vector<size_t> &in_shape = input->shape();
+  const Vec<size_t> &in_shape = input->shape();
   size_t batch_size = 1;
   for (size_t i = 0; i < in_shape.size() - 1; ++i) {
     batch_size *= in_shape[i];
@@ -316,11 +316,11 @@ LayerConfig DenseLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> DenseLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+Vec<size_t> DenseLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.empty()) {
     throw std::runtime_error("DenseLayer::compute_output_shape: Input shape is empty.");
   }
-  std::vector<size_t> out_shape = input_shape;
+  Vec<size_t> out_shape = input_shape;
   out_shape.back() = output_features_;
   return out_shape;
 }

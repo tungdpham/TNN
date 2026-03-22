@@ -18,7 +18,7 @@ public:
   explicit StatelessLayer(const std::string &name = "") { this->name_ = name; }
 
 protected:
-  std::vector<ParamDescriptor> param_descriptors() override { return {}; }
+  Vec<ParamDescriptor> param_descriptors() override { return {}; }
 };
 
 }  // namespace tnn

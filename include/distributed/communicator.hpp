@@ -29,7 +29,7 @@ namespace tnn {
  */
 class Communicator {
 private:
-  std::vector<CommandType> all_command_types_ = get_enum_vector<CommandType>();
+  Vec<CommandType> all_command_types_ = get_enum_vector<CommandType>();
 
 public:
   Communicator(Endpoint endpoint)
@@ -125,8 +125,8 @@ public:
     return message;
   }
 
-  inline std::vector<Message> dequeue_all_messages_by_type(CommandType target_type) {
-    std::vector<Message> messages = message_queues_.pop_all(target_type);
+  inline Vec<Message> dequeue_all_messages_by_type(CommandType target_type) {
+    Vec<Message> messages = message_queues_.pop_all(target_type);
     return messages;
   }
 

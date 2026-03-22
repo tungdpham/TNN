@@ -32,8 +32,8 @@ public:
     throw std::invalid_argument("Unknown model: " + name);
   }
 
-  static std::vector<std::string> available_models() {
-    std::vector<std::string> models;
+  static Vec<std::string> available_models() {
+    Vec<std::string> models;
     for (const auto &pair : creators_) {
       models.push_back(pair.first);
     }

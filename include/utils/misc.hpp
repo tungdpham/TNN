@@ -8,7 +8,7 @@
 namespace tnn {
 
 template <typename EnumType>
-constexpr std::vector<EnumType> get_enum_vector() {
+constexpr Vec<EnumType> get_enum_vector() {
   static_assert(std::is_enum_v<EnumType>, "Template parameter must be an enum type");
   static_assert(std::is_same_v<decltype(EnumType::_COUNT), EnumType>,
                 "Enum type must have a _COUNT member to indicate the number of "
@@ -16,7 +16,7 @@ constexpr std::vector<EnumType> get_enum_vector() {
   static_assert(std::is_same_v<decltype(EnumType::_START), EnumType>,
                 "Enum type must have a _START member to indicate the starting "
                 "enum value");
-  std::vector<EnumType> values;
+  Vec<EnumType> values;
   for (int i = static_cast<int>(EnumType::_START); i < static_cast<int>(EnumType::_COUNT); ++i) {
     values.push_back(static_cast<EnumType>(i));
   }
@@ -26,7 +26,7 @@ constexpr std::vector<EnumType> get_enum_vector() {
 template <typename Func>
 void benchmark(const std::string &name, Func &&func, int bench_runs = 5) {
   std::cout << "Benchmarking: " << name << std::endl;
-  std::vector<double> times;
+  Vec<double> times;
   for (int i = 0; i < bench_runs; ++i) {
     auto start = std::chrono::high_resolution_clock::now();
     func();
@@ -39,7 +39,7 @@ void benchmark(const std::string &name, Func &&func, int bench_runs = 5) {
   std::cout << name << " average time: " << avg << " ms" << std::endl;
 }
 
-inline size_t get_shape_hash(const std::vector<size_t> &shape) {
+inline size_t get_shape_hash(const Vec<size_t> &shape) {
   size_t seed = 0;
   auto hash_combine = [&](size_t v) {
     seed ^= std::hash<size_t>{}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);

@@ -60,7 +60,7 @@ public:
   /**
    * Get data shape
    */
-  virtual std::vector<size_t> get_data_shape() const = 0;
+  virtual Vec<size_t> get_data_shape() const = 0;
 
   /**
    * Print data statistics for debugging
@@ -110,8 +110,8 @@ protected:
   /**
    * Utility function to shuffle indices
    */
-  std::vector<size_t> generate_shuffled_indices(size_t data_size) const {
-    std::vector<size_t> indices(data_size);
+  Vec<size_t> generate_shuffled_indices(size_t data_size) const {
+    Vec<size_t> indices(data_size);
     std::iota(indices.begin(), indices.end(), 0);
     std::shuffle(indices.begin(), indices.end(), rng_);
     return indices;

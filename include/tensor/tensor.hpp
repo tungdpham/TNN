@@ -44,7 +44,7 @@ protected:
   sref<IAllocator> allocator_;
   size_t data_size_;
   dptr data_;
-  std::vector<size_t> shape_;
+  Vec<size_t> shape_;
 
   inline size_t compute_stride(size_t index) const {
     size_t stride = 1;
@@ -109,7 +109,7 @@ public:
     }
   }
 
-  TensorImpl(IAllocator &allocator, DType_t dtype, const std::vector<size_t> &shape)
+  TensorImpl(IAllocator &allocator, DType_t dtype, const Vec<size_t> &shape)
       : dtype_(dtype),
         allocator_(allocator),
         shape_(shape) {
@@ -121,8 +121,7 @@ public:
     data_ = allocate_data(data_size_);
   }
 
-  TensorImpl(IAllocator &allocator, DType_t dtype, const std::vector<size_t> &shape,
-             const dptr &data)
+  TensorImpl(IAllocator &allocator, DType_t dtype, const Vec<size_t> &shape, const dptr &data)
       : dtype_(dtype),
         allocator_(allocator),
         shape_(shape) {
@@ -137,7 +136,7 @@ public:
     }
   }
 
-  TensorImpl(IAllocator &allocator, DType_t dtype, const std::vector<size_t> &shape, dptr &&data)
+  TensorImpl(IAllocator &allocator, DType_t dtype, const Vec<size_t> &shape, dptr &&data)
       : dtype_(dtype),
         allocator_(allocator),
         data_(std::move(data)),
@@ -221,7 +220,7 @@ public:
 
   bool same_shape(const TensorImpl &other) const { return shape_ == other.shape_; }
 
-  const std::vector<size_t> &shape() const { return shape_; }
+  const Vec<size_t> &shape() const { return shape_; }
 
   std::string shape_str() const {
     std::ostringstream oss;
@@ -262,13 +261,13 @@ public:
     }
     auto &allocator = PoolAllocator::instance(target_device, defaultFlowHandle);
     if (device_type() == DeviceType::CPU && target_device.device_type() == DeviceType::GPU) {
-      std::vector<size_t> shape_vec(shape_);
+      Vec<size_t> shape_vec(shape_);
       Tensor gpu_tensor = std::make_shared<TensorImpl>(allocator, dtype_, shape_vec);
       DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, gpu_tensor->data_, data_size_));
       return gpu_tensor;
     }
     if (device_type() == DeviceType::GPU && target_device.device_type() == DeviceType::CPU) {
-      std::vector<size_t> shape_vec(shape_);
+      Vec<size_t> shape_vec(shape_);
       Tensor cpu_tensor = std::make_shared<TensorImpl>(allocator, dtype_, shape_vec);
       DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_));
       return cpu_tensor;
@@ -281,7 +280,7 @@ public:
       return clone();
     }
     auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-    std::vector<size_t> shape_vec(shape_);
+    Vec<size_t> shape_vec(shape_);
     Tensor cpu_tensor = std::make_shared<TensorImpl>(allocator, dtype_, shape_vec);
     DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_));
     return cpu_tensor;
@@ -289,7 +288,7 @@ public:
 
   Tensor clone() const { return std::make_shared<TensorImpl>(*allocator_, dtype_, shape_, data_); }
 
-  TensorImpl span(std::vector<size_t> start_offset, std::vector<size_t> span_sizes) const {
+  TensorImpl span(Vec<size_t> start_offset, Vec<size_t> span_sizes) const {
     if (start_offset.size() != shape_.size() || span_sizes.size() != shape_.size()) {
       throw std::invalid_argument("Span offsets and sizes must match TensorImpl dimensions");
     }
@@ -447,7 +446,7 @@ public:
     shape_ = source->shape_;
   }
 
-  void resize(const std::vector<size_t> &new_shape) {
+  void resize(const Vec<size_t> &new_shape) {
     if (new_shape == shape_) {
       return;
     }
@@ -465,7 +464,7 @@ public:
    * Similar to resize but only reallocates if the new size is larger than
    * the current allocated size. Good for caching.
    */
-  void ensure(const std::vector<size_t> &new_shape) {
+  void ensure(const Vec<size_t> &new_shape) {
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
     if (new_size * get_dtype_size(dtype_) > data_.capacity()) {
@@ -595,7 +594,7 @@ public:
       if (device_type() == DeviceType::CPU) {
         out.write(reinterpret_cast<const char *>(data_.get<T>()), data_size_ * sizeof(T));
       } else {
-        std::vector<T> host_buffer(data_size_);
+        Vec<T> host_buffer(data_size_);
         device().copyToHost(host_buffer.data(), data_.get<T>(), data_size_ * sizeof(T));
         out.write(reinterpret_cast<const char *>(host_buffer.data()), data_size_ * sizeof(T));
       }
@@ -609,7 +608,7 @@ public:
 template <typename Archiver>
 void archive(Archiver &archive, const Tensor &tensor) {
   DType_t &dtype = tensor->data_type();
-  std::vector<size_t> shape_vec = tensor->shape();
+  Vec<size_t> shape_vec = tensor->shape();
   archive(dtype);
   archive(shape_vec);
   dptr data_ptr = tensor->data_ptr();

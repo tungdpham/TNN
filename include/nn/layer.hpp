@@ -21,7 +21,7 @@ using LayerConfig = TConfig;
 
 struct ParamDescriptor {
   DType_t dtype;  // data type of the parameter
-  std::vector<size_t> shape;
+  Vec<size_t> shape;
   Tensor *data_ptr;  // pointer to the actual param
   Tensor *grad_ptr;  // pointer to the actual grad_output
 };
@@ -49,10 +49,9 @@ public:
   virtual ~Layer() = default;
 
   void init();
-  void forward(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
-               size_t mb_id = 0);
-  void backward(const std::vector<ConstTensor> &grad_outputs,
-                const std::vector<Tensor> &grad_inputs, size_t mb_id = 0);
+  void forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs, size_t mb_id = 0);
+  void backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                size_t mb_id = 0);
 
   // Note: have to call init again after changing param dtype
   Layer &set_allocator(DELAllocatorV2 &allocator);
@@ -83,7 +82,7 @@ public:
   virtual size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const = 0;
   std::string name() const { return name_; }
   void save_state(std::ofstream &file);
-  virtual std::vector<ParamDescriptor> param_descriptors() { return {}; }
+  virtual Vec<ParamDescriptor> param_descriptors() { return {}; }
   virtual std::string type() const = 0;
   virtual LayerConfig get_config() const = 0;
   const Device &device() const {
@@ -93,8 +92,8 @@ public:
     return allocator_->device();
   }
 
-  std::vector<Tensor> parameters();
-  std::vector<Tensor> gradients();
+  Vec<Tensor> parameters();
+  Vec<Tensor> gradients();
 
 protected:
   virtual void init_impl() {}
@@ -105,10 +104,10 @@ protected:
   virtual void on_set_io_dtype(DType_t dtype) {}
   virtual void on_set_param_dtype(DType_t dtype) {}
   virtual void on_set_compute_dtype(DType_t dtype) {}
-  virtual void forward_impl(const std::vector<ConstTensor> &inputs,
-                            const std::vector<Tensor> &outputs, size_t mb_id) = 0;
-  virtual void backward_impl(const std::vector<ConstTensor> &grad_outputs,
-                             const std::vector<Tensor> &grad_inputs, size_t mb_id) = 0;
+  virtual void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                            size_t mb_id) = 0;
+  virtual void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                             size_t mb_id) = 0;
 
 protected:
   bool initialized_ = false;
@@ -130,9 +129,9 @@ protected:
   ConstTensor &get_immutable_cache(size_t mb_id, const std::string &key);
   void set_mutable_cache(size_t mb_id, const std::string &key, Tensor value);
   Tensor &get_mutable_cache(size_t mb_id, const std::string &key);
-  Tensor get_tensor(const std::vector<size_t> &shape, DType_t dtype);
-  Tensor get_cache_tensor(const std::vector<size_t> &shape = {}, DType_t dtype = DType_t::FP32);
-  Tensor get_workspace(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
+  Tensor get_tensor(const Vec<size_t> &shape, DType_t dtype);
+  Tensor get_cache_tensor(const Vec<size_t> &shape = {}, DType_t dtype = DType_t::FP32);
+  Tensor get_workspace(const Vec<size_t> &shape, DType_t dtype = DType_t::FP32);
   void clear_cache(size_t mb_id);
 };
 

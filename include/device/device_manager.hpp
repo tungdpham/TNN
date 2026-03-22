@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "device.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 class DeviceManager {
@@ -57,7 +58,7 @@ public:
   /**
    * Get all available device ids.
    */
-  std::vector<std::string> getAvailableDeviceIDs() const;
+  Vec<std::string> getAvailableDeviceIDs() const;
 
   /**
    * Check if device manager has a device with an id.

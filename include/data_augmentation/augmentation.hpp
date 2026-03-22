@@ -85,7 +85,7 @@ public:
                          augmentations_.end());
   }
 
-  void set_augmentations(const std::vector<std::unique_ptr<Augmentation>> &augs) {
+  void set_augmentations(const Vec<std::unique_ptr<Augmentation>> &augs) {
     augmentations_.clear();
     for (const auto &aug : augs) {
       augmentations_.emplace_back(aug->clone());
@@ -96,12 +96,10 @@ public:
 
   size_t size() const { return augmentations_.size(); }
 
-  const std::vector<std::unique_ptr<Augmentation>> &get_augmentations() const {
-    return augmentations_;
-  }
+  const Vec<std::unique_ptr<Augmentation>> &get_augmentations() const { return augmentations_; }
 
 protected:
-  std::vector<std::unique_ptr<Augmentation>> augmentations_;
+  Vec<std::unique_ptr<Augmentation>> augmentations_;
 };
 
 class AugmentationBuilder {

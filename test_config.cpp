@@ -10,7 +10,7 @@ using namespace tnn;
 
 int main() {
   TConfig config;
-  std::vector<std::string> vec = {"hello", "world"};
+  Vec<std::string> vec = {"hello", "world"};
   config.set("test_vector", vec);
 
   TConfig sub_config;

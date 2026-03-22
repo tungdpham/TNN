@@ -30,7 +30,7 @@ signed main() {
   BinarySerializer bserializer(device_allocator);
   dptr buffer = device_allocator.allocate(data_size * sizeof(float) + 1024);
 
-  std::vector<float> raw_data(data_size, 1.2345f);
+  Vec<float> raw_data(data_size, 1.2345f);
   Tensor temp = make_tensor<float>({data_size});
 
   benchmark(

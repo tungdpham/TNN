@@ -42,8 +42,7 @@ public:
     return input_node;
   }
 
-  void add_edge(std::vector<const IONode*> producers, std::vector<const IONode*> consumers,
-                OpNode& op_node) {
+  void add_edge(Vec<const IONode*> producers, Vec<const IONode*> consumers, OpNode& op_node) {
     Edge edge(std::move(producers), std::move(consumers), op_node);
     edges_.push_back(std::move(edge));
   }
@@ -64,8 +63,8 @@ public:
     }
 
     // Build adjacency list (A -> B means B depends on A) and in-degree counts
-    std::vector<std::vector<size_t>> adj(n);
-    std::vector<size_t> in_degree(n, 0);
+    Vec<Vec<size_t>> adj(n);
+    Vec<size_t> in_degree(n, 0);
     for (size_t i = 0; i < n; ++i) {
       for (const IONode* node : edges_[i].producers()) {
         auto it = produced_by.find(node);
@@ -83,7 +82,7 @@ public:
       if (in_degree[i] == 0) queue.push_back(i);
     }
 
-    std::vector<Edge> sorted;
+    Vec<Edge> sorted;
     sorted.reserve(n);
     while (!queue.empty()) {
       size_t idx = queue.front();
@@ -103,7 +102,7 @@ public:
 
   std::unordered_map<std::string, IONode>& io_nodes() { return io_nodes_; }
   std::unordered_map<std::string, OpNode>& op_nodes() { return op_nodes_; }
-  std::vector<Edge>& edges() { return edges_; }
+  Vec<Edge>& edges() { return edges_; }
 
   Graph compile(IAllocator& allocator) {
     sort();
@@ -115,7 +114,7 @@ private:
   GraphContextDescriptor ctx_desc_;
   std::unordered_map<std::string, IONode> io_nodes_;
   std::unordered_map<std::string, OpNode> op_nodes_;
-  std::vector<Edge> edges_;
+  Vec<Edge> edges_;
   size_t node_count_ = 0;
 
   OpNode& add_op_node(OpNode&& op_node) {

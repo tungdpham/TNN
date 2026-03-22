@@ -56,7 +56,7 @@ inline void print_data_distribution(const ConstTensor &tensor,
   // buckets[0] = values < 2^-32 (including zeros)
   // buckets[1..num_buckets] = values in [2^exp, 2^(exp+1))
   // buckets[num_buckets+1] = values >= 2^32
-  std::vector<size_t> buckets(num_buckets + 2, 0);
+  Vec<size_t> buckets(num_buckets + 2, 0);
 
   auto process_data = [&]<typename T>() {
     auto typed_tensor = std::dynamic_pointer_cast<Tensor>(cpu_tensor);

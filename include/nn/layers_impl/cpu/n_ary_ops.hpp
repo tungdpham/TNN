@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "nn/layers_impl/common/n_ary.hpp"
-
+#include "type/type.hpp"
 namespace tnn {
 
 class Layer;
@@ -21,14 +21,13 @@ namespace cpu {
 // output = input[0] op input[1] op input[2] ... op input[N-1]
 // For division: output = ((input[0] / input[1]) / input[2]) / ...
 template <typename T>
-void nary_forward(const std::vector<const T *> &inputs, T *output, const std::vector<size_t> &shape,
+void nary_forward(const Vec<const T *> &inputs, T *output, const Vec<size_t> &shape,
                   const NAryOp &op_type);
 
 // Backward pass: computes gradients with respect to each input
 template <typename T>
-void nary_backward(const T *grad_output, std::vector<T *> &grad_inputs,
-                   const std::vector<const T *> &fwd_inputs, const std::vector<size_t> &shape,
-                   const NAryOp &op_type);
+void nary_backward(const T *grad_output, Vec<T *> &grad_inputs, const Vec<const T *> &fwd_inputs,
+                   const Vec<size_t> &shape, const NAryOp &op_type);
 
 }  // namespace cpu
 }  // namespace tnn

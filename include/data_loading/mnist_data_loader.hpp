@@ -33,11 +33,11 @@ namespace tnn {
  */
 class MNISTDataLoader : public ImageDataLoader {
 private:
-  std::vector<std::vector<float>> data_;
-  std::vector<int> labels_;
+  Vec<Vec<float>> data_;
+  Vec<int> labels_;
 
-  std::vector<Tensor> batched_data_;
-  std::vector<Tensor> batched_labels_;
+  Vec<Tensor> batched_data_;
+  Vec<Tensor> batched_labels_;
   DType_t dtype_ = DType_t::FP32;
 
   template <typename T>
@@ -66,7 +66,7 @@ private:
       if (!std::getline(ss, cell, ',')) continue;
       labels_.push_back(std::stoi(cell));
 
-      std::vector<float> row;
+      Vec<float> row;
       row.reserve(mnist_constants::IMAGE_SIZE);
 
       while (std::getline(ss, cell, ',')) {
@@ -157,10 +157,10 @@ public:
   void shuffle() override {
     if (data_.empty()) return;
 
-    std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
+    Vec<size_t> indices = this->generate_shuffled_indices(data_.size());
 
-    std::vector<std::vector<float>> shuffled_data;
-    std::vector<int> shuffled_labels;
+    Vec<Vec<float>> shuffled_data;
+    Vec<int> shuffled_labels;
     shuffled_data.reserve(data_.size());
     shuffled_labels.reserve(labels_.size());
 
@@ -182,7 +182,7 @@ public:
   /**
    * Get image dimensions (height, width, channels) for NHWC format
    */
-  std::vector<size_t> get_data_shape() const override {
+  Vec<size_t> get_data_shape() const override {
     return {mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH,
             mnist_constants::NUM_CHANNELS};
   }
@@ -195,7 +195,7 @@ public:
   /**
    * Get class names for MNIST (digits 0-9)
    */
-  std::vector<std::string> get_class_names() const override {
+  Vec<std::string> get_class_names() const override {
     return {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
   }
 
@@ -208,7 +208,7 @@ public:
       return;
     }
 
-    std::vector<int> label_counts(mnist_constants::NUM_CLASSES, 0);
+    Vec<int> label_counts(mnist_constants::NUM_CLASSES, 0);
     for (const auto &label : labels_) {
       if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
         label_counts[label]++;

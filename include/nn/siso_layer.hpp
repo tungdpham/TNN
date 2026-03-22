@@ -6,15 +6,15 @@ namespace tnn {
 class SISOLayer : virtual public Layer {
 public:
   SISOLayer() = default;
-  void forward_impl(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
+  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
                     size_t mb_id) override {
     if (inputs.size() != 1 || outputs.size() != 1) {
       throw std::runtime_error("SISOLayer only supports single input and single output");
     }
     forward_impl(inputs[0], outputs[0], mb_id);
   }
-  void backward_impl(const std::vector<ConstTensor> &grad_outputs,
-                     const std::vector<Tensor> &grad_inputs, size_t mb_id) override {
+  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                     size_t mb_id) override {
     if (grad_outputs.size() != 1 || grad_inputs.size() != 1) {
       throw std::runtime_error("SISOLayer only supports single grad output and single grad input");
     }

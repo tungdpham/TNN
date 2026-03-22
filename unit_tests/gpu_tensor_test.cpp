@@ -14,7 +14,7 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+    Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_gpu_ = false;
     for (const std::string &id : device_ids) {
@@ -62,7 +62,7 @@ TEST_F(GPUTensorTest, Constructor4D) {
 }
 
 TEST_F(GPUTensorTest, ConstructorWithShape) {
-  std::vector<size_t> shape = {2, 3, 4, 4};
+  Vec<size_t> shape = {2, 3, 4, 4};
   Tensor tensor = make_tensor<float>(shape, getGPU());
 
   EXPECT_EQ(tensor->shape(), shape);
@@ -531,7 +531,7 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+    Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_gpu_ = false;
     for (const std::string &id : device_ids) {
@@ -593,7 +593,7 @@ TEST(GPUTensorFloatingPointTest, FloatingPointComparisons) {
   initializeDefaultDevices();
 
   DeviceManager &manager = DeviceManager::getInstance();
-  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+  Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
   bool has_gpu = false;
   csref<Device> gpu_device = getGPU();

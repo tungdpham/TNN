@@ -11,16 +11,18 @@
 
 #include <vector>
 
+#include "type/type.hpp"
+
 namespace tnn {
 namespace cuda {
 namespace slice {
 
 template <typename T>
-void slice_forward(const T *input, T *output, const std::vector<size_t> &input_shape, size_t axis,
+void slice_forward(const T *input, T *output, const Vec<size_t> &input_shape, size_t axis,
                    size_t start, size_t length, cudaStream_t stream);
 
 template <typename T>
-void slice_backward(const T *grad_output, T *grad_input, const std::vector<size_t> &input_shape,
+void slice_backward(const T *grad_output, T *grad_input, const Vec<size_t> &input_shape,
                     size_t axis, size_t start, size_t length, cudaStream_t stream);
 
 }  // namespace slice

@@ -259,7 +259,7 @@ private:
   std::atomic<bool> is_running_;
 
   std::unordered_map<Endpoint, PeerContext> peer_ctxs_;
-  std::unordered_map<Endpoint, std::vector<std::shared_ptr<TCPChannel>>> endpoint_channels_;
+  std::unordered_map<Endpoint, Vec<std::shared_ptr<TCPChannel>>> endpoint_channels_;
   std::shared_mutex channels_mutex_;
 
   asio::awaitable<void> listen() {
@@ -395,7 +395,7 @@ private:
   }
 
   asio::awaitable<void> start_send(Endpoint endpoint, Message message) {
-    std::vector<std::shared_ptr<TCPChannel>> channels;
+    Vec<std::shared_ptr<TCPChannel>> channels;
     {
       std::shared_lock<std::shared_mutex> lock(channels_mutex_);
       auto it = endpoint_channels_.find(endpoint);
@@ -425,7 +425,7 @@ private:
     co_return;
   }
 
-  std::vector<Packet> get_write(PeerContext peer_ctx, const Message &message) {
+  Vec<Packet> get_write(PeerContext peer_ctx, const Message &message) {
     auto serialize_start = Clock::now();
     Sizer sizer;
     sizer(message);
@@ -434,7 +434,7 @@ private:
     Writer writer(data_buf);
     serializer_.serialize(writer, message);
 
-    std::vector<Packet> packets = peer_ctx->slice(std::move(data_buf));
+    Vec<Packet> packets = peer_ctx->slice(std::move(data_buf));
     auto serialize_end = Clock::now();
     GlobalProfiler::add_event({EventType::COMMUNICATION, serialize_start, serialize_end,
                                "Message Serialize", peer_ctx->endpoint().id()});

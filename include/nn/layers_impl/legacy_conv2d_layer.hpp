@@ -45,7 +45,7 @@ private:
   void cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
 #endif
 
-  std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
+  std::unordered_map<size_t, Vec<size_t>> micro_batch_input_shapes_;
   std::unordered_map<size_t, Tensor> micro_batch_col_buffers_;
 
 #ifdef USE_CUDNN
@@ -90,8 +90,8 @@ private:
                                                     const size_t output_w,
                                                     const size_t out_channels, flowHandle_t handle);
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     auto weight_desc = ParamDescriptor{
         param_dtype_,
         {in_channels_, out_channels_, kernel_h_, kernel_w_},
@@ -158,7 +158,7 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;

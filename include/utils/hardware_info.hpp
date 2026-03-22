@@ -119,10 +119,6 @@ struct RamInfo {
   long long uncorrectable_errors = 0;
 };
 
-/**
- * Comprehensive hardware information class for distributed computing
- * Optimized for neural network and CNN workload scheduling
- */
 class HardwareInfo {
 public:
   HardwareInfo();

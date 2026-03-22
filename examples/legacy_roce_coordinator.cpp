@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
     local_worker_position = 1;
   }
 
-  std::vector<Endpoint> endpoints = {
+  Vec<Endpoint> endpoints = {
       Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
                      Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
   };

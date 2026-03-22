@@ -26,7 +26,9 @@ using SchedulerConfig = TConfig;
  */
 class Scheduler {
 public:
-  explicit Scheduler(Optimizer *optimizer) : optimizer_(optimizer), current_step_(0) {
+  explicit Scheduler(Optimizer *optimizer)
+      : optimizer_(optimizer),
+        current_step_(0) {
     if (optimizer_) {
       base_lr_ = optimizer_->get_learning_rate();
     }
@@ -84,7 +86,8 @@ protected:
  */
 class NoOpScheduler : public Scheduler {
 public:
-  NoOpScheduler(Optimizer *optimizer) : Scheduler(optimizer) {}
+  NoOpScheduler(Optimizer *optimizer)
+      : Scheduler(optimizer) {}
 
   void step() override {
     this->current_step_++;
@@ -112,7 +115,9 @@ public:
 class StepLR : public Scheduler {
 public:
   StepLR(Optimizer *optimizer, size_t step_size, float gamma = 0.1f)
-      : Scheduler(optimizer), step_size_(step_size), gamma_(gamma) {}
+      : Scheduler(optimizer),
+        step_size_(step_size),
+        gamma_(gamma) {}
 
   void step() override {
     this->current_step_++;
@@ -148,8 +153,11 @@ private:
  */
 class MultiStepLR : public Scheduler {
 public:
-  MultiStepLR(Optimizer *optimizer, std::vector<size_t> milestones, float gamma = 0.1f)
-      : Scheduler(optimizer), milestones_(std::move(milestones)), gamma_(gamma), milestone_idx_(0) {
+  MultiStepLR(Optimizer *optimizer, Vec<size_t> milestones, float gamma = 0.1f)
+      : Scheduler(optimizer),
+        milestones_(std::move(milestones)),
+        gamma_(gamma),
+        milestone_idx_(0) {
     std::sort(milestones_.begin(), milestones_.end());
   }
 
@@ -184,7 +192,7 @@ public:
   }
 
 private:
-  std::vector<size_t> milestones_;
+  Vec<size_t> milestones_;
   float gamma_;
   size_t milestone_idx_;
 };
@@ -194,7 +202,9 @@ private:
  */
 class ExponentialLR : public Scheduler {
 public:
-  ExponentialLR(Optimizer *optimizer, float gamma = 0.95f) : Scheduler(optimizer), gamma_(gamma) {}
+  ExponentialLR(Optimizer *optimizer, float gamma = 0.95f)
+      : Scheduler(optimizer),
+        gamma_(gamma) {}
 
   void step() override {
     this->current_step_++;
@@ -227,7 +237,9 @@ private:
 class CosineAnnealingLR : public Scheduler {
 public:
   CosineAnnealingLR(Optimizer *optimizer, size_t T_max, float eta_min = 0.0f)
-      : Scheduler(optimizer), T_max_(T_max), eta_min_(eta_min) {}
+      : Scheduler(optimizer),
+        T_max_(T_max),
+        eta_min_(eta_min) {}
 
   void step() override {
     this->current_step_++;
@@ -266,7 +278,12 @@ class CosineAnnealingWarmRestarts : public Scheduler {
 public:
   CosineAnnealingWarmRestarts(Optimizer *optimizer, size_t T_0, size_t T_mult = 1,
                               float eta_min = 0.0f)
-      : Scheduler(optimizer), T_0_(T_0), T_mult_(T_mult), eta_min_(eta_min), T_cur_(0), T_i_(T_0) {}
+      : Scheduler(optimizer),
+        T_0_(T_0),
+        T_mult_(T_mult),
+        eta_min_(eta_min),
+        T_cur_(0),
+        T_i_(T_0) {}
 
   void step() override {
     this->current_step_++;
@@ -320,7 +337,9 @@ private:
 class LinearWarmup : public Scheduler {
 public:
   LinearWarmup(Optimizer *optimizer, size_t warmup_steps, float start_lr = 0.0f)
-      : Scheduler(optimizer), warmup_steps_(warmup_steps), start_lr_(start_lr) {
+      : Scheduler(optimizer),
+        warmup_steps_(warmup_steps),
+        start_lr_(start_lr) {
     // Start at start_lr
     this->set_lr(start_lr_);
   }
@@ -511,7 +530,10 @@ private:
 class PolynomialLR : public Scheduler {
 public:
   PolynomialLR(Optimizer *optimizer, size_t total_steps, float power = 1.0f, float end_lr = 0.0f)
-      : Scheduler(optimizer), total_steps_(total_steps), power_(power), end_lr_(end_lr) {}
+      : Scheduler(optimizer),
+        total_steps_(total_steps),
+        power_(power),
+        end_lr_(end_lr) {}
 
   void step() override {
     this->current_step_++;
@@ -687,7 +709,7 @@ public:
       return std::make_unique<StepLR>(optimizer, step_size, gamma);
     }
     if (config.type == "multi_step_lr") {
-      auto milestones = config.get<std::vector<size_t>>("milestones", {});
+      auto milestones = config.get<Vec<size_t>>("milestones", {});
       float gamma = config.get<float>("gamma", 0.1f);
       return std::make_unique<MultiStepLR>(optimizer, milestones, gamma);
     }

@@ -30,7 +30,7 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+    Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_cpu_ = false;
 
@@ -96,7 +96,7 @@ protected:
     size_t output_h = grad_output_shape[2];
     size_t output_w = grad_output_shape[3];
 
-    std::vector<float> expected_grad_input(grad_input->size(), 0.0f);
+    Vec<float> expected_grad_input(grad_input->size(), 0.0f);
 
     // For each output position, route grad_output to the max input position
     for (size_t n = 0; n < batch_size; ++n) {
@@ -205,7 +205,7 @@ TEST_F(LegacyMaxPool2DLayerTest, BasicForwardPass) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -234,7 +234,7 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithStride) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -257,7 +257,7 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithPadding) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -281,7 +281,7 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassMultiChannel) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -306,7 +306,7 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassMultiBatch) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -329,7 +329,7 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassNonSquarePooling) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -348,7 +348,7 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassUniformValues) {
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   input->fill(5.0f);
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -377,7 +377,7 @@ TEST_F(LegacyMaxPool2DLayerTest, BasicBackwardPass) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -409,7 +409,7 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassWithPadding) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -438,7 +438,7 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassMultiChannel) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -468,7 +468,7 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassMultiBatch) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -498,7 +498,7 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassVariableGradient) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -530,7 +530,7 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassGradientRouting) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -568,10 +568,10 @@ TEST_F(LegacyMaxPool2DLayerTest, ComputeOutputShape) {
   auto layer_layer = std::make_unique<LegacyMaxPool2DLayer>(2, 2, 2, 2, 0, 0, "test_maxpool_shape");
   LegacyMaxPool2DLayer *layer = layer_layer.get();
 
-  std::vector<size_t> input_shape = {2, 3, 8, 8};
-  std::vector<size_t> expected_shape = {2, 3, 4, 4};
+  Vec<size_t> input_shape = {2, 3, 8, 8};
+  Vec<size_t> expected_shape = {2, 3, 4, 4};
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input_shape);
+  Vec<size_t> output_shape = layer->compute_output_shape(input_shape);
 
   EXPECT_EQ(output_shape, expected_shape);
 }
@@ -581,10 +581,10 @@ TEST_F(LegacyMaxPool2DLayerTest, ComputeOutputShapeWithPadding) {
       std::make_unique<LegacyMaxPool2DLayer>(3, 3, 1, 1, 1, 1, "test_maxpool_shape_pad");
   LegacyMaxPool2DLayer *layer = layer_layer.get();
 
-  std::vector<size_t> input_shape = {1, 1, 5, 5};
-  std::vector<size_t> expected_shape = {1, 1, 5, 5};
+  Vec<size_t> input_shape = {1, 1, 5, 5};
+  Vec<size_t> expected_shape = {1, 1, 5, 5};
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input_shape);
+  Vec<size_t> output_shape = layer->compute_output_shape(input_shape);
 
   EXPECT_EQ(output_shape, expected_shape);
 }
@@ -638,7 +638,7 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseGlobalMaxPooling) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -658,7 +658,7 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseZeroGradient) {
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   input->fill(1.0f);
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -690,7 +690,7 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseLargeValues) {
     input_data[i] = 1e6f * static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -713,7 +713,7 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseNegativeValues) {
     input_data[i] = -static_cast<float>(17 - i);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -741,7 +741,7 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseMixedSignValues) {
     input_data[i] = (i % 2 == 0) ? static_cast<float>(i) : -static_cast<float>(i);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -765,7 +765,7 @@ TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilitySmallValues) {
     input_data[i] = 1e-6f * static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -788,7 +788,7 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardNumericalStability) {
     input_data[i] = 1e-6f * static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -820,7 +820,7 @@ TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilityExtremeValues) {
     }
   }
 
-  std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
+  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
   Tensor output = make_tensor<float>(output_shape, getHost());
   layer->forward({input}, {output});
 
@@ -840,7 +840,7 @@ TEST_F(LegacyMaxPool2DLayerTest, MultipleForwardBackwardPasses) {
   // First pass
   Tensor input1 = make_tensor<float>({1, 1, 4, 4}, getHost());
   input1->fill(1.0f);
-  std::vector<size_t> output_shape1 = layer->compute_output_shape(input1->shape());
+  Vec<size_t> output_shape1 = layer->compute_output_shape(input1->shape());
   Tensor output1 = make_tensor<float>(output_shape1, getHost());
   layer->forward({input1}, {output1});
   Tensor gradient1 = make_tensor<float>(output1->shape(), getHost());
@@ -854,7 +854,7 @@ TEST_F(LegacyMaxPool2DLayerTest, MultipleForwardBackwardPasses) {
   for (int i = 0; i < 16; ++i) {
     input_data2[i] = static_cast<float>(i + 1);
   }
-  std::vector<size_t> output_shape2 = layer->compute_output_shape(input2->shape());
+  Vec<size_t> output_shape2 = layer->compute_output_shape(input2->shape());
   Tensor output2 = make_tensor<float>(output_shape2, getHost());
   layer->forward({input2}, {output2});
   Tensor gradient2 = make_tensor<float>(output2->shape(), getHost());

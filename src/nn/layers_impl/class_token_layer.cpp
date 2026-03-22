@@ -150,8 +150,7 @@ LayerConfig ClassTokenLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> ClassTokenLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> ClassTokenLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() < 3) {
     throw std::runtime_error("ClassTokenLayer: Input shape must have at least 3 dimensions");
   }

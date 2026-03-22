@@ -47,7 +47,8 @@
 
 namespace tnn {
 
-HardwareInfo::HardwareInfo() : initialized_(false) {
+HardwareInfo::HardwareInfo()
+    : initialized_(false) {
   last_update_ = std::chrono::system_clock::now();
 }
 

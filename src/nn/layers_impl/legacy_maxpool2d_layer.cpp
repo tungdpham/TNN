@@ -78,7 +78,7 @@ void LegacyMaxPool2DLayer::backward_impl(const ConstTensor &grad_output, const T
   }
 
   const ConstTensor &mask_indices = it_mask->second;
-  const std::vector<size_t> &input_shape = it_shape->second;
+  const Vec<size_t> &input_shape = it_shape->second;
 
   const size_t batch_size = input_shape[0];
   const size_t channels = input_shape[1];
@@ -195,8 +195,7 @@ LayerConfig LegacyMaxPool2DLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> LegacyMaxPool2DLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> LegacyMaxPool2DLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("LegacyMaxPool2DLayer expects 4D input including batch size");
   }

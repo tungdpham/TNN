@@ -24,7 +24,8 @@ public:
   MessageMap(const MessageMap &other) = delete;
   MessageMap &operator=(const MessageMap &other) = delete;
 
-  MessageMap(MessageMap &&other) noexcept : queues_(std::move(other.queues_)) {}
+  MessageMap(MessageMap &&other) noexcept
+      : queues_(std::move(other.queues_)) {}
 
   MessageMap &operator=(MessageMap &&other) noexcept {
     if (this != &other) {
@@ -66,8 +67,8 @@ public:
 
   bool empty() const { return total_message_count_.load(std::memory_order_relaxed) == 0; }
 
-  std::vector<Message> pop_all(CommandType type) {
-    std::vector<Message> messages;
+  Vec<Message> pop_all(CommandType type) {
+    Vec<Message> messages;
     auto it = queues_.find(type);
     if (it != queues_.end()) {
       Message message;

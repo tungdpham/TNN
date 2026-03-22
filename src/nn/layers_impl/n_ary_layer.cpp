@@ -17,8 +17,8 @@
 
 namespace tnn {
 
-void NAryOpLayer::forward_impl(const std::vector<ConstTensor> &inputs,
-                               const std::vector<Tensor> &outputs, size_t mb_id) {
+void NAryOpLayer::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                               size_t mb_id) {
   if (inputs.size() < 2) {
     throw std::runtime_error("NAryOpLayer requires at least 2 inputs");
   }
@@ -44,8 +44,8 @@ void NAryOpLayer::forward_impl(const std::vector<ConstTensor> &inputs,
   DISPATCH_IO_DTYPE(compute_nary_forward_impl, inputs, outputs[0], first_shape, this->flow_handle_);
 }
 
-void NAryOpLayer::backward_impl(const std::vector<ConstTensor> &grad_outputs,
-                                const std::vector<Tensor> &grad_inputs, size_t mb_id) {
+void NAryOpLayer::backward_impl(const Vec<ConstTensor> &grad_outputs,
+                                const Vec<Tensor> &grad_inputs, size_t mb_id) {
   if (grad_outputs.size() != 1) {
     throw std::runtime_error("NAryOpLayer backward: expects 1 grad output");
   }
@@ -60,7 +60,7 @@ void NAryOpLayer::backward_impl(const std::vector<ConstTensor> &grad_outputs,
     grad_input->fill(0);
   }
 
-  std::vector<ConstTensor> fwd_inputs;
+  Vec<ConstTensor> fwd_inputs;
   for (size_t i = 0; i < grad_inputs.size(); ++i) {
     auto key = std::string("fwd_input_") + std::to_string(i);
     fwd_inputs.push_back(get_immutable_cache(mb_id, key));
@@ -71,16 +71,16 @@ void NAryOpLayer::backward_impl(const std::vector<ConstTensor> &grad_outputs,
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> NAryOpLayer::compute_nary_forward_impl(const std::vector<ConstTensor> &inputs,
+std::unique_ptr<Task> NAryOpLayer::compute_nary_forward_impl(const Vec<ConstTensor> &inputs,
                                                              const Tensor &output,
-                                                             const std::vector<size_t> &shape,
+                                                             const Vec<size_t> &shape,
                                                              flowHandle_t handle) {
   if (inputs[0]->data_type() != dtype_of<Compute_T>() ||
       output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("NAryOpLayer: data type mismatch in forward pass");
   }
 
-  std::vector<const Compute_T *> input_ptrs;
+  Vec<const Compute_T *> input_ptrs;
   for (const auto &input : inputs) {
     input_ptrs.push_back(input->data_as<Compute_T>());
   }
@@ -104,20 +104,21 @@ std::unique_ptr<Task> NAryOpLayer::compute_nary_forward_impl(const std::vector<C
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> NAryOpLayer::compute_nary_backward_impl(
-    const ConstTensor &grad_output, const std::vector<Tensor> &grad_inputs,
-    const std::vector<ConstTensor> &fwd_inputs, const std::vector<size_t> &shape,
-    flowHandle_t handle) {
+std::unique_ptr<Task> NAryOpLayer::compute_nary_backward_impl(const ConstTensor &grad_output,
+                                                              const Vec<Tensor> &grad_inputs,
+                                                              const Vec<ConstTensor> &fwd_inputs,
+                                                              const Vec<size_t> &shape,
+                                                              flowHandle_t handle) {
   if (grad_output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("NAryOpLayer: data type mismatch in backward pass");
   }
 
-  std::vector<const Compute_T *> fwd_input_ptrs;
+  Vec<const Compute_T *> fwd_input_ptrs;
   for (const auto &input : fwd_inputs) {
     fwd_input_ptrs.push_back(input->data_as<Compute_T>());
   }
 
-  std::vector<Compute_T *> grad_input_ptrs;
+  Vec<Compute_T *> grad_input_ptrs;
   for (auto &grad_input : grad_inputs) {
     grad_input_ptrs.push_back(grad_input->data_as<Compute_T>());
   }

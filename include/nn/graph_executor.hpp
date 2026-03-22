@@ -21,9 +21,9 @@ public:
     for (auto& [uid, node] : graph_.io_nodes()) {
       node_outputs_[&node] = Output{nullptr, nullptr};
     }
-    auto ws_allocator = DELAllocatorV2::instance(allocator.device(), defaultFlowHandle);
+    ws_allocator_ = DELAllocatorV2::instance(allocator.device(), defaultFlowHandle);
     for (auto& edge : graph_.edges()) {
-      edge.op_node().layer()->set_allocator(*ws_allocator);
+      edge.op_node().layer()->set_allocator(*ws_allocator_);
     }
   }
 
@@ -77,7 +77,8 @@ public:
 private:
   Graph& graph_;
   IAllocator& allocator_;  // universal allocator for all layers to manage memory
-
+  std::shared_ptr<DELAllocatorV2>
+      ws_allocator_;  // separate allocator for workspace to allow reuse across layers
   struct Output {
     Tensor act;
     Tensor grad;
@@ -89,7 +90,7 @@ private:
     Layer* layer = edge.op_node().layer();
     Vec<Vec<size_t>> input_shapes;
     // gather inputs
-    const std::vector<const IONode*>& input_nodes = edge.producers();
+    const Vec<const IONode*>& input_nodes = edge.producers();
     Vec<ConstTensor> inputs;
     for (const auto& input_node : input_nodes) {
       const ConstTensor& act = node_outputs_[input_node].act;
@@ -101,7 +102,7 @@ private:
     }
 
     // gather outputs
-    const std::vector<const IONode*>& output_nodes = edge.consumers();
+    const Vec<const IONode*>& output_nodes = edge.consumers();
     Vec<Tensor> outputs;
     auto out_shapes = layer->output_shapes(input_shapes);
     DType_t dtype = inputs[0]->data_type();
@@ -116,13 +117,19 @@ private:
       }
       outputs.push_back(act);
     }
+
+    size_t ws_bytes = layer->is_training() ? layer->fwd_cache_bytes(input_shapes) +
+                                                 layer->fwd_workspace(input_shapes)
+                                           : layer->inf_workspace(input_shapes);
+    ws_allocator_->reserve(ws_bytes);
+
     layer->forward(inputs, outputs);
   }
 
   void backward(const Edge& edge) {
     Layer* layer = edge.op_node().layer();
     // gather upstream grad_output
-    const std::vector<const IONode*>& output_nodes = edge.consumers();
+    const Vec<const IONode*>& output_nodes = edge.consumers();
     Vec<ConstTensor> gradients;
     for (const auto& output_node : output_nodes) {
       Tensor& grad = node_outputs_[output_node].grad;
@@ -134,7 +141,7 @@ private:
 
     // gather downstream grad_output
     Vec<Vec<size_t>> input_shapes;
-    const std::vector<const IONode*>& input_nodes = edge.producers();
+    const Vec<const IONode*>& input_nodes = edge.producers();
     Vec<Tensor> grad_inputs;
     for (const auto& input_node : input_nodes) {
       Tensor& grad = node_outputs_[input_node].grad;

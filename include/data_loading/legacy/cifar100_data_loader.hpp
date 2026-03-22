@@ -35,17 +35,17 @@ namespace legacy {
  */
 class CIFAR100DataLoader : public ImageDataLoader {
 private:
-  std::vector<std::vector<float>> data_;
-  std::vector<int> fine_labels_;
-  std::vector<int> coarse_labels_;
+  Vec<Vec<float>> data_;
+  Vec<int> fine_labels_;
+  Vec<int> coarse_labels_;
 
-  std::vector<Tensor> batched_data_;
-  std::vector<Tensor> batched_fine_labels_;
-  std::vector<Tensor> batched_coarse_labels_;
+  Vec<Tensor> batched_data_;
+  Vec<Tensor> batched_fine_labels_;
+  Vec<Tensor> batched_coarse_labels_;
   bool use_coarse_labels_;
   DType_t dtype_ = DType_t::FP32;
 
-  std::vector<std::string> fine_class_names_ = {
+  Vec<std::string> fine_class_names_ = {
       "apple",       "aquarium_fish", "baby",      "bear",       "beaver",       "bed",
       "bee",         "beetle",        "bicycle",   "bottle",     "bowl",         "boy",
       "bridge",      "bus",           "butterfly", "camel",      "can",          "castle",
@@ -64,29 +64,29 @@ private:
       "train",       "trout",         "tulip",     "turtle",     "wardrobe",     "whale",
       "willow_tree", "wolf",          "woman",     "worm"};
 
-  std::vector<std::string> coarse_class_names_ = {"aquatic_mammals",
-                                                  "fish",
-                                                  "flowers",
-                                                  "food_containers",
-                                                  "fruit_and_vegetables",
-                                                  "household_electrical_devices",
-                                                  "household_furniture",
-                                                  "insects",
-                                                  "large_carnivores",
-                                                  "large_man-made_outdoor_things",
-                                                  "large_natural_outdoor_scenes",
-                                                  "large_omnivores_and_herbivores",
-                                                  "medium_mammals",
-                                                  "non-insect_invertebrates",
-                                                  "people",
-                                                  "reptiles",
-                                                  "small_mammals",
-                                                  "trees",
-                                                  "vehicles_1",
-                                                  "vehicles_2"};
+  Vec<std::string> coarse_class_names_ = {"aquatic_mammals",
+                                          "fish",
+                                          "flowers",
+                                          "food_containers",
+                                          "fruit_and_vegetables",
+                                          "household_electrical_devices",
+                                          "household_furniture",
+                                          "insects",
+                                          "large_carnivores",
+                                          "large_man-made_outdoor_things",
+                                          "large_natural_outdoor_scenes",
+                                          "large_omnivores_and_herbivores",
+                                          "medium_mammals",
+                                          "non-insect_invertebrates",
+                                          "people",
+                                          "reptiles",
+                                          "small_mammals",
+                                          "trees",
+                                          "vehicles_1",
+                                          "vehicles_2"};
 
   template <typename T>
-  bool load_multiple_files_impl(const std::vector<std::string> &filenames) {
+  bool load_multiple_files_impl(const Vec<std::string> &filenames) {
     data_.clear();
     fine_labels_.clear();
     coarse_labels_.clear();
@@ -106,7 +106,7 @@ private:
 
         fine_labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[1])));
 
-        std::vector<float> image_data;
+        Vec<float> image_data;
         image_data.reserve(cifar100_constants::IMAGE_SIZE);
 
         for (size_t i = 2; i < cifar100_constants::RECORD_SIZE; ++i) {
@@ -188,7 +188,7 @@ public:
    * @return true if successful, false otherwise
    */
   bool load_data(const std::string &source) override {
-    std::vector<std::string> filenames;
+    Vec<std::string> filenames;
 
     if (source.find(".bin") != std::string::npos) {
       filenames.push_back(source);
@@ -205,7 +205,7 @@ public:
    * @param filenames Vector of file paths to load
    * @return true if successful, false otherwise
    */
-  bool load_multiple_files(const std::vector<std::string> &filenames) {
+  bool load_multiple_files(const Vec<std::string> &filenames) {
     DISPATCH_DTYPE(dtype_, T, return load_multiple_files_impl<T>(filenames));
   }
 
@@ -228,11 +228,11 @@ public:
   void shuffle() override {
     if (data_.empty()) return;
 
-    std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
+    Vec<size_t> indices = this->generate_shuffled_indices(data_.size());
 
-    std::vector<std::vector<float>> shuffled_data;
-    std::vector<int> shuffled_fine_labels;
-    std::vector<int> shuffled_coarse_labels;
+    Vec<Vec<float>> shuffled_data;
+    Vec<int> shuffled_fine_labels;
+    Vec<int> shuffled_coarse_labels;
     shuffled_data.reserve(data_.size());
     shuffled_fine_labels.reserve(fine_labels_.size());
     shuffled_coarse_labels.reserve(coarse_labels_.size());
@@ -257,7 +257,7 @@ public:
   /**
    * Get image dimensions (channels, height, width)
    */
-  std::vector<size_t> get_data_shape() const override {
+  Vec<size_t> get_data_shape() const override {
     return {cifar100_constants::NUM_CHANNELS, cifar100_constants::IMAGE_HEIGHT,
             cifar100_constants::IMAGE_WIDTH};
   }
@@ -273,7 +273,7 @@ public:
   /**
    * Get class names for CIFAR-100
    */
-  std::vector<std::string> get_class_names() const override {
+  Vec<std::string> get_class_names() const override {
     return use_coarse_labels_ ? coarse_class_names_ : fine_class_names_;
   }
 
@@ -306,14 +306,14 @@ public:
       return;
     }
 
-    std::vector<int> fine_label_counts(cifar100_constants::NUM_CLASSES, 0);
+    Vec<int> fine_label_counts(cifar100_constants::NUM_CLASSES, 0);
     for (const auto &label : fine_labels_) {
       if (label >= 0 && label < static_cast<int>(cifar100_constants::NUM_CLASSES)) {
         fine_label_counts[label]++;
       }
     }
 
-    std::vector<int> coarse_label_counts(cifar100_constants::NUM_COARSE_CLASSES, 0);
+    Vec<int> coarse_label_counts(cifar100_constants::NUM_COARSE_CLASSES, 0);
     for (const auto &label : coarse_labels_) {
       if (label >= 0 && label < static_cast<int>(cifar100_constants::NUM_COARSE_CLASSES)) {
         coarse_label_counts[label]++;

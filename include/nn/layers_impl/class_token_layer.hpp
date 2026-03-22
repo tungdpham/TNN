@@ -32,8 +32,8 @@ private:
                                       const ConstTensor &class_token, size_t batch_size,
                                       size_t seq_len, size_t embed_dim, flowHandle_t handle) const;
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     auto token_desc = ParamDescriptor{
         param_dtype_,
         {1, embed_dim_},
@@ -70,7 +70,7 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
 public:
   static std::unique_ptr<ClassTokenLayer> create_from_config(const LayerConfig &config);

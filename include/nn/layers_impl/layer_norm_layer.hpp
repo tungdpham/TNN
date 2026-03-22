@@ -75,8 +75,8 @@ private:
   void def_forward(const ConstTensor &input, const Tensor &output, size_t mb_id = 0);
   void def_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id = 0);
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     if (affine_) {
       auto gamma_desc = ParamDescriptor{
           param_dtype_,
@@ -111,7 +111,7 @@ public:
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override {
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;
   }
   size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;

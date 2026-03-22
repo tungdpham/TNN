@@ -18,7 +18,7 @@ namespace tnn {
 
 class SliceLayer : public StatelessLayer {
 private:
-  std::unordered_map<size_t, std::vector<size_t>> micro_batch_original_shapes_;
+  std::unordered_map<size_t, Vec<size_t>> micro_batch_original_shapes_;
   size_t axis_;
   size_t start_;
   size_t length_;
@@ -29,7 +29,7 @@ private:
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> slice_backward(const ConstTensor &grad_output, const Tensor &grad_input,
-                                       const std::vector<size_t> &original_shape,
+                                       const Vec<size_t> &original_shape,
                                        flowHandle_t handle) const;
 
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
@@ -44,7 +44,7 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
     auto output_shapes = this->output_shapes(input_shapes);

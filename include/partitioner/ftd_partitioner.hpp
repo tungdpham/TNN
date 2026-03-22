@@ -7,14 +7,14 @@
 namespace tnn {
 
 struct FTDPartitionerConfig {
-  std::vector<uint64_t> compute_powers;  // compute power for each worker
-  uint64_t bandwidth;                    // network bandwidth between workers
-  uint64_t network_delay;                // network delay for the whole setup
-  std::vector<size_t> in_shape;
+  Vec<uint64_t> compute_powers;  // compute power for each worker
+  uint64_t bandwidth;            // network bandwidth between workers
+  uint64_t network_delay;        // network delay for the whole setup
+  Vec<size_t> in_shape;
 
-  FTDPartitionerConfig(const std::vector<uint64_t> &worker_compute_powers,
+  FTDPartitionerConfig(const Vec<uint64_t> &worker_compute_powers,
                        const uint64_t &network_bandwidth, uint64_t net_delay,
-                       const std::vector<size_t> &input_shape)
+                       const Vec<size_t> &input_shape)
       : compute_powers(worker_compute_powers),
         bandwidth(network_bandwidth),
         network_delay(net_delay),
@@ -34,16 +34,16 @@ public:
 
   ~FTDPartitioner() {}
 
-  std::vector<SeqPartition> partition_model(const std::vector<Layer *> &layers) override;
+  Vec<SeqPartition> partition_model(const Vec<Layer *> &layers) override;
 
-  std::vector<InputPartition> partition_input(const ConstTensor &input,
-                                              const ConstTensor &labels) override {
+  Vec<InputPartition> partition_input(const ConstTensor &input,
+                                      const ConstTensor &labels) override {
     if (!input || input->shape().empty()) {
       throw std::runtime_error("Input tensor is null or has empty shape");
     }
     size_t batch_size = input->dimension(0);
     // same config for every stage
-    std::vector<InputPartition> input_partitions;
+    Vec<InputPartition> input_partitions;
     input_partitions.push_back(InputPartition(0, batch_size));
     return input_partitions;
   }

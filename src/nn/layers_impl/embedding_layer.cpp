@@ -59,7 +59,7 @@ void EmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output
   size_t num_tokens = input->size();
   if (num_tokens == 0) return;
 
-  std::vector<size_t> out_shape = input->shape();
+  Vec<size_t> out_shape = input->shape();
   out_shape.push_back(embed_dim_);
   output->ensure(out_shape);
 
@@ -155,9 +155,8 @@ std::unique_ptr<Task> EmbeddingLayer::compute_backward_impl(const ConstTensor &i
   return nullptr;
 }
 
-std::vector<size_t> EmbeddingLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
-  std::vector<size_t> out = input_shape;
+Vec<size_t> EmbeddingLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+  Vec<size_t> out = input_shape;
   out.push_back(embed_dim_);
   return out;
 }

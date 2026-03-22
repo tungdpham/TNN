@@ -17,7 +17,7 @@ namespace cpu {
 namespace slice {
 
 template <typename T>
-void slice_forward(const T *input, T *output, const std::vector<size_t> &input_shape, size_t axis,
+void slice_forward(const T *input, T *output, const Vec<size_t> &input_shape, size_t axis,
                    size_t start, size_t length) {
   size_t outer_size = 1;
   for (size_t i = 0; i < axis; ++i) {
@@ -47,7 +47,7 @@ void slice_forward(const T *input, T *output, const std::vector<size_t> &input_s
 }
 
 template <typename T>
-void slice_backward(const T *grad_output, T *grad_input, const std::vector<size_t> &input_shape,
+void slice_backward(const T *grad_output, T *grad_input, const Vec<size_t> &input_shape,
                     size_t axis, size_t start, size_t length) {
   size_t total_elements =
       std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
@@ -80,14 +80,13 @@ void slice_backward(const T *grad_output, T *grad_input, const std::vector<size_
   }
 }
 
-#define INSTANTIATE_SLICE(T)                                                           \
-  template void slice_forward<T>(const T *input, T *output,                            \
-                                 const std::vector<size_t> &input_shape, size_t axis,  \
-                                 size_t start, size_t length);                         \
-                                                                                       \
-  template void slice_backward<T>(const T *grad_output, T *grad_input,                 \
-                                  const std::vector<size_t> &input_shape, size_t axis, \
-                                  size_t start, size_t length);
+#define INSTANTIATE_SLICE(T)                                                                 \
+  template void slice_forward<T>(const T *input, T *output, const Vec<size_t> &input_shape,  \
+                                 size_t axis, size_t start, size_t length);                  \
+                                                                                             \
+  template void slice_backward<T>(const T *grad_output, T *grad_input,                       \
+                                  const Vec<size_t> &input_shape, size_t axis, size_t start, \
+                                  size_t length);
 INSTANTIATE_SLICE(fp16)
 INSTANTIATE_SLICE(bf16)
 INSTANTIATE_SLICE(float)

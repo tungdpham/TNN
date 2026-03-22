@@ -27,7 +27,7 @@ public:
 
     // Find chains of sequential operations
     std::unordered_set<size_t> processed;
-    std::vector<std::vector<size_t>> chains;
+    Vec<Vec<size_t>> chains;
 
     for (size_t i = 0; i < edges.size(); ++i) {
       if (processed.count(i)) continue;
@@ -40,7 +40,7 @@ public:
       }
 
       // Build chain starting from this edge
-      std::vector<size_t> chain;
+      Vec<size_t> chain;
       chain.push_back(i);
       processed.insert(i);
 
@@ -82,7 +82,7 @@ public:
     }
 
     // Build new edges list
-    std::vector<Edge> new_edges;
+    Vec<Edge> new_edges;
 
     // Add non-fused edges
     for (size_t i = 0; i < edges.size(); ++i) {
@@ -93,7 +93,7 @@ public:
 
     // Add fused edges for each chain
     for (const auto &chain : chains) {
-      std::vector<std::unique_ptr<Layer>> composite_layers;
+      Vec<std::unique_ptr<Layer>> composite_layers;
 
       // Collect layers from the chain
       for (size_t idx : chain) {

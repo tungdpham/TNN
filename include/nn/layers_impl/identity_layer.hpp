@@ -33,7 +33,7 @@ public:
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override {
     return input_shapes;
   }
-  std::vector<ParamDescriptor> param_descriptors() override { return {}; }
+  Vec<ParamDescriptor> param_descriptors() override { return {}; }
   LayerConfig get_config() const override {
     LayerConfig config;
     config.name = name();

@@ -75,8 +75,7 @@ void TransposeLayer::backward_impl(const ConstTensor &grad_output, const Tensor 
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, grad_output, grad_input, B, H, L, D, this->flow_handle_);
 }
 
-std::vector<size_t> TransposeLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> TransposeLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 3)
     throw std::runtime_error("TransposeLayer expects 3 dims (B, D1, D2)");
   return {input_shape[0], input_shape[2], input_shape[1]};

@@ -11,13 +11,13 @@
 
 namespace tnn {
 
-inline size_t get_bytes_size(const std::vector<size_t> &shape, DType_t dtype) {
+inline size_t get_bytes_size(const Vec<size_t> &shape, DType_t dtype) {
   return std::accumulate(shape.begin(), shape.end(), get_dtype_size(dtype),
                          std::multiplies<size_t>());
 }
 
 struct GraphContextDescriptor {
-  std::vector<ParamDescriptor> param_descs;
+  Vec<ParamDescriptor> param_descs;
   size_t param_bytes = 0;
   size_t grad_bytes = 0;
 
@@ -70,11 +70,11 @@ public:
 
   GraphContextDescriptor descriptor() const { return ctx_desc_; }
 
-  std::vector<Tensor> &parameters() { return params_; }
-  std::vector<Tensor> &gradients() { return grads_; }
+  Vec<Tensor> &parameters() { return params_; }
+  Vec<Tensor> &gradients() { return grads_; }
 
-  const std::vector<Tensor> &parameters() const { return params_; }
-  const std::vector<Tensor> &gradients() const { return grads_; }
+  const Vec<Tensor> &parameters() const { return params_; }
+  const Vec<Tensor> &gradients() const { return grads_; }
 
   void zero_grads() { ops::set_scalar<uchar>(grad_slab_, 0, grad_slab_.capacity()); }
 
@@ -85,7 +85,7 @@ public:
 private:
   GraphContextDescriptor ctx_desc_;
   IAllocator &allocator_;
-  std::vector<Tensor> params_, grads_;
+  Vec<Tensor> params_, grads_;
   dptr param_slab_, grad_slab_;
 };
 }  // namespace tnn

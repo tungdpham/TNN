@@ -58,7 +58,7 @@ private:
 #endif
   mutable std::unordered_map<size_t, AttentionStats> stats_cache;
 
-  std::vector<Layer *> layers() override {
+  Vec<Layer *> layers() override {
     return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
   }
 

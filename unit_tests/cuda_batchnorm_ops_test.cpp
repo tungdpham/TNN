@@ -28,7 +28,7 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+    Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_gpu_ = false;
     for (const std::string &id : device_ids) {
@@ -48,7 +48,7 @@ protected:
 
   static void TearDownTestSuite() {}
 
-  void compareArrays(const std::vector<float> &expected, const std::vector<float> &actual,
+  void compareArrays(const Vec<float> &expected, const Vec<float> &actual,
                      float tolerance = 1e-4f) {
     ASSERT_EQ(expected.size(), actual.size())
         << "Arrays have different sizes. Expected: " << expected.size()
@@ -71,13 +71,13 @@ TEST_F(CUDABatchNormOpsTest, InferenceOutputAffine) {
   const float epsilon = 1e-5f;
   const bool affine = true;
 
-  std::vector<float> input_data(total_size);
+  Vec<float> input_data(total_size);
   for (size_t i = 0; i < total_size; ++i) input_data[i] = static_cast<float>(i) * 0.1f;
 
-  std::vector<float> running_mean(channels);
-  std::vector<float> running_var(channels);
-  std::vector<float> gamma(channels);
-  std::vector<float> beta(channels);
+  Vec<float> running_mean(channels);
+  Vec<float> running_var(channels);
+  Vec<float> gamma(channels);
+  Vec<float> beta(channels);
 
   for (size_t i = 0; i < channels; ++i) {
     running_mean[i] = static_cast<float>(i) * 0.1f;
@@ -86,7 +86,7 @@ TEST_F(CUDABatchNormOpsTest, InferenceOutputAffine) {
     beta[i] = -0.2f + static_cast<float>(i) * 0.1f;
   }
 
-  std::vector<float> cpu_output(total_size);
+  Vec<float> cpu_output(total_size);
   cpu::batchnorm_nchw::compute_inference_output(
       input_data.data(), running_mean.data(), running_var.data(), gamma.data(), beta.data(),
       cpu_output.data(), batch_size, channels, spatial_size, epsilon, affine);
@@ -112,7 +112,7 @@ TEST_F(CUDABatchNormOpsTest, InferenceOutputAffine) {
       spatial_size, epsilon, affine);
   ASSERT_FALSE(gpu_task->sync()) << "GPU batchnorm inference task failed";
 
-  std::vector<float> gpu_output_cpu(total_size);
+  Vec<float> gpu_output_cpu(total_size);
   getGPU().copyToHost(gpu_output_cpu.data(), gpu_output.get<float>(), total_size * sizeof(float));
 
   compareArrays(cpu_output, gpu_output_cpu);
@@ -125,23 +125,23 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedAffine) {
   const size_t total_size = batch_size * channels * spatial_size;
   const bool affine = true;
 
-  std::vector<float> gradient_data(total_size);
-  std::vector<float> normalized_data(total_size);
+  Vec<float> gradient_data(total_size);
+  Vec<float> normalized_data(total_size);
   for (size_t i = 0; i < total_size; ++i) {
     gradient_data[i] = static_cast<float>(i) * 0.01f;
     normalized_data[i] = static_cast<float>(i % 10) * 0.1f - 0.5f;
   }
 
-  std::vector<float> std_data(channels);
-  std::vector<float> gamma_data(channels);
+  Vec<float> std_data(channels);
+  Vec<float> gamma_data(channels);
   for (size_t i = 0; i < channels; ++i) {
     std_data[i] = 1.0f + static_cast<float>(i) * 0.1f;
     gamma_data[i] = 0.8f + static_cast<float>(i) * 0.05f;
   }
 
-  std::vector<float> cpu_grad_input(total_size);
-  std::vector<float> cpu_gamma_grad(channels);
-  std::vector<float> cpu_beta_grad(channels);
+  Vec<float> cpu_grad_input(total_size);
+  Vec<float> cpu_gamma_grad(channels);
+  Vec<float> cpu_beta_grad(channels);
 
   cpu::batchnorm_nchw::run_backward_fused(gradient_data.data(), normalized_data.data(),
                                           std_data.data(), gamma_data.data(), cpu_gamma_grad.data(),
@@ -163,8 +163,8 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedAffine) {
   getGPU().copyToDevice(gpu_std.get<float>(), std_data.data(), channels * sizeof(float));
   getGPU().copyToDevice(gpu_gamma.get<float>(), gamma_data.data(), channels * sizeof(float));
 
-  std::vector<float> zeros_total(total_size, 0.0f);
-  std::vector<float> zeros_channels(channels, 0.0f);
+  Vec<float> zeros_total(total_size, 0.0f);
+  Vec<float> zeros_channels(channels, 0.0f);
   getGPU().copyToDevice(gpu_grad_input.get<float>(), zeros_total.data(),
                         total_size * sizeof(float));
   getGPU().copyToDevice(gpu_gamma_grad.get<float>(), zeros_channels.data(),
@@ -179,9 +179,9 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedAffine) {
       batch_size, channels, spatial_size, affine);
   ASSERT_FALSE(gpu_task->sync()) << "GPU batchnorm backward task failed";
 
-  std::vector<float> gpu_grad_input_cpu(total_size);
-  std::vector<float> gpu_gamma_grad_cpu(channels);
-  std::vector<float> gpu_beta_grad_cpu(channels);
+  Vec<float> gpu_grad_input_cpu(total_size);
+  Vec<float> gpu_gamma_grad_cpu(channels);
+  Vec<float> gpu_beta_grad_cpu(channels);
 
   getGPU().copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get<float>(),
                       total_size * sizeof(float));
@@ -202,22 +202,22 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedNoAffine) {
   const size_t total_size = batch_size * channels * spatial_size;
   const bool affine = false;
 
-  std::vector<float> gradient_data(total_size);
-  std::vector<float> normalized_data(total_size);
+  Vec<float> gradient_data(total_size);
+  Vec<float> normalized_data(total_size);
   for (size_t i = 0; i < total_size; ++i) {
     gradient_data[i] = static_cast<float>(i) * 0.01f;
     normalized_data[i] = static_cast<float>(i % 10) * 0.1f - 0.5f;
   }
 
-  std::vector<float> inv_std_data(channels);
+  Vec<float> inv_std_data(channels);
   for (size_t i = 0; i < channels; ++i) {
     inv_std_data[i] = 1.0f + static_cast<float>(i) * 0.1f;
   }
 
-  std::vector<float> cpu_grad_input(total_size);
-  std::vector<float> cpu_gamma_grad(channels, 0.0f);
-  std::vector<float> cpu_d_gamma_grad(channels, 0.0f);
-  std::vector<float> cpu_d_beta_grad(channels, 0.0f);
+  Vec<float> cpu_grad_input(total_size);
+  Vec<float> cpu_gamma_grad(channels, 0.0f);
+  Vec<float> cpu_d_gamma_grad(channels, 0.0f);
+  Vec<float> cpu_d_beta_grad(channels, 0.0f);
 
   cpu::batchnorm_nchw::run_backward_fused(
       gradient_data.data(), normalized_data.data(), inv_std_data.data(), cpu_gamma_grad.data(),
@@ -239,9 +239,9 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedNoAffine) {
                         total_size * sizeof(float));
   getGPU().copyToDevice(gpu_inv_std.get<float>(), inv_std_data.data(), channels * sizeof(float));
 
-  std::vector<float> zeros_total(total_size, 0.0f);
-  std::vector<float> zeros_channels(channels, 0.0f);
-  std::vector<float> ones_channels(channels, 1.0f);
+  Vec<float> zeros_total(total_size, 0.0f);
+  Vec<float> zeros_channels(channels, 0.0f);
+  Vec<float> ones_channels(channels, 1.0f);
   getGPU().copyToDevice(gpu_grad_input.get<float>(), zeros_total.data(),
                         total_size * sizeof(float));
   getGPU().copyToDevice(gpu_dummy_gamma.get<float>(), ones_channels.data(),
@@ -258,7 +258,7 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedNoAffine) {
       gpu_grad_input.get<float>(), batch_size, channels, spatial_size, affine);
   ASSERT_FALSE(gpu_task->sync()) << "GPU batchnorm backward task failed";
 
-  std::vector<float> gpu_grad_input_cpu(total_size);
+  Vec<float> gpu_grad_input_cpu(total_size);
   getGPU().copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get<float>(),
                       total_size * sizeof(float));
 

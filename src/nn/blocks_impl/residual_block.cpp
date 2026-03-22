@@ -19,8 +19,8 @@
 
 namespace tnn {
 
-ResidualBlock::ResidualBlock(std::vector<std::unique_ptr<Layer>> main_path,
-                             std::vector<std::unique_ptr<Layer>> shortcut_path,
+ResidualBlock::ResidualBlock(Vec<std::unique_ptr<Layer>> main_path,
+                             Vec<std::unique_ptr<Layer>> shortcut_path,
                              const std::string &final_activation, const std::string &name)
     : activation_type_(final_activation) {
   if (main_path.empty()) {

@@ -36,8 +36,8 @@ private:
                                               size_t vocab_size, size_t embed_dim,
                                               size_t padding_idx, flowHandle_t handle) const;
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     auto weight_desc = ParamDescriptor{
         param_dtype_,
         {vocab_size_, embed_dim_},
@@ -59,7 +59,7 @@ public:
 
   static constexpr const char *TYPE_NAME = "embedding";
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
     auto output_shapes = this->output_shapes(input_shapes);

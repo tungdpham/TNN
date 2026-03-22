@@ -28,7 +28,7 @@ private:
   bool is_training_;
 
   // Cache input shapes and forward pass data for backward
-  std::unordered_map<size_t, std::vector<size_t>> micro_batch_q_shapes_;
+  std::unordered_map<size_t, Vec<size_t>> micro_batch_q_shapes_;
   std::unordered_map<size_t, ConstTensor> micro_batch_q_cache_;
   std::unordered_map<size_t, ConstTensor> micro_batch_k_cache_;
   std::unordered_map<size_t, ConstTensor> micro_batch_v_cache_;
@@ -78,7 +78,7 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
-  std::vector<ParamDescriptor> param_descriptors() override { return {}; }
+  Vec<ParamDescriptor> param_descriptors() override { return {}; }
   size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;

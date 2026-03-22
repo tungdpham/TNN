@@ -7,9 +7,9 @@
 namespace tnn {
 
 struct NaivePartitionerConfig {
-  std::vector<size_t> proportions;  // proportion for each partition
+  Vec<size_t> proportions;  // proportion for each partition
 
-  NaivePartitionerConfig(const std::vector<size_t> &proportions) {
+  NaivePartitionerConfig(const Vec<size_t> &proportions) {
     assert(!proportions.empty() && "Proportions vector must not be empty");
     this->proportions = proportions;
   }
@@ -23,14 +23,14 @@ public:
         config_(config) {}
   ~NaivePipelinePartitioner() = default;
 
-  std::vector<SeqPartition> partition_model(const std::vector<Layer *> &layers_) override {
+  Vec<SeqPartition> partition_model(const Vec<Layer *> &layers_) override {
     if (this->num_partitions_ == 0) {
       throw std::runtime_error("Number of partitions must be greater than zero");
     }
     if (layers_.empty()) {
       throw std::runtime_error("Cannot partition an empty model");
     }
-    std::vector<SeqPartition> partitions;
+    Vec<SeqPartition> partitions;
     size_t total_layers = layers_.size();
 
     size_t proportion_sum =
@@ -54,14 +54,14 @@ public:
     return partitions;
   }
 
-  std::vector<InputPartition> partition_input(const ConstTensor &input,
-                                              const ConstTensor &labels) override {
+  Vec<InputPartition> partition_input(const ConstTensor &input,
+                                      const ConstTensor &labels) override {
     if (!input || input->shape().empty()) {
       throw std::runtime_error("Input tensor is null or has empty shape");
     }
     size_t batch_size = input->dimension(0);
     // same config for every stage
-    std::vector<InputPartition> input_partitions;
+    Vec<InputPartition> input_partitions;
     input_partitions.push_back(InputPartition(0, batch_size));
     return input_partitions;
   }
@@ -78,15 +78,15 @@ public:
         config_(config) {}
   ~NaiveDataPartitioner() = default;
 
-  std::vector<SeqPartition> partition_model(const std::vector<Layer *> &layers) override {
+  Vec<SeqPartition> partition_model(const Vec<Layer *> &layers) override {
     // same config for every stage
-    std::vector<SeqPartition> partitions;
+    Vec<SeqPartition> partitions;
     partitions.push_back(SeqPartition(0, layers.size()));
     return partitions;
   }
 
-  std::vector<InputPartition> partition_input(const ConstTensor &input,
-                                              const ConstTensor &labels) override {
+  Vec<InputPartition> partition_input(const ConstTensor &input,
+                                      const ConstTensor &labels) override {
     if (this->num_partitions_ == 0) {
       throw std::runtime_error("Number of partitions must be greater than zero");
     }
@@ -94,7 +94,7 @@ public:
       throw std::runtime_error("Input tensor is null or has empty shape");
     }
 
-    std::vector<InputPartition> input_partitions;
+    Vec<InputPartition> input_partitions;
     size_t batch_size = input->dimension(0);
     size_t proportion_sum =
         std::accumulate(config_.proportions.begin(), config_.proportions.end(), 0);

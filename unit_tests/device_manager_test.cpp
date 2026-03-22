@@ -21,7 +21,7 @@ TEST_F(DeviceManagerTest, InitializeDefaultDevices) {
 
   EXPECT_TRUE(manager.hasDevice("CPU:0"));
 
-  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+  Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
   EXPECT_GE(device_ids.size(), 1);
 
   const Device &cpu_device = manager.getDevice("CPU:0");
@@ -36,7 +36,7 @@ TEST_F(DeviceManagerTest, DiscoverDevices) {
 
   EXPECT_TRUE(manager.hasDevice("CPU:0"));
 
-  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+  Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
   EXPECT_GE(device_ids.size(), 1);
 
   const Device &cpu_device = manager.getDevice("CPU:0");
@@ -64,7 +64,7 @@ TEST_F(DeviceManagerTest, CPUDeviceAllocation) {
 TEST_F(DeviceManagerTest, MultipleDeviceAllocations) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+  Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
   for (const std::string &device_id : device_ids) {
     const Device &device = manager.getDevice(device_id);
@@ -86,7 +86,7 @@ TEST_F(DeviceManagerTest, MultipleDeviceAllocations) {
 TEST_F(DeviceManagerTest, DeviceManagerUtilities) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+  Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
   EXPECT_GE(device_ids.size(), 1);
 
   for (const std::string &device_id : device_ids) {
@@ -99,7 +99,7 @@ TEST_F(DeviceManagerTest, DeviceManagerUtilities) {
 TEST_F(DeviceManagerTest, DeviceRemoval) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  std::vector<std::string> initial_ids = manager.getAvailableDeviceIDs();
+  Vec<std::string> initial_ids = manager.getAvailableDeviceIDs();
   size_t initial_count = initial_ids.size();
 
   if (initial_count > 1) {
@@ -108,7 +108,7 @@ TEST_F(DeviceManagerTest, DeviceRemoval) {
 
     EXPECT_FALSE(manager.hasDevice(device_to_remove));
 
-    std::vector<std::string> remaining_ids = manager.getAvailableDeviceIDs();
+    Vec<std::string> remaining_ids = manager.getAvailableDeviceIDs();
     EXPECT_EQ(remaining_ids.size(), initial_count - 1);
   }
 }
@@ -124,12 +124,12 @@ TEST_F(DeviceManagerTest, ErrorConditions) {
 TEST_F(DeviceManagerTest, ClearDevices) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+  Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
   EXPECT_GT(device_ids.size(), 0);
 
   manager.clearDevices();
 
-  std::vector<std::string> remaining_ids = manager.getAvailableDeviceIDs();
+  Vec<std::string> remaining_ids = manager.getAvailableDeviceIDs();
   EXPECT_EQ(remaining_ids.size(), 0);
 
   for (const std::string &device_id : device_ids) {
@@ -142,7 +142,7 @@ TEST_F(DeviceManagerTest, ClearDevices) {
 TEST_F(DeviceManagerTest, CUDADeviceDiscovery) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+  Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
   bool found_gpu = false;
   for (const std::string &device_id : device_ids) {
@@ -171,7 +171,7 @@ TEST_F(DeviceManagerTest, CUDADeviceDiscovery) {
 TEST_F(DeviceManagerTest, DeviceMemoryInfo) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+  Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
   for (const std::string &device_id : device_ids) {
     const Device &device = manager.getDevice(device_id);

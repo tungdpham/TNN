@@ -44,7 +44,7 @@ struct CoordinatorConfig {
   std::unique_ptr<Partitioner> partitioner;
   std::unique_ptr<Worker> local_worker = nullptr;
   Endpoint coordinator_endpoint;
-  std::vector<Endpoint> worker_endpoints;
+  Vec<Endpoint> worker_endpoints;
 };
 
 class Coordinator {
@@ -162,8 +162,7 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  Result async_train_batch(std::vector<Tensor> &microbatch_inputs,
-                           std::vector<Tensor> &microbatch_labels,
+  Result async_train_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
                            const std::unique_ptr<Loss> &criterion) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
       throw std::runtime_error("Mismatched number of inputs and labels in async_train_batch");
@@ -182,8 +181,7 @@ public:
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
       message_notification_cv_.wait(
           lock, [this]() { return comm_->message_count(CommandType::FORWARD_JOB) > 0; });
-      std::vector<Message> FORWARD_JOBs =
-          comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+      Vec<Message> FORWARD_JOBs = comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
       for (auto &forward_msg : FORWARD_JOBs) {
         if (forward_msg.has_type<Job>()) {
@@ -228,8 +226,7 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  Result async_val_batch(std::vector<Tensor> &microbatch_inputs,
-                         std::vector<Tensor> &microbatch_labels,
+  Result async_val_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
                          const std::unique_ptr<Loss> &criterion) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
       throw std::runtime_error("Mismatched number of inputs and labels in async_train_batch");
@@ -246,8 +243,7 @@ public:
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
       message_notification_cv_.wait(
           lock, [this]() { return comm_->message_count(CommandType::FORWARD_JOB) > 0; });
-      std::vector<Message> FORWARD_JOBs =
-          comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+      Vec<Message> FORWARD_JOBs = comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
       for (auto &forward_msg : FORWARD_JOBs) {
         if (forward_msg.has_type<Job>()) {
@@ -313,7 +309,7 @@ public:
       std::cerr << "Warning: Not all stages reported profiling data within timeout.\n";
     }
 
-    std::vector<Message> profiling_messages =
+    Vec<Message> profiling_messages =
         comm_->dequeue_all_messages_by_type(CommandType::PROFILING_REPORTED);
 
     auto &aggregator = GlobalProfiler::get_profiler();
@@ -361,7 +357,7 @@ public:
     }
   }
 
-  std::vector<Message> dequeue_all_messages(CommandType target_type) {
+  Vec<Message> dequeue_all_messages(CommandType target_type) {
     return comm_->dequeue_all_messages_by_type(target_type);
   }
 
@@ -469,9 +465,9 @@ protected:
   Endpoint coordinator_endpoint_;
 
   // Topology information
-  std::vector<SeqPartition> partitions_;
-  std::vector<Endpoint> worker_endpoints_;
-  std::vector<StageConfig> stage_configs_;
+  Vec<SeqPartition> partitions_;
+  Vec<Endpoint> worker_endpoints_;
+  Vec<StageConfig> stage_configs_;
   Logger logger_{"profiler", "logs/profiler.log", LogLevel::info};
 
   // Training Parameters

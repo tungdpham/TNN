@@ -22,12 +22,12 @@
 namespace tnn {
 class Sequential : public Block {
 private:
-  std::vector<std::unique_ptr<Layer>> layers_;
+  Vec<std::unique_ptr<Layer>> layers_;
   std::unordered_map<size_t, Vec<Vec<size_t>>> input_shapes_cache_;
 
 protected:
-  std::vector<Layer *> layers() override {
-    std::vector<Layer *> layers;
+  Vec<Layer *> layers() override {
+    Vec<Layer *> layers;
     for (auto &layer : layers_) {
       layers.push_back(layer.get());
     }
@@ -40,7 +40,7 @@ protected:
                      size_t mb_id) override;
 
 public:
-  explicit Sequential(std::vector<std::unique_ptr<Layer>> layers = {},
+  explicit Sequential(Vec<std::unique_ptr<Layer>> layers = {},
                       const std::string &name = "sequential");
 
   static constexpr const char *TYPE_NAME = "sequential";
@@ -52,8 +52,8 @@ public:
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  void print_summary(const std::vector<size_t> &input_shape) const;
-  std::vector<Layer *> get_layers();
+  void print_summary(const Vec<size_t> &input_shape) const;
+  Vec<Layer *> get_layers();
   LayerConfig get_config() const override;
   static std::unique_ptr<Sequential> create_from_config(const LayerConfig &config);
 };

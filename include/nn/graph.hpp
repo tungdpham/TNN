@@ -19,7 +19,7 @@ class Graph {
 public:
   Graph(IAllocator& allocator, GraphContextDescriptor ctx_desc,
         std::unordered_map<std::string, OpNode>&& op_nodes,
-        std::unordered_map<std::string, IONode>&& io_nodes, std::vector<Edge>&& edges)
+        std::unordered_map<std::string, IONode>&& io_nodes, Vec<Edge>&& edges)
       : ctx_(allocator, ctx_desc),
         op_nodes_(std::move(op_nodes)),
         io_nodes_(std::move(io_nodes)),
@@ -41,7 +41,7 @@ public:
 
   const std::unordered_map<std::string, IONode>& io_nodes() const { return io_nodes_; }
   const IONode& io_node(const std::string& uid) const { return io_nodes_.at(uid); }
-  const std::vector<Edge>& edges() const { return edges_; }
+  const Vec<Edge>& edges() const { return edges_; }
 
   const std::string& name() const { return name_; }
   Graph& set_name(const std::string& name) {
@@ -58,8 +58,8 @@ public:
 
   // temporary: get layers from op nodes
   // need to refactor later if we want to support more complex graph structures
-  std::vector<Layer*> get_layers() {
-    std::vector<Layer*> layers;
+  Vec<Layer*> get_layers() {
+    Vec<Layer*> layers;
     for (auto& op_pair : op_nodes_) {
       OpNode& node = op_pair.second;
       Sequential* seq = dynamic_cast<Sequential*>(node.layer());
@@ -78,27 +78,27 @@ public:
   GraphConfig get_config() const {
     GraphConfig config;
     config.type = "graph";
-    std::vector<nlohmann::json> op_configs;
+    Vec<nlohmann::json> op_configs;
     for (const auto& op_pair : op_nodes_) {
       const OpNode& node = op_pair.second;
       op_configs.push_back(node.get_config().to_json());
     }
     config.set("op_nodes", nlohmann::json(op_configs));
-    std::vector<nlohmann::json> io_configs;
+    Vec<nlohmann::json> io_configs;
     for (const auto& io_pair : io_nodes_) {
       const IONode& node = io_pair.second;
       io_configs.push_back(node.get_config().to_json());
     }
     config.set("io_nodes", nlohmann::json(io_configs));
-    std::vector<nlohmann::json> edge_configs;
+    Vec<nlohmann::json> edge_configs;
     for (const auto& edge : edges_) {
       nlohmann::json edge_j;
-      std::vector<std::string> producer_uids;
+      Vec<std::string> producer_uids;
       for (const auto& producer : edge.producers()) {
         producer_uids.push_back(producer->uid());
       }
       edge_j["producers"] = producer_uids;
-      std::vector<std::string> consumer_uids;
+      Vec<std::string> consumer_uids;
       for (const auto& consumer : edge.consumers()) {
         consumer_uids.push_back(consumer->uid());
       }
@@ -151,15 +151,15 @@ public:
     }
 
     // Reconstruct edges
-    std::vector<Edge> edges;
+    Vec<Edge> edges;
     nlohmann::json edge_json = config.get<nlohmann::json>("edges", nlohmann::json::array());
     for (const auto& edge_j : edge_json) {
-      std::vector<const IONode*> producers;
-      for (const auto& uid : edge_j.value("producers", std::vector<std::string>{})) {
+      Vec<const IONode*> producers;
+      for (const auto& uid : edge_j.value("producers", Vec<std::string>{})) {
         producers.push_back(&io_nodes.at(uid));
       }
-      std::vector<const IONode*> consumers;
-      for (const auto& uid : edge_j.value("consumers", std::vector<std::string>{})) {
+      Vec<const IONode*> consumers;
+      for (const auto& uid : edge_j.value("consumers", Vec<std::string>{})) {
         consumers.push_back(&io_nodes.at(uid));
       }
       std::string op_uid = edge_j.at("op_node").get<std::string>();
@@ -187,7 +187,7 @@ private:
   GraphContext ctx_;
   std::unordered_map<std::string, OpNode> op_nodes_;
   std::unordered_map<std::string, IONode> io_nodes_;
-  std::vector<Edge> edges_;
+  Vec<Edge> edges_;
 };
 
 }  // namespace tnn

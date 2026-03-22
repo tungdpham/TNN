@@ -35,7 +35,7 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
     auto train = std::make_unique<CIFAR10DataLoader>(io_dtype_);
     auto val = std::make_unique<CIFAR10DataLoader>(io_dtype_);
 
-    std::vector<std::string> train_files = {
+    Vec<std::string> train_files = {
         dataset_path + "/data_batch_1.bin", dataset_path + "/data_batch_2.bin",
         dataset_path + "/data_batch_3.bin", dataset_path + "/data_batch_4.bin",
         dataset_path + "/data_batch_5.bin"};

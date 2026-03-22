@@ -51,14 +51,14 @@ namespace tnn {
  */
 class TinyImageNetDataLoader : public ImageDataLoader {
 private:
-  std::vector<float> data_;
-  std::vector<int> labels_;
+  Vec<float> data_;
+  Vec<int> labels_;
 
-  std::vector<Tensor> batched_data_;
-  std::vector<Tensor> batched_labels_;
+  Vec<Tensor> batched_data_;
+  Vec<Tensor> batched_labels_;
   DType_t dtype_ = DType_t::FP32;
 
-  std::vector<std::string> class_ids_;                   // WordNet IDs (wnids)
+  Vec<std::string> class_ids_;                           // WordNet IDs (wnids)
   std::map<std::string, int> class_id_to_index_;         // Map wnid to class index
   std::map<std::string, std::string> class_id_to_name_;  // Map wnid to human-readable name
 
@@ -218,7 +218,7 @@ private:
       return false;
     }
 
-    std::vector<std::pair<std::string, int>> image_paths;
+    Vec<std::pair<std::string, int>> image_paths;
     image_paths.reserve(tiny_imagenet_constants::NUM_CLASSES *
                         tiny_imagenet_constants::TRAIN_IMAGES_PER_CLASS);
 
@@ -244,7 +244,7 @@ private:
 
     data_.resize(num_images * tiny_imagenet_constants::IMAGE_SIZE);
     labels_.resize(num_images);
-    std::vector<bool> load_success(num_images, false);
+    Vec<bool> load_success(num_images, false);
 
     parallel_for<size_t>(0, num_images, [&](size_t i) {
       const auto &[path, class_index] = image_paths[i];
@@ -402,10 +402,10 @@ public:
     if (labels_.empty()) return;
 
     const size_t num_samples = labels_.size();
-    std::vector<size_t> indices = this->generate_shuffled_indices(num_samples);
+    Vec<size_t> indices = this->generate_shuffled_indices(num_samples);
 
-    std::vector<float> shuffled_data;
-    std::vector<int> shuffled_labels;
+    Vec<float> shuffled_data;
+    Vec<int> shuffled_labels;
     shuffled_data.resize(data_.size());
     shuffled_labels.reserve(num_samples);
 
@@ -430,7 +430,7 @@ public:
   /**
    * Get image dimensions (height, width, channels) for NHWC format
    */
-  std::vector<size_t> get_data_shape() const override {
+  Vec<size_t> get_data_shape() const override {
     return {tiny_imagenet_constants::IMAGE_HEIGHT, tiny_imagenet_constants::IMAGE_WIDTH,
             tiny_imagenet_constants::NUM_CHANNELS};
   }
@@ -445,8 +445,8 @@ public:
   /**
    * Get class names for Tiny ImageNet-200
    */
-  std::vector<std::string> get_class_names() const override {
-    std::vector<std::string> names;
+  Vec<std::string> get_class_names() const override {
+    Vec<std::string> names;
     names.reserve(class_ids_.size());
 
     for (const auto &class_id : class_ids_) {
@@ -464,7 +464,7 @@ public:
   /**
    * Get class IDs (WordNet IDs)
    */
-  std::vector<std::string> get_class_ids() const { return class_ids_; }
+  Vec<std::string> get_class_ids() const { return class_ids_; }
 
   /**
    * Get data statistics for debugging
@@ -475,7 +475,7 @@ public:
       return;
     }
 
-    std::vector<int> label_counts(tiny_imagenet_constants::NUM_CLASSES, 0);
+    Vec<int> label_counts(tiny_imagenet_constants::NUM_CLASSES, 0);
     for (const auto &label : labels_) {
       if (label >= 0 && label < static_cast<int>(tiny_imagenet_constants::NUM_CLASSES)) {
         label_counts[label]++;

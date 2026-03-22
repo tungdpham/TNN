@@ -45,7 +45,7 @@ private:
                                                    size_t batch_size, size_t seq_len,
                                                    flowHandle_t handle);
 
-  std::vector<Layer *> layers() override {
+  Vec<Layer *> layers() override {
     return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
   }
 

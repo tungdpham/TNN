@@ -97,7 +97,7 @@ void Sequential::backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<T
   this->device().getFlow(this->flow_handle_)->synchronize();
 }
 
-Sequential::Sequential(std::vector<std::unique_ptr<Layer>> layers, const std::string &name)
+Sequential::Sequential(Vec<std::unique_ptr<Layer>> layers, const std::string &name)
     : Block(name) {
   layers_ = std::move(layers);
 }
@@ -197,13 +197,13 @@ size_t Sequential::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   return m_b;
 }
 
-void Sequential::print_summary(const std::vector<size_t> &input_shape) const {
+void Sequential::print_summary(const Vec<size_t> &input_shape) const {
   if (layers_.empty()) {
     std::cout << "Empty model.\n";
     return;
   }
 
-  auto format_shape = [](const std::vector<size_t> &shape) {
+  auto format_shape = [](const Vec<size_t> &shape) {
     std::string shape_str = "(";
     for (size_t j = 0; j < shape.size(); ++j) {
       if (j > 0) shape_str += ",";
@@ -219,7 +219,7 @@ void Sequential::print_summary(const std::vector<size_t> &input_shape) const {
   std::cout << std::left << std::setw(20) << "Layer (Type)" << std::setw(20) << "Input Shape"
             << std::setw(20) << "Output Shape" << "\n";
 
-  std::vector<size_t> current_shape = input_shape;
+  Vec<size_t> current_shape = input_shape;
   for (size_t i = 0; i < layers_.size(); ++i) {
     const auto &layer = layers_[i];
     std::cout << std::left << std::setw(20)
@@ -234,7 +234,7 @@ void Sequential::print_summary(const std::vector<size_t> &input_shape) const {
   std::cout << std::string(100, '-') << "\n";
 }
 
-std::vector<Layer *> Sequential::get_layers() { return this->layers(); }
+Vec<Layer *> Sequential::get_layers() { return this->layers(); }
 
 LayerConfig Sequential::get_config() const {
   LayerConfig config;
@@ -250,7 +250,7 @@ LayerConfig Sequential::get_config() const {
 }
 
 std::unique_ptr<Sequential> Sequential::create_from_config(const LayerConfig &config) {
-  std::vector<std::unique_ptr<Layer>> layers;
+  Vec<std::unique_ptr<Layer>> layers;
   nlohmann::json layers_json = config.get<nlohmann::json>("layers", nlohmann::json::array());
   if (!layers_json.is_array()) {
     throw std::runtime_error("Sequential layer config 'layers' parameter must be an array");

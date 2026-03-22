@@ -181,8 +181,7 @@ LayerConfig LegacyAvgPool2DLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> LegacyAvgPool2DLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> LegacyAvgPool2DLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("LegacyAvgPool2DLayer expects 4D input including batch size");
   }

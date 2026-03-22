@@ -35,8 +35,8 @@ private:
   std::unordered_map<size_t, Vec<Vec<size_t>>> input_shape_cache_;
   std::string activation_type_;
 
-  std::vector<Layer *> layers() override {
-    std::vector<Layer *> all_layers{main_path_.get()};
+  Vec<Layer *> layers() override {
+    Vec<Layer *> all_layers{main_path_.get()};
     if (shortcut_path_) {
       all_layers.push_back(shortcut_path_.get());
     }
@@ -56,8 +56,7 @@ public:
    * @param final_activation Activation applied after addition (e.g., "relu")
    * @param name Layer name
    */
-  ResidualBlock(std::vector<std::unique_ptr<Layer>> main_path,
-                std::vector<std::unique_ptr<Layer>> shortcut_path,
+  ResidualBlock(Vec<std::unique_ptr<Layer>> main_path, Vec<std::unique_ptr<Layer>> shortcut_path,
                 const std::string &final_activation = "relu",
                 const std::string &name = "residual_block");
 

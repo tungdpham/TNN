@@ -31,7 +31,7 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+    Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_cpu_ = false;
 
@@ -61,7 +61,7 @@ protected:
     const float *main_data = main_path_output->data_as<float>();
     const float *output_data = actual_output->data_as<float>();
 
-    std::vector<float> expected_output(actual_output->size());
+    Vec<float> expected_output(actual_output->size());
     for (size_t i = 0; i < actual_output->size(); ++i) {
       // For identity shortcut, F(x) + x
       expected_output[i] = main_data[i];
@@ -107,11 +107,10 @@ protected:
   /**
    * Create a simple linear layer (y = scale * x) for testing
    */
-  std::vector<std::unique_ptr<Layer>> create_scaling_layer(float scale,
-                                                           const std::string &name = "scale",
-                                                           size_t in_channels = 1,
-                                                           size_t out_channels = 1) {
-    std::vector<std::unique_ptr<Layer>> layers;
+  Vec<std::unique_ptr<Layer>> create_scaling_layer(float scale, const std::string &name = "scale",
+                                                   size_t in_channels = 1,
+                                                   size_t out_channels = 1) {
+    Vec<std::unique_ptr<Layer>> layers;
     // Use a 1x1 conv with specific initialization to act as a simple linear transformation
     auto layer = std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, 1, 1, 1, 1, 0, 0,
                                                      false, name);
@@ -136,11 +135,11 @@ protected:
 
 TEST_F(ResidualBlockTest, IdentityShortcutForward) {
   // Create simple main path: single layer that multiplies by 2
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(2.0f, "scale_2x");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "identity_residual");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_residual");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -153,7 +152,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutForward) {
     input_data[i] = 1.0f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -167,11 +166,11 @@ TEST_F(ResidualBlockTest, IdentityShortcutForward) {
 }
 
 TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(-2.0f, "scale_neg2x");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "relu", "identity_relu");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "identity_relu");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -184,7 +183,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
     input_data[i] = 1.0f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -196,11 +195,11 @@ TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
 }
 
 TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(0.5f, "scale_half", 2, 2);
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "identity_multichannel");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_multichannel");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -213,7 +212,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
     input_data[i] = 2.0f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -232,11 +231,11 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
 }
 
 TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(1.0f, "scale_1x");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "identity_multibatch");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_multibatch");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -249,7 +248,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -267,11 +266,11 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
 // Projection Shortcut Tests
 
 TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(0.5f, "scale_main");
 
   // Projection shortcut: 1x1 conv with scale 0.25
-  std::vector<std::unique_ptr<Layer>> shortcut = create_scaling_layer(0.25f, "scale_shortcut");
+  Vec<std::unique_ptr<Layer>> shortcut = create_scaling_layer(0.25f, "scale_shortcut");
 
   auto residual_layer = std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut),
                                                         "none", "projection_residual");
@@ -287,7 +286,7 @@ TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
     input_data[i] = 4.0f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -299,10 +298,10 @@ TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
 }
 
 TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(-1.0f, "scale_neg");
 
-  std::vector<std::unique_ptr<Layer>> shortcut = create_scaling_layer(0.5f, "scale_short");
+  Vec<std::unique_ptr<Layer>> shortcut = create_scaling_layer(0.5f, "scale_short");
 
   auto residual_layer = std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut),
                                                         "relu", "projection_relu");
@@ -318,7 +317,7 @@ TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
     input_data[i] = 2.0f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -332,11 +331,11 @@ TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
 // Backward Pass Tests
 
 TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(2.0f, "scale_2x");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "identity_backward");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_backward");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -349,7 +348,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
     input_data[i] = 1.0f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -376,11 +375,11 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
 }
 
 TEST_F(ResidualBlockTest, GetConfig) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(1.0f, "scale");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "relu", "test_residual");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "test_residual");
   ResidualBlock *residual = residual_layer.get();
 
   LayerConfig config = residual->get_config();
@@ -391,10 +390,10 @@ TEST_F(ResidualBlockTest, GetConfig) {
 }
 
 TEST_F(ResidualBlockTest, GetConfigWithProjection) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(1.0f, "scale_main");
 
-  std::vector<std::unique_ptr<Layer>> shortcut;
+  Vec<std::unique_ptr<Layer>> shortcut;
   shortcut = create_scaling_layer(0.5f, "scale_short");
 
   auto residual_layer = std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut),
@@ -408,15 +407,15 @@ TEST_F(ResidualBlockTest, GetConfigWithProjection) {
 }
 
 TEST_F(ResidualBlockTest, ComputeOutputShape) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(1.0f, "scale", 3, 3);
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "test_shape");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "test_shape");
   ResidualBlock *residual = residual_layer.get();
 
-  std::vector<size_t> input_shape = {1, 3, 32, 32};
-  std::vector<size_t> output_shape = residual->output_shapes({input_shape})[0];
+  Vec<size_t> input_shape = {1, 3, 32, 32};
+  Vec<size_t> output_shape = residual->output_shapes({input_shape})[0];
 
   // Since main path is just scaling, output shape should match input
   EXPECT_EQ(output_shape, input_shape);
@@ -425,11 +424,11 @@ TEST_F(ResidualBlockTest, ComputeOutputShape) {
 // Edge Cases and Numerical Stability
 
 TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(2.0f, "scale_2x");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "zero_gradient");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "zero_gradient");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -439,7 +438,7 @@ TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   input->fill(1.0f);
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -455,11 +454,11 @@ TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
 }
 
 TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(1.0f, "scale_1x");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "large_values");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "large_values");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -472,7 +471,7 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
     input_data[i] = 1e6f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -484,11 +483,11 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
 }
 
 TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(-1.0f, "scale_neg");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "negative_values");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "negative_values");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -501,7 +500,7 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
     input_data[i] = -2.0f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -513,11 +512,11 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
 }
 
 TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(1.0f, "scale_1x");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "small_values");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "small_values");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -530,7 +529,7 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
     input_data[i] = 1e-6f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -542,11 +541,11 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
 }
 
 TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(1.0f, "scale_1x");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "backward_stability");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "backward_stability");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -556,7 +555,7 @@ TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   input->fill(1e-6f);
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -576,14 +575,14 @@ TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
 // Multi-path and Complex Scenarios
 
 TEST_F(ResidualBlockTest, MultiLayerMainPath) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   auto layer1 = create_scaling_layer(0.5f, "scale_1");
   auto layer2 = create_scaling_layer(2.0f, "scale_2");
   main_path.push_back(std::move(layer1[0]));
   main_path.push_back(std::move(layer2[0]));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "multi_layer");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "multi_layer");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -596,7 +595,7 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
     input_data[i] = 2.0f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -608,14 +607,14 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
 }
 
 TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   auto layer1 = create_scaling_layer(0.5f, "scale_1");
   auto layer2 = create_scaling_layer(2.0f, "scale_2");
   main_path.push_back(std::move(layer1[0]));
   main_path.push_back(std::move(layer2[0]));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "none", "multi_layer_backward");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "multi_layer_backward");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -625,7 +624,7 @@ TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   input->fill(1.0f);
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -645,11 +644,11 @@ TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
 }
 
 TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(0.0f, "scale_zero");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "relu", "relu_suppression");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "relu_suppression");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -662,7 +661,7 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
     input_data[i] = -1.0f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 
@@ -674,11 +673,11 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
 }
 
 TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
-  std::vector<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<Layer>> main_path;
   main_path = create_scaling_layer(0.0f, "scale_zero");
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), std::vector<std::unique_ptr<Layer>>{}, "relu", "relu_suppression_bwd");
+      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "relu_suppression_bwd");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -691,7 +690,7 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
     input_data[i] = -1.0f;
   }
 
-  std::vector<size_t> output_shape = residual->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   residual->forward({input}, {output});
 

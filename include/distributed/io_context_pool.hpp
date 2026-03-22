@@ -19,7 +19,7 @@ public:
   }
 
   void run() {
-    std::vector<std::thread> threads;
+    Vec<std::thread> threads;
     for (auto &ctx : io_contexts_) {
       threads.emplace_back([ctx]() { ctx->run(); });
     }
@@ -41,8 +41,8 @@ public:
   asio::io_context &acceptor() { return *io_contexts_[0]; }
 
 private:
-  std::vector<std::shared_ptr<asio::io_context>> io_contexts_;
-  std::vector<asio::executor_work_guard<asio::io_context::executor_type>> work_guards_;
+  Vec<std::shared_ptr<asio::io_context>> io_contexts_;
+  Vec<asio::executor_work_guard<asio::io_context::executor_type>> work_guards_;
   std::size_t next_io_context_;
 };
 

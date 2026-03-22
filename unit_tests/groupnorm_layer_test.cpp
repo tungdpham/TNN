@@ -30,7 +30,7 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+    Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_cpu_ = false;
 
@@ -56,8 +56,8 @@ protected:
     EXPECT_EQ(output_shape[3], input_shape[3]);
   }
 
-  void compute_group_statistics(const ConstTensor &input, size_t num_groups,
-                                std::vector<float> &means, std::vector<float> &vars) {
+  void compute_group_statistics(const ConstTensor &input, size_t num_groups, Vec<float> &means,
+                                Vec<float> &vars) {
     const float *data = input->data_as<float>();
     auto input_shape = input->shape();
     size_t batch_size = input_shape[0];
@@ -108,10 +108,9 @@ protected:
   }
 
   void verify_forward_result(const ConstTensor &input, const ConstTensor &output, size_t num_groups,
-                             const std::vector<float> &expected_mean,
-                             const std::vector<float> &expected_var, float epsilon,
-                             const ConstTensor gamma = nullptr, const ConstTensor beta = nullptr,
-                             float tolerance = 1e-4f) {
+                             const Vec<float> &expected_mean, const Vec<float> &expected_var,
+                             float epsilon, const ConstTensor gamma = nullptr,
+                             const ConstTensor beta = nullptr, float tolerance = 1e-4f) {
     const float *input_data = input->data_as<float>();
     const float *output_data = output->data_as<float>();
     const float *gamma_data = gamma ? gamma->data_as<float>() : nullptr;
@@ -174,12 +173,12 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
     data[i] = static_cast<float>(i % 10);
   }
 
-  std::vector<size_t> output_shape = node.output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   node.forward({input}, {output});
   verify_output_shape(input, output);
 
-  std::vector<float> expected_mean, expected_var;
+  Vec<float> expected_mean, expected_var;
   compute_group_statistics(input, num_groups, expected_mean, expected_var);
   verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f);
 }
@@ -204,15 +203,15 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
     data[i] = static_cast<float>(i % 10) + 1.0f;
   }
 
-  std::vector<size_t> output_shape = node.output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   node.forward({input}, {output});
   verify_output_shape(input, output);
 
-  std::vector<float> expected_mean, expected_var;
+  Vec<float> expected_mean, expected_var;
   compute_group_statistics(input, num_groups, expected_mean, expected_var);
 
-  std::vector<Tensor> params = node.parameters();
+  Vec<Tensor> params = node.parameters();
   ASSERT_EQ(params.size(), 2);
 
   verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f, params[0],
@@ -239,12 +238,12 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
     data[i] = static_cast<float>(i) + 1.0f;
   }
 
-  std::vector<size_t> output_shape = node.output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   node.forward({input}, {output});
   verify_output_shape(input, output);
 
-  std::vector<float> expected_mean, expected_var;
+  Vec<float> expected_mean, expected_var;
   compute_group_statistics(input, num_groups, expected_mean, expected_var);
   verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f);
 }
@@ -269,12 +268,12 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
     data[i] = static_cast<float>((i * 3) % 7) + 0.5f;
   }
 
-  std::vector<size_t> output_shape = node.output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   node.forward({input}, {output});
   verify_output_shape(input, output);
 
-  std::vector<float> expected_mean, expected_var;
+  Vec<float> expected_mean, expected_var;
   compute_group_statistics(input, num_groups, expected_mean, expected_var);
   verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f);
 }
@@ -299,7 +298,7 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
     data[i] = static_cast<float>(i % 10) + 1.0f;
   }
 
-  std::vector<size_t> output_shape = node.output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
   Tensor output = make_tensor<float>(output_shape, getHost());
   node.forward({input}, {output});
 

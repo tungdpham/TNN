@@ -26,7 +26,7 @@ private:
   size_t pad_w_;
 
   std::unordered_map<size_t, Tensor> micro_batch_mask_indices_;
-  std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
+  std::unordered_map<size_t, Vec<size_t>> micro_batch_input_shapes_;
 
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
@@ -73,7 +73,7 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
     auto output_shapes = this->output_shapes(input_shapes);

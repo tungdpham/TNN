@@ -52,7 +52,7 @@ void LegacyDenseLayer::init_impl() {
 }
 
 void LegacyDenseLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
-  const std::vector<size_t> &in_shape = input->shape();
+  const Vec<size_t> &in_shape = input->shape();
   size_t last_dim = in_shape.back();
   size_t batch_size = 1;
   for (size_t i = 0; i < in_shape.size() - 1; ++i) {
@@ -69,7 +69,7 @@ void LegacyDenseLayer::forward_impl(const ConstTensor &input, const Tensor &outp
     set_immutable_cache(mb_id, "input", input);
   }
 
-  std::vector<size_t> out_shape = in_shape;
+  Vec<size_t> out_shape = in_shape;
   out_shape.back() = output_features_;
   output->ensure(out_shape);
 
@@ -88,7 +88,7 @@ void LegacyDenseLayer::backward_impl(const ConstTensor &grad_output, const Tenso
     throw std::invalid_argument("Gradient feature size mismatch in LegacyDenseLayer");
   }
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
-  const std::vector<size_t> &in_shape = input->shape();
+  const Vec<size_t> &in_shape = input->shape();
   size_t batch_size = 1;
   for (size_t i = 0; i < in_shape.size() - 1; ++i) {
     batch_size *= in_shape[i];
@@ -296,12 +296,11 @@ LayerConfig LegacyDenseLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> LegacyDenseLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> LegacyDenseLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.empty()) {
     throw std::runtime_error("LegacyDenseLayer::compute_output_shape: Input shape is empty.");
   }
-  std::vector<size_t> out_shape = input_shape;
+  Vec<size_t> out_shape = input_shape;
   out_shape.back() = output_features_;
   return out_shape;
 }

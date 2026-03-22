@@ -44,7 +44,7 @@ public:
     return vocab_[token_id];
   }
 
-  std::string decode(const std::vector<int> &tokens) const {
+  std::string decode(const Vec<int> &tokens) const {
     std::string result;
     for (int id : tokens) {
       result += decode(id);
@@ -53,7 +53,7 @@ public:
   }
 
   // For float tensors (standard in this framework)
-  std::string decode(const std::vector<float> &tokens) const {
+  std::string decode(const Vec<float> &tokens) const {
     std::string result;
     for (float val : tokens) {
       result += decode(static_cast<int>(val));
@@ -64,7 +64,7 @@ public:
   size_t vocab_size() const { return vocab_.size(); }
 
 private:
-  std::vector<std::string> vocab_;
+  Vec<std::string> vocab_;
 };
 
 }  // namespace tnn

@@ -7,8 +7,8 @@ class Block : virtual public Layer {
 public:
   Block(const std::string &name = "block") { this->name_ = name; }
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     for (const auto &layer : layers()) {
       auto layer_descriptors = layer->param_descriptors();
       descriptors.insert(descriptors.end(), layer_descriptors.begin(), layer_descriptors.end());
@@ -67,6 +67,6 @@ protected:
     }
   }
 
-  virtual std::vector<Layer *> layers() = 0;
+  virtual Vec<Layer *> layers() = 0;
 };
 }  // namespace tnn

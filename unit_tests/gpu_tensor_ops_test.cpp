@@ -24,7 +24,7 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+    Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_gpu_ = false;
     for (const std::string &id : device_ids) {
@@ -273,7 +273,7 @@ TEST_F(GPUopsTest, SplitBasic) {
   Tensor cpu_tensor = make_tensor<float>({4, 2, 3, 3});
   cpu_tensor->fill_random_uniform(10.0f);
 
-  std::vector<Tensor> cpu_splits, gpu_splits;
+  Vec<Tensor> cpu_splits, gpu_splits;
   ops::split<float>(cpu_tensor, cpu_splits, 2);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
@@ -288,11 +288,11 @@ TEST_F(GPUopsTest, SplitBasic) {
 TEST_F(GPUopsTest, SplitMultiple) {
   Tensor cpu_tensor = make_tensor<float>({8, 3, 4, 4});
   cpu_tensor->fill_random_uniform(15.0f);
-  std::vector<Tensor> cpu_splits;
+  Vec<Tensor> cpu_splits;
   ops::split<float>(cpu_tensor, cpu_splits, 4);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
-  std::vector<Tensor> gpu_splits;
+  Vec<Tensor> gpu_splits;
   ops::split<float>(gpu_tensor, gpu_splits, 4);
 
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
@@ -318,7 +318,7 @@ TEST_F(GPUopsTest, SplitSingleBatch) {
   Tensor cpu_tensor = make_tensor<float>({6, 2, 5, 5});
   cpu_tensor->fill_random_uniform(12.0f);
 
-  std::vector<Tensor> cpu_splits, gpu_splits;
+  Vec<Tensor> cpu_splits, gpu_splits;
   ops::split<float>(cpu_tensor, cpu_splits, 6);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
@@ -354,8 +354,8 @@ TEST_F(GPUopsTest, Im2colBasicKernel3x3) {
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
   ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
-  std::vector<float> cpu_col_cpu(col_size);
-  std::vector<float> gpu_col_cpu(col_size);
+  Vec<float> cpu_col_cpu(col_size);
+  Vec<float> gpu_col_cpu(col_size);
   std::copy(cpu_col_data->data_as<float>(), cpu_col_data->data_as<float>() + col_size,
             cpu_col_cpu.data());
   getGPU().copyToHost(gpu_col_cpu.data(), gpu_col_data->data_as<float>(), col_size * sizeof(float));
@@ -387,8 +387,8 @@ TEST_F(GPUopsTest, Im2colWithPadding) {
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
   ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
-  std::vector<float> cpu_col_cpu(col_size);
-  std::vector<float> gpu_col_cpu(col_size);
+  Vec<float> cpu_col_cpu(col_size);
+  Vec<float> gpu_col_cpu(col_size);
   std::copy(cpu_col_data->data_as<float>(), cpu_col_data->data_as<float>() + col_size,
             cpu_col_cpu.data());
   getGPU().copyToHost(gpu_col_cpu.data(), gpu_col_data->data_as<float>(), col_size * sizeof(float));
@@ -418,8 +418,8 @@ TEST_F(GPUopsTest, Im2colWithStride) {
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
   ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
-  std::vector<float> cpu_col_cpu(col_size);
-  std::vector<float> gpu_col_cpu(col_size);
+  Vec<float> cpu_col_cpu(col_size);
+  Vec<float> gpu_col_cpu(col_size);
   std::copy(cpu_col->data_as<float>(), cpu_col->data_as<float>() + col_size, cpu_col_cpu.data());
   getGPU().copyToHost(gpu_col_cpu.data(), gpu_col_data->data_as<float>(), col_size * sizeof(float));
 
@@ -450,8 +450,8 @@ TEST_F(GPUopsTest, Im2colMultiBatch) {
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
   ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
-  std::vector<float> cpu_col_cpu(col_size);
-  std::vector<float> gpu_col_cpu(col_size);
+  Vec<float> cpu_col_cpu(col_size);
+  Vec<float> gpu_col_cpu(col_size);
   std::copy(cpu_col->data_as<float>(), cpu_col->data_as<float>() + col_size, cpu_col_cpu.data());
   getGPU().copyToHost(gpu_col_cpu.data(), gpu_col_data->data_as<float>(), col_size * sizeof(float));
 
@@ -489,8 +489,8 @@ TEST_F(GPUopsTest, Col2imBasic) {
   ops::col2im<float>(gpu_col_data, gpu_result, batch_size, channels, height, width, kernel_h,
                      kernel_w, stride_h, stride_w, pad_h, pad_w);
 
-  std::vector<float> cpu_result_cpu(batch_size * channels * height * width);
-  std::vector<float> gpu_result_cpu(batch_size * channels * height * width);
+  Vec<float> cpu_result_cpu(batch_size * channels * height * width);
+  Vec<float> gpu_result_cpu(batch_size * channels * height * width);
   std::copy(cpu_result->data_as<float>(), cpu_result->data_as<float>() + cpu_result_cpu.size(),
             cpu_result_cpu.data());
   getGPU().copyToHost(gpu_result_cpu.data(), gpu_result->data_as<float>(),
@@ -532,8 +532,8 @@ TEST_F(GPUopsTest, Col2imWithPadding) {
   ops::col2im<float>(gpu_col_data, gpu_result, batch_size, channels, height, width, kernel_h,
                      kernel_w, stride_h, stride_w, pad_h, pad_w);
 
-  std::vector<float> cpu_result_cpu(batch_size * channels * height * width);
-  std::vector<float> gpu_result_cpu(batch_size * channels * height * width);
+  Vec<float> cpu_result_cpu(batch_size * channels * height * width);
+  Vec<float> gpu_result_cpu(batch_size * channels * height * width);
   std::copy(cpu_result->data_as<float>(), cpu_result->data_as<float>() + cpu_result_cpu.size(),
             cpu_result_cpu.data());
   getGPU().copyToHost(gpu_result_cpu.data(), gpu_result->data_as<float>(),

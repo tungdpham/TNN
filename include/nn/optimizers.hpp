@@ -61,8 +61,8 @@ public:
 protected:
   float learning_rate_;
   GraphContext *context_;
-  std::vector<Tensor> parameters_;
-  std::vector<Tensor> gradients_;
+  Vec<Tensor> parameters_;
+  Vec<Tensor> gradients_;
 
   virtual void on_attach() {}
 };
@@ -112,7 +112,7 @@ protected:
 
 private:
   float momentum_;
-  std::vector<Tensor> velocities_;
+  Vec<Tensor> velocities_;
 
   template <typename T>
   void update_impl(const Tensor &param, const Tensor &grad, const Tensor &velocity) {
@@ -217,8 +217,8 @@ private:
   float weight_decay_;
   bool decouple_weight_decay_;
   unsigned long t_;
-  std::vector<Tensor> m_;
-  std::vector<Tensor> v_;
+  Vec<Tensor> m_;
+  Vec<Tensor> v_;
 
   template <typename T>
   void update_impl(const Tensor &param, const Tensor &grad, const Tensor &m, const Tensor &v,

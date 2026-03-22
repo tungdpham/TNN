@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "ops/cuda/kernels.hpp"
+#include "type/type.hpp"
 
 using namespace tnn;
 
@@ -40,7 +41,7 @@ protected:
     if (dev_c) cudaFree(dev_c);
   }
 
-  void CompareCudaWithCPU(const std::vector<float> &expected) {
+  void CompareCudaWithCPU(const Vec<float> &expected) {
     cudaMemcpy(host_c.data(), dev_c, size * sizeof(float), cudaMemcpyDeviceToHost);
     cudaDeviceSynchronize();
 
@@ -51,7 +52,7 @@ protected:
   }
 
   size_t size;
-  std::vector<float> host_a, host_b, host_c, host_expected;
+  Vec<float> host_a, host_b, host_c, host_expected;
   float *dev_a = nullptr, *dev_b = nullptr, *dev_c = nullptr;
 };
 
@@ -185,12 +186,12 @@ protected:
   }
 
   size_t size;
-  std::vector<double> host_a, host_b, host_c;
+  Vec<double> host_a, host_b, host_c;
   double *dev_a = nullptr, *dev_b = nullptr, *dev_c = nullptr;
 };
 
 TEST_F(CudaKernelsDoubleTest, AddDoubleTest) {
-  std::vector<double> expected(size);
+  Vec<double> expected(size);
   for (size_t i = 0; i < size; ++i) {
     expected[i] = host_a[i] + host_b[i];
   }

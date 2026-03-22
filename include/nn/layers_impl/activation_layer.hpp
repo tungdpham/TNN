@@ -48,7 +48,7 @@ public:
     return get_shapes_bytes(input_shapes, io_dtype_);
   }
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 };
 
 }  // namespace tnn

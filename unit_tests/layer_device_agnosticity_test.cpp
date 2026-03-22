@@ -32,7 +32,7 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+    Vec<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_gpu_ = false;
 
@@ -134,7 +134,7 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerForwardBasic) {
   Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, getHost());
   input->fill_random_uniform(2.0f);
 
-  std::vector<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
   Tensor cpu_output = make_tensor<float>(output_shape, getHost());
   cpu_layer->forward({input}, {cpu_output});
 
@@ -184,7 +184,7 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerBackwardBasic) {
   Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, getHost());
   input->fill_random_uniform(2.0f);
 
-  std::vector<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
   Tensor cpu_output = make_tensor<float>(output_shape, getHost());
   cpu_layer->forward({input}, {cpu_output});
   Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
@@ -248,7 +248,7 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerStridedConvolution) {
   Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, getHost());
   input->fill_random_uniform(1.0f);
 
-  std::vector<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
   Tensor cpu_output = make_tensor<float>(output_shape, getHost());
   cpu_layer->forward({input}, {cpu_output});
   Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
@@ -298,7 +298,7 @@ TEST_F(LayerIntegrationTest, DenseLayerForwardBasic) {
   Tensor input = make_tensor<float>({batch_size, input_features}, getHost());
   input->fill_random_uniform(2.0f);
 
-  std::vector<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
   Tensor cpu_output = make_tensor<float>(output_shape, getHost());
   cpu_layer->forward({input}, {cpu_output});
   Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
@@ -337,7 +337,7 @@ TEST_F(LayerIntegrationTest, DenseLayerBackwardBasic) {
   Tensor input = make_tensor<float>({batch_size, input_features}, getHost());
   input->fill_random_uniform(2.0f);
 
-  std::vector<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
   Tensor cpu_output = make_tensor<float>(output_shape, getHost());
   cpu_layer->forward({input}, {cpu_output});
   Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
@@ -388,7 +388,7 @@ TEST_F(LayerIntegrationTest, DenseLayerLargeMatrix) {
   Tensor input = make_tensor<float>({batch_size, input_features}, getHost());
   input->fill_random_uniform(1.0f);
 
-  std::vector<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
   Tensor cpu_output = make_tensor<float>(output_shape, getHost());
   cpu_layer->forward({input}, {cpu_output});
   Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
@@ -438,7 +438,7 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerForwardBasic) {
   Tensor input = make_tensor<float>({batch_size, channels, input_h, input_w}, getHost());
   input->fill_random_uniform(10.0f);
 
-  std::vector<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
   Tensor cpu_output = make_tensor<float>(output_shape, getHost());
   cpu_layer->forward({input}, {cpu_output});
   Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
@@ -479,7 +479,7 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerBackwardBasic) {
   Tensor input = make_tensor<float>({batch_size, channels, input_h, input_w}, getHost());
   input->fill_random_uniform(20.0f);
 
-  std::vector<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
   Tensor cpu_output = make_tensor<float>(output_shape, getHost());
   cpu_layer->forward({input}, {cpu_output});
   Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
@@ -528,7 +528,7 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerWithPadding) {
   Tensor input = make_tensor<float>({batch_size, channels, input_h, input_w}, getHost());
   input->fill_random_uniform(10.0f);
 
-  std::vector<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
   Tensor cpu_output = make_tensor<float>(output_shape, getHost());
   cpu_layer->forward({input}, {cpu_output});
   Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
@@ -579,7 +579,7 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerNonSquare) {
   Tensor input = make_tensor<float>({batch_size, channels, input_h, input_w}, getHost());
   input->fill_random_uniform(16.0f);
 
-  std::vector<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
+  Vec<size_t> output_shape = cpu_layer->output_shapes({input->shape()})[0];
   Tensor cpu_output = make_tensor<float>(output_shape, getHost());
   cpu_layer->forward({input}, {cpu_output});
   Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
@@ -636,10 +636,10 @@ TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
   Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, getHost());
   input->fill_random_uniform(2.0f);
 
-  std::vector<size_t> conv_output_shape = cpu_conv->output_shapes({input->shape()})[0];
+  Vec<size_t> conv_output_shape = cpu_conv->output_shapes({input->shape()})[0];
   Tensor cpu_conv_out = make_tensor<float>(conv_output_shape, getHost());
   cpu_conv->forward({input}, {cpu_conv_out});
-  std::vector<size_t> pool_output_shape = cpu_pool->output_shapes({cpu_conv_out->shape()})[0];
+  Vec<size_t> pool_output_shape = cpu_pool->output_shapes({cpu_conv_out->shape()})[0];
   Tensor cpu_pool_out = make_tensor<float>(pool_output_shape, getHost());
   cpu_pool->forward({cpu_conv_out}, {cpu_pool_out});
 
@@ -709,12 +709,12 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
   Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, getHost());
   input->fill_random_uniform(2.0f);
 
-  std::vector<size_t> conv_output_shape = cpu_conv->output_shapes({input->shape()})[0];
+  Vec<size_t> conv_output_shape = cpu_conv->output_shapes({input->shape()})[0];
   Tensor cpu_conv_out = make_tensor<float>(conv_output_shape, getHost());
   cpu_conv->forward({input}, {cpu_conv_out});
 
   Tensor cpu_conv_flat = make_tensor<float>({batch_size, flattened_size}, getHost());
-  std::vector<size_t> dense_output_shape = cpu_dense->output_shapes({cpu_conv_flat->shape()})[0];
+  Vec<size_t> dense_output_shape = cpu_dense->output_shapes({cpu_conv_flat->shape()})[0];
   Tensor cpu_dense_out = make_tensor<float>(dense_output_shape, getHost());
   cpu_conv_out->copy_to(cpu_conv_flat);
   cpu_dense->forward({cpu_conv_flat}, {cpu_dense_out});

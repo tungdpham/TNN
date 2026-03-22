@@ -32,8 +32,8 @@ private:
                                                  const Tensor &pos_embedding_gradients,
                                                  flowHandle_t handle) const;
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     auto pos_emb_desc = ParamDescriptor{
         param_dtype_,
         {seq_len_, embed_dim_},
@@ -57,7 +57,7 @@ public:
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
     auto output_shapes = this->output_shapes(input_shapes);

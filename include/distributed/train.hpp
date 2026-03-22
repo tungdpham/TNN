@@ -33,10 +33,10 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
   coordinator.set_training(true);
   while (train_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
     // Split batch into micro-batches
-    std::vector<Tensor> micro_batch_inputs;
+    Vec<Tensor> micro_batch_inputs;
     DISPATCH_DTYPE(batch_data->data_type(), T,
                    ops::split<T>(batch_data, micro_batch_inputs, config.num_microbatches));
-    std::vector<Tensor> micro_batch_labels;
+    Vec<Tensor> micro_batch_labels;
     DISPATCH_DTYPE(batch_labels->data_type(), T,
                    ops::split<T>(batch_labels, micro_batch_labels, config.num_microbatches));
 
@@ -92,8 +92,8 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
   coordinator.set_training(false);
 
   while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
-    std::vector<Tensor> micro_batch_inputs{std::move(batch_data)};
-    std::vector<Tensor> micro_batch_labels{std::move(batch_labels)};
+    Vec<Tensor> micro_batch_inputs{std::move(batch_data)};
+    Vec<Tensor> micro_batch_labels{std::move(batch_labels)};
     auto [val_loss, val_correct] =
         coordinator.async_val_batch(micro_batch_inputs, micro_batch_labels, criterion);
     total_val_loss += val_loss;

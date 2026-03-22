@@ -33,7 +33,7 @@ namespace tnn {
  */
 class MSequential : public Block {
 private:
-  std::vector<std::unique_ptr<Sequential>> sequences_;
+  Vec<std::unique_ptr<Sequential>> sequences_;
   std::unique_ptr<Layer> join_layer_;
 
   // Cache for memory planning
@@ -45,18 +45,18 @@ private:
   };
 
   // Cached execution order (sorted by priority, descending)
-  mutable std::vector<size_t> execution_order_;
+  mutable Vec<size_t> execution_order_;
   mutable bool execution_order_cached_ = false;
 
   std::unordered_map<size_t, Vec<Vec<size_t>>> input_shapes_cache_;
 
-  std::vector<size_t> compute_execution_order(const Vec<Vec<size_t>> &input_shapes) const;
+  Vec<size_t> compute_execution_order(const Vec<Vec<size_t>> &input_shapes) const;
 
   SequenceMemInfo compute_sequence_memory(size_t seq_idx, const Vec<size_t> &input_shapes) const;
 
 protected:
-  std::vector<Layer *> layers() override {
-    std::vector<Layer *> layers;
+  Vec<Layer *> layers() override {
+    Vec<Layer *> layers;
     for (auto &seq : sequences_) {
       layers.push_back(seq.get());
     }
@@ -79,7 +79,7 @@ public:
    * @param join_layer Layer that accepts multiple inputs and produces single output
    * @param name Block name
    */
-  explicit MSequential(std::vector<std::unique_ptr<Sequential>> sequences,
+  explicit MSequential(Vec<std::unique_ptr<Sequential>> sequences,
                        std::unique_ptr<Layer> join_layer, const std::string &name = "msequential");
 
   static constexpr const char *TYPE_NAME = "msequential";
@@ -95,7 +95,7 @@ public:
 
   void print_summary(const Vec<Vec<size_t>> &input_shapes) const;
 
-  std::vector<Sequential *> get_sequences();
+  Vec<Sequential *> get_sequences();
   Layer *get_join_layer();
 
   LayerConfig get_config() const override;

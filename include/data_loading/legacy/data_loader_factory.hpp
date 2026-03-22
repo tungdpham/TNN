@@ -29,7 +29,7 @@ public:
   /**
    * Get list of available dataset types
    */
-  static std::vector<std::string> available_loaders() {
+  static Vec<std::string> available_loaders() {
     return {"mnist", "cifar10", "cifar100", "tiny_imagenet"};
   }
 };

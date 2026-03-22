@@ -21,13 +21,12 @@ void Layer::init() {
   initialized_ = true;
 }
 
-void Layer::forward(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
-                    size_t mb_id) {
+void Layer::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs, size_t mb_id) {
   if (!initialized_) {
     throw std::runtime_error("Layer must be initialized before calling forward");
   }
   is_fwd_ = true;
-  std::vector<ConstTensor> current_inputs;
+  Vec<ConstTensor> current_inputs;
   for (auto &input : inputs) {
     if (input->device() == this->device())
       current_inputs.push_back(input);
@@ -37,13 +36,13 @@ void Layer::forward(const std::vector<ConstTensor> &inputs, const std::vector<Te
   forward_impl(current_inputs, outputs, mb_id);
 }
 
-void Layer::backward(const std::vector<ConstTensor> &grad_outputs,
-                     const std::vector<Tensor> &grad_inputs, size_t mb_id) {
+void Layer::backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                     size_t mb_id) {
   if (!initialized_) {
     throw std::runtime_error("Layer must be initialized before calling backward");
   }
   is_fwd_ = false;
-  std::vector<ConstTensor> current_grad_outputs;
+  Vec<ConstTensor> current_grad_outputs;
   for (auto &grad : grad_outputs) {
     if (grad->device() == this->device())
       current_grad_outputs.push_back(grad);
@@ -123,8 +122,8 @@ void Layer::save_state(std::ofstream &file) {
   }
 }
 
-std::vector<Tensor> Layer::parameters() {
-  std::vector<Tensor> params;
+Vec<Tensor> Layer::parameters() {
+  Vec<Tensor> params;
   auto descs = this->param_descriptors();
   for (const auto &desc : descs) {
     params.push_back(*desc.data_ptr);
@@ -132,8 +131,8 @@ std::vector<Tensor> Layer::parameters() {
   return params;
 }
 
-std::vector<Tensor> Layer::gradients() {
-  std::vector<Tensor> grads;
+Vec<Tensor> Layer::gradients() {
+  Vec<Tensor> grads;
   auto descs = this->param_descriptors();
   for (const auto &desc : descs) {
     grads.push_back(*desc.grad_ptr);
@@ -141,7 +140,7 @@ std::vector<Tensor> Layer::gradients() {
   return grads;
 }
 
-Tensor Layer::get_tensor(const std::vector<size_t> &shape, DType_t dtype) {
+Tensor Layer::get_tensor(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
@@ -164,7 +163,7 @@ Tensor &Layer::get_mutable_cache(size_t mb_id, const std::string &key) {
   return mutable_cache_[{mb_id, key}];
 }
 
-Tensor Layer::get_cache_tensor(const std::vector<size_t> &shape, DType_t dtype) {
+Tensor Layer::get_cache_tensor(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
@@ -174,7 +173,7 @@ Tensor Layer::get_cache_tensor(const std::vector<size_t> &shape, DType_t dtype) 
   return make_tensor(*allocator_, dtype, shape);
 }
 
-Tensor Layer::get_workspace(const std::vector<size_t> &shape, DType_t dtype) {
+Tensor Layer::get_workspace(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }

@@ -31,18 +31,18 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
 
     std::fill(O_b, O_b + D * L, static_cast(0));
 
-    std::vector m(L, -INFINITY);
-    std::vector l(L, 0);
+    Vec m(L, -INFINITY);
+    Vec l(L, 0);
 
     // Pre-allocate buffers for blocks
-    std::vector Q_block(D * Br);
-    std::vector K_block(D * Bc);
-    std::vector V_block(D * Bc);
-    std::vector S_ij(Br * Bc);
-    std::vector P_ij(Br * Bc);
-    std::vector PV(D * Br);
-    std::vector m_block(Br);
-    std::vector l_block(Br);
+    Vec Q_block(D * Br);
+    Vec K_block(D * Bc);
+    Vec V_block(D * Bc);
+    Vec S_ij(Br * Bc);
+    Vec P_ij(Br * Bc);
+    Vec PV(D * Br);
+    Vec m_block(Br);
+    Vec l_block(Br);
 
     for (size_t i = 0; i < L; i += Br) {
       size_t br = std::min(Br, L - i);

@@ -29,7 +29,7 @@ private:
   size_t pad_w_;
 
   // Cache input shapes for backward pass
-  std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
+  std::unordered_map<size_t, Vec<size_t>> micro_batch_input_shapes_;
 
   template <typename Compute_T>
   std::unique_ptr<Task> compute_avg_pool_forward_impl(const ConstTensor &input_data,
@@ -74,7 +74,7 @@ public:
   }
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   static std::unique_ptr<AvgPool2DLayer> create_from_config(const LayerConfig &config);
 };
 
