@@ -185,6 +185,11 @@ public:
     side_ = side;
   }
 
+  int side() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return side_;
+  }
+
   void clear() override {
     std::lock_guard<std::mutex> lock(mutex_);
     for (auto &slab : slabs_) {
@@ -230,7 +235,7 @@ private:
   };
   const Device &device_;
   flowHandle_t flow_;
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   int side_;
   std::list<Slab> slabs_;
   std::map<size_t, std::set<Block>> free_by_size_;  // size -> set of blocks

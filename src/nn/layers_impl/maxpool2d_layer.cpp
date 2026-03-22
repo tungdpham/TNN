@@ -50,31 +50,18 @@ void MaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output
 
   output->ensure({batch_size, output_h, output_w, channels});
 
-  Tensor &mask_indices = micro_batch_mask_indices_[mb_id];
-  if (mask_indices == nullptr)
-    mask_indices = make_tensor<int>({batch_size, output_h, output_w, channels}, this->device());
-  else {
-    mask_indices->ensure({batch_size, output_h, output_w, channels});
-  }
+  Tensor mask_indices =
+      this->get_cache_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
+  set_mutable_cache(mb_id, "mask_indices", mask_indices);
 
   compute_max_pool_forward(input, output, batch_size, input_h, input_w, channels, output_h,
-                           output_w, micro_batch_mask_indices_[mb_id], this->flow_handle_);
+                           output_w, mask_indices, this->flow_handle_);
 }
 
 void MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                    size_t mb_id) {
-  auto it_mask = micro_batch_mask_indices_.find(mb_id);
-  auto it_shape = micro_batch_input_shapes_.find(mb_id);
-
-  if (it_mask == micro_batch_mask_indices_.end()) {
-    throw std::runtime_error("MaxPool2DLayer: forward must be called before backward");
-  }
-  if (it_shape == micro_batch_input_shapes_.end()) {
-    throw std::runtime_error("MaxPool2DLayer: forward must be called before backward");
-  }
-
-  const ConstTensor &mask_indices = it_mask->second;
-  const std::vector<size_t> &input_shape = it_shape->second;
+  const ConstTensor &mask_indices = this->get_mutable_cache(mb_id, "mask_indices");
+  const std::vector<size_t> &input_shape = micro_batch_input_shapes_[mb_id];
 
   const size_t batch_size = input_shape[0];
   const size_t input_h = input_shape[1];

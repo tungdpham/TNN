@@ -26,7 +26,6 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  std::unordered_map<size_t, Tensor> micro_batch_mask_indices_;
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
 
   std::unique_ptr<Task> forward_task_;

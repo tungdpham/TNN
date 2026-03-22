@@ -126,7 +126,9 @@ protected:
   DType_t compute_dtype_ = DType_t::FP32;  // data type for internal computations
 
   // helpers
+  void set_immutable_cache(size_t mb_id, const std::string &key, ConstTensor value);
   ConstTensor &get_immutable_cache(size_t mb_id, const std::string &key);
+  void set_mutable_cache(size_t mb_id, const std::string &key, Tensor value);
   Tensor &get_mutable_cache(size_t mb_id, const std::string &key);
   Tensor get_tensor(const std::vector<size_t> &shape, DType_t dtype);
   Tensor get_cache_tensor(const std::vector<size_t> &shape = {}, DType_t dtype = DType_t::FP32);

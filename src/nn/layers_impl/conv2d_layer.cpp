@@ -11,6 +11,7 @@
 #include "device/device_type.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/conv2d_nhwc_ops.hpp"
+#include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
 #ifdef USE_CUDNN
 #include <type_traits>
@@ -112,8 +113,7 @@ void Conv2DLayer::forward_impl(const ConstTensor &input, const Tensor &output, s
   output->ensure({batch_size, output_h, output_w, out_channels_});
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
-    cached_input = input;
+    set_immutable_cache(mb_id, "input", input);
   }
 
 #ifdef USE_CUDNN
@@ -150,10 +150,6 @@ void Conv2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &gr
   }
 
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
-  if (!input) {
-    throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
-  }
-
   const auto &input_shape = input->shape();
   grad_input->ensure(input_shape);
 

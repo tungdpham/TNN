@@ -53,8 +53,7 @@ void EmbeddingLayer::init_impl() {
 
 void EmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (this->is_training_) {
-    auto &cached_input = this->get_immutable_cache(mb_id, "input");
-    cached_input = input;
+    set_immutable_cache(mb_id, "input", input);
   }
 
   size_t num_tokens = input->size();
@@ -71,9 +70,6 @@ void EmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output
 void EmbeddingLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                    size_t mb_id) {
   const ConstTensor &input = this->get_immutable_cache(mb_id, "input");
-  if (!input) {
-    throw std::runtime_error("Embedding backward called without forward for this micro-batch");
-  }
 
   grad_input->ensure(input->shape());
   grad_input->fill(0);

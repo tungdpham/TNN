@@ -8,6 +8,7 @@
 #include "nn/layer.hpp"
 
 #include "device/flow.hpp"
+#include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
@@ -147,8 +148,16 @@ Tensor Layer::get_tensor(const std::vector<size_t> &shape, DType_t dtype) {
   return make_tensor(dtype, shape, device());
 }
 
+void Layer::set_immutable_cache(size_t mb_id, const std::string &key, ConstTensor value) {
+  immutable_cache_[{mb_id, key}] = std::move(value);
+}
+
 ConstTensor &Layer::get_immutable_cache(size_t mb_id, const std::string &key) {
   return immutable_cache_[{mb_id, key}];
+}
+
+void Layer::set_mutable_cache(size_t mb_id, const std::string &key, Tensor value) {
+  mutable_cache_[{mb_id, key}] = std::move(value);
 }
 
 Tensor &Layer::get_mutable_cache(size_t mb_id, const std::string &key) {
@@ -179,6 +188,13 @@ void Layer::clear_cache(size_t mb_id) {
   for (auto it = immutable_cache_.begin(); it != immutable_cache_.end();) {
     if (it->first.first == mb_id) {
       it = immutable_cache_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  for (auto it = mutable_cache_.begin(); it != mutable_cache_.end();) {
+    if (it->first.first == mb_id) {
+      it = mutable_cache_.erase(it);
     } else {
       ++it;
     }

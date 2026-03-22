@@ -215,19 +215,13 @@ void LayerNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
   size_t workspace_size = current_stats.fwd_workspace_size;
   Tensor cudnn_workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
 
-  // Cache mean and inv_variance for backward pass (like batch norm)
-  Tensor &batch_mean = this->get_mutable_cache(mb_id, "batch_mean");
-  Tensor &batch_invar = this->get_mutable_cache(mb_id, "batch_invar");
-  if (batch_mean == nullptr) {
-    batch_mean = this->get_tensor({batch_size}, compute_dtype_);
-  }
-  if (batch_invar == nullptr) {
-    batch_invar = this->get_tensor({batch_size}, compute_dtype_);
-  }
+  Tensor batch_mean = this->get_cache_tensor({batch_size}, compute_dtype_);
+  Tensor batch_invar = this->get_cache_tensor({batch_size}, compute_dtype_);
+  set_mutable_cache(mb_id, "batch_mean", batch_mean);
+  set_mutable_cache(mb_id, "batch_invar", batch_invar);
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
-    cached_input = input;
+    set_immutable_cache(mb_id, "input", input);
   }
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_layer_norm_forward, fe_handle, current_stats, input, output,

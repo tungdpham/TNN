@@ -95,11 +95,8 @@ void ResidualBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tenso
   for (size_t i = 0; i < outputs.size(); ++i) {
     if (final_activation_) {
       std::string pre_act_key = "pre_activation_" + std::to_string(i);
-      Tensor &pre_act = this->get_mutable_cache(mb_id, pre_act_key);
-      if (!pre_act)
-        pre_act = this->get_tensor(main_outputs[i]->shape(), io_dtype_);
-      else
-        pre_act->ensure(main_outputs[i]->shape());
+      Tensor pre_act = this->get_tensor(main_outputs[i]->shape(), io_dtype_);
+      set_mutable_cache(mb_id, pre_act_key, pre_act);
       DISPATCH_IO_DTYPE(ops::add, main_outputs[i]->data_ptr(), shortcut_outputs[i]->data_ptr(),
                         pre_act->data_ptr(), pre_act->size());
 
@@ -127,17 +124,15 @@ void ResidualBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
   for (size_t i = 0; i < grad_outputs.size(); ++i) {
     if (final_activation_) {
       std::string pre_act_key = "pre_activation_" + std::to_string(i);
-      const Tensor &pre_act = this->get_mutable_cache(mb_id, pre_act_key);
-      if (!pre_act) {
-        throw std::runtime_error("No cached pre-activation output found for micro-batch ID: " +
-                                 std::to_string(mb_id));
-      }
+      Tensor &pre_act = this->get_mutable_cache(mb_id, pre_act_key);
       Tensor grad_pre_act = this->get_workspace(pre_act->shape());
       final_activation_->compute_gradient(pre_act, grad_outputs[i], grad_pre_act);
+      pre_act = nullptr;  // free pre-activation cache after backward
       grads_to_propagate[i] = grad_pre_act;
     } else {
       grads_to_propagate[i] = grad_outputs[i];
     }
+    allocator_->flip();  // flip workspace allocator between main and shortcut backward
   }
 
   // Backward through main path

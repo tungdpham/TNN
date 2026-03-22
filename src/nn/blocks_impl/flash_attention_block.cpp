@@ -175,20 +175,17 @@ void FlashAttentionBlock::cudnn_forward(const ConstTensor &input, const Tensor &
 
   Tensor attn_heads =
       this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+  set_mutable_cache(mb_id, "attn_heads", attn_heads);
 
   // Allocate stats tensor (b, h, s, 1) in float
-  Tensor &stats_tensor = this->get_mutable_cache(mb_id, "stats_tensor");
-  if (stats_tensor == nullptr) {
-    stats_tensor = this->get_tensor({batch_size, num_heads_, seq_len, 1}, DType_t::FP32);
-  }
+  Tensor stats_tensor = this->get_tensor({batch_size, num_heads_, seq_len, 1}, DType_t::FP32);
+  set_mutable_cache(mb_id, "stats_tensor", stats_tensor);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(flash_attention_forward_task, fe_handle, stats, q_heads, k_heads,
                                  v_heads, attn_heads, stats_tensor, workspace, defaultFlowHandle);
 
-  Tensor &attn_out = this->get_mutable_cache(mb_id, "attn_out");
-  if (attn_out == nullptr) {
-    attn_out = this->get_tensor({batch_size, seq_len, embed_dim_}, io_dtype_);
-  }
+  Tensor attn_out = this->get_tensor({batch_size, seq_len, embed_dim_}, io_dtype_);
+  set_mutable_cache(mb_id, "attn_out", attn_out);
 
   DISPATCH_DTYPE(io_dtype_, T, {
     create_cuda_task(defaultFlowHandle, cuda::permute_heads<fp16, T>, attn_heads->data_as<fp16>(),

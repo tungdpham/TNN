@@ -72,24 +72,13 @@ void LegacyBatchNormLayer::def_forward(const ConstTensor &input, const Tensor &o
 
   output->ensure(input->shape());
 
-  Tensor &norm = this->get_mutable_cache(mb_id, "norm");
-  Tensor &batch_inv_std = this->get_mutable_cache(mb_id, "inv_std");
-  Tensor &batch_mean = this->get_mutable_cache(mb_id, "mean");
+  Tensor norm = this->get_cache_tensor(input->shape(), io_dtype_);
+  Tensor batch_inv_std = this->get_cache_tensor({num_features_}, io_dtype_);
+  Tensor batch_mean = this->get_cache_tensor({num_features_}, io_dtype_);
 
-  if (!norm)
-    norm = this->get_tensor(input->shape(), DType_t::FP32);
-  else
-    norm->ensure(input->shape());
-
-  if (!batch_inv_std)
-    batch_inv_std = this->get_tensor({num_features_}, DType_t::FP32);
-  else
-    batch_inv_std->ensure({num_features_});
-
-  if (!batch_mean)
-    batch_mean = this->get_tensor({num_features_}, DType_t::FP32);
-  else
-    batch_mean->ensure({num_features_});
+  set_mutable_cache(mb_id, "norm", norm);
+  set_mutable_cache(mb_id, "inv_std", batch_inv_std);
+  set_mutable_cache(mb_id, "mean", batch_mean);
 
   if (this->is_training_) {
     DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward_fused, input, batch_mean, batch_inv_std,
@@ -105,11 +94,6 @@ void LegacyBatchNormLayer::def_backward(const ConstTensor &grad_output, const Te
                                         size_t mb_id) {
   const Tensor &norm = this->get_mutable_cache(mb_id, "norm");
   const Tensor &inv_std = this->get_mutable_cache(mb_id, "inv_std");
-  const Tensor &batch_mean = this->get_mutable_cache(mb_id, "mean");
-
-  if (!norm || !inv_std || !batch_mean) {
-    throw std::runtime_error("Missing cached tensors for backward pass in LegacyBatchNormLayer");
-  }
 
   const size_t batch_size = grad_output->dimension(0);
   const size_t channels = grad_output->dimension(1);
