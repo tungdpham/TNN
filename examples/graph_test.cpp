@@ -12,7 +12,6 @@
 #include "nn/io_node.hpp"
 #include "nn/layers.hpp"
 #include "nn/reducer.hpp"
-#include "nn/siso_layer.hpp"
 #include "nn/train.hpp"
 
 using namespace std;
@@ -52,7 +51,7 @@ signed main(int argc, char* argv[]) {
   train_config.print_config();
 
   const Device& device = train_config.device_type == DeviceType::GPU ? getGPU() : getHost();
-  auto& allocator = PoolAllocator::instance(device, defaultFlowHandle);
+  auto allocator = DELAllocatorV2::instance(device, defaultFlowHandle);
   GraphBuilder builder;
 
   auto model_uptr = make_unique<Sequential>(ExampleModels::create(train_config.model_name));
@@ -74,7 +73,7 @@ signed main(int argc, char* argv[]) {
   Reducer reducer = ReducerBuilder().seq_reduction().build();
   reducer.reduce(builder);
 
-  Graph graph = builder.compile(allocator);
+  Graph graph = builder.compile(*allocator);
 
   GraphExecutor executor(graph, allocator);
 

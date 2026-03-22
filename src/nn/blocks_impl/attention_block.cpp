@@ -49,7 +49,7 @@ void AttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tens
   size_t seq_len = input_shape[1];
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
   }
 
@@ -74,7 +74,7 @@ void AttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
                                    const Vec<Tensor> &grad_inputs, size_t mb_id) {
   const ConstTensor &grad_output = grad_outputs[0];
   const Tensor &grad_input = grad_inputs[0];
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
   }

@@ -142,7 +142,7 @@ void FlashAttentionBlock::cudnn_forward(const ConstTensor &input, const Tensor &
   auto &stats = stats_cache[shape_key];
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
   }
 
@@ -177,7 +177,7 @@ void FlashAttentionBlock::cudnn_forward(const ConstTensor &input, const Tensor &
       this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
 
   // Allocate stats tensor (b, h, s, 1) in float
-  Tensor &stats_tensor = this->get_mutable_tensor(mb_id, "stats_tensor");
+  Tensor &stats_tensor = this->get_mutable_cache(mb_id, "stats_tensor");
   if (stats_tensor == nullptr) {
     stats_tensor = this->get_workspace({batch_size, num_heads_, seq_len, 1}, DType_t::FP32);
   }
@@ -185,7 +185,7 @@ void FlashAttentionBlock::cudnn_forward(const ConstTensor &input, const Tensor &
   DISPATCH_ON_3_DTYPES_TO_METHOD(flash_attention_forward_task, fe_handle, stats, q_heads, k_heads,
                                  v_heads, attn_heads, stats_tensor, workspace, defaultFlowHandle);
 
-  Tensor &attn_out = this->get_mutable_tensor(mb_id, "attn_out");
+  Tensor &attn_out = this->get_mutable_cache(mb_id, "attn_out");
   if (attn_out == nullptr) {
     attn_out = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
   }
@@ -210,9 +210,9 @@ void FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, const T
   auto &stats = stats_cache[shape_key];
 
   // Get cached forward tensors
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
-  const Tensor &attn_out = this->get_mutable_tensor(mb_id, "attn_out");
-  const Tensor &stats_tensor = this->get_mutable_tensor(mb_id, "stats_tensor");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
+  const Tensor &attn_out = this->get_mutable_cache(mb_id, "attn_out");
+  const Tensor &stats_tensor = this->get_mutable_cache(mb_id, "stats_tensor");
 
   // Backprop through out_proj
   Tensor grad_attn_out = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);

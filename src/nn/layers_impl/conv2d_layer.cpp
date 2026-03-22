@@ -112,7 +112,7 @@ void Conv2DLayer::forward_impl(const ConstTensor &input, const Tensor &output, s
   output->ensure({batch_size, output_h, output_w, out_channels_});
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
   }
 
@@ -149,7 +149,7 @@ void Conv2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &gr
     throw std::invalid_argument("Gradient channel size mismatch in Conv2DLayer");
   }
 
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
   }
@@ -184,7 +184,7 @@ void Conv2DLayer::def_forward(const ConstTensor &input, const Tensor &output, si
 
 void Conv2DLayer::def_backward(const ConstTensor &grad_output, const Tensor &grad_input,
                                size_t mb_id) {
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
 
   if (this->device().device_type() == DeviceType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
@@ -314,7 +314,7 @@ void Conv2DLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, 
 
 void Conv2DLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input,
                                  size_t mb_id) {
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
   }

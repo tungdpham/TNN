@@ -2,7 +2,6 @@
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
 #include "nn/graph_builder.hpp"
-#include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"

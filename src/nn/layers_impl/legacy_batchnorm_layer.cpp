@@ -71,9 +71,9 @@ void LegacyBatchNormLayer::def_forward(const ConstTensor &input, const Tensor &o
 
   output->ensure(input->shape());
 
-  Tensor &norm = this->get_mutable_tensor(mb_id, "norm");
-  Tensor &batch_inv_std = this->get_mutable_tensor(mb_id, "inv_std");
-  Tensor &batch_mean = this->get_mutable_tensor(mb_id, "mean");
+  Tensor &norm = this->get_mutable_cache(mb_id, "norm");
+  Tensor &batch_inv_std = this->get_mutable_cache(mb_id, "inv_std");
+  Tensor &batch_mean = this->get_mutable_cache(mb_id, "mean");
 
   if (!norm)
     norm = make_tensor<float>(input->shape(), this->device());
@@ -102,9 +102,9 @@ void LegacyBatchNormLayer::def_forward(const ConstTensor &input, const Tensor &o
 
 void LegacyBatchNormLayer::def_backward(const ConstTensor &grad_output, const Tensor &grad_input,
                                         size_t mb_id) {
-  const Tensor &norm = this->get_mutable_tensor(mb_id, "norm");
-  const Tensor &inv_std = this->get_mutable_tensor(mb_id, "inv_std");
-  const Tensor &batch_mean = this->get_mutable_tensor(mb_id, "mean");
+  const Tensor &norm = this->get_mutable_cache(mb_id, "norm");
+  const Tensor &inv_std = this->get_mutable_cache(mb_id, "inv_std");
+  const Tensor &batch_mean = this->get_mutable_cache(mb_id, "mean");
 
   if (!norm || !inv_std || !batch_mean) {
     throw std::runtime_error("Missing cached tensors for backward pass in LegacyBatchNormLayer");

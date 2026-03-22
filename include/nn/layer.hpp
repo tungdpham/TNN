@@ -30,8 +30,10 @@ inline size_t get_shapes_bytes(const Vec<Vec<size_t>> &shapes, DType_t dtype) {
   size_t total_bytes = 0;
   size_t dtype_size = get_dtype_size(dtype);
   for (const auto &shape : shapes) {
-    total_bytes +=
+    size_t shape_bytes =
         std::accumulate(shape.begin(), shape.end(), dtype_size, std::multiplies<size_t>());
+    shape_bytes = align_up(shape_bytes, 256);
+    total_bytes += shape_bytes;
   }
   return total_bytes;
 }
@@ -114,9 +116,8 @@ protected:
   bool is_training_ = true;
   bool use_seed_ = false;
   unsigned long long srand_seed_ = 0;
-  std::map<std::pair<size_t, std::string>, Tensor> mutable_tensors_;
-  // for immutable cache (e.g., inputs)
-  std::map<std::pair<size_t, std::string>, ConstTensor> cached_tensors_;
+  std::map<std::pair<size_t, std::string>, ConstTensor> immutable_cache_;
+  std::map<std::pair<size_t, std::string>, Tensor> mutable_cache_;
   flowHandle_t flow_handle_;
   std::string name_;
   DType_t io_dtype_ = DType_t::FP32;       // data type for input/output tensors
@@ -126,9 +127,9 @@ protected:
   // helpers
   Tensor make_io_tensor(std::vector<size_t> shape);
   Tensor make_compute_tensor(std::vector<size_t> shape);
-  ConstTensor &get_cached_tensor(size_t mb_id, const std::string &key);
-  Tensor &get_mutable_tensor(size_t mb_id, const std::string &key);
-  Tensor get_act();
+  ConstTensor &get_immutable_cache(size_t mb_id, const std::string &key);
+  Tensor &get_mutable_cache(size_t mb_id, const std::string &key);
+  Tensor get_cache_tensor(const std::vector<size_t> &shape = {}, DType_t dtype = DType_t::FP32);
   Tensor get_workspace(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
   void clear_cache(size_t mb_id);
 };

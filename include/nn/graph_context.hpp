@@ -39,6 +39,7 @@ public:
   GraphContext(IAllocator &allocator, GraphContextDescriptor ctx_desc)
       : ctx_desc_(std::move(ctx_desc)),
         allocator_(allocator) {
+    allocator.reserve(ctx_desc.param_bytes + ctx_desc.grad_bytes);
     param_slab_ = allocator.allocate(ctx_desc_.param_bytes);
     grad_slab_ = allocator.allocate(ctx_desc_.grad_bytes);
 

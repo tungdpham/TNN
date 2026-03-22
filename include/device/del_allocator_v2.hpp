@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include <algorithm>
 #include <list>
 #include <map>
 #include <set>
@@ -84,6 +83,22 @@ public:
     return std::shared_ptr<DELAllocatorV2>(new DELAllocatorV2(device, flow));
   }
 
+  static std::shared_ptr<DELAllocatorV2> instance(const Device &device, flowHandle_t flow) {
+    static std::mutex mutex;
+    static std::map<std::pair<DeviceType, flowHandle_t>, std::shared_ptr<DELAllocatorV2>> instances;
+
+    std::lock_guard<std::mutex> lock(mutex);
+
+    auto key = std::make_pair(device.device_type(), flow);
+    auto it = instances.find(key);
+    if (it != instances.end()) {
+      return it->second;
+    }
+    auto instance = create(device, flow);
+    instances[key] = instance;
+    return instance;
+  }
+
   ~DELAllocatorV2() {
     std::lock_guard<std::mutex> lock(mutex_);
     for (auto &slab : slabs_) {
@@ -116,27 +131,36 @@ public:
 
     // if no in between space, try to allocate from free blocks
     auto it = free_by_size_.lower_bound(aligned_size);
-    if (it != free_by_size_.end()) {
-      std::set<Block> &blocks = it->second;
-      if (!blocks.empty()) {
-        Block block = *blocks.begin();
-        blocks.erase(blocks.begin());
-        block.slab->remove_block(block.offset, block.size);
-
-        // handle remainder
-        size_t remainder = block.size - aligned_size;
-        if (remainder > 0) {
-          size_t new_offset = block.offset + aligned_size;
-          block.slab->add_block(new_offset, remainder);
-          free_by_size_[remainder].insert({block.slab, new_offset, remainder});
-        }
-
-        return create_dptr(block.slab, block.offset, aligned_size);
+    while (it != free_by_size_.end()) {
+      if (it->second.empty()) {
+        // Clean up orphaned empty buckets left behind by previous operations
+        it = free_by_size_.erase(it);
+        continue;
       }
+
+      std::set<Block> &blocks = it->second;
+      Block block = *blocks.begin();
+      blocks.erase(blocks.begin());
+
+      if (blocks.empty()) {
+        free_by_size_.erase(it);
+      }
+
+      block.slab->remove_block(block.offset, block.size);
+
+      // handle remainder
+      size_t remainder = block.size - aligned_size;
+      if (remainder > 0) {
+        size_t new_offset = block.offset + aligned_size;
+        block.slab->add_block(new_offset, remainder);
+        free_by_size_[remainder].insert({block.slab, new_offset, remainder});
+      }
+
+      return create_dptr(block.slab, block.offset, aligned_size);
     }
 
     // if still no space, allocate a new slab
-    size_t slab_size = std::max(aligned_size, DEFAULT_SLAB_SIZE);
+    size_t slab_size = aligned_size;
     Slab &slab = allocate_slab(slab_size);
     size_t offset = (side_ == 0) ? slab.left_offset : (slab.right_offset - aligned_size);
     if (side_ == 0) {

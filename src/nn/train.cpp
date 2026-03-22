@@ -15,6 +15,7 @@
 #include <iostream>
 #include <memory>
 
+#include "device/del_allocator_v2.hpp"
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
@@ -132,8 +133,8 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
   auto train_start = chrono::high_resolution_clock::now();
   Tensor batch_data, batch_labels;
   const Device &model_device = graph.device();
-  PoolAllocator &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
-  GraphExecutor executor(graph, mem_pool);
+  auto allocator = DELAllocatorV2::instance(model_device, defaultFlowHandle);
+  GraphExecutor executor(graph, allocator);
 
   cout << "Starting training epoch..." << endl;
   graph.set_training(true);
@@ -154,7 +155,7 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
     cur_samples += batch_data->dimension(0);
     auto device_labels = batch_labels->to_device(model_device);
 
-    Tensor predictions = make_tensor(mem_pool, batch_data->data_type());
+    Tensor predictions = make_tensor(*allocator, batch_data->data_type());
 
     const InputPack inputs{
         {"input", batch_data},
@@ -171,12 +172,12 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
 
     total_corrects += compute_class_corrects(predictions, device_labels);
 
-    Tensor loss_gradient = make_tensor(mem_pool, batch_data->data_type(), predictions->shape());
+    Tensor loss_gradient = make_tensor(*allocator, batch_data->data_type(), predictions->shape());
     criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
     predictions = nullptr;  // free prediction buffer early
 
-    Tensor backward_output = make_tensor(mem_pool, batch_data->data_type(), batch_data->shape());
+    Tensor backward_output = make_tensor(*allocator, batch_data->data_type(), batch_data->shape());
 
     const InputPack grad_inputs{
         {"output", loss_gradient},
@@ -283,8 +284,8 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
   train_loader->reset();
 
   const Device &model_device = graph.device();
-  PoolAllocator &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
-  GraphExecutor executor(graph, mem_pool);
+  auto allocator = DELAllocatorV2::instance(model_device, defaultFlowHandle);
+  GraphExecutor executor(graph, allocator);
   Tensor loss_gradient = make_tensor(config.io_dtype, {1}, model_device);
   Tensor device_labels = make_tensor(config.io_dtype, {1}, model_device);
   Tensor predictions = make_tensor(config.io_dtype, {1}, model_device);
@@ -387,8 +388,8 @@ void train_model(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 
 Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
                       const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
-  PoolAllocator &mem_pool = PoolAllocator::instance(graph.device(), defaultFlowHandle);
-  GraphExecutor executor(graph, mem_pool);
+  auto allocator = DELAllocatorV2::instance(graph.device(), defaultFlowHandle);
+  GraphExecutor executor(graph, allocator);
   Tensor batch_data, batch_labels;
 
   graph.set_training(false);
@@ -407,7 +408,7 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
     const InputPack inputs{
         {"input", device_input},
     };
-    Tensor predictions = make_tensor<float>(mem_pool, {});
+    Tensor predictions = make_tensor<float>(*allocator, {});
     OutputPack outputs{
         {"output", predictions},
     };

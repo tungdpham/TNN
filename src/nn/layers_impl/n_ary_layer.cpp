@@ -37,7 +37,7 @@ void NAryOpLayer::forward_impl(const std::vector<ConstTensor> &inputs,
 
   for (size_t i = 0; i < inputs.size(); ++i) {
     auto key = std::string("fwd_input_") + std::to_string(i);
-    auto &cached = get_cached_tensor(mb_id, key);
+    auto &cached = get_immutable_cache(mb_id, key);
     cached = inputs[i];
   }
 
@@ -63,7 +63,7 @@ void NAryOpLayer::backward_impl(const std::vector<ConstTensor> &grad_outputs,
   std::vector<ConstTensor> fwd_inputs;
   for (size_t i = 0; i < grad_inputs.size(); ++i) {
     auto key = std::string("fwd_input_") + std::to_string(i);
-    fwd_inputs.push_back(get_cached_tensor(mb_id, key));
+    fwd_inputs.push_back(get_immutable_cache(mb_id, key));
   }
 
   DISPATCH_IO_DTYPE(compute_nary_backward_impl, grad_outputs[0], grad_inputs, fwd_inputs,

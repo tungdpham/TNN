@@ -3,7 +3,6 @@
 #include <cstddef>
 
 #include "device/del_allocator_v2.hpp"
-#include "device/iallocator.hpp"
 #include "nn/graph.hpp"
 #include "type/type.hpp"
 
@@ -14,16 +13,15 @@ using OutputPack = std::unordered_map<std::string, Tensor>;
 
 class GraphExecutor {
 public:
-  GraphExecutor(Graph& graph, IAllocator& allocator)
+  GraphExecutor(Graph& graph, std::shared_ptr<DELAllocatorV2> allocator)
       : graph_(graph),
         allocator_(allocator) {
     // initialize node outputs
     for (auto& [uid, node] : graph_.io_nodes()) {
       node_outputs_[&node] = Output{nullptr, nullptr};
     }
-    ws_allocator_ = DELAllocatorV2::create(graph_.device(), defaultFlowHandle);
     for (auto& edge : graph_.edges()) {
-      edge.op_node().layer()->set_allocator(*ws_allocator_);
+      edge.op_node().layer()->set_allocator(*allocator_);
     }
   }
 
@@ -76,8 +74,8 @@ public:
 
 private:
   Graph& graph_;
-  IAllocator& allocator_;                         // long lived tensors
-  std::shared_ptr<DELAllocatorV2> ws_allocator_;  // workspace allocator. short lived tensors
+  std::shared_ptr<DELAllocatorV2>
+      allocator_;  // universal allocator for all layers to manage memory
 
   struct Output {
     Tensor act;
@@ -111,7 +109,7 @@ private:
       Vec<size_t> out_shape = out_shapes[i];
       Tensor& act = node_outputs_[output_node].act;
       if (!act) {
-        act = make_tensor(allocator_, dtype, out_shape);
+        act = make_tensor(*allocator_, dtype, out_shape);
       } else {
         act->ensure(out_shape);
       }
@@ -146,7 +144,7 @@ private:
         throw std::runtime_error("Null input activation while backwarding graph");
       }
       if (!grad) {
-        grad = make_tensor(allocator_, input_act->data_type(), input_act->shape());
+        grad = make_tensor(*allocator_, input_act->data_type(), input_act->shape());
       } else {
         grad->ensure(input_act->shape());
       }

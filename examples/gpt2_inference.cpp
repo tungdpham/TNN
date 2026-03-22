@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "data_loading/open_webtext_data_loader.hpp"
+#include "device/del_allocator_v2.hpp"
 #include "nn/example_models.hpp"
 #include "nn/graph_builder.hpp"
 #include "nn/graph_executor.hpp"
@@ -36,10 +37,10 @@ int main(int argc, char **argv) {
 
   // Create model using ExampleModels or load from file
   const Device &device = device_type == DeviceType::GPU ? getGPU() : getHost();
-  auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
+  auto allocator = DELAllocatorV2::instance(device, defaultFlowHandle);
 
   GraphBuilder builder;
-  Graph graph = load_or_create_model("gpt2", model_path, allocator);
+  Graph graph = load_or_create_model("gpt2", model_path, *allocator);
 
   size_t seq_len = 512;
 

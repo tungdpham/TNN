@@ -77,7 +77,7 @@ void DenseLayer::forward_impl(const ConstTensor &input, const Tensor &output, si
   }
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
   }
 
@@ -158,7 +158,7 @@ void DenseLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, s
 
 void DenseLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input,
                                 size_t mb_id) {
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
   }

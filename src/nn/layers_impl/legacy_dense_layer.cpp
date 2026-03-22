@@ -66,7 +66,7 @@ void LegacyDenseLayer::forward_impl(const ConstTensor &input, const Tensor &outp
   }
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
   }
 
@@ -88,7 +88,7 @@ void LegacyDenseLayer::backward_impl(const ConstTensor &grad_output, const Tenso
   if (grad_output->shape().back() != output_features_) {
     throw std::invalid_argument("Gradient feature size mismatch in LegacyDenseLayer");
   }
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
   }

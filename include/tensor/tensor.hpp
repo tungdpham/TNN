@@ -469,6 +469,7 @@ public:
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
     if (new_size * get_dtype_size(dtype_) > data_.capacity()) {
+      data_ = nullptr;  // free data
       data_ = allocate_data(new_size);
     }
     data_size_ = new_size;

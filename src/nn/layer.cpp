@@ -146,26 +146,22 @@ Tensor Layer::make_compute_tensor(std::vector<size_t> shape) {
   return make_tensor(compute_dtype_, shape, device());
 }
 
-ConstTensor &Layer::get_cached_tensor(size_t mb_id, const std::string &key) {
-  return cached_tensors_[{mb_id, key}];
+ConstTensor &Layer::get_immutable_cache(size_t mb_id, const std::string &key) {
+  return immutable_cache_[{mb_id, key}];
 }
 
-Tensor &Layer::get_mutable_tensor(size_t mb_id, const std::string &key) {
-  return mutable_tensors_[{mb_id, key}];
+Tensor &Layer::get_mutable_cache(size_t mb_id, const std::string &key) {
+  return mutable_cache_[{mb_id, key}];
 }
 
-Tensor Layer::get_act() {
+Tensor Layer::get_cache_tensor(const std::vector<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
   if (is_training_) {
     allocator_->set_side(0);
   }
-  return make_tensor(
-      *allocator_, io_dtype_,
-      {});  // let layer lazily resize it as needed, and reuse across forward/backward calls within
-            // the same micro-batch ID. Algorithm 1 applies here since we only use it for
-            // activations, which are always used in forward and backward pass in pairs.
+  return make_tensor(*allocator_, dtype, shape);
 }
 
 Tensor Layer::get_workspace(const std::vector<size_t> &shape, DType_t dtype) {
@@ -179,9 +175,16 @@ Tensor Layer::get_workspace(const std::vector<size_t> &shape, DType_t dtype) {
 }
 
 void Layer::clear_cache(size_t mb_id) {
-  for (auto it = cached_tensors_.begin(); it != cached_tensors_.end();) {
+  for (auto it = immutable_cache_.begin(); it != immutable_cache_.end();) {
     if (it->first.first == mb_id) {
-      it = cached_tensors_.erase(it);
+      it = immutable_cache_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  for (auto it = mutable_cache_.begin(); it != mutable_cache_.end();) {
+    if (it->first.first == mb_id) {
+      it = mutable_cache_.erase(it);
     } else {
       ++it;
     }

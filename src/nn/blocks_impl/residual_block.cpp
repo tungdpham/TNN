@@ -95,9 +95,9 @@ void ResidualBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tenso
   for (size_t i = 0; i < outputs.size(); ++i) {
     if (final_activation_) {
       std::string pre_act_key = "pre_activation_" + std::to_string(i);
-      Tensor &pre_act = this->get_mutable_tensor(mb_id, pre_act_key);
+      Tensor &pre_act = this->get_mutable_cache(mb_id, pre_act_key);
       if (!pre_act)
-        pre_act = this->make_io_tensor(main_outputs[i]->shape());
+        pre_act = this->get_cache_tensor(main_outputs[i]->shape(), io_dtype_);
       else
         pre_act->ensure(main_outputs[i]->shape());
       DISPATCH_IO_DTYPE(ops::add, main_outputs[i]->data_ptr(), shortcut_outputs[i]->data_ptr(),
@@ -127,7 +127,7 @@ void ResidualBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
   for (size_t i = 0; i < grad_outputs.size(); ++i) {
     if (final_activation_) {
       std::string pre_act_key = "pre_activation_" + std::to_string(i);
-      const Tensor &pre_act = this->get_mutable_tensor(mb_id, pre_act_key);
+      const Tensor &pre_act = this->get_mutable_cache(mb_id, pre_act_key);
       if (!pre_act) {
         throw std::runtime_error("No cached pre-activation output found for micro-batch ID: " +
                                  std::to_string(mb_id));

@@ -48,7 +48,7 @@ void Sequential::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> 
       current_outputs.resize(out_shapes[i].size());
       for (size_t j = 0; j < out_shapes[i].size(); ++j) {
         if (layers_[i]->fwd_cache_bytes(current_input_shapes) > 0)
-          current_outputs[j] = this->get_act();
+          current_outputs[j] = this->get_cache_tensor();
         else
           current_outputs[j] = this->get_workspace({}, io_dtype_);
       }

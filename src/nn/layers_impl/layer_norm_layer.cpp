@@ -216,8 +216,8 @@ void LayerNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
   Tensor cudnn_workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
 
   // Cache mean and inv_variance for backward pass (like batch norm)
-  Tensor &batch_mean = this->get_mutable_tensor(mb_id, "batch_mean");
-  Tensor &batch_invar = this->get_mutable_tensor(mb_id, "batch_invar");
+  Tensor &batch_mean = this->get_mutable_cache(mb_id, "batch_mean");
+  Tensor &batch_invar = this->get_mutable_cache(mb_id, "batch_invar");
   if (batch_mean == nullptr) {
     batch_mean = this->get_workspace({batch_size}, compute_dtype_);
   }
@@ -226,7 +226,7 @@ void LayerNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
   }
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
   }
 
@@ -237,7 +237,7 @@ void LayerNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
 
 void LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input,
                                     size_t mb_id) {
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
   }
@@ -260,8 +260,8 @@ void LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor
   Tensor cudnn_workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
 
   // Retrieve cached mean and inv_variance from forward pass (like batch norm)
-  const Tensor &batch_mean = this->get_mutable_tensor(mb_id, "batch_mean");
-  const Tensor &batch_invar = this->get_mutable_tensor(mb_id, "batch_invar");
+  const Tensor &batch_mean = this->get_mutable_cache(mb_id, "batch_mean");
+  const Tensor &batch_invar = this->get_mutable_cache(mb_id, "batch_invar");
   if (!batch_mean || !batch_invar) {
     throw std::runtime_error(
         "No cached batch statistics found for micro-batch ID in LayerNormLayer: " +
@@ -292,7 +292,7 @@ void LayerNormLayer::def_forward(const ConstTensor &input, const Tensor &output,
 
 void LayerNormLayer::def_backward(const ConstTensor &grad_output, const Tensor &grad_input,
                                   size_t mb_id) {
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
   }
@@ -314,7 +314,7 @@ void LayerNormLayer::def_backward(const ConstTensor &grad_output, const Tensor &
 
 void LayerNormLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
   }
 

@@ -51,17 +51,17 @@ void GroupNormLayer::forward_impl(const ConstTensor &input, const Tensor &output
 
   output->ensure(input->shape());
 
-  Tensor &norm = this->get_mutable_tensor(mb_id, "norm");
+  Tensor &norm = this->get_mutable_cache(mb_id, "norm");
   if (norm == nullptr) {
     norm = make_io_tensor(input->shape());
   }
 
-  Tensor &mean = this->get_mutable_tensor(mb_id, "mean");
+  Tensor &mean = this->get_mutable_cache(mb_id, "mean");
   if (mean == nullptr) {
     mean = make_io_tensor({batch_size * num_groups_});
   }
 
-  Tensor &inv_std = this->get_mutable_tensor(mb_id, "inv_std");
+  Tensor &inv_std = this->get_mutable_cache(mb_id, "inv_std");
   if (inv_std == nullptr) {
     inv_std = make_io_tensor({batch_size * num_groups_});
   }
@@ -70,16 +70,16 @@ void GroupNormLayer::forward_impl(const ConstTensor &input, const Tensor &output
                                  norm, batch_size, channels, spatial_size, this->flow_handle_);
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
   }
 }
 
 void GroupNormLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                    size_t mb_id) {
-  Tensor &normalized = this->get_mutable_tensor(mb_id, "norm");
-  Tensor &inv_std = this->get_mutable_tensor(mb_id, "inv_std");
-  const ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  Tensor &normalized = this->get_mutable_cache(mb_id, "norm");
+  Tensor &inv_std = this->get_mutable_cache(mb_id, "inv_std");
+  const ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!normalized || !inv_std || !input) {
     throw std::runtime_error("No cached tensors found for micro-batch ID in GroupNormLayer: " +
                              std::to_string(mb_id));

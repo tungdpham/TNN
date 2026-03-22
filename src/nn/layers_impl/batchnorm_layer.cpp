@@ -135,23 +135,23 @@ void BatchNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
   round_workspace_size(current_stats);
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
   }
 
   if (this->is_training_) {
-    Tensor &batch_invar = this->get_mutable_tensor(mb_id, "batch_invar");
-    Tensor &batch_mean = this->get_mutable_tensor(mb_id, "batch_mean");
-    Tensor &relu_mask = this->get_mutable_tensor(mb_id, "relu_mask");
+    Tensor &batch_invar = this->get_mutable_cache(mb_id, "batch_invar");
+    Tensor &batch_mean = this->get_mutable_cache(mb_id, "batch_mean");
+    Tensor &relu_mask = this->get_mutable_cache(mb_id, "relu_mask");
     if (batch_invar == nullptr) {
-      batch_invar = this->make_io_tensor({num_features_});
+      batch_invar = this->get_cache_tensor({num_features_}, io_dtype_);
     }
     if (batch_mean == nullptr) {
-      batch_mean = this->make_io_tensor({num_features_});
+      batch_mean = this->get_cache_tensor({num_features_}, io_dtype_);
     }
     if (use_relu_) {
       if (relu_mask == nullptr) {
-        relu_mask = make_tensor(DType_t::BYTE, input->shape(), this->device());
+        relu_mask = this->get_cache_tensor(input->shape(), DType_t::BOOL);
       } else {
         relu_mask->ensure(input->shape());
       }
@@ -171,15 +171,15 @@ void BatchNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
 
 void BatchNormLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input,
                                     size_t mb_id) {
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID in BatchNormLayer: " +
                              std::to_string(mb_id));
   }
 
-  const Tensor &batch_mean = this->get_mutable_tensor(mb_id, "batch_mean");
-  const Tensor &batch_invar = this->get_mutable_tensor(mb_id, "batch_invar");
-  const Tensor &relu_mask = this->get_mutable_tensor(mb_id, "relu_mask");
+  const Tensor &batch_mean = this->get_mutable_cache(mb_id, "batch_mean");
+  const Tensor &batch_invar = this->get_mutable_cache(mb_id, "batch_invar");
+  const Tensor &relu_mask = this->get_mutable_cache(mb_id, "relu_mask");
   if (!batch_mean || !batch_invar || (use_relu_ && !relu_mask)) {
     throw std::runtime_error(
         "No cached batch statistics found for micro-batch ID in BatchNormLayer: " +

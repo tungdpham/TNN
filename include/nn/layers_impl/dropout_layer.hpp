@@ -9,7 +9,6 @@
 #include <memory>
 #include <random>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "stateless_layer.hpp"
@@ -20,7 +19,6 @@ namespace tnn {
 class DropoutLayer : public StatelessLayer {
 private:
   float dropout_rate_;
-  std::unordered_map<size_t, Tensor> micro_batch_masks_;
   mutable std::mt19937 generator_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
