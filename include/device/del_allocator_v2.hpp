@@ -302,9 +302,9 @@ private:
       }
     }
 
-    // allocate the new super-slab from the combined total size
+    // allocate the new slab from the combined total size
 #ifndef NDEBUG
-    std::cout << fmt::format("DELAllocatorV2: Merged {} empty slabs into a new {} byte super-slab.",
+    std::cout << fmt::format("DELAllocatorV2: Merging {} empty slabs into a new {} byte slab.",
                              empty_slab_count, total_free_size)
               << std::endl;
 #endif

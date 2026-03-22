@@ -117,12 +117,6 @@ private:
       }
       outputs.push_back(act);
     }
-
-    size_t ws_bytes = layer->is_training() ? layer->fwd_cache_bytes(input_shapes) +
-                                                 std::max(layer->fwd_workspace(input_shapes),
-                                                          layer->bwd_workspace(input_shapes))
-                                           : layer->inf_workspace(input_shapes);
-    ws_allocator_->reserve(ws_bytes);
     layer->forward(inputs, outputs);
   }
 
