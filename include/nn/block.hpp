@@ -24,7 +24,7 @@ protected:
     }
   }
 
-  void on_set_allocator(DELAllocator &allocator) override {
+  void on_set_allocator(DELAllocatorV2 &allocator) override {
     auto layers = this->layers();
     for (auto &layer : layers) {
       layer->set_allocator(allocator);

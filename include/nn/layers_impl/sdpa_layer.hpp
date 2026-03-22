@@ -40,17 +40,18 @@ private:
 #endif
 
   template <typename IO_T>
-  std::unique_ptr<Task> compute_sdpa_forward_impl(
-      const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const Tensor &output,
-      size_t batch_size, size_t num_heads, size_t seq_len, size_t head_dim, flowHandle_t handle,
-      size_t mb_id) const;
+  std::unique_ptr<Task> compute_sdpa_forward_impl(const ConstTensor &q, const ConstTensor &k,
+                                                  const ConstTensor &v, const Tensor &output,
+                                                  size_t batch_size, size_t num_heads,
+                                                  size_t seq_len, size_t head_dim,
+                                                  flowHandle_t handle, size_t mb_id) const;
 
   template <typename IO_T>
   std::unique_ptr<Task> compute_sdpa_backward_impl(
       const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const ConstTensor &output,
       const ConstTensor &grad_output, const Tensor &grad_q, const Tensor &grad_k,
-      const Tensor &grad_v, size_t batch_size, size_t num_heads, size_t seq_len,
-      size_t head_dim, flowHandle_t handle, size_t mb_id) const;
+      const Tensor &grad_v, size_t batch_size, size_t num_heads, size_t seq_len, size_t head_dim,
+      flowHandle_t handle, size_t mb_id) const;
 
 #ifdef USE_CUDNN
   void cudnn_forward(const ConstTensor &q, const ConstTensor &k, const ConstTensor &v,
@@ -78,6 +79,10 @@ public:
   LayerConfig get_config() const override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
   std::vector<ParamDescriptor> param_descriptors() override { return {}; }
+  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
 
   static std::unique_ptr<SDPALayer> create_from_config(const LayerConfig &config);
 };

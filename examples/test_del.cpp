@@ -1,12 +1,12 @@
 #include <cassert>
 
-#include "device/del_allocator.hpp"
+#include "device/del_allocator_v2.hpp"
 #include "device/device_manager.hpp"
 
 using namespace tnn;
 
 int main() {
-  auto allocator = DELAllocator::create(getGPU(), defaultFlowHandle);
+  auto allocator = DELAllocatorV2::create(getGPU(), defaultFlowHandle);
   allocator->reserve(100);
 
   auto ptr1 = allocator->allocate(10);

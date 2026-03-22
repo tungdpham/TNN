@@ -662,6 +662,18 @@ std::unique_ptr<LegacyConv2DLayer> LegacyConv2DLayer::create_from_config(
                                              config.name);
 }
 
+size_t LegacyConv2DLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  auto &shape = input_shapes[0];
+  if (shape.empty() || shape.size() < 4) return 0;
+  size_t batch_size = shape[0];
+  size_t input_h = shape[2];
+  size_t input_w = shape[3];
+  size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
+  return batch_size * in_channels_ * kernel_h_ * kernel_w_ * sizeof(float) +
+         batch_size * out_channels_ * output_h * output_w * sizeof(float);
+}
+
 size_t LegacyConv2DLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto &shape = input_shapes[0];
   if (shape.empty() || shape.size() < 4) return 0;

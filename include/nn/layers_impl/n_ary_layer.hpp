@@ -34,6 +34,7 @@ public:
   std::vector<ParamDescriptor> param_descriptors() override { return {}; }
   std::string type() const override = 0;
 
+  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;

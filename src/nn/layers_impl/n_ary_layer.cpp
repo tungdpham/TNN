@@ -7,6 +7,7 @@
 #include "nn/layers_impl/n_ary_layer.hpp"
 
 #include "device/task.hpp"
+#include "nn/layer.hpp"
 #include "nn/layers_impl/cpu/n_ary_ops.hpp"
 #ifdef USE_CUDA
 #include "nn/layers_impl/cuda/n_ary_ops.hpp"
@@ -162,13 +163,19 @@ LayerConfig NAryOpLayer::get_config() const {
   return config;
 }
 
+size_t NAryOpLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  return get_shapes_bytes(input_shapes, io_dtype_);
+}
+
 size_t NAryOpLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
+  auto output_shapes = this->output_shapes(input_shapes);
+  size_t output_bytes = get_shapes_bytes(output_shapes, io_dtype_);
 #ifdef USE_CUDA
   if (allocator_ && allocator_->device().device_type() == DeviceType::GPU) {
-    return cuda::nary_forward_workspace_bytes(input_shapes.size());
+    return cuda::nary_forward_workspace_bytes(input_shapes.size()) + output_bytes;
   }
 #endif
-  return 0;
+  return output_bytes;
 }
 
 size_t NAryOpLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
@@ -176,12 +183,13 @@ size_t NAryOpLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
 }
 
 size_t NAryOpLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
+  size_t input_bytes = get_shapes_bytes(input_shapes, io_dtype_);
 #ifdef USE_CUDA
   if (allocator_ && allocator_->device().device_type() == DeviceType::GPU) {
-    return cuda::nary_backward_workspace_bytes(input_shapes.size());
+    return cuda::nary_backward_workspace_bytes(input_shapes.size()) + input_bytes;
   }
 #endif
-  return 0;
+  return input_bytes;
 }
 
 std::unique_ptr<AddLayer> AddLayer::create_from_config(const LayerConfig &config) {

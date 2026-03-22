@@ -213,6 +213,21 @@ Vec<Vec<size_t>> MSequential::output_shapes(const Vec<Vec<size_t>> &input_shapes
   return join_layer_->output_shapes(sequence_output_shapes);
 }
 
+size_t MSequential::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  if (sequences_.empty()) return 0;
+
+  size_t total_cache = 0;
+  Vec<Vec<size_t>> current_shapes = input_shapes;
+
+  for (auto it = sequences_.begin(); it != sequences_.end(); ++it) {
+    const auto &layer = *it;
+    total_cache += layer->fwd_cache_bytes(current_shapes);
+    current_shapes = layer->output_shapes(current_shapes);
+  }
+
+  return total_cache;
+}
+
 size_t MSequential::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   if (sequences_.empty()) return 0;
 

@@ -6,6 +6,8 @@
  */
 #include "nn/layers_impl/conv2d_layer.hpp"
 
+#include <numeric>
+
 #include "device/device_type.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/conv2d_nhwc_ops.hpp"
@@ -392,14 +394,22 @@ std::unique_ptr<Conv2DLayer> Conv2DLayer::create_from_config(const LayerConfig &
                                        stride_w, pad_h, pad_w, use_bias, config.name);
 }
 
+size_t Conv2DLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  // Cache the input for backward pass
+  auto &shape = input_shapes[0];
+  size_t input_bytes = std::accumulate(shape.begin(), shape.end(), get_dtype_size(io_dtype_),
+                                       std::multiplies<size_t>());
+  return input_bytes;
+}
+
 size_t Conv2DLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto &shape = input_shapes[0];
 #ifdef USE_CUDNN
   build_graph(shape);
   const size_t shape_key = get_shape_hash(shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
-
-  return stats.fwd_workspace_size;
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif
@@ -415,7 +425,8 @@ size_t Conv2DLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   build_graph(shape);
   const size_t shape_key = get_shape_hash(shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
-  return stats.fwd_workspace_size;
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif
@@ -427,8 +438,14 @@ size_t Conv2DLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   build_graph(shape);
   const size_t shape_key = get_shape_hash(shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
-  return std::max(
+  size_t max_workspace_size = std::max(
       {stats.wgrad_workspace_size, stats.dgrad_workspace_size, stats.bgrad_workspace_size});
+  size_t grad_input_bytes = 0;
+  for (const auto &in_shape : input_shapes) {
+    grad_input_bytes += std::accumulate(in_shape.begin(), in_shape.end(), get_dtype_size(io_dtype_),
+                                        std::multiplies<size_t>());
+  }
+  return max_workspace_size + grad_input_bytes;
 #else
   return 0;
 #endif

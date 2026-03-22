@@ -85,6 +85,9 @@ public:
       : dtype_(dtype),
         allocator_(allocator),
         shape_(shape_list) {
+    if (shape_.empty()) {
+      shape_.push_back(0);
+    }
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
@@ -95,6 +98,9 @@ public:
       : dtype_(dtype),
         allocator_(allocator),
         shape_(shape_list) {
+    if (shape_.empty()) {
+      shape_.push_back(0);
+    }
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
@@ -107,6 +113,9 @@ public:
       : dtype_(dtype),
         allocator_(allocator),
         shape_(shape) {
+    if (shape_.empty()) {
+      shape_.push_back(0);
+    }
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
@@ -117,6 +126,9 @@ public:
       : dtype_(dtype),
         allocator_(allocator),
         shape_(shape) {
+    if (shape_.empty()) {
+      shape_.push_back(0);
+    }
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
@@ -130,6 +142,9 @@ public:
         allocator_(allocator),
         data_(std::move(data)),
         shape_(shape) {
+    if (shape_.empty()) {
+      shape_.push_back(0);
+    }
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
   }

@@ -51,13 +51,13 @@ void Layer::backward(const std::vector<ConstTensor> &grad_outputs,
   clear_cache(mb_id);
 }
 
-Layer &Layer::set_allocator(DELAllocator &allocator) {
+Layer &Layer::set_allocator(DELAllocatorV2 &allocator) {
   allocator_ = &allocator;
   on_set_allocator(allocator);
   return *this;
 }
 
-DELAllocator *Layer::get_allocator() const { return allocator_; }
+DELAllocatorV2 *Layer::get_allocator() const { return allocator_; }
 
 Layer &Layer::set_flow_handle(flowHandle_t handle) {
   flow_handle_ = handle;
@@ -154,14 +154,18 @@ Tensor &Layer::get_mutable_tensor(size_t mb_id, const std::string &key) {
   return mutable_tensors_[{mb_id, key}];
 }
 
-Tensor Layer::get_act(const std::vector<size_t> &shape) {
+Tensor Layer::get_act() {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
   if (is_training_) {
     allocator_->set_side(0);
   }
-  return make_tensor(*allocator_, io_dtype_, shape);
+  return make_tensor(
+      *allocator_, io_dtype_,
+      {});  // let layer lazily resize it as needed, and reuse across forward/backward calls within
+            // the same micro-batch ID. Algorithm 1 applies here since we only use it for
+            // activations, which are always used in forward and backward pass in pairs.
 }
 
 Tensor Layer::get_workspace(const std::vector<size_t> &shape, DType_t dtype) {

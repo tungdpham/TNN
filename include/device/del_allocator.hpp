@@ -204,10 +204,8 @@ private:
   dptr create_dptr(size_t offset, size_t size) {
     void *slice_ptr = static_cast<uint8_t *>(slab_ptr_) + offset;
 
-    // Tracking active pointers
     active_allocations_++;
 
-    // FIX 4: Bind a strong reference so the allocator lives as long as the dptr
     auto self_shared = shared_from_this();
 
     auto storage = std::shared_ptr<device_storage>(
@@ -223,7 +221,6 @@ private:
   void reclaim(size_t offset, size_t size) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // Un-track the pointer upon reclamation
     if (active_allocations_ > 0) {
       active_allocations_--;
     }

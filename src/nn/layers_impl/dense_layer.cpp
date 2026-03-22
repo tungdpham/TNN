@@ -261,6 +261,14 @@ std::unique_ptr<Task> DenseLayer::add_bias_vector(const Tensor &output, const Co
   return nullptr;
 }
 
+size_t DenseLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  // Cache the input for backward pass
+  auto &shape = input_shapes[0];
+  size_t input_bytes = std::accumulate(shape.begin(), shape.end(), get_dtype_size(io_dtype_),
+                                       std::multiplies<size_t>());
+  return input_bytes;
+}
+
 size_t DenseLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto &shape = input_shapes[0];
 #ifdef USE_CUDNN
@@ -272,7 +280,8 @@ size_t DenseLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   }
   size_t shape_key = get_shape_hash({batch_size});
   const GemmStats &stats = stats_cache.at(shape_key);
-  return stats.fwd_workspace_size;
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif
@@ -293,7 +302,9 @@ size_t DenseLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   }
   size_t shape_key = get_shape_hash({batch_size});
   const GemmStats &stats = stats_cache.at(shape_key);
-  return std::max(stats.dgrad_workspace_size, stats.wgrad_workspace_size);
+  size_t max_workspace = std::max(stats.dgrad_workspace_size, stats.wgrad_workspace_size);
+  auto output_shapes = this->output_shapes(input_shapes);
+  return max_workspace + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif

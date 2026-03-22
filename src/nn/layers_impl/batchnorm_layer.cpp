@@ -283,6 +283,10 @@ std::unique_ptr<Task> BatchNormLayer::backward_task(
 }
 #endif
 
+size_t BatchNormLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  return get_shapes_bytes(input_shapes, io_dtype_);
+}
+
 size_t BatchNormLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto &shape = input_shapes[0];
   if (shape.empty() || shape.size() < 4) return 0;
@@ -292,7 +296,8 @@ size_t BatchNormLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const
   build_graph(shape);
   BatchNormStats stats = stats_cache.at(shape_key);
   round_workspace_size(stats);
-  return stats.fwd_workspace_size;
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif
@@ -307,7 +312,8 @@ size_t BatchNormLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const
   build_graph(shape);
   BatchNormStats stats = stats_cache.at(shape_key);
   round_workspace_size(stats);
-  return stats.inf_workspace_size;
+  auto output_shapes = this->output_shapes(input_shapes);
+  return get_shapes_bytes(output_shapes, io_dtype_) + stats.inf_workspace_size;
 #else
   return 0;
 #endif  // USE_CUDNN
@@ -322,7 +328,9 @@ size_t BatchNormLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const
   build_graph(shape);
   BatchNormStats stats = stats_cache.at(shape_key);
   round_workspace_size(stats);
-  return stats.bwd_workspace_size;
+  auto output_shapes = this->output_shapes(input_shapes);
+  return get_shapes_bytes(output_shapes, io_dtype_) + stats.bwd_workspace_size;
+
 #else
   return 0;
 #endif

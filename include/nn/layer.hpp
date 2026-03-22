@@ -12,7 +12,7 @@
 #include <cstring>
 
 #include "common/config.hpp"
-#include "device/del_allocator.hpp"
+#include "device/del_allocator_v2.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
@@ -25,6 +25,16 @@ struct ParamDescriptor {
   Tensor *data_ptr;  // pointer to the actual param
   Tensor *grad_ptr;  // pointer to the actual grad_output
 };
+
+inline size_t get_shapes_bytes(const Vec<Vec<size_t>> &shapes, DType_t dtype) {
+  size_t total_bytes = 0;
+  size_t dtype_size = get_dtype_size(dtype);
+  for (const auto &shape : shapes) {
+    total_bytes +=
+        std::accumulate(shape.begin(), shape.end(), dtype_size, std::multiplies<size_t>());
+  }
+  return total_bytes;
+}
 
 // Single input/output layer interface. Can be easily extended to multiple inputs/outputs later if
 // needed.
@@ -43,8 +53,8 @@ public:
                 const std::vector<Tensor> &grad_inputs, size_t mb_id = 0);
 
   // Note: have to call init again after changing param dtype
-  Layer &set_allocator(DELAllocator &allocator);
-  DELAllocator *get_allocator() const;
+  Layer &set_allocator(DELAllocatorV2 &allocator);
+  DELAllocatorV2 *get_allocator() const;
   Layer &set_flow_handle(flowHandle_t handle);
   flowHandle_t get_flow_handle() const;
   Layer &set_seed(unsigned long long seed);
@@ -58,10 +68,17 @@ public:
   bool is_training() const;
 
   virtual Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const = 0;
-  virtual size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const { return 0; }
-  virtual size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const { return 0; }
-  virtual size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const { return 0; }
-  virtual size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const { return 0; }
+  // amount of cached bytes for forward pass (e.g., for input activations needed in backward)
+  virtual size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const = 0;
+  // peak workspace that this layer needs to materialize in order to produce output in forward pass
+  // (e.g., can be workspace + output bytes)
+  virtual size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const = 0;
+  // similar to fwd workspace but for inference (e.g., can be smaller if formula is less demanding)
+  virtual size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const = 0;
+  // peak workspace that this layer needs to materialize in order to produce input gradients in
+  // backward pass
+  // (e.g., can be workspace + input bytes)
+  virtual size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const = 0;
   std::string name() const { return name_; }
   void save_state(std::ofstream &file);
   virtual std::vector<ParamDescriptor> param_descriptors() { return {}; }
@@ -79,7 +96,7 @@ public:
 
 protected:
   virtual void init_impl() {}
-  virtual void on_set_allocator(DELAllocator &allocator) {}
+  virtual void on_set_allocator(DELAllocatorV2 &allocator) {}
   virtual void on_set_flow_handle(flowHandle_t handle) {}
   virtual void on_set_seed(unsigned long long seed) {}
   virtual void on_set_training(bool training) {}
@@ -93,7 +110,7 @@ protected:
 
 protected:
   bool initialized_ = false;
-  DELAllocator *allocator_ = nullptr;
+  DELAllocatorV2 *allocator_ = nullptr;
   bool is_training_ = true;
   bool use_seed_ = false;
   unsigned long long srand_seed_ = 0;
@@ -111,7 +128,7 @@ protected:
   Tensor make_compute_tensor(std::vector<size_t> shape);
   ConstTensor &get_cached_tensor(size_t mb_id, const std::string &key);
   Tensor &get_mutable_tensor(size_t mb_id, const std::string &key);
-  Tensor get_act(const std::vector<size_t> &shape);
+  Tensor get_act();
   Tensor get_workspace(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
   void clear_cache(size_t mb_id);
 };

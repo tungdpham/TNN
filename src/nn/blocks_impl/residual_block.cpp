@@ -73,7 +73,7 @@ void ResidualBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tenso
   Vec<Tensor> main_outputs(main_output_shapes.size());
   for (size_t j = 0; j < main_output_shapes.size(); ++j) {
     // will be discarded after forward, so no need to keep it for backward
-    main_outputs[j] = this->get_workspace(main_output_shapes[j], io_dtype_);
+    main_outputs[j] = this->get_workspace({}, io_dtype_);
   }
   main_path_->forward(inputs, main_outputs, mb_id);
 
@@ -84,7 +84,7 @@ void ResidualBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tenso
     Vec<Vec<size_t>> shortcut_output_shapes = shortcut_path_->output_shapes(input_shapes);
     Vec<Tensor> shortcut_output_tensors(shortcut_output_shapes.size());
     for (size_t j = 0; j < shortcut_output_shapes.size(); ++j) {
-      shortcut_output_tensors[j] = this->get_workspace(shortcut_output_shapes[j], io_dtype_);
+      shortcut_output_tensors[j] = this->get_workspace({}, io_dtype_);
     }
     shortcut_path_->forward(inputs, shortcut_output_tensors, mb_id);
     shortcut_outputs =
@@ -143,7 +143,7 @@ void ResidualBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
   // Backward through main path
   Vec<Tensor> main_grad_inputs(input_shapes.size());
   for (size_t j = 0; j < input_shapes.size(); ++j) {
-    main_grad_inputs[j] = this->get_workspace(input_shapes[j], io_dtype_);
+    main_grad_inputs[j] = this->get_workspace({}, io_dtype_);
   }
   main_path_->backward(grads_to_propagate, main_grad_inputs, mb_id);
 
@@ -153,7 +153,7 @@ void ResidualBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
   if (shortcut_path_) {
     Vec<Tensor> shortcut_grad_input_tensors(input_shapes.size());
     for (size_t j = 0; j < input_shapes.size(); ++j) {
-      shortcut_grad_input_tensors[j] = this->get_workspace(input_shapes[j], io_dtype_);
+      shortcut_grad_input_tensors[j] = this->get_workspace({}, io_dtype_);
       shortcut_grad_inputs[j] = shortcut_grad_input_tensors[j];
     }
     shortcut_path_->backward(grads_to_propagate, shortcut_grad_input_tensors, mb_id);
@@ -304,49 +304,15 @@ size_t ResidualBlock::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const 
 }
 
 size_t ResidualBlock::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  size_t dtype_size = get_dtype_size(io_dtype_);
+  size_t total_ws = 0;
 
-  // main grad inputs  + shortcut grad inputs
-  size_t main_grad_input_bytes = 0;
-  for (const auto &shape : input_shapes) {
-    main_grad_input_bytes +=
-        std::accumulate(shape.begin(), shape.end(), dtype_size, std::multiplies<size_t>());
-  }
-  size_t shortcut_grad_input_bytes = main_grad_input_bytes;  // same shape as input
+  total_ws = std::max(total_ws, main_path_->bwd_workspace(input_shapes));
 
-  size_t main_workspace = main_path_->bwd_workspace(input_shapes);
-  size_t shortcut_workspace = 0;
   if (shortcut_path_) {
-    shortcut_workspace = shortcut_path_->bwd_workspace(input_shapes);
+    total_ws = std::max(total_ws, shortcut_path_->bwd_workspace(input_shapes));
   }
 
-  // Apply Algorithm 2 from paper (MISO joining)
-  // We have 2 sequences with (a_i, b_i) = (M_b,i, O_i)
-  // Sort by (a_i - b_i) descending to find optimal order
-  struct PathInfo {
-    size_t workspace;     // a_i
-    size_t output_bytes;  // b_i
-    size_t priority;      // a_i - b_i
-  };
-
-  PathInfo main_info{main_workspace + main_grad_input_bytes, main_grad_input_bytes, main_workspace};
-  PathInfo shortcut_info{shortcut_workspace + shortcut_grad_input_bytes, shortcut_grad_input_bytes,
-                         shortcut_workspace};
-
-  // Execute in optimal order and compute peak memory
-  size_t k = 0;
-  if (main_info.priority >= shortcut_info.priority) {
-    // Execute main first, then shortcut
-    k = std::max(main_info.workspace, shortcut_info.workspace + main_info.output_bytes);
-  } else {
-    // Execute shortcut first, then main
-    k = std::max(shortcut_info.workspace, main_info.workspace + shortcut_info.output_bytes);
-  }
-
-  // Add space for the backward through join operation
-  k = std::max(k, main_grad_input_bytes + shortcut_grad_input_bytes);
-
-  return k;
+  return total_ws;
 }
 
 }  // namespace tnn

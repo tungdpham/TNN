@@ -334,6 +334,23 @@ Vec<Vec<size_t>> FlashAttentionBlock::output_shapes(const Vec<Vec<size_t>> &inpu
   return input_shapes;
 }
 
+size_t FlashAttentionBlock::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
+  const auto &shape = input_shapes[0];
+  size_t batch_size = shape[0], seq_len = shape[1];
+  size_t dtype_size = get_dtype_size(io_dtype_);
+
+  // Cache input for backward: [B, S, E]
+  size_t input_cache_bytes = batch_size * seq_len * embed_dim_ * dtype_size;
+
+  // Cache attn output for backward: [B, S, E]
+  size_t attn_out_cache_bytes = batch_size * seq_len * embed_dim_ * dtype_size;
+
+  // Cache stats tensor for backward: [B, H, S, 1] in float
+  size_t stats_cache_bytes = batch_size * num_heads_ * seq_len * get_dtype_size(DType_t::FP32);
+
+  return input_cache_bytes + attn_out_cache_bytes + stats_cache_bytes;
+}
+
 size_t FlashAttentionBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   const auto &shape = input_shapes[0];
   size_t batch_size = shape[0], seq_len = shape[1];
