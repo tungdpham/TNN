@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include <cassert>
 #include <list>
 #include <map>
 #include <set>
@@ -125,7 +126,7 @@ public:
         } else {
           slab.right_offset -= aligned_size;
         }
-        return create_dptr(&slab, offset, size);
+        return create_dptr(&slab, offset, size, aligned_size);
       }
     }
 
@@ -156,7 +157,7 @@ public:
         free_by_size_[remainder].insert({block.slab, new_offset, remainder});
       }
 
-      return create_dptr(block.slab, block.offset, aligned_size);
+      return create_dptr(block.slab, block.offset, size, aligned_size);
     }
 
     // if still no space, allocate a new slab
@@ -168,7 +169,7 @@ public:
     } else {
       slab.right_offset -= aligned_size;
     }
-    return create_dptr(&slab, offset, size);
+    return create_dptr(&slab, offset, size, aligned_size);
   }
 
   void flip() {
@@ -234,7 +235,7 @@ private:
   std::list<Slab> slabs_;
   std::map<size_t, std::set<Block>> free_by_size_;  // size -> set of blocks
 
-  dptr create_dptr(Slab *slab, size_t offset, size_t size) {
+  dptr create_dptr(Slab *slab, size_t offset, size_t size, size_t actual_size) {
     void *slice_ptr = static_cast<unsigned char *>(slab->ptr) + offset;
 
     slab->active_allocations++;
@@ -243,8 +244,8 @@ private:
 
     auto storage = std::shared_ptr<device_storage>(
         new device_storage(device_, slice_ptr, size, DEFAULT_ALIGNMENT),
-        [self_shared, slab, offset, size](device_storage *storage) {
-          self_shared->reclaim(slab, offset, size);
+        [self_shared, slab, offset, actual_size](device_storage *storage) {
+          self_shared->reclaim(slab, offset, actual_size);
           delete storage;
         });
 
@@ -336,6 +337,20 @@ private:
   }
 
   Slab &allocate_slab(size_t slab_size) {
+    size_t freed_bytes = 0;
+    // free any existing empty slabs to maximize available memory before allocating a new one
+    for (auto it = slabs_.begin(); it != slabs_.end();) {
+      if (it->active_allocations == 0) {
+        assert(it->free_by_offset.empty() && "Empty slab should have no free blocks");
+        device_.deallocateAlignedMemory(it->ptr);
+        freed_bytes += it->size;
+        it = slabs_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    slab_size = std::max(slab_size, freed_bytes);
+    slab_size = align_up(slab_size, DEFAULT_ALIGNMENT);
     void *slab_ptr = device_.allocateAlignedMemory(slab_size, DEFAULT_ALIGNMENT);
     if (!slab_ptr) {
       throw std::runtime_error("DELAllocatorV2: Failed to allocate slab");

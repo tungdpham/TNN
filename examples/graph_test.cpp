@@ -5,6 +5,7 @@
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
 #include "device/device_type.hpp"
+#include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
 #include "nn/example_models.hpp"
 #include "nn/graph_builder.hpp"
@@ -51,7 +52,6 @@ signed main(int argc, char* argv[]) {
   train_config.print_config();
 
   const Device& device = train_config.device_type == DeviceType::GPU ? getGPU() : getHost();
-  auto allocator = DELAllocatorV2::instance(device, defaultFlowHandle);
   GraphBuilder builder;
 
   auto model_uptr = make_unique<Sequential>(ExampleModels::create(train_config.model_name));
@@ -73,7 +73,8 @@ signed main(int argc, char* argv[]) {
   Reducer reducer = ReducerBuilder().seq_reduction().build();
   reducer.reduce(builder);
 
-  Graph graph = builder.compile(*allocator);
+  auto& allocator = PoolAllocator::instance(device, defaultFlowHandle);
+  Graph graph = builder.compile(allocator);
 
   GraphExecutor executor(graph, allocator);
 
