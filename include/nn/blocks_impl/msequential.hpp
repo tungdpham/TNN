@@ -13,7 +13,6 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "nn/block.hpp"
 #include "nn/blocks_impl/sequential.hpp"
@@ -66,10 +65,8 @@ protected:
     return layers;
   }
 
-  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                    size_t mb_id) override;
-  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                     size_t mb_id) override;
+  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) override;
+  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) override;
 
 public:
   /**

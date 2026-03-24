@@ -17,13 +17,9 @@
 
 namespace tnn {
 
-void NAryOpLayer::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                               size_t mb_id) {
+Vec<Tensor> NAryOpLayer::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (inputs.size() < 2) {
     throw std::runtime_error("NAryOpLayer requires at least 2 inputs");
-  }
-  if (outputs.size() != 1) {
-    throw std::runtime_error("NAryOpLayer produces exactly 1 output");
   }
 
   const auto &first_shape = inputs[0]->shape();
@@ -33,7 +29,7 @@ void NAryOpLayer::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor>
     }
   }
 
-  outputs[0]->ensure(first_shape);
+  Tensor output = get_output_tensor(first_shape);
 
   for (size_t i = 0; i < inputs.size(); ++i) {
     auto key = std::string("fwd_input_") + std::to_string(i);
@@ -41,33 +37,39 @@ void NAryOpLayer::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor>
     cached = inputs[i];
   }
 
-  DISPATCH_IO_DTYPE(compute_nary_forward_impl, inputs, outputs[0], first_shape, this->flow_handle_);
+  DISPATCH_IO_DTYPE(compute_nary_forward_impl, inputs, output, first_shape, this->flow_handle_);
+  return {output};
 }
 
-void NAryOpLayer::backward_impl(const Vec<ConstTensor> &grad_outputs,
-                                const Vec<Tensor> &grad_inputs, size_t mb_id) {
+Vec<Tensor> NAryOpLayer::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   if (grad_outputs.size() != 1) {
     throw std::runtime_error("NAryOpLayer backward: expects 1 grad output");
-  }
-  if (grad_inputs.size() < 2) {
-    throw std::runtime_error("NAryOpLayer backward: requires at least 2 grad inputs");
   }
 
   const auto &output_shape = grad_outputs[0]->shape();
 
-  for (auto &grad_input : grad_inputs) {
-    grad_input->ensure(output_shape);
-    grad_input->fill(0);
+  Vec<ConstTensor> fwd_inputs;
+  size_t num_inputs = 2;  // Default, will be determined from cache
+  for (size_t i = 0;; ++i) {
+    auto key = std::string("fwd_input_") + std::to_string(i);
+    try {
+      fwd_inputs.push_back(get_immutable_cache(mb_id, key));
+      num_inputs = i + 1;
+    } catch (...) {
+      break;
+    }
   }
 
-  Vec<ConstTensor> fwd_inputs;
-  for (size_t i = 0; i < grad_inputs.size(); ++i) {
-    auto key = std::string("fwd_input_") + std::to_string(i);
-    fwd_inputs.push_back(get_immutable_cache(mb_id, key));
+  Vec<Tensor> grad_inputs;
+  for (size_t i = 0; i < num_inputs; ++i) {
+    Tensor grad_input = get_output_tensor(output_shape);
+    grad_input->fill(0);
+    grad_inputs.push_back(grad_input);
   }
 
   DISPATCH_IO_DTYPE(compute_nary_backward_impl, grad_outputs[0], grad_inputs, fwd_inputs,
                     output_shape, this->flow_handle_);
+  return grad_inputs;
 }
 
 template <typename Compute_T>

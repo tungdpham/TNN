@@ -51,7 +51,7 @@ void LegacyDenseLayer::init_impl() {
   }
 }
 
-void LegacyDenseLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor LegacyDenseLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   const Vec<size_t> &in_shape = input->shape();
   size_t last_dim = in_shape.back();
   size_t batch_size = 1;
@@ -71,7 +71,7 @@ void LegacyDenseLayer::forward_impl(const ConstTensor &input, const Tensor &outp
 
   Vec<size_t> out_shape = in_shape;
   out_shape.back() = output_features_;
-  output->ensure(out_shape);
+  Tensor output = get_output_tensor(out_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_dense_forward, input, weights_, output, batch_size,
                                  input_features_, output_features_, this->flow_handle_);
@@ -80,10 +80,11 @@ void LegacyDenseLayer::forward_impl(const ConstTensor &input, const Tensor &outp
     DISPATCH_ON_3_DTYPES_TO_METHOD(add_bias_vector, output, bias_, batch_size, output_features_,
                                    this->flow_handle_);
   }
+
+  return output;
 }
 
-void LegacyDenseLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                     size_t mb_id) {
+Tensor LegacyDenseLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   if (grad_output->shape().back() != output_features_) {
     throw std::invalid_argument("Gradient feature size mismatch in LegacyDenseLayer");
   }
@@ -94,7 +95,7 @@ void LegacyDenseLayer::backward_impl(const ConstTensor &grad_output, const Tenso
     batch_size *= in_shape[i];
   }
 
-  grad_input->ensure(input->shape());
+  Tensor grad_input = get_output_tensor(input->shape());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_weight_gradients, input, grad_output, weight_gradients_,
                                  batch_size, input_features_, output_features_, this->flow_handle_);
@@ -106,6 +107,8 @@ void LegacyDenseLayer::backward_impl(const ConstTensor &grad_output, const Tenso
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_input_gradients, grad_output, weights_, grad_input,
                                  batch_size, input_features_, output_features_, this->flow_handle_);
+
+  return grad_input;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>

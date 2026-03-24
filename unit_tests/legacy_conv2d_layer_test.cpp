@@ -196,9 +196,7 @@ TEST_F(LegacyConv2DLayerTest, BasicForwardPass) {
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
   auto out_shape = output->shape();
@@ -222,9 +220,7 @@ TEST_F(LegacyConv2DLayerTest, ForwardPassWithStride) {
   Tensor input = make_tensor<float>({1, 1, 7, 7}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 2, 3, 3, 2, 2, 0, 0);
   auto out_shape = output->shape();
@@ -245,9 +241,7 @@ TEST_F(LegacyConv2DLayerTest, ForwardPassWithPadding) {
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 1, 1);
   auto out_shape = output->shape();
@@ -270,9 +264,7 @@ TEST_F(LegacyConv2DLayerTest, ForwardPassMultiChannel) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 2, 3, 3, 1, 1, 0, 0);
   auto out_shape = output->shape();
@@ -293,9 +285,7 @@ TEST_F(LegacyConv2DLayerTest, ForwardPassMultiBatch) {
   Tensor input = make_tensor<float>({4, 1, 5, 5}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
   auto out_shape = output->shape();
@@ -314,9 +304,7 @@ TEST_F(LegacyConv2DLayerTest, ForwardPassNonSquareKernel) {
   Tensor input = make_tensor<float>({1, 1, 7, 9}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 1, 3, 5, 1, 1, 0, 0);
   auto out_shape = output->shape();
@@ -336,9 +324,7 @@ TEST_F(LegacyConv2DLayerTest, ForwardPassWithBias) {
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 2, 3, 3, 1, 1, 0, 0);
   auto out_shape = output->shape();
@@ -357,9 +343,7 @@ TEST_F(LegacyConv2DLayerTest, ForwardPassWithoutBias) {
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 2, 3, 3, 1, 1, 0, 0);
   auto out_shape = output->shape();
@@ -378,15 +362,12 @@ TEST_F(LegacyConv2DLayerTest, BasicBackwardPass) {
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 
@@ -406,15 +387,12 @@ TEST_F(LegacyConv2DLayerTest, BackwardPassWithPadding) {
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   EXPECT_EQ(grad_input->shape(), input->shape());
@@ -432,15 +410,12 @@ TEST_F(LegacyConv2DLayerTest, BackwardPassMultiChannel) {
   Tensor input = make_tensor<float>({1, 3, 5, 5}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   auto grad_input_shape = grad_input->shape();
@@ -459,15 +434,12 @@ TEST_F(LegacyConv2DLayerTest, BackwardPassMultiBatch) {
   Tensor input = make_tensor<float>({4, 1, 5, 5}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   auto grad_input_shape = grad_input->shape();
@@ -489,9 +461,7 @@ TEST_F(LegacyConv2DLayerTest, BackwardPassVariableGradient) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   float *grad_data = grad_output->data_as<float>();
@@ -499,8 +469,7 @@ TEST_F(LegacyConv2DLayerTest, BackwardPassVariableGradient) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   EXPECT_EQ(grad_input->shape(), input->shape());
@@ -563,9 +532,7 @@ TEST_F(LegacyConv2DLayerTest, EdgeCase1x1Convolution) {
   Tensor input = make_tensor<float>({1, 3, 8, 8}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   auto out_shape = output->shape();
   EXPECT_EQ(out_shape[2], 8);
@@ -585,15 +552,12 @@ TEST_F(LegacyConv2DLayerTest, EdgeCaseZeroGradient) {
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(0.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
 }
@@ -610,9 +574,7 @@ TEST_F(LegacyConv2DLayerTest, EdgeCaseLargeValues) {
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   input->fill(1e6f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
   EXPECT_EQ(output->size(), 9);
@@ -633,9 +595,7 @@ TEST_F(LegacyConv2DLayerTest, EdgeCaseNegativeValues) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
 }
@@ -652,9 +612,7 @@ TEST_F(LegacyConv2DLayerTest, NumericalStabilitySmallValues) {
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   input->fill(1e-6f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
   EXPECT_EQ(output->size(), 9);
@@ -672,15 +630,12 @@ TEST_F(LegacyConv2DLayerTest, BackwardNumericalStability) {
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   input->fill(1e-6f);
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1e-6f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
@@ -755,9 +710,7 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelIncrease) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   auto output_shape_actual = output->shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -770,8 +723,7 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelIncrease) {
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
   verify_backward_result(grad_output, grad_input, params[0], 1, 1, 1, 1, 0, 0);
@@ -792,9 +744,7 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelDecrease) {
     input_data[i] = static_cast<float>((i % 50) * 0.02f);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   auto out_shape = output->shape();
   EXPECT_EQ(out_shape[0], 2);
@@ -807,8 +757,7 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelDecrease) {
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
   verify_backward_result(grad_output, grad_input, params[0], 1, 1, 1, 1, 0, 0);
@@ -829,9 +778,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetStridedDownsample) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   auto output_shape_actual = output->shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -844,8 +791,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetStridedDownsample) {
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
   verify_backward_result(grad_output, grad_input, params[0], 3, 3, 2, 2, 0, 0);
@@ -866,9 +812,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetStridedWithPadding) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   auto output_shape_actual = output->shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -881,8 +825,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetStridedWithPadding) {
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
   verify_backward_result(grad_output, grad_input, params[0], 3, 3, 2, 2, 1, 1);
@@ -903,9 +846,7 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1StridedDownsample) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   auto output_shape_actual = output->shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -918,8 +859,7 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1StridedDownsample) {
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
   verify_backward_result(grad_output, grad_input, params[0], 1, 1, 2, 2, 0, 0);
@@ -940,9 +880,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetBottleneck3x3) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   auto output_shape_actual = output->shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -955,8 +893,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetBottleneck3x3) {
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
   verify_backward_result(grad_output, grad_input, params[0], 3, 3, 1, 1, 1, 1);
@@ -977,9 +914,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetFirstConv7x7) {
     input_data[i] = static_cast<float>((i % 256) / 255.0f);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   auto output_shape_actual = output->shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -993,8 +928,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetFirstConv7x7) {
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(0.01f);
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
   verify_backward_result(grad_output, grad_input, params[0], 7, 7, 2, 2, 3, 3);
@@ -1015,9 +949,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetAsymmetricStride) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   auto output_shape_actual = output->shape();
   EXPECT_EQ(output_shape_actual[0], 1);
@@ -1030,8 +962,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetAsymmetricStride) {
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
   verify_backward_result(grad_output, grad_input, params[0], 3, 3, 2, 1, 1, 1);
@@ -1052,9 +983,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetSmallFeatureMap) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  layer->forward({input}, {output});
+  Tensor output = layer->forward({input})[0];
 
   auto output_shape_actual = output->shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -1067,8 +996,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetSmallFeatureMap) {
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   grad_output->fill(1.0f);
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  layer->backward({grad_output}, {grad_input});
+  Tensor grad_input = layer->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
   verify_backward_result(grad_output, grad_input, params[0], 3, 3, 2, 2, 1, 1);

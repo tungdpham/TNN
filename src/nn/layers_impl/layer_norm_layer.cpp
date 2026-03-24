@@ -192,7 +192,7 @@ std::unique_ptr<Task> LayerNormLayer::cudnn_layer_norm_backward(
                           beta_gradients ? beta_gradients->data() : nullptr, workspace->data());
 }
 
-void LayerNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor LayerNormLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
   const auto &shape = input->shape();
   size_t last_dim = shape.back();
   size_t channels = last_dim;
@@ -203,7 +203,7 @@ void LayerNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
 
   build_graph(shape);
 
-  output->ensure(shape);
+  Tensor output = get_output_tensor(shape);
 
   size_t shape_key = get_shape_hash({batch_size, channels});
 
@@ -227,17 +227,18 @@ void LayerNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
   DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_layer_norm_forward, fe_handle, current_stats, input, output,
                                  gamma_, beta_, batch_mean, batch_invar, cudnn_workspace,
                                  batch_size, channels, this->flow_handle_);
+
+  return output;
 }
 
-void LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input,
-                                    size_t mb_id) {
+Tensor LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_id) {
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
   }
 
   const auto &shape = input->shape();
-  grad_input->ensure(shape);
+  Tensor grad_input = get_output_tensor(shape);
 
   size_t last_dim = shape.back();
   size_t channels = last_dim;
@@ -266,10 +267,12 @@ void LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor
                                  input, gamma_, grad_input, gamma_gradients_, beta_gradients_,
                                  batch_mean, batch_invar, cudnn_workspace, batch_size, channels,
                                  this->flow_handle_);
+
+  return grad_input;
 }
 #endif
 
-void LayerNormLayer::def_forward(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor LayerNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
   const auto &shape = input->shape();
   size_t last_dim = shape.back();
   size_t channels = last_dim;
@@ -278,21 +281,22 @@ void LayerNormLayer::def_forward(const ConstTensor &input, const Tensor &output,
     batch_size *= shape[i];
   }
 
-  output->ensure(shape);
+  Tensor output = get_output_tensor(shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(layer_norm_forward, input, output, gamma_, beta_, batch_size,
                                  channels, this->flow_handle_);
+
+  return output;
 }
 
-void LayerNormLayer::def_backward(const ConstTensor &grad_output, const Tensor &grad_input,
-                                  size_t mb_id) {
+Tensor LayerNormLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
   }
 
   const auto &shape = input->shape();
-  grad_input->ensure(shape);
+  Tensor grad_input = get_output_tensor(shape);
 
   size_t last_dim = shape.back();
   size_t channels = last_dim;
@@ -304,9 +308,11 @@ void LayerNormLayer::def_backward(const ConstTensor &grad_output, const Tensor &
   DISPATCH_ON_3_DTYPES_TO_METHOD(layer_norm_backward, grad_output, input, gamma_, grad_input,
                                  gamma_gradients_, beta_gradients_, batch_size, channels,
                                  this->flow_handle_);
+
+  return grad_input;
 }
 
-void LayerNormLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor LayerNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (this->is_training_) {
     ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
@@ -314,23 +320,22 @@ void LayerNormLayer::forward_impl(const ConstTensor &input, const Tensor &output
 
 #ifdef USE_CUDNN
   if (this->device().device_type() == DeviceType::GPU) {
-    cudnn_forward(input, output, mb_id);
+    return cudnn_forward(input, mb_id);
   } else
 #endif
   {
-    def_forward(input, output, mb_id);
+    return def_forward(input, mb_id);
   }
 }
 
-void LayerNormLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                   size_t mb_id) {
+Tensor LayerNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
 #ifdef USE_CUDNN
   if (this->device().device_type() == DeviceType::GPU) {
-    cudnn_backward(grad_output, grad_input, mb_id);
+    return cudnn_backward(grad_output, mb_id);
   } else
 #endif
   {
-    def_backward(grad_output, grad_input, mb_id);
+    return def_backward(grad_output, mb_id);
   }
 }
 

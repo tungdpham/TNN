@@ -34,16 +34,15 @@ signed main() {
 
   Tensor input = make_tensor<float>({128, INPUT_FEATURES}, getGPU());
   input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor current_output = make_tensor<float>({128, OUTPUT_FEATURES}, getGPU());
-  Tensor legacy_output = make_tensor<float>({128, OUTPUT_FEATURES}, getGPU());
+
   // cold pass
-  dense_op.forward({input}, {current_output});
+  Tensor current_output = dense_op.forward({input})[0];
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    dense_op.forward({input}, {current_output});
+    current_output = dense_op.forward({input})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
@@ -59,11 +58,11 @@ signed main() {
 
   // legacy dense benchmark
   // cold pass
-  legacy_op.forward({input}, {legacy_output});
+  Tensor legacy_output = legacy_op.forward({input})[0];
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    legacy_op.forward({input}, {legacy_output});
+    legacy_output = legacy_op.forward({input})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();
@@ -103,18 +102,15 @@ signed main() {
   Tensor grad = make_tensor<float>({128, OUTPUT_FEATURES}, getGPU());
   criterion->compute_gradient(current_output, target, grad);
 
-  Tensor grad_input_current = make_tensor<float>({128, INPUT_FEATURES}, getGPU());
-  Tensor grad_input_legacy = make_tensor<float>({128, INPUT_FEATURES}, getGPU());
-
   // cold pass
-  dense_op.backward({grad}, {grad_input_current});
-  legacy_op.backward({grad}, {grad_input_legacy});
+  Tensor grad_input_current = dense_op.backward({grad})[0];
+  Tensor grad_input_legacy = legacy_op.backward({grad})[0];
 
   for (int i = 0; i < passes; ++i) {
     // forward pass to have cached data
-    dense_op.forward({input}, {current_output});
+    dense_op.forward({input});
     auto pass_start = std::chrono::high_resolution_clock::now();
-    dense_op.backward({grad}, {grad_input_current});
+    grad_input_current = dense_op.backward({grad})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();
@@ -126,9 +122,9 @@ signed main() {
 
   for (int i = 0; i < passes; ++i) {
     // forward pass to have cached data
-    legacy_op.forward({input}, {legacy_output});
+    legacy_op.forward({input});
     auto pass_start = std::chrono::high_resolution_clock::now();
-    legacy_op.backward({grad}, {grad_input_legacy});
+    grad_input_legacy = legacy_op.backward({grad})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();

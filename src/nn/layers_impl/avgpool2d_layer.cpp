@@ -32,7 +32,7 @@ AvgPool2DLayer::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, si
   }
 }
 
-void AvgPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor AvgPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::runtime_error("AvgPool2DLayer: input must be 4D (NHWC format)");
   }
@@ -48,14 +48,15 @@ void AvgPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  output->ensure({batch_size, output_h, output_w, channels});
+  Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
 
   DISPATCH_IO_DTYPE(compute_avg_pool_forward_impl, input, output, batch_size, input_h, input_w,
                     channels, output_h, output_w, this->flow_handle_);
+
+  return output;
 }
 
-void AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                   size_t mb_id) {
+Tensor AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   if (grad_output->dims() != 4) {
     throw std::runtime_error("AvgPool2DLayer: grad_output must be 4D (NHWC format)");
   }
@@ -74,11 +75,13 @@ void AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor 
   const size_t output_h = grad_shape[1];
   const size_t output_w = grad_shape[2];
 
-  grad_input->ensure({batch_size, input_h, input_w, channels});
+  Tensor grad_input = get_output_tensor({batch_size, input_h, input_w, channels});
   grad_input->fill(0);
 
   DISPATCH_IO_DTYPE(compute_avg_pool_backward_impl, grad_output, grad_input, batch_size, input_h,
                     input_w, channels, output_h, output_w, this->flow_handle_);
+
+  return grad_input;
 }
 
 template <typename IO_T>

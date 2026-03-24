@@ -12,8 +12,6 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
 #include "nn/block.hpp"
 #include "nn/layer.hpp"
@@ -23,7 +21,6 @@ namespace tnn {
 class Sequential : public Block {
 private:
   Vec<std::unique_ptr<Layer>> layers_;
-  std::unordered_map<size_t, Vec<Vec<size_t>>> input_shapes_cache_;
 
 protected:
   Vec<Layer *> layers() override {
@@ -34,10 +31,8 @@ protected:
     return layers;
   }
 
-  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                    size_t mb_id) override;
-  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                     size_t mb_id) override;
+  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) override;
+  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) override;
 
 public:
   explicit Sequential(Vec<std::unique_ptr<Layer>> layers = {},

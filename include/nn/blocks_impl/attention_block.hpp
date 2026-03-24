@@ -9,7 +9,6 @@
 #include <cmath>
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "device/task.hpp"
 #include "nn/block.hpp"
@@ -49,10 +48,8 @@ private:
     return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
   }
 
-  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                    size_t mb_id = 0) override;
-  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                     size_t mb_id = 0) override;
+  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id = 0) override;
+  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0) override;
 
 public:
   AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,

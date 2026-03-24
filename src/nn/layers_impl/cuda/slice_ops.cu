@@ -4,7 +4,6 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include <vector>
 
 #include "nn/layers_impl/cuda/slice_ops.hpp"
 #include "type/type.hpp"

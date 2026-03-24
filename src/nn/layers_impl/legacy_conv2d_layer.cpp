@@ -90,7 +90,7 @@ void LegacyConv2DLayer::init_impl() {
  * @param mb_id micro batch id for caching input
  */
 
-void LegacyConv2DLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor LegacyConv2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::invalid_argument("Conv2D: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -105,16 +105,14 @@ void LegacyConv2DLayer::forward_impl(const ConstTensor &input, const Tensor &out
 
 #ifdef USE_CUDNN
   if (this->device().device_type() == DeviceType::GPU) {
-    cudnn_forward(input, output, mb_id);
-    return;
+    return cudnn_forward(input, mb_id);
   }
 #endif
 
-  def_forward(input, output, mb_id);
+  return def_forward(input, mb_id);
 }
 
-void LegacyConv2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                      size_t mb_id) {
+Tensor LegacyConv2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   if (grad_output->dims() != 4) {
     throw std::invalid_argument("Conv2D: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -129,15 +127,14 @@ void LegacyConv2DLayer::backward_impl(const ConstTensor &grad_output, const Tens
 
 #ifdef USE_CUDNN
   if (this->device().device_type() == DeviceType::GPU) {
-    cudnn_backward(grad_output, grad_input, mb_id);
-    return;
+    return cudnn_backward(grad_output, mb_id);
   }
 #endif
 
-  def_backward(grad_output, grad_input, mb_id);
+  return def_backward(grad_output, mb_id);
 }
 
-void LegacyConv2DLayer::def_forward(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor LegacyConv2DLayer::def_forward(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::invalid_argument("Conv2D: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -149,7 +146,7 @@ void LegacyConv2DLayer::def_forward(const ConstTensor &input, const Tensor &outp
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
   micro_batch_input_shapes_[mb_id] = input->shape();
-  output->ensure({batch_size, out_channels_, output_h, output_w});
+  Tensor output = get_tensor({batch_size, out_channels_, output_h, output_w}, this->io_dtype_);
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
@@ -180,10 +177,11 @@ void LegacyConv2DLayer::def_forward(const ConstTensor &input, const Tensor &outp
     DISPATCH_ON_3_DTYPES_TO_METHOD(add_bias_to_output_impl, output, bias_, batch_size, output_h,
                                    output_w, out_channels_, this->flow_handle_);
   }
+
+  return output;
 }
 
-void LegacyConv2DLayer::def_backward(const ConstTensor &grad_output, const Tensor &grad_input,
-                                     size_t mb_id) {
+Tensor LegacyConv2DLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
   auto it_input_shape = micro_batch_input_shapes_.find(mb_id);
 
   if (it_input_shape == micro_batch_input_shapes_.end()) {
@@ -198,7 +196,7 @@ void LegacyConv2DLayer::def_backward(const ConstTensor &grad_output, const Tenso
   const size_t output_h = grad_output->dimension(2);
   const size_t output_w = grad_output->dimension(3);
 
-  grad_input->ensure(input_shape);
+  Tensor grad_input = get_tensor(input_shape, this->io_dtype_);
   grad_input->fill(0);  // col2im accumulates, so we need to zero first
 
   auto it_col_buffer = micro_batch_col_buffers_.find(mb_id);
@@ -235,6 +233,8 @@ void LegacyConv2DLayer::def_backward(const ConstTensor &grad_output, const Tenso
                                    batch_size, output_h, output_w, out_channels_,
                                    this->flow_handle_);
   }
+
+  return grad_input;
 }
 
 #ifdef USE_CUDNN
@@ -261,11 +261,11 @@ void LegacyConv2DLayer::build_graph(const Vec<size_t> &input_shape) const {
 
     convolution_handle_cache[shape_key] =
         cuda::cudnn_conv2d::initialize_convolution_handle(shared_handle, new_stats, 0);
+    stats_cache[shape_key] = new_stats;
   }
 }
 
-void LegacyConv2DLayer::cudnn_forward(const ConstTensor &input, const Tensor &output,
-                                      size_t mb_id) {
+Tensor LegacyConv2DLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
   const auto &shape = input->shape();
   const size_t batch_size = shape[0];
   const size_t input_h = shape[2];
@@ -274,7 +274,7 @@ void LegacyConv2DLayer::cudnn_forward(const ConstTensor &input, const Tensor &ou
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  output->ensure({batch_size, out_channels_, output_h, output_w});
+  Tensor output = get_tensor({batch_size, out_channels_, output_h, output_w}, this->io_dtype_);
 
   build_graph(input->shape());
 
@@ -284,17 +284,17 @@ void LegacyConv2DLayer::cudnn_forward(const ConstTensor &input, const Tensor &ou
   Tensor cudnn_workspace = this->get_workspace({stats.fwd_workspace_size}, DType_t::BYTE);
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
-    cached_input = input;
+    this->set_immutable_cache(mb_id, "input", input);
   }
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_compute_fwd, input, weights_, bias_, output, batch_size,
                                  input_h, input_w, output_h, output_w, cudnn_workspace,
                                  this->flow_handle_);
+
+  return output;
 }
 
-void LegacyConv2DLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input,
-                                       size_t mb_id) {
+Tensor LegacyConv2DLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_id) {
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
@@ -309,7 +309,7 @@ void LegacyConv2DLayer::cudnn_backward(const ConstTensor &grad_output, const Ten
   const size_t output_h = grad_shape[2];
   const size_t output_w = grad_shape[3];
 
-  grad_input->ensure(input_shape);
+  Tensor grad_input = get_output_tensor(input_shape);
 
   size_t shape_key = get_shape_hash(input_shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
@@ -330,6 +330,8 @@ void LegacyConv2DLayer::cudnn_backward(const ConstTensor &grad_output, const Ten
     DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_backward_bias, grad_output, bias_gradients_, batch_size,
                                    output_h, output_w, out_channels_, this->flow_handle_);
   }
+
+  return grad_input;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>

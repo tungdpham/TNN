@@ -95,8 +95,7 @@ Vec<size_t> MSequential::compute_execution_order(const Vec<Vec<size_t>> &input_s
  * @param outputs Output tensors from the join layer
  * @param mb_id Micro-batch ID
  */
-void MSequential::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                               size_t mb_id) {
+Vec<Tensor> MSequential::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (sequences_.empty()) {
     throw std::runtime_error("Cannot forward through empty MSequential model");
   }
@@ -130,15 +129,7 @@ void MSequential::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor>
 
     ConstTensor input = inputs[seq_idx];
 
-    Vec<Tensor> seq_output(output_shapes[seq_idx].size());
-    for (size_t j = 0; j < output_shapes[seq_idx].size(); ++j) {
-      seq_output[j] = this->get_workspace(output_shapes[seq_idx][j], io_dtype_);
-      if (is_training_) {
-        allocator_->flip();
-      }
-    }
-
-    seq->forward({input}, seq_output, mb_id);
+    Vec<Tensor> seq_output = seq->forward({input}, mb_id);
 
     sequence_outputs[seq_idx] = seq_output;
   }
@@ -149,50 +140,28 @@ void MSequential::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor>
     join_inputs.insert(join_inputs.end(), out.begin(), out.end());
   }
 
-  join_layer_->forward(join_inputs, outputs, mb_id);
+  Vec<Tensor> join_outputs = join_layer_->forward(join_inputs, mb_id);
 
   this->device().getFlow(this->flow_handle_)->synchronize();
+
+  return join_outputs;
 }
 
-void MSequential::backward_impl(const Vec<ConstTensor> &grad_outputs,
-                                const Vec<Tensor> &grad_inputs, size_t mb_id) {
+Vec<Tensor> MSequential::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   if (sequences_.empty()) {
     throw std::runtime_error("Cannot backward through empty MSequential model");
   }
 
-  auto it_in_shapes = input_shapes_cache_.find(mb_id);
-  if (it_in_shapes == input_shapes_cache_.end()) {
-    throw std::runtime_error("No cached input shape found for micro-batch ID: " +
-                             std::to_string(mb_id));
-  }
-  const Vec<Vec<size_t>> &input_shapes = it_in_shapes->second;
+  Vec<Tensor> current_grads = join_layer_->backward(grad_outputs, mb_id);
 
-  Vec<Vec<Vec<size_t>>> output_shapes(sequences_.size());
-  for (size_t i = 0; i < sequences_.size(); ++i) {
-    output_shapes[i] = sequences_[i]->output_shapes({input_shapes[i]});
-  }
-
-  Vec<Vec<Tensor>> seq_grad_outputs(sequences_.size());
-  for (size_t i = 0; i < sequences_.size(); ++i) {
-    seq_grad_outputs[i].resize(output_shapes[i].size());
-    for (size_t j = 0; j < output_shapes[i].size(); ++j) {
-      seq_grad_outputs[i][j] = this->get_workspace(output_shapes[i][j], io_dtype_);
-    }
-  }
-
-  Vec<Tensor> current_grad;
-  for (size_t i = 0; i < sequences_.size(); ++i) {
-    current_grad.insert(current_grad.end(), seq_grad_outputs[i].begin(), seq_grad_outputs[i].end());
-  }
-
-  join_layer_->backward(grad_outputs, current_grad, mb_id);
+  Vec<Tensor> grad_inputs(sequences_.size());
 
   for (int i = static_cast<int>(sequences_.size()) - 1; i >= 0; --i) {
-    Vec<ConstTensor> path_grad_outputs(seq_grad_outputs[i].begin(), seq_grad_outputs[i].end());
-    sequences_[i]->backward(path_grad_outputs, {grad_inputs[i]}, mb_id);
+    grad_inputs[i] = sequences_[i]->backward({current_grads[i]}, mb_id)[0];
   }
 
   this->device().getFlow(this->flow_handle_)->synchronize();
+  return grad_inputs;
 }
 
 Vec<Vec<size_t>> MSequential::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {

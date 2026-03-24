@@ -90,7 +90,7 @@ void Conv2DLayer::init_impl() {
  * @param mb_id micro batch id for caching input
  */
 
-void Conv2DLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor Conv2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::invalid_argument("Conv2D: Input tensor must be 4-dimensional (NHWC)");
   }
@@ -110,7 +110,7 @@ void Conv2DLayer::forward_impl(const ConstTensor &input, const Tensor &output, s
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  output->ensure({batch_size, output_h, output_w, out_channels_});
+  Tensor output = get_output_tensor({batch_size, output_h, output_w, out_channels_});
 
   if (this->is_training_) {
     set_immutable_cache(mb_id, "input", input);
@@ -119,11 +119,12 @@ void Conv2DLayer::forward_impl(const ConstTensor &input, const Tensor &output, s
 #ifdef USE_CUDNN
   if (this->device().device_type() == DeviceType::GPU) {
     cudnn_forward(input, output, mb_id);
-    return;
+    return output;
   }
 #endif
 
   def_forward(input, output, mb_id);
+  return output;
 }
 
 /**
@@ -135,8 +136,7 @@ void Conv2DLayer::forward_impl(const ConstTensor &input, const Tensor &output, s
  * @param mb_id micro batch id for caching input
  */
 
-void Conv2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                size_t mb_id) {
+Tensor Conv2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   if (grad_output->dims() != 4) {
     throw std::invalid_argument("Conv2D: Input tensor must be 4-dimensional (NHWC)");
   }
@@ -151,16 +151,17 @@ void Conv2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &gr
 
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   const auto &input_shape = input->shape();
-  grad_input->ensure(input_shape);
+  Tensor grad_input = get_output_tensor(input_shape);
 
 #ifdef USE_CUDNN
   if (this->device().device_type() == DeviceType::GPU) {
     cudnn_backward(grad_output, grad_input, mb_id);
-    return;
+    return grad_input;
   }
 #endif
 
   def_backward(grad_output, grad_input, mb_id);
+  return grad_input;
 }
 
 void Conv2DLayer::def_forward(const ConstTensor &input, const Tensor &output, size_t mb_id) {

@@ -9,8 +9,6 @@
 #ifdef USE_CUDA
 #include <cuda_runtime.h>
 
-#include <vector>
-
 #include "type/type.hpp"
 
 namespace tnn {

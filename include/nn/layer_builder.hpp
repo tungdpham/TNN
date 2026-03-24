@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "nn/layers.hpp"
 #include "type/type.hpp"

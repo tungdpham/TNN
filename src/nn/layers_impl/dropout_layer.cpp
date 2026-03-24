@@ -27,31 +27,33 @@ DropoutLayer::DropoutLayer(float dropout_rate, const std::string &name)
   }
 }
 
-void DropoutLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor DropoutLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (!this->is_training_) {
+    Tensor output = get_output_tensor(input->shape());
     output->share_from(input);
-    return;
+    return output;
   }
 
   Tensor mask = this->get_cache_tensor(input->shape(), DType_t::BOOL);
   set_mutable_cache(mb_id, "mask", mask);
 
-  output->ensure(input->shape());
+  Tensor output = get_output_tensor(input->shape());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_dropout_forward, input, output, mask, this->flow_handle_);
+  return output;
 }
 
-void DropoutLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                 size_t mb_id) {
+Tensor DropoutLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &mask = this->get_mutable_cache(mb_id, "mask");
   if (mask == nullptr) {
     throw std::runtime_error("No cached mask found for micro-batch ID in DropoutLayer: " +
                              std::to_string(mb_id));
   }
 
-  grad_input->ensure(grad_output->shape());
+  Tensor grad_input = get_output_tensor(grad_output->shape());
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_dropout_backward, grad_output, grad_input, mask,
                                  this->flow_handle_);
+  return grad_input;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>

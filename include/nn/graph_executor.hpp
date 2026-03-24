@@ -3,25 +3,23 @@
 #include <cstddef>
 
 #include "device/del_allocator_v2.hpp"
-#include "device/iallocator.hpp"
 #include "nn/graph.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
 
-using InputPack = std::unordered_map<std::string, Tensor>;
-using OutputPack = std::unordered_map<std::string, Tensor>;
+using InputPack = std::unordered_map<std::string, Tensor*>;
+using OutputPack = std::unordered_map<std::string, Tensor*>;
 
 class GraphExecutor {
 public:
-  GraphExecutor(Graph& graph, IAllocator& allocator)
+  GraphExecutor(Graph& graph, std::shared_ptr<DELAllocatorV2> ws_allocator)
       : graph_(graph),
-        allocator_(allocator) {
+        ws_allocator_(ws_allocator) {
     // initialize node outputs
     for (auto& [uid, node] : graph_.io_nodes()) {
       node_outputs_[&node] = Output{nullptr, nullptr};
     }
-    ws_allocator_ = DELAllocatorV2::instance(allocator.device(), defaultFlowHandle);
     for (auto& edge : graph_.edges()) {
       edge.op_node().layer()->set_allocator(*ws_allocator_);
     }
@@ -31,23 +29,21 @@ public:
     // set input tensors
     for (const auto& [uid, tensor] : inputs) {
       const IONode& input_node = graph_.io_node(uid);
-      if (!tensor) {
+      if (!(*tensor)) {
         throw std::runtime_error("Null input tensor for uid: " + uid + " while executing graph");
       }
-      node_outputs_[&input_node].act = tensor;
-    }
-    // set output tensors
-    for (auto& [uid, tensor] : outputs) {
-      const IONode& output_node = graph_.io_node(uid);
-      if (!tensor) {
-        throw std::runtime_error("Null output tensor for uid: " + uid + " while executing graph");
-      }
-      node_outputs_[&output_node].act = tensor;
+      node_outputs_[&input_node].act = *tensor;
     }
     // assuming topologically sorted edges, execute forward pass
     const auto& edges = graph_.edges();
     for (auto it = edges.begin(); it != edges.end(); ++it) {
       forward(*it);
+    }
+    // gather output tensors
+    for (auto& [uid, tensor] : outputs) {
+      const IONode& output_node = graph_.io_node(uid);
+      *tensor = node_outputs_[&output_node].act;
+      node_outputs_[&output_node].act = nullptr;
     }
   }
 
@@ -55,28 +51,24 @@ public:
     // set upstream gradients
     for (const auto& [uid, tensor] : grads) {
       const IONode& output_node = graph_.io_node(uid);
-      if (!tensor) {
+      if (!(*tensor)) {
         throw std::runtime_error("Null gradient tensor for uid: " + uid + " while executing graph");
       }
-      node_outputs_[&output_node].grad = tensor;
-    }
-    // set downstream gradients
-    for (auto& [uid, tensor] : grad_inputs) {
-      const IONode& input_node = graph_.io_node(uid);
-      if (!tensor) {
-        throw std::runtime_error("Null gradient tensor for uid: " + uid + " while executing graph");
-      }
-      node_outputs_[&input_node].grad = tensor;
+      node_outputs_[&output_node].grad = *tensor;
     }
     const auto& edges = graph_.edges();
     for (auto it = edges.rbegin(); it != edges.rend(); ++it) {
       backward(*it);
     }
+    // gather downstream gradients
+    for (auto& [uid, tensor] : grad_inputs) {
+      const IONode& input_node = graph_.io_node(uid);
+      *tensor = node_outputs_[&input_node].grad;
+    }
   }
 
 private:
   Graph& graph_;
-  IAllocator& allocator_;  // universal allocator for all layers to manage memory
   std::shared_ptr<DELAllocatorV2>
       ws_allocator_;  // separate allocator for workspace to allow reuse across layers
   struct Output {
@@ -103,27 +95,12 @@ private:
 
     // gather outputs
     const Vec<const IONode*>& output_nodes = edge.consumers();
-    Vec<Tensor> outputs;
-    auto out_shapes = layer->output_shapes(input_shapes);
-    DType_t dtype = inputs[0]->data_type();
+
+    Vec<Tensor> outputs = layer->forward(inputs);
+
     for (size_t i = 0; i < output_nodes.size(); ++i) {
-      const IONode* output_node = output_nodes[i];
-      Vec<size_t> out_shape = out_shapes[i];
-      Tensor& act = node_outputs_[output_node].act;
-      if (!act) {
-        act = make_tensor(allocator_, dtype, out_shape);
-      } else {
-        act->ensure(out_shape);
-      }
-      outputs.push_back(act);
+      node_outputs_[output_nodes[i]].act = outputs[i];
     }
-
-    size_t ws_bytes = layer->is_training() ? layer->fwd_cache_bytes(input_shapes) +
-                                                 layer->fwd_workspace(input_shapes)
-                                           : layer->inf_workspace(input_shapes);
-    ws_allocator_->reserve(ws_bytes);
-
-    layer->forward(inputs, outputs);
   }
 
   void backward(const Edge& edge) {
@@ -140,26 +117,12 @@ private:
     }
 
     // gather downstream grad_output
-    Vec<Vec<size_t>> input_shapes;
     const Vec<const IONode*>& input_nodes = edge.producers();
-    Vec<Tensor> grad_inputs;
-    for (const auto& input_node : input_nodes) {
-      Tensor& grad = node_outputs_[input_node].grad;
-      // just use the same shape and dtype as input activation, since we don't have the actual
-      // input tensor here
-      auto& input_act = node_outputs_[input_node].act;
-      if (!input_act) {
-        throw std::runtime_error("Null input activation while backwarding graph");
-      }
-      if (!grad) {
-        grad = make_tensor(allocator_, input_act->data_type(), input_act->shape());
-      } else {
-        grad->ensure(input_act->shape());
-      }
-      grad_inputs.push_back(grad);
-      input_shapes.push_back(input_act->shape());
+
+    Vec<Tensor> grad_inputs = layer->backward(gradients);
+    for (size_t i = 0; i < input_nodes.size(); ++i) {
+      node_outputs_[input_nodes[i]].grad = grad_inputs[i];
     }
-    layer->backward(gradients, grad_inputs);
   }
 };
 }  // namespace tnn

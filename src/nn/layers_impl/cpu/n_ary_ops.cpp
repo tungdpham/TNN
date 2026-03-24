@@ -9,7 +9,6 @@
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
-#include <vector>
 
 #include "type/type.hpp"
 

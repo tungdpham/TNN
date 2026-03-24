@@ -152,9 +152,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutForward) {
     input_data[i] = 1.0f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   EXPECT_EQ(output->shape(), input->shape());
 
@@ -183,9 +181,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
     input_data[i] = 1.0f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   // Expected: relu(F(x) + x) = relu(-2*1 + 1) = relu(-1) = 0
   const float *output_data = output->data_as<float>();
@@ -212,14 +208,12 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
     input_data[i] = 2.0f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
-  EXPECT_EQ(output_shape[0], 1);
-  EXPECT_EQ(output_shape[1], 2);
-  EXPECT_EQ(output_shape[2], 2);
-  EXPECT_EQ(output_shape[3], 2);
+  EXPECT_EQ(output->shape()[0], 1);
+  EXPECT_EQ(output->shape()[1], 2);
+  EXPECT_EQ(output->shape()[2], 2);
+  EXPECT_EQ(output->shape()[3], 2);
 
   // Expected: F(x) + x where F is conv2d with scale 0.5
   // With 2 input channels and 2 output channels: each output = sum(0.5 * input[i]) + input
@@ -248,12 +242,10 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
-  EXPECT_EQ(output_shape[0], 2);
-  EXPECT_EQ(output_shape[1], 1);
+  EXPECT_EQ(output->shape()[0], 2);
+  EXPECT_EQ(output->shape()[1], 1);
 
   // Expected: F(x) + x = 1*x + x = 2*x
   const float *output_data = output->data_as<float>();
@@ -286,9 +278,7 @@ TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
     input_data[i] = 4.0f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   // Expected: F(x) + shortcut(x) = 0.5*4 + 0.25*4 = 2 + 1 = 3
   const float *output_data = output->data_as<float>();
@@ -317,9 +307,7 @@ TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
     input_data[i] = 2.0f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   // Expected: relu(F(x) + shortcut(x)) = relu(-1*2 + 0.5*2) = relu(-1) = 0
   const float *output_data = output->data_as<float>();
@@ -348,9 +336,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
     input_data[i] = 1.0f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *grad_data = grad_output->data_as<float>();
@@ -358,8 +344,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  residual->backward({grad_output}, {grad_input});
+  auto grad_input = residual->backward({grad_output})[0];
 
   EXPECT_EQ(grad_input->shape(), input->shape());
 
@@ -438,15 +423,12 @@ TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>({1, 1, 2, 2}, getHost());
   grad_output->fill(0.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  residual->backward({grad_output}, {grad_input});
+  auto grad_input = residual->backward({grad_output})[0];
 
   for (size_t i = 0; i < grad_input->size(); ++i) {
     EXPECT_NEAR(grad_input->data_as<float>()[i], 0.0f, 1e-5f);
@@ -471,9 +453,7 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
     input_data[i] = 1e6f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   // Expected: F(x) + x = 1*1e6 + 1e6 = 2e6
   const float *output_data = output->data_as<float>();
@@ -500,9 +480,7 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
     input_data[i] = -2.0f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   // Expected: F(x) + x = -1*(-2) + (-2) = 2 - 2 = 0
   const float *output_data = output->data_as<float>();
@@ -529,9 +507,7 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
     input_data[i] = 1e-6f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   // Expected: F(x) + x = 1*1e-6 + 1e-6 = 2e-6
   const float *output_data = output->data_as<float>();
@@ -555,15 +531,12 @@ TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   input->fill(1e-6f);
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>({1, 1, 2, 2}, getHost());
   grad_output->fill(1e-6f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  residual->backward({grad_output}, {grad_input});
+  auto grad_input = residual->backward({grad_output})[0];
 
   // grad_main (1.0 * 1e-6) + grad_shortcut (1e-6) = 2e-6
   const float *grad_input_data = grad_input->data_as<float>();
@@ -595,9 +568,7 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
     input_data[i] = 2.0f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   // Expected: F(x) + x = (2.0 * (0.5 * 2.0)) + 2.0 = (2.0 * 1.0) + 2.0 = 4.0
   const float *output_data = output->data_as<float>();
@@ -624,15 +595,12 @@ TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   input->fill(1.0f);
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>({1, 1, 2, 2}, getHost());
   grad_output->fill(1.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  residual->backward({grad_output}, {grad_input});
+  auto grad_input = residual->backward({grad_output})[0];
 
   // grad_main = 2.0 * 0.5 * 1.0 = 1.0
   // grad_shortcut = 1.0
@@ -661,9 +629,7 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
     input_data[i] = -1.0f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   // Expected: relu(F(x) + x) = relu(0 + (-1)) = relu(-1) = 0
   const float *output_data = output->data_as<float>();
@@ -690,15 +656,12 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
     input_data[i] = -1.0f;
   }
 
-  Vec<size_t> output_shape = residual->output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  residual->forward({input}, {output});
+  auto output = residual->forward({input})[0];
 
   Tensor grad_output = make_tensor<float>({1, 1, 2, 2}, getHost());
   grad_output->fill(1.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  residual->backward({grad_output}, {grad_input});
+  auto grad_input = residual->backward({grad_output})[0];
 
   // ReLU blocks grad_output when output is negative
   const float *grad_input_data = grad_input->data_as<float>();

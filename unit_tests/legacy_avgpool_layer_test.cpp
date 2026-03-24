@@ -167,9 +167,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BasicForwardPass) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -196,9 +194,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassWithStride) {
     input_data[i] = 1.0f;
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   verify_forward_result(input, output, 3, 3, 1, 1, 0, 0);
 
@@ -224,9 +220,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassWithPadding) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   auto out_shape = output->shape();
   EXPECT_EQ(out_shape[2], 3);
@@ -252,9 +246,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassMultiChannel) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -282,9 +274,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassMultiBatch) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -311,9 +301,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassNonSquarePooling) {
     input_data[i] = 1.0f;
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   verify_forward_result(input, output, 3, 2, 2, 2, 0, 0);
 
@@ -339,9 +327,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BasicBackwardPass) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   Tensor grad_output = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *grad_data = grad_output->data_as<float>();
@@ -349,8 +335,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BasicBackwardPass) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  node.backward({grad_output}, {grad_input});
+  Tensor grad_input = node.backward({grad_output})[0];
 
   verify_backward_result(grad_output, grad_input, 2, 2, 2, 2, 0, 0);
 
@@ -376,9 +361,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassWithPadding) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   float *grad_data = grad_output->data_as<float>();
@@ -386,8 +369,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassWithPadding) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  node.backward({grad_output}, {grad_input});
+  Tensor grad_input = node.backward({grad_output})[0];
 
   verify_backward_result(grad_output, grad_input, 3, 3, 1, 1, 1, 1);
 
@@ -410,9 +392,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassMultiChannel) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   float *grad_data = grad_output->data_as<float>();
@@ -420,8 +400,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassMultiChannel) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  node.backward({grad_output}, {grad_input});
+  Tensor grad_input = node.backward({grad_output})[0];
 
   verify_backward_result(grad_output, grad_input, 2, 2, 2, 2, 0, 0);
 
@@ -444,9 +423,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassVariableGradient) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   Tensor grad_output = make_tensor<float>(output->shape(), getHost());
   float *grad_data = grad_output->data_as<float>();
@@ -454,8 +431,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassVariableGradient) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  node.backward({grad_output}, {grad_input});
+  Tensor grad_input = node.backward({grad_output})[0];
 
   verify_backward_result(grad_output, grad_input, 2, 2, 1, 1, 0, 0);
 
@@ -536,9 +512,7 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseGlobalAveragePooling) {
     input_data[i] = 2.0f;
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   auto out_shape = output->shape();
   EXPECT_EQ(out_shape[2], 1);
@@ -562,15 +536,12 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseZeroGradient) {
     input_data[i] = 1.0f;
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   Tensor grad_output = make_tensor<float>({1, 1, 2, 2}, getHost());
   grad_output->fill(0.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  node.backward({grad_output}, {grad_input});
+  Tensor grad_input = node.backward({grad_output})[0];
 
   verify_backward_result(grad_output, grad_input, 2, 2, 2, 2, 0, 0);
 
@@ -595,9 +566,7 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseLargeValues) {
     input_data[i] = 1e6f;
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -622,9 +591,7 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseNegativeValues) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -647,9 +614,7 @@ TEST_F(LegacyAvgPool2DLayerTest, NumericalStabilitySmallValues) {
     input_data[i] = 1e-6f;
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -674,9 +639,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardNumericalStability) {
     input_data[i] = 1e-6f;
   }
 
-  Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   Tensor grad_output = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *grad_data = grad_output->data_as<float>();
@@ -684,8 +647,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardNumericalStability) {
     grad_data[i] = 1e-6f;
   }
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  node.backward({grad_output}, {grad_input});
+  Tensor grad_input = node.backward({grad_output})[0];
 
   verify_backward_result(grad_output, grad_input, 2, 2, 2, 2, 0, 0);
 }

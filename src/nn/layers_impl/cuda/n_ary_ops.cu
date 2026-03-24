@@ -13,7 +13,6 @@
 #include <cstddef>
 #include <cstring>
 #include <stdexcept>
-#include <vector>
 
 #include "nn/layers_impl/cuda/n_ary_ops.hpp"
 #include "type/cuda/vectorized_types.hpp"

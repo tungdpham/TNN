@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "parameterized_layer.hpp"
 
@@ -34,8 +33,8 @@ private:
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
 
-  void def_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void def_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
+  Tensor def_forward(const ConstTensor &input, size_t mb_id);
+  Tensor def_backward(const ConstTensor &grad_output, size_t mb_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_inference_output_impl(const ConstTensor &input,
@@ -101,9 +100,8 @@ private:
   }
 
   void init_impl() override;
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   explicit LegacyBatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,

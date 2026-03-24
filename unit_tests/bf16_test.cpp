@@ -56,12 +56,8 @@ TEST_F(BF16Test, Dense) {
   Tensor input_fp32 = fp32_input->to_device(getGPU());
   Tensor input_bf16 = bf16_input->to_device(getGPU());
 
-  Tensor output_fp32, output_bf16;
-  output_fp32 = make_tensor(DType_t::FP32, {batch_size, output_dim}, getGPU());
-  output_bf16 = make_tensor(DType_t::BF16, {batch_size, output_dim}, getGPU());
-
-  fp32_node.forward({input_fp32}, {output_fp32});
-  bf16_node.forward({input_bf16}, {output_bf16});
+  Tensor output_fp32 = fp32_node.forward({input_fp32})[0];
+  Tensor output_bf16 = bf16_node.forward({input_bf16})[0];
 
   Tensor cpu_output_fp32 = output_fp32->to_host();
   Tensor cpu_output_bf16 = output_bf16->to_host();
@@ -96,11 +92,8 @@ TEST_F(BF16Test, Dense) {
   auto gpu_gradient_fp32 = gradient_fp32->to_device(getGPU());
   auto gpu_gradient_bf16 = gradient_bf16->to_device(getGPU());
 
-  Tensor grad_input_bf16 = make_tensor(DType_t::BF16, {batch_size, input_dim}, getGPU());
-  Tensor grad_input_fp32 = make_tensor(DType_t::FP32, {batch_size, input_dim}, getGPU());
-
-  bf16_node.backward({gpu_gradient_bf16}, {grad_input_bf16});
-  fp32_node.backward({gpu_gradient_fp32}, {grad_input_fp32});
+  Tensor grad_input_bf16 = bf16_node.backward({gpu_gradient_bf16})[0];
+  Tensor grad_input_fp32 = fp32_node.backward({gpu_gradient_fp32})[0];
 
   Tensor cpu_grad_input_fp32 = grad_input_fp32->to_host();
   Tensor cpu_grad_input_bf16 = grad_input_bf16->to_host();
@@ -162,12 +155,8 @@ TEST_F(BF16Test, Attention) {
   Tensor input_fp32 = fp32_input->to_device(getGPU());
   Tensor input_bf16 = bf16_input->to_device(getGPU());
 
-  Tensor output_fp32, output_bf16;
-  output_fp32 = make_tensor(DType_t::FP32, {batch_size, seq_len, embed_dim}, getGPU());
-  output_bf16 = make_tensor(DType_t::BF16, {batch_size, seq_len, embed_dim}, getGPU());
-
-  fp32_attention->forward({input_fp32}, {output_fp32});
-  bf16_attention->forward({input_bf16}, {output_bf16});
+  Tensor output_fp32 = fp32_attention->forward({input_fp32})[0];
+  Tensor output_bf16 = bf16_attention->forward({input_bf16})[0];
 
   Tensor cpu_output_fp32 = output_fp32->to_host();
   Tensor cpu_output_bf16 = output_bf16->to_host();
@@ -202,11 +191,8 @@ TEST_F(BF16Test, Attention) {
   auto gpu_gradient_fp32 = gradient_fp32->to_device(getGPU());
   auto gpu_gradient_bf16 = gradient_bf16->to_device(getGPU());
 
-  Tensor grad_input_bf16 = make_tensor(DType_t::BF16, {batch_size, seq_len, embed_dim}, getGPU());
-  Tensor grad_input_fp32 = make_tensor(DType_t::FP32, {batch_size, seq_len, embed_dim}, getGPU());
-
-  bf16_attention->backward({gpu_gradient_bf16}, {grad_input_bf16});
-  fp32_attention->backward({gpu_gradient_fp32}, {grad_input_fp32});
+  Tensor grad_input_bf16 = bf16_attention->backward({gpu_gradient_bf16})[0];
+  Tensor grad_input_fp32 = fp32_attention->backward({gpu_gradient_fp32})[0];
 
   Tensor cpu_grad_input_fp32 = grad_input_fp32->to_host();
   Tensor cpu_grad_input_bf16 = grad_input_bf16->to_host();

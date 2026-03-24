@@ -10,7 +10,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "nn/layers_impl/common/batchnorm.hpp"
 #include "parameterized_layer.hpp"
@@ -75,8 +74,8 @@ private:
                                       const ConstTensor &batch_mean, const ConstTensor &batch_var,
                                       const Tensor &workspace, flowHandle_t handle);
 
-  void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
+  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
+  Tensor cudnn_backward(const ConstTensor &grad_output, size_t mb_id);
 #endif
 
   Vec<ParamDescriptor> param_descriptors() override {
@@ -113,9 +112,8 @@ private:
   }
 
   void init_impl() override;
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   explicit BatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,

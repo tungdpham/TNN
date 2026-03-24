@@ -9,7 +9,6 @@
 #include <memory>
 #include <random>
 #include <string>
-#include <vector>
 
 #include "stateless_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -30,9 +29,8 @@ private:
                                                  const Tensor &grad_input, const ConstTensor &mask,
                                                  flowHandle_t handle) const;
 
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   explicit DropoutLayer(float dropout_rate, const std::string &name = "dropout");

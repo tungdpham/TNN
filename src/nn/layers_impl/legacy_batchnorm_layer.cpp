@@ -42,8 +42,7 @@ void LegacyBatchNormLayer::init_impl() {
   dummy_var_gradients_->fill(0.0f);
 }
 
-void LegacyBatchNormLayer::forward_impl(const ConstTensor &input, const Tensor &output,
-                                        size_t mb_id) {
+Tensor LegacyBatchNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() < 3) {
     throw std::invalid_argument("BatchNorm: Input tensor must have at least 3 dimensions");
   }
@@ -51,16 +50,14 @@ void LegacyBatchNormLayer::forward_impl(const ConstTensor &input, const Tensor &
     throw std::invalid_argument("BatchNorm: Input channels must match num_features");
   }
 
-  def_forward(input, output, mb_id);
+  return def_forward(input, mb_id);
 }
 
-void LegacyBatchNormLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                         size_t mb_id) {
-  def_backward(grad_output, grad_input, mb_id);
+Tensor LegacyBatchNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+  return def_backward(grad_output, mb_id);
 }
 
-void LegacyBatchNormLayer::def_forward(const ConstTensor &input, const Tensor &output,
-                                       size_t mb_id) {
+Tensor LegacyBatchNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
   size_t batch_size, channels, spatial_size;
   batch_size = input->dimension(0);
   channels = input->dimension(1);
@@ -70,7 +67,7 @@ void LegacyBatchNormLayer::def_forward(const ConstTensor &input, const Tensor &o
     throw std::invalid_argument("BatchNorm: Input channels must match num_features.");
   }
 
-  output->ensure(input->shape());
+  Tensor output = get_output_tensor(input->shape());
 
   Tensor norm = this->get_cache_tensor(input->shape(), io_dtype_);
   Tensor batch_inv_std = this->get_cache_tensor({num_features_}, io_dtype_);
@@ -88,10 +85,11 @@ void LegacyBatchNormLayer::def_forward(const ConstTensor &input, const Tensor &o
     DISPATCH_ON_3_DTYPES_TO_METHOD(compute_inference_output_impl, input, output, batch_size,
                                    channels, spatial_size, this->flow_handle_);
   }
+
+  return output;
 }
 
-void LegacyBatchNormLayer::def_backward(const ConstTensor &grad_output, const Tensor &grad_input,
-                                        size_t mb_id) {
+Tensor LegacyBatchNormLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
   const Tensor &norm = this->get_mutable_cache(mb_id, "norm");
   const Tensor &inv_std = this->get_mutable_cache(mb_id, "inv_std");
 
@@ -99,10 +97,12 @@ void LegacyBatchNormLayer::def_backward(const ConstTensor &grad_output, const Te
   const size_t channels = grad_output->dimension(1);
   const size_t spatial_size = grad_output->stride(1);
 
-  grad_input->ensure(grad_output->shape());
+  Tensor grad_input = get_output_tensor(grad_output->shape());
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward_fused, grad_output, norm, inv_std, gamma_,
                                  gamma_gradients_, beta_gradients_, grad_input, batch_size,
                                  channels, spatial_size, this->flow_handle_);
+
+  return grad_input;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>

@@ -7,7 +7,6 @@
 #pragma once
 
 #include <cstddef>
-#include <vector>
 
 #include "nn/layers_impl/common/n_ary.hpp"
 #include "type/type.hpp"

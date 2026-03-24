@@ -33,8 +33,7 @@ LegacyMaxPool2DLayer::LegacyMaxPool2DLayer(size_t pool_h, size_t pool_w, size_t 
   }
 }
 
-void LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output,
-                                        size_t mb_id) {
+Tensor LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("MaxPool2D: Input tensor must be 4-dimensional (NCHW)");
@@ -49,7 +48,7 @@ void LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  output->ensure({batch_size, channels, output_h, output_w});
+  Tensor output = get_output_tensor({batch_size, channels, output_h, output_w});
 
   Tensor &mask_indices = micro_batch_mask_indices_[mb_id];
   if (mask_indices == nullptr)
@@ -60,10 +59,11 @@ void LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &
 
   compute_max_pool_forward(input, output, batch_size, channels, input_h, input_w, output_h,
                            output_w, micro_batch_mask_indices_[mb_id], this->flow_handle_);
+
+  return output;
 }
 
-void LegacyMaxPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                         size_t mb_id) {
+Tensor LegacyMaxPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   auto it_mask = micro_batch_mask_indices_.find(mb_id);
   auto it_shape = micro_batch_input_shapes_.find(mb_id);
 
@@ -91,12 +91,14 @@ void LegacyMaxPool2DLayer::backward_impl(const ConstTensor &grad_output, const T
   const size_t output_h = grad_shape[2];
   const size_t output_w = grad_shape[3];
 
-  grad_input->ensure({batch_size, channels, input_h, input_w});
+  Tensor grad_input = get_output_tensor({batch_size, channels, input_h, input_w});
 
   grad_input->fill(0);
 
   compute_max_pool_backward(grad_output, grad_input, batch_size, channels, output_h, output_w,
                             mask_indices, this->flow_handle_);
+
+  return grad_input;
 }
 
 template <typename IO_T>

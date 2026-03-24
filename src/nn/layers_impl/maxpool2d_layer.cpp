@@ -33,7 +33,7 @@ MaxPool2DLayer::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, si
   }
 }
 
-void MaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor MaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
     throw std::runtime_error("MaxPool2DLayer: input must be 4D (NHWC format)");
@@ -48,7 +48,7 @@ void MaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  output->ensure({batch_size, output_h, output_w, channels});
+  Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
 
   Tensor mask_indices =
       this->get_cache_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
@@ -56,10 +56,11 @@ void MaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output
 
   compute_max_pool_forward(input, output, batch_size, input_h, input_w, channels, output_h,
                            output_w, mask_indices, this->flow_handle_);
+
+  return output;
 }
 
-void MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                   size_t mb_id) {
+Tensor MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &mask_indices = this->get_mutable_cache(mb_id, "mask_indices");
   const Vec<size_t> &input_shape = micro_batch_input_shapes_[mb_id];
 
@@ -74,12 +75,14 @@ void MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor 
   const size_t output_h = grad_shape[1];
   const size_t output_w = grad_shape[2];
 
-  grad_input->ensure({batch_size, input_h, input_w, channels});
+  Tensor grad_input = get_output_tensor({batch_size, input_h, input_w, channels});
 
   grad_input->fill(0);
 
   compute_max_pool_backward(grad_output, grad_input, batch_size, channels, output_h, output_w,
                             mask_indices, this->flow_handle_);
+
+  return grad_input;
 }
 
 template <typename IO_T>

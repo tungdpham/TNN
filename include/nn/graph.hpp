@@ -1,8 +1,9 @@
 #pragma once
 
 #include <unordered_map>
-#include <vector>
 
+#include "device/del_allocator_v2.hpp"
+#include "device/flow.hpp"
 #include "device/iallocator.hpp"
 #include "graph_context.hpp"
 #include "nn/blocks_impl/sequential.hpp"
@@ -27,6 +28,8 @@ public:
     for (auto& op_pair : op_nodes_) {
       OpNode& op_node = op_pair.second;
       op_node.init();
+      auto allocator = DELAllocatorV2::instance(device(), defaultFlowHandle);
+      op_node.layer()->set_allocator(*allocator);
     }
   }
 

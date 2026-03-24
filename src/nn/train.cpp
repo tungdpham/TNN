@@ -7,6 +7,9 @@
 
 #include "nn/train.hpp"
 
+#include <fmt/core.h>
+#include <fmt/ranges.h>
+
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
@@ -15,6 +18,7 @@
 #include <iostream>
 #include <memory>
 
+#include "device/del_allocator_v2.hpp"
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
@@ -133,7 +137,8 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
   Tensor batch_data, batch_labels;
   const Device &model_device = graph.device();
   auto &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
-  GraphExecutor executor(graph, mem_pool);
+  auto ws_allocator = DELAllocatorV2::instance(model_device, defaultFlowHandle);
+  GraphExecutor executor(graph, ws_allocator);
 
   cout << "Starting training epoch..." << endl;
   graph.set_training(true);
@@ -157,10 +162,10 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
     Tensor predictions = make_tensor(mem_pool, batch_data->data_type());
 
     const InputPack inputs{
-        {"input", batch_data},
+        {"input", &batch_data},
     };
     OutputPack outputs{
-        {"output", predictions},
+        {"output", &predictions},
     };
 
     executor.forward(inputs, outputs);
@@ -179,10 +184,10 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
     Tensor backward_output = make_tensor(mem_pool, batch_data->data_type(), batch_data->shape());
 
     const InputPack grad_inputs{
-        {"output", loss_gradient},
+        {"output", &loss_gradient},
     };
     OutputPack grad_outputs{
-        {"input", backward_output},
+        {"input", &backward_output},
     };
     executor.backward(grad_inputs, grad_outputs);
 
@@ -284,12 +289,8 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 
   const Device &model_device = graph.device();
   auto &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
-  GraphExecutor executor(graph, mem_pool);
-
-  Tensor loss_gradient = make_tensor(config.io_dtype, {1}, model_device);
-  Tensor device_labels = make_tensor(config.io_dtype, {1}, model_device);
-  Tensor predictions = make_tensor(config.io_dtype, {1}, model_device);
-  Tensor backward_output = make_tensor(config.io_dtype, {1}, model_device);
+  auto ws_allocator = DELAllocatorV2::instance(model_device, defaultFlowHandle);
+  GraphExecutor executor(graph, ws_allocator);
 
   int grad_accum_counter = 0;
 
@@ -302,12 +303,13 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
         break;
       }
       auto batch_start = chrono::high_resolution_clock::now();
-      device_labels = batch_labels->to_device(model_device);
+      Tensor predictions;
+      Tensor device_labels = batch_labels->to_device(model_device);
       const InputPack inputs{
-          {"input", batch_data},
+          {"input", &batch_data},
       };
       OutputPack outputs{
-          {"output", predictions},
+          {"output", &predictions},
       };
       executor.forward(inputs, outputs);
       float loss;
@@ -315,13 +317,15 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 
       int corrects = compute_class_corrects(predictions, device_labels);
 
+      Tensor loss_gradient = make_tensor(mem_pool, batch_data->data_type(), predictions->shape());
       criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
+      Tensor backward_output = make_tensor(mem_pool, batch_data->data_type(), batch_data->shape());
       const InputPack grad_outputs{
-          {"output", loss_gradient},
+          {"output", &loss_gradient},
       };
       OutputPack grad_inputs{
-          {"input", backward_output},
+          {"input", &backward_output},
       };
       executor.backward(grad_outputs, grad_inputs);
 
@@ -389,7 +393,8 @@ void train_model(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
                       const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
   auto &mem_pool = PoolAllocator::instance(graph.device(), defaultFlowHandle);
-  GraphExecutor executor(graph, mem_pool);
+  auto ws_allocator = DELAllocatorV2::instance(graph.device(), defaultFlowHandle);
+  GraphExecutor executor(graph, ws_allocator);
   Tensor batch_data, batch_labels;
 
   graph.set_training(false);
@@ -406,11 +411,11 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
   while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
     Tensor device_input = batch_data->to_device(model_device);
     const InputPack inputs{
-        {"input", device_input},
+        {"input", &device_input},
     };
     Tensor predictions = make_tensor<float>(mem_pool, {});
     OutputPack outputs{
-        {"output", predictions},
+        {"output", &predictions},
     };
     executor.forward(inputs, outputs);
 

@@ -7,6 +7,8 @@
 
 #include "nn/layer.hpp"
 
+#include <fmt/ranges.h>
+
 #include "device/flow.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
@@ -21,7 +23,7 @@ void Layer::init() {
   initialized_ = true;
 }
 
-void Layer::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs, size_t mb_id) {
+Vec<Tensor> Layer::forward(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (!initialized_) {
     throw std::runtime_error("Layer must be initialized before calling forward");
   }
@@ -33,11 +35,10 @@ void Layer::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs, 
     else
       current_inputs.push_back(input->to_device(this->device()));
   }
-  forward_impl(current_inputs, outputs, mb_id);
+  return forward_impl(current_inputs, mb_id);
 }
 
-void Layer::backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                     size_t mb_id) {
+Vec<Tensor> Layer::backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   if (!initialized_) {
     throw std::runtime_error("Layer must be initialized before calling backward");
   }
@@ -49,8 +50,9 @@ void Layer::backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &gr
     else
       current_grad_outputs.push_back(grad->to_device(this->device()));
   }
-  backward_impl(current_grad_outputs, grad_inputs, mb_id);
+  auto grad_inputs = backward_impl(current_grad_outputs, mb_id);
   clear_cache(mb_id);
+  return grad_inputs;
 }
 
 Layer &Layer::set_allocator(DELAllocatorV2 &allocator) {
@@ -148,6 +150,9 @@ Tensor Layer::get_tensor(const Vec<size_t> &shape, DType_t dtype) {
 }
 
 void Layer::set_immutable_cache(size_t mb_id, const std::string &key, ConstTensor value) {
+  if (!is_training_) {
+    return;  // no need to cache in inference mode
+  }
   immutable_cache_[{mb_id, key}] = std::move(value);
 }
 
@@ -156,6 +161,9 @@ ConstTensor &Layer::get_immutable_cache(size_t mb_id, const std::string &key) {
 }
 
 void Layer::set_mutable_cache(size_t mb_id, const std::string &key, Tensor value) {
+  if (!is_training_) {
+    return;  // no need to cache in inference mode
+  }
   mutable_cache_[{mb_id, key}] = std::move(value);
 }
 
@@ -163,24 +171,38 @@ Tensor &Layer::get_mutable_cache(size_t mb_id, const std::string &key) {
   return mutable_cache_[{mb_id, key}];
 }
 
+Tensor Layer::get_output_tensor(const Vec<size_t> &shape) {
+  if (!allocator_) {
+    throw std::runtime_error("Allocator is not set");
+  }
+  Tensor output_tensor = make_tensor(*allocator_, io_dtype_, shape);
+  return output_tensor;
+}
+
 Tensor Layer::get_cache_tensor(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
+  int old_side = allocator_->side();
   if (is_training_ && is_fwd_) {
     allocator_->set_side(0);
   }
-  return make_tensor(*allocator_, dtype, shape);
+  Tensor cache_tensor = make_tensor(*allocator_, dtype, shape);
+  allocator_->set_side(old_side);  // reset to original side after allocation
+  return cache_tensor;
 }
 
 Tensor Layer::get_workspace(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
+  int old_side = allocator_->side();
   if (is_training_ && is_fwd_) {
     allocator_->set_side(1);
   }
-  return make_tensor(*allocator_, dtype, shape);
+  Tensor workspace_tensor = make_tensor(*allocator_, dtype, shape);
+  allocator_->set_side(old_side);
+  return workspace_tensor;
 }
 
 void Layer::clear_cache(size_t mb_id) {

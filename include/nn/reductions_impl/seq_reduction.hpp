@@ -3,7 +3,6 @@
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
-#include <vector>
 
 #include "nn/blocks_impl/sequential.hpp"
 #include "nn/graph_builder.hpp"

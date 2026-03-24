@@ -10,7 +10,6 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "common/config.hpp"
 #include "device/task.hpp"

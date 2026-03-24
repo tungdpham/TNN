@@ -32,8 +32,7 @@ LegacyAvgPool2DLayer::LegacyAvgPool2DLayer(size_t pool_h, size_t pool_w, size_t 
   }
 }
 
-void LegacyAvgPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output,
-                                        size_t mb_id) {
+Tensor LegacyAvgPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::invalid_argument("AvgPool2D: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -49,14 +48,15 @@ void LegacyAvgPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  output->ensure({batch_size, channels, output_h, output_w});
+  Tensor output = get_output_tensor({batch_size, channels, output_h, output_w});
 
   compute_avg_pool_forward(input, output, batch_size, channels, input_h, input_w, output_h,
                            output_w, this->flow_handle_);
+
+  return output;
 }
 
-void LegacyAvgPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                         size_t mb_id) {
+Tensor LegacyAvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   if (grad_output->dims() != 4) {
     throw std::invalid_argument("AvgPool2D: Gradient tensor must be 4-dimensional (NCHW)");
   }
@@ -77,11 +77,13 @@ void LegacyAvgPool2DLayer::backward_impl(const ConstTensor &grad_output, const T
   const size_t output_h = grad_shape[2];
   const size_t output_w = grad_shape[3];
 
-  grad_input->ensure({batch_size, channels, input_h, input_w});
+  Tensor grad_input = get_output_tensor({batch_size, channels, input_h, input_w});
   grad_input->fill(0);
 
   compute_avg_pool_backward(grad_output, grad_input, batch_size, channels, input_h, input_w,
                             output_h, output_w, this->flow_handle_);
+
+  return grad_input;
 }
 
 template <typename Compute_T>

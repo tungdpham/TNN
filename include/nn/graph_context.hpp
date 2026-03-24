@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-
 #include "device/device.hpp"
 #include "device/iallocator.hpp"
 #include "nn/layer.hpp"

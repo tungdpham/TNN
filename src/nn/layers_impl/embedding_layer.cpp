@@ -51,27 +51,28 @@ void EmbeddingLayer::init_impl() {
   weight_gradients_->fill(0.0f);
 }
 
-void EmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor EmbeddingLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (this->is_training_) {
     set_immutable_cache(mb_id, "input", input);
   }
 
   size_t num_tokens = input->size();
-  if (num_tokens == 0) return;
+  if (num_tokens == 0) return Tensor();
 
   Vec<size_t> out_shape = input->shape();
   out_shape.push_back(embed_dim_);
-  output->ensure(out_shape);
+  Tensor output = get_output_tensor(out_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_forward_impl, input, weight_, output, num_tokens,
                                  vocab_size_, embed_dim_, padding_idx_, this->flow_handle_);
+
+  return output;
 }
 
-void EmbeddingLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                   size_t mb_id) {
+Tensor EmbeddingLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &input = this->get_immutable_cache(mb_id, "input");
 
-  grad_input->ensure(input->shape());
+  Tensor grad_input = get_output_tensor(input->shape());
   grad_input->fill(0);
 
   size_t num_tokens = input->size();
@@ -79,6 +80,8 @@ void EmbeddingLayer::backward_impl(const ConstTensor &grad_output, const Tensor 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_backward_impl, input, grad_output, weight_gradients_,
                                  num_tokens, vocab_size_, embed_dim_, padding_idx_,
                                  this->flow_handle_);
+
+  return grad_input;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>

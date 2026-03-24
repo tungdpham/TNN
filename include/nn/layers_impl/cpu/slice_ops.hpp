@@ -7,7 +7,6 @@
 #pragma once
 
 #include <cstddef>
-#include <vector>
 
 #include "type/type.hpp"
 

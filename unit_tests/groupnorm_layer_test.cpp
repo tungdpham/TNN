@@ -174,8 +174,7 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
   }
 
   Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
   verify_output_shape(input, output);
 
   Vec<float> expected_mean, expected_var;
@@ -204,8 +203,7 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
   }
 
   Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
   verify_output_shape(input, output);
 
   Vec<float> expected_mean, expected_var;
@@ -239,8 +237,7 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
   }
 
   Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
   verify_output_shape(input, output);
 
   Vec<float> expected_mean, expected_var;
@@ -269,8 +266,7 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
   }
 
   Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
   verify_output_shape(input, output);
 
   Vec<float> expected_mean, expected_var;
@@ -299,14 +295,12 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   }
 
   Vec<size_t> output_shape = node.output_shapes({input->shape()})[0];
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  node.forward({input}, {output});
+  Tensor output = node.forward({input})[0];
 
   Tensor grad_output = output->clone();
   grad_output->fill(1.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
-  node.backward({grad_output}, {grad_input});
+  Tensor grad_input = node.backward({grad_output})[0];
 
   auto input_shape = input->shape();
   auto grad_input_shape = grad_input->shape();

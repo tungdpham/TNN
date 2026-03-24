@@ -9,7 +9,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "stateless_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -32,9 +31,8 @@ private:
                                        const Vec<size_t> &original_shape,
                                        flowHandle_t handle) const;
 
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   static constexpr const char *TYPE_NAME = "slice";

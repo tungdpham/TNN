@@ -66,7 +66,7 @@ void DenseLayer::init_impl() {
   }
 }
 
-void DenseLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor DenseLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   const Vec<size_t> &in_shape = input->shape();
   size_t last_dim = in_shape.back();
 
@@ -82,27 +82,35 @@ void DenseLayer::forward_impl(const ConstTensor &input, const Tensor &output, si
 
   Vec<size_t> out_shape = in_shape;
   out_shape.back() = output_features_;
-  output->ensure(out_shape);
+  Tensor output = get_output_tensor(out_shape);
 
 #ifdef USE_CUDNN
   if (this->device().device_type() == DeviceType::GPU) {
     cudnn_forward(input, output, mb_id);
-    return;
   }
 #endif
+
+  return output;
 }
 
-void DenseLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                               size_t mb_id) {
+Tensor DenseLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   if (grad_output->shape().back() != output_features_) {
-    throw std::invalid_argument("Gradient feature size mismatch in DenseLayer");
+    throw std::invalid_argument("Gradient feature size mismatch in DenseLayer. Expected " +
+                                std::to_string(output_features_) + " features in grad_output" +
+                                " but got " + std::to_string(grad_output->shape().back()) +
+                                " features in grad_output" + ".");
   }
+
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
+  Tensor grad_input = get_output_tensor(input->shape());
+
 #ifdef USE_CUDNN
   if (this->device().device_type() == DeviceType::GPU) {
     cudnn_backward(grad_output, grad_input, mb_id);
-    return;
+    return grad_input;
   }
 #endif
+  return grad_input;
 }
 
 #ifdef USE_CUDNN
@@ -158,8 +166,6 @@ void DenseLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, s
 void DenseLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input,
                                 size_t mb_id) {
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
-
-  grad_input->ensure(input->shape());
 
   const Vec<size_t> &in_shape = input->shape();
   size_t batch_size = 1;

@@ -20,27 +20,28 @@ SliceLayer::SliceLayer(size_t axis, size_t start, size_t length, const std::stri
       start_(start),
       length_(length) {}
 
-void SliceLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor SliceLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
 
   Vec<size_t> output_shape = compute_output_shape(input->shape());
-  output->ensure(output_shape);
+  Tensor output = get_output_tensor(output_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_forward, input, output, this->flow_handle_);
+  return output;
 }
 
-void SliceLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                               size_t mb_id) {
+Tensor SliceLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   auto it = micro_batch_original_shapes_.find(mb_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in SliceLayer");
   }
   const Vec<size_t> &original_shape = it->second;
 
-  grad_input->ensure(original_shape);
+  Tensor grad_input = get_output_tensor(original_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_backward, grad_output, grad_input, original_shape,
                                  this->flow_handle_);
+  return grad_input;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>

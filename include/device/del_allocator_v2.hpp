@@ -222,6 +222,25 @@ public:
 
   const Device &device() const override { return device_; }
 
+  void print_info() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::cout << fmt::format("\nDELAllocatorV2 Info: {} slabs, side={}\n", slabs_.size(), side_);
+    for (const auto &slabs : slabs_) {
+      std::cout << fmt::format(
+          "  Slab at {}: size={} bytes, active_allocations={}, "
+          "left_offset={}, right_offset={}\n",
+          slabs.ptr, slabs.size, slabs.active_allocations, slabs.left_offset, slabs.right_offset);
+      for (auto &[offset, size] : slabs.free_by_offset) {
+        std::cout << fmt::format("    Free block at offset {}: size={} bytes\n", offset, size);
+      }
+    }
+    for (const auto &[size, blocks] : free_by_size_) {
+      std::cout << fmt::format("  Free blocks of size {} bytes: {} blocks\n", size, blocks.size())
+                << std::endl;
+    }
+    std::cout << std::endl;
+  }
+
 private:
   struct Block {
     Slab *slab;

@@ -30,8 +30,7 @@ void PositionalEmbeddingLayer::init_impl() {
   pos_embedding_gradients_->fill(0.0f);
 }
 
-void PositionalEmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output,
-                                            size_t mb_id) {
+Tensor PositionalEmbeddingLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayer: Input tensor must be at least 2D");
@@ -51,14 +50,15 @@ void PositionalEmbeddingLayer::forward_impl(const ConstTensor &input, const Tens
                              std::to_string(seq_len_) + ")");
   }
 
-  output->ensure(shape);
+  Tensor output = get_output_tensor(shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(add_positional_embedding, input, output, pos_embedding_,
                                  this->flow_handle_);
+
+  return output;
 }
 
-void PositionalEmbeddingLayer::backward_impl(const ConstTensor &grad_output,
-                                             const Tensor &grad_input, size_t mb_id) {
+Tensor PositionalEmbeddingLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const auto &shape = grad_output->shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayer: Gradient tensor must be at least 2D");
@@ -78,12 +78,14 @@ void PositionalEmbeddingLayer::backward_impl(const ConstTensor &grad_output,
                              std::to_string(seq_len_) + ")");
   }
 
-  grad_input->ensure(shape);
+  Tensor grad_input = get_output_tensor(shape);
 
   grad_output->copy_to(grad_input);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(accumulate_pos_gradients, grad_output, pos_embedding_gradients_,
                                  this->flow_handle_);
+
+  return grad_input;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>

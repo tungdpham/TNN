@@ -13,7 +13,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "nn/layers_impl/common/conv2d.hpp"
 #include "parameterized_layer.hpp"
@@ -37,12 +36,12 @@ private:
   Tensor weight_gradients_;
   Tensor bias_gradients_;
 
-  void def_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void def_backward(const ConstTensor &current_gradient, const Tensor &grad_input, size_t mb_id);
+  Tensor def_forward(const ConstTensor &input, size_t mb_id);
+  Tensor def_backward(const ConstTensor &current_gradient, size_t mb_id);
 
 #ifdef USE_CUDNN
-  void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
+  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
+  Tensor cudnn_backward(const ConstTensor &grad_output, size_t mb_id);
 #endif
 
   std::unordered_map<size_t, Vec<size_t>> micro_batch_input_shapes_;
@@ -142,9 +141,8 @@ private:
                                             size_t out_channels, flowHandle_t handle);
 #endif
 
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   LegacyConv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,

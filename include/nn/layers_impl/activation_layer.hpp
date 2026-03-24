@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "nn/activations_impl/base_activation.hpp"
 #include "nn/layer.hpp"
@@ -20,9 +19,8 @@ class ActivationLayer : public StatelessLayer {
 private:
   std::unique_ptr<ActivationFunction> activation_;
 
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   static constexpr const char *TYPE_NAME = "activation";

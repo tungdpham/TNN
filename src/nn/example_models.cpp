@@ -71,6 +71,27 @@ Sequential create_cifar10_vgg(DType_t io_dtype_ = DType_t::FP32) {
   return Sequential(std::move(layers), "cifar10_vgg");
 }
 
+Sequential create_cifar10_test(DType_t io_dtype_ = DType_t::FP32) {
+  auto layers = LayerBuilder({{32, 32, 3}})
+                    .dtype(io_dtype_)
+                    // Layer 1: 3 -> 64 -> 128 channels, 32x32 -> 16x16
+                    .conv2d(64, 3, 3, 1, 1, 1, 1, false, "conv1")
+                    .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn1")
+                    .conv2d(128, 3, 3, 1, 1, 1, 1, false, "conv2")
+                    .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn2")
+                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")  // 32x32 -> 16x16
+                    .basic_residual_block(128, 256, 1, "res_block1")
+                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")  // 16x16 -> 8x8
+                    .basic_residual_block(256, 512, 1, "res_block2")
+                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")  // 8x8 -> 4x4
+                    // Classification head
+                    .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")  // 4x4 -> 1x1
+                    .flatten(1, -1, "flatten")
+                    .dense(10, true, "output")
+                    .build();
+  return Sequential(std::move(layers), "cifar10_test");
+}
+
 Sequential create_cifar10_resnet9(DType_t io_dtype_ = DType_t::FP32) {
   auto layers = LayerBuilder({{32, 32, 3}})
                     .dtype(io_dtype_)
@@ -532,6 +553,7 @@ void ExampleModels::register_defaults() {
 
   // CIFAR-10
   register_model(create_cifar10_vgg);
+  register_model(create_cifar10_test);
   register_model(create_cifar10_resnet9);
   // CIFAR-100
   register_model(create_cifar100_resnet18);
