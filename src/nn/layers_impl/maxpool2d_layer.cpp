@@ -48,16 +48,28 @@ Tensor MaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
+  if (is_training_) {
+    Tensor mask_indices =
+        this->get_cache_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
+    set_mutable_cache(mb_id, "mask_indices", mask_indices);
 
-  Tensor mask_indices =
-      this->get_cache_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
-  set_mutable_cache(mb_id, "mask_indices", mask_indices);
+    Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
 
-  compute_max_pool_forward(input, output, batch_size, input_h, input_w, channels, output_h,
-                           output_w, mask_indices, this->flow_handle_);
+    compute_max_pool_forward(input, output, batch_size, input_h, input_w, channels, output_h,
+                             output_w, mask_indices, this->flow_handle_);
 
-  return output;
+    return output;
+  } else {
+    Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
+
+    Tensor mask_indices =
+        this->get_cache_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
+
+    compute_max_pool_forward(input, output, batch_size, input_h, input_w, channels, output_h,
+                             output_w, mask_indices, this->flow_handle_);
+
+    return output;
+  }
 }
 
 Tensor MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {

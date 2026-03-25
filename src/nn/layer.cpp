@@ -183,12 +183,7 @@ Tensor Layer::get_cache_tensor(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
-  int old_side = allocator_->side();
-  if (is_training_ && is_fwd_) {
-    allocator_->set_side(0);
-  }
   Tensor cache_tensor = make_tensor(*allocator_, dtype, shape);
-  allocator_->set_side(old_side);  // reset to original side after allocation
   return cache_tensor;
 }
 
@@ -196,12 +191,7 @@ Tensor Layer::get_workspace(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
-  int old_side = allocator_->side();
-  if (is_training_ && is_fwd_) {
-    allocator_->set_side(1);
-  }
   Tensor workspace_tensor = make_tensor(*allocator_, dtype, shape);
-  allocator_->set_side(old_side);
   return workspace_tensor;
 }
 

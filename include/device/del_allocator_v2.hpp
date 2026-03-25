@@ -6,18 +6,15 @@
  */
 #pragma once
 
-#include <cassert>
-#include <list>
-#include <map>
-#include <set>
-#ifndef NDEBUG
 #include <fmt/core.h>
 
+#include <cassert>
 #include <iostream>
-#endif
-
+#include <list>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <stdexcept>
 
 #include "device/dptr.hpp"
@@ -116,29 +113,10 @@ public:
     if (size == 0) return dptr(nullptr);
     std::lock_guard<std::mutex> lock(mutex_);
     size_t aligned_size = align_up(size, DEFAULT_ALIGNMENT);
-    // try to allocate from slab's middle region first
-    for (auto it = slabs_.begin(); it != slabs_.end(); ++it) {
-      Slab &slab = *it;
-      if (slab.available_space() >= aligned_size) {
-        size_t offset = (side_ == 0) ? slab.left_offset : (slab.right_offset - aligned_size);
-        if (side_ == 0) {
-          slab.left_offset += aligned_size;
-        } else {
-          slab.right_offset -= aligned_size;
-        }
-        return create_dptr(&slab, offset, size, aligned_size);
-      }
-    }
 
-    // if no in between space, try to allocate from free blocks
     auto it = free_by_size_.lower_bound(aligned_size);
-    while (it != free_by_size_.end()) {
-      if (it->second.empty()) {
-        // Clean up orphaned empty buckets left behind by previous operations
-        it = free_by_size_.erase(it);
-        continue;
-      }
-
+    if (it != free_by_size_.end() &&
+        it->first == aligned_size) {  // exact match is ideal to avoid fragmentation
       std::set<Block> &blocks = it->second;
       Block block = *blocks.begin();
       blocks.erase(blocks.begin());
@@ -154,7 +132,44 @@ public:
       if (remainder > 0) {
         size_t new_offset = block.offset + aligned_size;
         block.slab->add_block(new_offset, remainder);
-        free_by_size_[remainder].insert({block.slab, new_offset, remainder});
+        add_to_free_map(remainder, Block{block.slab, new_offset, remainder});
+      }
+
+      return create_dptr(block.slab, block.offset, size, aligned_size);
+    }
+
+    // try to allocate from slab's middle region first
+    for (auto it = slabs_.begin(); it != slabs_.end(); ++it) {
+      Slab &slab = *it;
+      if (slab.available_space() >= aligned_size) {
+        size_t offset = (side_ == 0) ? slab.left_offset : (slab.right_offset - aligned_size);
+        if (side_ == 0) {
+          slab.left_offset += aligned_size;
+        } else {
+          slab.right_offset -= aligned_size;
+        }
+        return create_dptr(&slab, offset, size, aligned_size);
+      }
+    }
+
+    it = free_by_size_.lower_bound(aligned_size);
+    if (it != free_by_size_.end()) {  // simple heuristic to avoid excessive fragmentation
+      std::set<Block> &blocks = it->second;
+      Block block = *blocks.begin();
+      blocks.erase(blocks.begin());
+
+      if (blocks.empty()) {
+        free_by_size_.erase(it);
+      }
+
+      block.slab->remove_block(block.offset, block.size);
+
+      // handle remainder
+      size_t remainder = block.size - aligned_size;
+      if (remainder > 0) {
+        size_t new_offset = block.offset + aligned_size;
+        block.slab->add_block(new_offset, remainder);
+        add_to_free_map(remainder, Block{block.slab, new_offset, remainder});
       }
 
       return create_dptr(block.slab, block.offset, size, aligned_size);
@@ -224,7 +239,7 @@ public:
 
   void print_info() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::cout << fmt::format("\nDELAllocatorV2 Info: {} slabs, side={}\n", slabs_.size(), side_);
+    std::cout << fmt::format("DELAllocatorV2 Info: {} slabs, side={}\n", slabs_.size(), side_);
     for (const auto &slabs : slabs_) {
       std::cout << fmt::format(
           "  Slab at {}: size={} bytes, active_allocations={}, "
@@ -234,11 +249,11 @@ public:
         std::cout << fmt::format("    Free block at offset {}: size={} bytes\n", offset, size);
       }
     }
+    std::cout << "  Free blocks by size:\n";
     for (const auto &[size, blocks] : free_by_size_) {
-      std::cout << fmt::format("  Free blocks of size {} bytes: {} blocks\n", size, blocks.size())
-                << std::endl;
+      std::cout << fmt::format("    Free blocks of size {} bytes: {} blocks\n", size,
+                               blocks.size());
     }
-    std::cout << std::endl;
   }
 
 private:
@@ -286,8 +301,8 @@ private:
       size_t next_size = next_it->second;
       size += next_size;
 
-      free_by_size_[next_size].erase({slab, next_it->first, next_size});
-      if (free_by_size_[next_size].empty()) free_by_size_.erase(next_size);
+      remove_from_free_map(next_size, {slab, next_it->first, next_size});
+
       slab->free_by_offset.erase(next_it);
     }
 
@@ -300,8 +315,8 @@ private:
         offset = prev_it->first;
         size += prev_size;
 
-        free_by_size_[prev_size].erase({slab, prev_it->first, prev_size});
-        if (free_by_size_[prev_size].empty()) free_by_size_.erase(prev_size);
+        remove_from_free_map(prev_size, {slab, prev_it->first, prev_size});
+
         slab->free_by_offset.erase(prev_it);
       }
     }
@@ -314,7 +329,7 @@ private:
     } else {
       // Add coalesced block to free lists
       slab->free_by_offset[offset] = size;
-      free_by_size_[size].insert({slab, offset, size});
+      add_to_free_map(size, {slab, offset, size});
     }
 
     if (slab->active_allocations == 0) {
@@ -341,8 +356,7 @@ private:
     for (auto it = slabs_.begin(); it != slabs_.end();) {
       if (it->active_allocations == 0) {
         for (const auto &[block_offset, block_size] : it->free_by_offset) {
-          free_by_size_[block_size].erase({&*it, block_offset, block_size});
-          if (free_by_size_[block_size].empty()) free_by_size_.erase(block_size);
+          remove_from_free_map(block_size, {&*it, block_offset, block_size});
         }
         device_.deallocateAlignedMemory(it->ptr);
         it = slabs_.erase(it);
@@ -395,6 +409,18 @@ private:
     }
     device_.deallocateAlignedMemory(slab->ptr);
     slabs_.remove_if([slab](const Slab &s) { return &s == slab; });
+  }
+
+  void add_to_free_map(size_t size, const Block &block) { free_by_size_[size].insert(block); }
+
+  void remove_from_free_map(size_t size, const Block &block) {
+    auto it = free_by_size_.find(size);
+    if (it != free_by_size_.end()) {
+      it->second.erase(block);
+      if (it->second.empty()) {
+        free_by_size_.erase(it);
+      }
+    }
   }
 };
 

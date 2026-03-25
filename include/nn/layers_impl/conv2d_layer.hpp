@@ -64,15 +64,15 @@ private:
       const Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
       size_t output_w, flowHandle_t handle) const;
 
-  void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void cudnn_backward(const ConstTensor &current_gradient, const Tensor &grad_input, size_t mb_id);
+  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
+  Tensor cudnn_backward(const ConstTensor &current_gradient, size_t mb_id);
 
   mutable std::unordered_map<size_t, cuda::cudnn_conv2d::feHandle_t *> fe_handle_cache;
   mutable std::unordered_map<size_t, ConvolutionStats> stats_cache;
 #endif
 
-  void def_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void def_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
+  Tensor def_forward(const ConstTensor &input, size_t mb_id);
+  Tensor def_backward(const ConstTensor &grad_output, size_t mb_id);
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;

@@ -36,6 +36,17 @@ if(ENABLE_CUDA)
     endif()
 endif()
 
+# Logging module
+file(GLOB_RECURSE TNN_LOGGING_SOURCES 
+    "logging/*.cpp"
+)
+add_library(tnn_logging STATIC ${TNN_LOGGING_SOURCES})
+target_include_directories(tnn_logging PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(tnn_logging PUBLIC spdlog::spdlog)
+
 # Device module
 file(GLOB_RECURSE TNN_DEVICE_SOURCES 
     "device/*.cpp"
@@ -49,6 +60,7 @@ target_link_libraries(tnn_device PUBLIC spdlog::spdlog)
 if(ENABLE_CUDA)
     target_link_libraries(tnn_device PUBLIC CUDA::cudart CUDA::cublas)
 endif()
+target_link_libraries(tnn_device PUBLIC tnn_type tnn_logging)
 
 # Threading module
 file(GLOB_RECURSE TNN_THREADING_SOURCES 
@@ -121,17 +133,6 @@ endif()
 if(ENABLE_CUDA)
     target_link_libraries(tnn_tensor PUBLIC CUDA::cudart CUDA::cublas)
 endif()
-
-# Logging module
-file(GLOB_RECURSE TNN_LOGGING_SOURCES 
-    "logging/*.cpp"
-)
-add_library(tnn_logging STATIC ${TNN_LOGGING_SOURCES})
-target_include_directories(tnn_logging PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_link_libraries(tnn_logging PUBLIC spdlog::spdlog)
 
 # Utilities module
 file(GLOB_RECURSE TNN_UTILS_SOURCES 

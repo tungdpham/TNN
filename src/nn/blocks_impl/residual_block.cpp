@@ -7,6 +7,8 @@
 
 #include "nn/blocks_impl/residual_block.hpp"
 
+#include <alloca.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <numeric>
@@ -116,6 +118,7 @@ Vec<Tensor> ResidualBlock::backward_impl(const Vec<ConstTensor> &grad_outputs, s
       pre_act = nullptr;  // free pre-activation cache after backward
       grads_to_propagate[i] = grad_pre_act;
     }
+    allocator_->flip();  // flip workspace allocator between main and shortcut backward
   }
 
   // Backward through main path

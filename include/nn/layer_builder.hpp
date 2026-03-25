@@ -339,17 +339,17 @@ public:
   LayerBuilder &basic_residual_block(size_t in_channels, size_t out_channels, size_t stride = 1,
                                      const std::string &name = "basic_residual_block") {
     auto main_path = LayerBuilder(get_batchless_current_shape())
-                         .conv2d(out_channels, 3, 3, stride, stride, 1, 1, false)
-                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn0")
-                         .conv2d(out_channels, 3, 3, 1, 1, 1, 1, false)
-                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::FALSE, "bn0")
+                         .conv2d(out_channels, 3, 3, stride, stride, 1, 1, false, name + "_conv1")
+                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, name + "_bn0")
+                         .conv2d(out_channels, 3, 3, 1, 1, 1, 1, false, name + "_conv2")
+                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::FALSE, name + "_bn1")
                          .build();
 
     Vec<std::unique_ptr<Layer>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
-                     .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
-                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::FALSE, "bn0")
+                     .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false, name + "_conv0")
+                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::FALSE, name + "_bn0")
                      .build();
     }
 

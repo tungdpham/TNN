@@ -64,6 +64,7 @@ public:
     for (auto& [uid, tensor] : grad_inputs) {
       const IONode& input_node = graph_.io_node(uid);
       *tensor = node_outputs_[&input_node].grad;
+      node_outputs_[&input_node].grad = nullptr;
     }
   }
 
@@ -119,7 +120,11 @@ private:
     // gather downstream grad_output
     const Vec<const IONode*>& input_nodes = edge.producers();
 
+    ws_allocator_
+        ->flip();  // flip workspace allocator before backward to separate from forward workspace
+
     Vec<Tensor> grad_inputs = layer->backward(gradients);
+
     for (size_t i = 0; i < input_nodes.size(); ++i) {
       node_outputs_[input_nodes[i]].grad = grad_inputs[i];
     }

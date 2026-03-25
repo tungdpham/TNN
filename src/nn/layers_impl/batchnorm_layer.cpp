@@ -123,8 +123,6 @@ Tensor BatchNormLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
                                 std::to_string(channels));
   }
 
-  Tensor output = get_output_tensor(input->shape());
-
   build_graph(input->shape());
 
   size_t shape_key = get_shape_hash(input->shape());
@@ -147,20 +145,23 @@ Tensor BatchNormLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
       relu_mask = get_cache_tensor(input->shape(), DType_t::BOOL);
       set_mutable_cache(mb_id, "relu_mask", relu_mask);
     }
+    Tensor output = get_output_tensor(input->shape());
 
     Tensor workspace = this->get_workspace({current_stats.fwd_workspace_size}, DType_t::BYTE);
     DISPATCH_ON_3_DTYPES_TO_METHOD(forward_training_task, fe_handle, current_stats, input, output,
                                    gamma_, beta_, running_mean_, running_var_, running_mean_,
                                    running_var_, batch_mean, batch_invar, relu_mask, workspace,
                                    this->flow_handle_);
+    return output;
   } else {
+    Tensor output = get_output_tensor(input->shape());
+
     Tensor workspace = this->get_workspace({current_stats.inf_workspace_size}, DType_t::BYTE);
     DISPATCH_ON_3_DTYPES_TO_METHOD(forward_inference_task, fe_handle, current_stats, input, output,
                                    gamma_, beta_, running_mean_, running_var_, workspace,
                                    this->flow_handle_);
+    return output;
   }
-
-  return output;
 }
 
 Tensor BatchNormLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_id) {

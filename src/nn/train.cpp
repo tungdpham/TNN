@@ -329,6 +329,8 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       };
       executor.backward(grad_outputs, grad_inputs);
 
+      backward_output = nullptr;  // free backward output buffer early
+
       auto batch_end = chrono::high_resolution_clock::now();
       auto batch_duration = chrono::duration_cast<chrono::milliseconds>(batch_end - batch_start);
       if (++grad_accum_counter == config.gradient_accumulation_steps) {

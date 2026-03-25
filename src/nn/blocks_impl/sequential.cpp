@@ -29,7 +29,7 @@ Vec<Tensor> Sequential::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_i
   }
   Vec<ConstTensor> current_inputs = inputs;
   Vec<Tensor> current_outputs;
-  if (!is_training_ && layers_.size() % 2 == 0) {
+  if (layers_.size() % 2 == 0) {
     // assuming we are on the reverse side of input, flip so output of last layer is always opposite
     // side of input.
     allocator_->flip();
@@ -37,7 +37,7 @@ Vec<Tensor> Sequential::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_i
   for (size_t i = 0; i < layers_.size(); ++i) {
     current_outputs = layers_[i]->forward(current_inputs, mb_id);
     current_inputs = Vec<ConstTensor>(current_outputs.begin(), current_outputs.end());
-    if (!is_training_ && i != layers_.size() - 1) {
+    if (i != layers_.size() - 1) {
       allocator_->flip();
     }
   }
