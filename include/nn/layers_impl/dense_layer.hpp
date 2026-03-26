@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "device/task.hpp"
 #include "math/common/gemm.hpp"
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -29,25 +28,8 @@ private:
   Tensor weight_gradients_;
   Tensor bias_gradients_;
 
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_dense_forward(const ConstTensor &input, const ConstTensor &weights,
-                                              const Tensor &output, size_t batch_size,
-                                              size_t input_features, size_t output_features,
-                                              flowHandle_t handle) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_weight_gradients(const ConstTensor &input,
-                                                 const ConstTensor &grad_output,
-                                                 const Tensor &weight_grad, size_t batch_size,
-                                                 size_t input_features, size_t output_features,
-                                                 flowHandle_t handle) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_input_gradients(const ConstTensor &grad_output,
-                                                const ConstTensor &weights,
-                                                const Tensor &grad_input, size_t batch_size,
-                                                size_t input_features, size_t output_features,
-                                                flowHandle_t handle) const;
+#ifdef USE_CUDNN
+  void build_graph(const Vec<size_t> &input_shape) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_bias_gradients(const ConstTensor &grad_output,
@@ -55,18 +37,18 @@ private:
                                                size_t output_features, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> add_bias_vector(const Tensor &output, const ConstTensor &bias,
-                                        size_t batch_size, size_t output_features,
-                                        flowHandle_t handle) const;
+  std::unique_ptr<Task> add_bias(const Tensor &output, const ConstTensor &bias, size_t batch_size,
+                                 size_t output_features, flowHandle_t handle) const;
 
-#ifdef USE_CUDNN
-  void build_graph(const Vec<size_t> &input_shape) const;
-  void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
+  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
+  Tensor cudnn_backward(const ConstTensor &grad_output, size_t mb_id);
 
   mutable std::unordered_map<size_t, cuda::cudnn_gemm::feHandle_t *> fe_handle_cache;
 #endif
   mutable std::unordered_map<size_t, GemmStats> stats_cache;
+
+  Tensor def_forward(const ConstTensor &input, size_t mb_id);
+  Tensor def_backward(const ConstTensor &grad_output, size_t mb_id);
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;

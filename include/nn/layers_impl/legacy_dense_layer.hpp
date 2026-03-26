@@ -51,9 +51,8 @@ private:
                                                size_t output_features, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> add_bias_vector(const Tensor &output, const ConstTensor &bias,
-                                        size_t batch_size, size_t output_features,
-                                        flowHandle_t handle) const;
+  std::unique_ptr<Task> add_bias(const Tensor &output, const ConstTensor &bias, size_t batch_size,
+                                 size_t output_features, flowHandle_t handle) const;
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;

@@ -6,9 +6,7 @@
 #include "dgemm.hpp"
 #include "sgemm.hpp"
 #endif
-#include <stdexcept>
 #include <type_traits>
-#include <vector>
 
 namespace tnn {
 namespace cpu {

@@ -111,6 +111,9 @@ private:
     return descriptors;
   }
 
+  Tensor def_forward(const ConstTensor &input, size_t mb_id);
+  Tensor def_backward(const ConstTensor &grad_output, size_t mb_id);
+
   void init_impl() override;
   Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
