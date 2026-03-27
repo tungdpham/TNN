@@ -16,6 +16,7 @@ ENABLE_OPENMP=OFF
 ENABLE_CUDA=OFF
 ENABLE_TBB=ON
 ENABLE_MKL=OFF
+ENABLE_DNNL=OFF
 ENABLE_DEBUG=OFF
 CLEAN_BUILD=false
 VERBOSE=false
@@ -31,6 +32,7 @@ show_help() {
     echo "  --tbb               Enable Intel TBB support (on by default)"
     echo "  --openmp            Enable OpenMP support"
     echo "  --mkl               Enable Intel MKL support (off by default)"
+    echo "  --dnnl              Enable Intel oneDNN (DNNL) support (off by default)"
     echo ""
     echo "Examples:"
     echo "  $0                  # Build with default settings"
@@ -38,6 +40,7 @@ show_help() {
     echo "  $0 --debug          # Debug build with sanitizers"
     echo "  $0 --tbb            # Enable Intel TBB support (already on by default)"
     echo "  $0 --openmp         # Enable OpenMP support"
+    echo "  $0 --dnnl           # Enable Intel oneDNN support"
 }
 
 # parse args
@@ -72,6 +75,10 @@ while [[ $# -gt 0 ]]; do
             ENABLE_MKL=ON
             shift
             ;;
+        --dnnl)
+            ENABLE_DNNL=ON
+            shift
+            ;;
         --cuda)
             ENABLE_CUDA=ON
             shift
@@ -90,6 +97,7 @@ echo "  Build Type: $BUILD_TYPE"
 echo "  OpenMP: $ENABLE_OPENMP"
 echo "  Intel TBB: $ENABLE_TBB"
 echo "  Intel MKL: $ENABLE_MKL"
+echo "  Intel oneDNN: $ENABLE_DNNL"
 echo "  CUDA: $ENABLE_CUDA"
 echo "  Debug Mode: $ENABLE_DEBUG"
 echo ""
@@ -115,6 +123,7 @@ CMAKE_ARGS=(
     -DENABLE_TBB="$ENABLE_TBB"
     -DENABLE_DEBUG="$ENABLE_DEBUG"
     -DENABLE_MKL="$ENABLE_MKL"
+    -DENABLE_DNNL="$ENABLE_DNNL"
     -DENABLE_CUDA="$ENABLE_CUDA"
 )
 

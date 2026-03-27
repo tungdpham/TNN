@@ -6,13 +6,16 @@
  */
 #pragma once
 
-#include "nn/blocks_impl/sequential.hpp"
-#include "nn/graph_builder.hpp"
-#include "nn/layers.hpp"
+#include <iosfwd>
 
+#include "nn/blocks_impl/sequential.hpp"
+#include "nn/graph.hpp"
+#include "nn/graph_builder.hpp"
+#include "nn/io_node.hpp"
+#include "nn/layers.hpp"
+#include "nn/op_node.hpp"
 namespace tnn {
 namespace legacy {
-
 class ExampleModels {
 private:
   static std::unordered_map<std::string, std::function<Sequential(DType_t)>> creators_;
@@ -53,17 +56,19 @@ inline Graph load_or_create_model(const std::string &model_name, const std::stri
     if (!file.is_open()) {
       throw std::runtime_error("Failed to open model file");
     }
-    auto model = load_config<Sequential>(file);
-    load_params(file, *model);
-    builder.add_layer(std::move(model));
-    Graph graph = builder.compile(allocator);
+    auto model = Graph::load_state(file, allocator);
     file.close();
-    return graph;
+    return model;
   } else {
     try {
       auto model = std::make_unique<Sequential>(ExampleModels::create(model_name));
-      builder.add_layer(std::move(model));
+      std::string model_name = model->name();
+      IONode &input_node = builder.io("input");
+      IONode &output_node = builder.io("output");
+      OpNode &op_node = builder.add_layer(std::move(model));
+      builder.add_edge({&input_node}, {&output_node}, op_node);
       Graph graph = builder.compile(allocator);
+      graph.set_name(model_name);
       std::cout << "Created model: " << model_name << std::endl;
       return graph;
     } catch (const std::exception &e) {
@@ -77,6 +82,5 @@ inline Graph load_or_create_model(const std::string &model_name, const std::stri
     }
   }
 }
-
 }  // namespace legacy
 }  // namespace tnn

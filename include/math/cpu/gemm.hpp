@@ -1,6 +1,8 @@
 #pragma once
 
 #ifdef USE_MKL
+#include <stdexcept>
+
 #include "utils/mkl_utils.hpp"
 #else
 #include "dgemm.hpp"

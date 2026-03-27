@@ -13,6 +13,10 @@
 #include "nn/layers_impl/cpu/conv2d_nhwc_ops.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
+#ifdef USE_DNNL
+#include "nn/layers_impl/common/conv2d.hpp"
+#include "nn/layers_impl/cpu/dnnl_conv2d_ops.hpp"
+#endif
 #ifdef USE_CUDNN
 #include <type_traits>
 
@@ -54,6 +58,15 @@ Conv2DLayer::~Conv2DLayer() {
   }
   fe_handle_cache.clear();
   stats_cache.clear();
+#endif
+#ifdef USE_DNNL
+  for (auto &pair : dnnl_handle_cache) {
+    if (pair.second) {
+      cpu::dnnl_conv2d::destroy_dnnl_handle(pair.second);
+    }
+  }
+  dnnl_handle_cache.clear();
+  dnnl_stats_cache.clear();
 #endif
 }
 
@@ -112,6 +125,11 @@ Tensor Conv2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
     return cudnn_forward(input, mb_id);
   }
 #endif
+#ifdef USE_DNNL
+  if (this->device().device_type() == DeviceType::CPU) {
+    return dnnl_forward(input, mb_id);
+  }
+#endif
   return def_forward(input, mb_id);
 }
 
@@ -144,6 +162,11 @@ Tensor Conv2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) 
 #ifdef USE_CUDNN
   if (this->device().device_type() == DeviceType::GPU) {
     return cudnn_backward(grad_output, mb_id);
+  }
+#endif
+#ifdef USE_DNNL
+  if (this->device().device_type() == DeviceType::CPU) {
+    return dnnl_backward(grad_output, mb_id);
   }
 #endif
 
@@ -350,6 +373,74 @@ Tensor Conv2DLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_id)
 }
 #endif
 
+#ifdef USE_DNNL
+void Conv2DLayer::build_dnnl_handle(const Vec<size_t> &input_shape) const {
+  size_t shape_key = get_shape_hash(input_shape);
+  if (dnnl_handle_cache.find(shape_key) == dnnl_handle_cache.end()) {
+    ConvolutionStats new_stats;
+    init_convolution_stats(new_stats, input_shape[0], input_shape[1], input_shape[2],
+                           input_shape[3], out_channels_, kernel_h_, kernel_w_, stride_h_,
+                           stride_w_, pad_h_, pad_w_, use_bias_);
+    dnnl_handle_cache[shape_key] = cpu::dnnl_conv2d::initialize_dnnl_handle(new_stats, io_dtype_);
+    dnnl_stats_cache[shape_key] = new_stats;
+  }
+}
+
+Tensor Conv2DLayer::dnnl_forward(const ConstTensor &input, size_t /*mb_id*/) {
+  const size_t batch_size = input->dimension(0);
+  const size_t input_h = input->dimension(1);
+  const size_t input_w = input->dimension(2);
+  const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
+  const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
+
+  Tensor output = get_output_tensor({batch_size, output_h, output_w, out_channels_});
+
+  build_dnnl_handle(input->shape());
+  const size_t shape_key = get_shape_hash(input->shape());
+  cpu::dnnl_conv2d::dnnlHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
+  const ConvolutionStats &current_stats = dnnl_stats_cache.at(shape_key);
+
+  Tensor workspace = get_workspace({current_stats.fwd_workspace_size}, DType_t::BYTE);
+
+  create_cpu_task(this->flow_handle_, cpu::dnnl_conv2d::run_forward, dnnl_handle, current_stats,
+                  input->data(), weights_->data(), use_bias_ ? bias_->data() : nullptr,
+                  output->data(),
+                  current_stats.fwd_workspace_size > 0 ? workspace->data() : nullptr);
+
+  return output;
+}
+
+Tensor Conv2DLayer::dnnl_backward(const ConstTensor &grad_output, size_t mb_id) {
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
+  if (!input) {
+    throw std::runtime_error("dnnl_backward: no cached input for mb_id " + std::to_string(mb_id));
+  }
+
+  const auto &input_shape = input->shape();
+  Tensor grad_input = get_output_tensor(input_shape);
+
+  build_dnnl_handle(input_shape);
+  const size_t shape_key = get_shape_hash(input_shape);
+  cpu::dnnl_conv2d::dnnlHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
+  const ConvolutionStats &current_stats = dnnl_stats_cache.at(shape_key);
+
+  const size_t max_ws =
+      std::max(current_stats.wgrad_workspace_size, current_stats.dgrad_workspace_size);
+  Tensor workspace = get_workspace({max_ws}, DType_t::BYTE);
+  void *ws_ptr = max_ws > 0 ? workspace->data() : nullptr;
+
+  // Run backward data first: grad_output is fresher in cache from the forward pass.
+  create_cpu_task(this->flow_handle_, cpu::dnnl_conv2d::run_backward_data, dnnl_handle,
+                  current_stats, grad_output->data(), weights_->data(), grad_input->data(), ws_ptr);
+
+  create_cpu_task(this->flow_handle_, cpu::dnnl_conv2d::run_backward_weights_and_bias, dnnl_handle,
+                  current_stats, input->data(), grad_output->data(), weight_gradients_->data(),
+                  use_bias_ ? bias_gradients_->data() : nullptr, ws_ptr);
+
+  return grad_input;
+}
+#endif  // USE_DNNL
+
 LayerConfig Conv2DLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
@@ -408,6 +499,12 @@ size_t Conv2DLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   const ConvolutionStats &stats = stats_cache.at(shape_key);
   auto output_shapes = this->output_shapes(input_shapes);
   return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
+#elif defined(USE_DNNL)
+  build_dnnl_handle(shape);
+  const size_t shape_key = get_shape_hash(shape);
+  const ConvolutionStats &stats = dnnl_stats_cache.at(shape_key);
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif
@@ -425,6 +522,15 @@ size_t Conv2DLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   const ConvolutionStats &stats = stats_cache.at(shape_key);
   auto output_shapes = this->output_shapes(input_shapes);
   return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
+#elif defined(USE_DNNL)
+  if (!allocator_ || allocator_->device().device_type() != DeviceType::CPU) {
+    return 0;
+  }
+  build_dnnl_handle(shape);
+  const size_t shape_key = get_shape_hash(shape);
+  const ConvolutionStats &stats = dnnl_stats_cache.at(shape_key);
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif
@@ -438,6 +544,17 @@ size_t Conv2DLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   const ConvolutionStats &stats = stats_cache.at(shape_key);
   size_t max_workspace_size = std::max(
       {stats.wgrad_workspace_size, stats.dgrad_workspace_size, stats.bgrad_workspace_size});
+  size_t grad_input_bytes = 0;
+  for (const auto &in_shape : input_shapes) {
+    grad_input_bytes += std::accumulate(in_shape.begin(), in_shape.end(), get_dtype_size(io_dtype_),
+                                        std::multiplies<size_t>());
+  }
+  return max_workspace_size + grad_input_bytes;
+#elif defined(USE_DNNL)
+  build_dnnl_handle(shape);
+  const size_t shape_key = get_shape_hash(shape);
+  const ConvolutionStats &stats = dnnl_stats_cache.at(shape_key);
+  size_t max_workspace_size = std::max(stats.wgrad_workspace_size, stats.dgrad_workspace_size);
   size_t grad_input_bytes = 0;
   for (const auto &in_shape : input_shapes) {
     grad_input_bytes += std::accumulate(in_shape.begin(), in_shape.end(), get_dtype_size(io_dtype_),

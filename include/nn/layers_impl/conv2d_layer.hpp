@@ -14,6 +14,9 @@
 #include "cuda/cudnn_conv2d_ops.hpp"
 #include "device/task.hpp"
 #endif
+#ifdef USE_DNNL
+#include "nn/layers_impl/cpu/dnnl_conv2d_ops.hpp"
+#endif
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -69,6 +72,15 @@ private:
 
   mutable std::unordered_map<size_t, cuda::cudnn_conv2d::feHandle_t *> fe_handle_cache;
   mutable std::unordered_map<size_t, ConvolutionStats> stats_cache;
+#endif
+
+#ifdef USE_DNNL
+  void build_dnnl_handle(const Vec<size_t> &input_shape) const;
+  Tensor dnnl_forward(const ConstTensor &input, size_t mb_id);
+  Tensor dnnl_backward(const ConstTensor &grad_output, size_t mb_id);
+
+  mutable std::unordered_map<size_t, cpu::dnnl_conv2d::dnnlHandle_t *> dnnl_handle_cache;
+  mutable std::unordered_map<size_t, ConvolutionStats> dnnl_stats_cache;
 #endif
 
   Tensor def_forward(const ConstTensor &input, size_t mb_id);

@@ -29,7 +29,7 @@ private:
   Tensor bias_gradients_;
 
 #ifdef USE_CUDNN
-  void build_graph(const Vec<size_t> &input_shape) const;
+  void build_cudnn_graph(const Vec<size_t> &input_shape) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_bias_gradients(const ConstTensor &grad_output,

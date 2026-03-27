@@ -177,7 +177,7 @@ Tensor DenseLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
 }
 
 #ifdef USE_CUDNN
-void DenseLayer::build_graph(const Vec<size_t> &input_shape) const {
+void DenseLayer::build_cudnn_graph(const Vec<size_t> &input_shape) const {
   size_t batch_size = 1;
   for (size_t i = 0; i < input_shape.size() - 1; ++i) {
     batch_size *= input_shape[i];
@@ -271,7 +271,7 @@ std::unique_ptr<Task> DenseLayer::add_bias(const Tensor &output, const ConstTens
 Tensor DenseLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
   const Vec<size_t> &in_shape = input->shape();
 
-  build_graph(in_shape);
+  build_cudnn_graph(in_shape);
 
   size_t batch_size = 1;
   for (size_t i = 0; i < in_shape.size() - 1; ++i) {
@@ -346,7 +346,7 @@ size_t DenseLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto &shape = input_shapes[0];
 #ifdef USE_CUDNN
   if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) return 0;
-  build_graph(shape);
+  build_cudnn_graph(shape);
   size_t batch_size = 1;
   for (size_t i = 0; i < shape.size() - 1; ++i) {
     batch_size *= shape[i];
@@ -368,7 +368,7 @@ size_t DenseLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto &shape = input_shapes[0];
 #ifdef USE_CUDNN
   if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) return 0;
-  build_graph(shape);
+  build_cudnn_graph(shape);
   size_t batch_size = 1;
   for (size_t i = 0; i < shape.size() - 1; ++i) {
     batch_size *= shape[i];
