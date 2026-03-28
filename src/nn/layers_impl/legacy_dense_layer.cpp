@@ -122,7 +122,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_dense_forward(
     throw std::runtime_error("LegacyDenseLayer weight tensor dtype mismatch with dispatch Param_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
@@ -134,7 +134,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_dense_forward(
                            output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle, cuda::legacy_dense::run_forward<IO_T, Param_T, Compute_T>,
                             input->data_as<IO_T>(), weights->data_as<Param_T>(),
                             output->data_as<IO_T>(), batch_size, input_features, output_features);
@@ -157,7 +157,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_weight_gradients(
     throw std::runtime_error(
         "LegacyDenseLayer weight grad_output dtype mismatch with dispatch Param_T");
   }
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
@@ -169,7 +169,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_weight_gradients(
                            output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(
         handle, cuda::legacy_dense::run_weight_gradients<IO_T, Param_T, Compute_T>,
         input->data_as<IO_T>(), grad_output->data_as<IO_T>(), weight_grad->data_as<Param_T>(),
@@ -192,7 +192,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_input_gradients(
   if (weights->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error("LegacyDenseLayer weight tensor dtype mismatch with dispatch Param_T");
   }
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
@@ -204,7 +204,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_input_gradients(
                            output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(
         handle, cuda::legacy_dense::run_input_gradients<IO_T, Param_T, Compute_T>,
         grad_output->data_as<IO_T>(), weights->data_as<Param_T>(), grad_input->data_as<IO_T>(),
@@ -230,7 +230,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_bias_gradients(const ConstTensor
     throw std::runtime_error(
         "LegacyDenseLayer bias grad_output dtype mismatch with dispatch Param_T");
   }
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
@@ -241,7 +241,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_bias_gradients(const ConstTensor
                            output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle,
                             cuda::legacy_dense::run_bias_gradients<IO_T, Param_T, Compute_T>,
                             grad_output->data_as<IO_T>(), bias_gradient->data_as<Param_T>(),
@@ -264,7 +264,7 @@ std::unique_ptr<Task> LegacyDenseLayer::add_bias(const Tensor &output, const Con
   if (bias->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error("LegacyDenseLayer bias dtype mismatch with dispatch Param_T");
   }
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
@@ -274,7 +274,7 @@ std::unique_ptr<Task> LegacyDenseLayer::add_bias(const Tensor &output, const Con
                            bias->data_as<IO_T>(), batch_size, output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle, cuda::legacy_dense::add_bias<IO_T, Param_T, Compute_T>,
                             output->data_as<IO_T>(), bias->data_as<Param_T>(), batch_size,
                             output_features);

@@ -28,12 +28,12 @@ std::unique_ptr<Task> TransposeLayer::permute(const ConstTensor &input, const Te
     throw std::runtime_error("TransposeLayer IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     return create_cpu_task(handle, cpu::permute_heads<Compute_T, Compute_T>,
                            input->data_as<Compute_T>(), output->data_as<Compute_T>(), B, L, H, D);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle, cuda::permute_heads<Compute_T, Compute_T>,
                             input->data_as<Compute_T>(), output->data_as<Compute_T>(), B, L, H, D);
   }

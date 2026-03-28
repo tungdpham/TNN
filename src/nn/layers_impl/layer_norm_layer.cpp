@@ -67,7 +67,7 @@ std::unique_ptr<Task> LayerNormLayer::layer_norm_forward(
     throw std::runtime_error("LayerNormLayer gamma dtype mismatch with dispatch Param_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     return create_cpu_task(this->flow_handle_, cpu::layer_norm::layer_norm_forward<Compute_T>,
                            input->data_as<Compute_T>(), output->data_as<Compute_T>(),
                            gamma ? gamma->data_as<Compute_T>() : nullptr,
@@ -75,7 +75,7 @@ std::unique_ptr<Task> LayerNormLayer::layer_norm_forward(
                            epsilon_);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(this->flow_handle_, cuda::layer_norm::layer_norm_forward<Compute_T>,
                             input->data_as<Compute_T>(), output->data_as<Compute_T>(),
                             gamma ? gamma->data_as<Compute_T>() : nullptr,
@@ -104,7 +104,7 @@ std::unique_ptr<Task> LayerNormLayer::layer_norm_backward(
     throw std::runtime_error("LayerNormLayer gamma dtype mismatch with dispatch Param_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     return create_cpu_task(this->flow_handle_, cpu::layer_norm::layer_norm_backward<Compute_T>,
                            grad_output->data_as<Compute_T>(), input->data_as<Compute_T>(),
                            gamma ? gamma->data_as<Compute_T>() : nullptr,
@@ -114,7 +114,7 @@ std::unique_ptr<Task> LayerNormLayer::layer_norm_backward(
                            batch_size, channels, epsilon_);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(this->flow_handle_, cuda::layer_norm::layer_norm_backward<Compute_T>,
                             grad_output->data_as<Compute_T>(), input->data_as<Compute_T>(),
                             gamma ? gamma->data_as<Compute_T>() : nullptr,
@@ -319,7 +319,7 @@ Tensor LayerNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   }
 
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cudnn_forward(input, mb_id);
   } else
 #endif
@@ -330,7 +330,7 @@ Tensor LayerNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
 
 Tensor LayerNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cudnn_backward(grad_output, mb_id);
   } else
 #endif

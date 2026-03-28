@@ -57,6 +57,8 @@ void *Device::allocateAlignedMemory(size_t size, size_t alignment) const {
   return context_->allocateAlignedMemory(size, alignment);
 }
 
+EngineType Device::get_engine() const { return context_->get_engine(); }
+
 void Device::deallocateAlignedMemory(void *ptr) const { context_->deallocateAlignedMemory(ptr); }
 
 void Device::copyToDevice(void *dest, const void *src, size_t size) const {

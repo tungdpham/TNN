@@ -76,7 +76,7 @@ Tensor BatchNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   }
 
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cudnn_forward(input, mb_id);
   }
 #endif
@@ -85,7 +85,7 @@ Tensor BatchNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
 
 Tensor BatchNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cudnn_backward(grad_output, mb_id);
   }
 #endif
@@ -99,13 +99,13 @@ Tensor BatchNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
   const size_t C = input->dimension(3);
   const size_t S = H * W;
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     if (this->is_training_) {
       set_immutable_cache(mb_id, "input", input);
 
-      Tensor batch_mean  = get_cache_tensor({C}, DType_t::FP32);
+      Tensor batch_mean = get_cache_tensor({C}, DType_t::FP32);
       Tensor batch_invar = get_cache_tensor({C}, DType_t::FP32);
-      set_mutable_cache(mb_id, "batch_mean",  batch_mean);
+      set_mutable_cache(mb_id, "batch_mean", batch_mean);
       set_mutable_cache(mb_id, "batch_invar", batch_invar);
 
       Tensor relu_mask;
@@ -122,8 +122,8 @@ Tensor BatchNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
                         batch_invar->data_as<float>(), running_mean_->data_as<float>(),
                         running_var_->data_as<float>(), gamma_->data_as<float>(),
                         beta_->data_as<float>(), output->data_as<T>(),
-                        use_relu_ ? relu_mask->data_as<bool>() : nullptr,
-                        N, C, S, momentum_, epsilon_, affine_, use_relu_);
+                        use_relu_ ? relu_mask->data_as<bool>() : nullptr, N, C, S, momentum_,
+                        epsilon_, affine_, use_relu_);
       });
 
       return output;
@@ -144,10 +144,10 @@ Tensor BatchNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
 }
 
 Tensor BatchNormLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
-  ConstTensor &input  = this->get_immutable_cache(mb_id, "input");
-  Tensor &batch_mean  = this->get_mutable_cache(mb_id, "batch_mean");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
+  Tensor &batch_mean = this->get_mutable_cache(mb_id, "batch_mean");
   Tensor &batch_invar = this->get_mutable_cache(mb_id, "batch_invar");
-  Tensor *relu_mask_ptr = use_relu_ ? &this->get_mutable_cache(mb_id, "relu_mask") : nullptr;
+  Tensor relu_mask_ptr = use_relu_ ? this->get_mutable_cache(mb_id, "relu_mask") : nullptr;
 
   const size_t N = grad_output->dimension(0);
   const size_t H = grad_output->dimension(1);
@@ -157,23 +157,20 @@ Tensor BatchNormLayer::def_backward(const ConstTensor &grad_output, size_t mb_id
 
   Tensor grad_input = get_output_tensor(grad_output->shape());
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
-      create_cpu_task(this->flow_handle_, cpu::batchnorm_nhwc::run_backward_fused<T>,
-                      grad_output->data_as<T>(), input->data_as<T>(),
-                      batch_mean->data_as<float>(), batch_invar->data_as<float>(),
-                      gamma_->data_as<float>(),
-                      gamma_gradients_->data_as<float>(), beta_gradients_->data_as<float>(),
-                      grad_input->data_as<T>(),
-                      use_relu_ ? (*relu_mask_ptr)->data_as<bool>() : nullptr,
-                      N, C, S, affine_, use_relu_);
+      create_cpu_task(
+          this->flow_handle_, cpu::batchnorm_nhwc::run_backward_fused<T>, grad_output->data_as<T>(),
+          input->data_as<T>(), batch_mean->data_as<float>(), batch_invar->data_as<float>(),
+          gamma_->data_as<float>(), gamma_gradients_->data_as<float>(),
+          beta_gradients_->data_as<float>(), grad_input->data_as<T>(),
+          use_relu_ ? relu_mask_ptr->data_as<bool>() : nullptr, N, C, S, affine_, use_relu_);
     });
   } else {
     throw std::runtime_error("BatchNormLayer::def_backward only supports CPU device");
   }
 
-  if (relu_mask_ptr) *relu_mask_ptr = nullptr;
-  batch_mean  = nullptr;
+  batch_mean = nullptr;
   batch_invar = nullptr;
 
   return grad_input;
@@ -291,7 +288,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_training_task(
     throw std::runtime_error("BatchNormLayer gamma dtype mismatch with dispatch Param_T");
   }
 
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
 #ifdef USE_CUDNN
     return create_cuda_task(handle, cuda::cudnn_batchnorm::run_forward_training, fe_handle, stats,
                             input->data(), gamma->data(), beta->data(), output->data(),
@@ -318,7 +315,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_inference_task(
     throw std::runtime_error("BatchNormLayer gamma dtype mismatch with dispatch Param_T");
   }
 
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
 #ifdef USE_CUDNN
     return create_cuda_task(handle, cuda::cudnn_batchnorm::run_forward_inference, fe_handle, stats,
                             input->data(), gamma->data(), beta->data(), saved_mean->data(),
@@ -344,7 +341,7 @@ std::unique_ptr<Task> BatchNormLayer::backward_task(
     throw std::runtime_error("BatchNormLayer gamma dtype mismatch with dispatch Param_T");
   }
 
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
 #ifdef USE_CUDNN
     return create_cuda_task(handle, cuda::cudnn_batchnorm::run_backward, fe_handle, stats,
                             input->data(), grad_output->data(),

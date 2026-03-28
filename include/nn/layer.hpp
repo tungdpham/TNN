@@ -13,6 +13,7 @@
 
 #include "common/config.hpp"
 #include "device/del_allocator_v2.hpp"
+#include "device/engine.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
@@ -47,6 +48,9 @@ public:
       : name_(name) {}
 
   virtual ~Layer() = default;
+
+  void set_engine_type(EngineType engine_type);
+  EngineType get_engine_type() const;
 
   void init();
   Vec<Tensor> forward(const Vec<ConstTensor> &inputs, size_t mb_id = 0);
@@ -84,17 +88,19 @@ public:
   virtual Vec<ParamDescriptor> param_descriptors() { return {}; }
   virtual std::string type() const = 0;
   virtual LayerConfig get_config() const = 0;
-  const Device &device() const {
-    if (!allocator_) {
-      throw std::runtime_error("Allocator is not set");
-    }
-    return allocator_->device();
-  }
 
   Vec<Tensor> parameters();
   Vec<Tensor> gradients();
 
+  const Device &device() const {
+    if (!allocator_) {
+      throw std::runtime_error("Layer: Allocator is not set to get device.");
+    }
+    return allocator_->device();
+  }
+
 protected:
+  virtual void on_set_engine_type(EngineType engine_type) {}
   virtual void init_impl() {}
   virtual void on_set_allocator(DELAllocatorV2 &allocator) {}
   virtual void on_set_flow_handle(flowHandle_t handle) {}
@@ -108,6 +114,7 @@ protected:
 
 protected:
   bool initialized_ = false;
+  EngineType engine_type_ = EngineType::UNKNOWN;
   DELAllocatorV2 *allocator_ = nullptr;
   bool is_training_ = true;
   bool is_fwd_ = false;

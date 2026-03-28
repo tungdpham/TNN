@@ -104,6 +104,8 @@ void CUDAContext::createFlow(flowHandle_t handle) {
   }
 }
 
+EngineType CUDAContext::get_engine() const { return EngineType::CUDA; }
+
 Endianness CUDAContext::get_endianness() const {
   // CUDA devices are little-endian
   return Endianness::LITTLE;

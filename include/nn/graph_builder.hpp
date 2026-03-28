@@ -26,10 +26,6 @@ public:
 
   OpNode& add_layer(std::unique_ptr<Layer> siso_layer) {
     std::string uid = "op_" + std::to_string(node_count_++);
-    auto param_descriptors = siso_layer->param_descriptors();
-    for (const auto& desc : param_descriptors) {
-      ctx_desc_.register_desc(desc);
-    }
     OpNode new_node(uid, std::move(siso_layer));
     auto& node = add_op_node(std::move(new_node));
     return node;
@@ -105,6 +101,13 @@ public:
 
   Graph compile(IAllocator& allocator) {
     sort();
+    for (auto& [uid, node] : op_nodes_) {
+      node.layer()->set_engine_type(allocator.device().get_engine());
+      auto param_descriptors = node.layer()->param_descriptors();
+      for (const auto& desc : param_descriptors) {
+        ctx_desc_.register_desc(desc);
+      }
+    }
     return Graph(allocator, ctx_desc_, std::move(op_nodes_), std::move(io_nodes_),
                  std::move(edges_));
   }

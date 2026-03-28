@@ -49,13 +49,13 @@ std::unique_ptr<Task> ClassTokenLayer::forward_task(const ConstTensor &input, co
     throw std::runtime_error("ClassTokenLayer class_token dtype mismatch with dispatch Param_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     return create_cpu_task(handle, cpu::class_token_forward<Compute_T>, input->data_as<Compute_T>(),
                            class_token->data_as<Compute_T>(), output->data_as<Compute_T>(),
                            batch_size, seq_len, embed_dim);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle, cuda::class_token_forward<Compute_T>,
                             input->data_as<Compute_T>(), class_token->data_as<Compute_T>(),
                             output->data_as<Compute_T>(), batch_size, seq_len, embed_dim);
@@ -86,14 +86,14 @@ std::unique_ptr<Task> ClassTokenLayer::backward_task(const ConstTensor &grad_out
         "ClassTokenLayer class_token_gradients dtype mismatch with dispatch Param_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     return create_cpu_task(handle, cpu::class_token_backward<Compute_T>,
                            grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                            class_token_gradients->data_as<Compute_T>(), batch_size, seq_len,
                            embed_dim);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle, cuda::class_token_backward<Compute_T>,
                             grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                             class_token_gradients->data_as<Compute_T>(), batch_size, seq_len,

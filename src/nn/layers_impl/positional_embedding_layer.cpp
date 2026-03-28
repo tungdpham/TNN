@@ -113,7 +113,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
     batch_size *= shape[i];
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     // For CPU, we need to manually loop over batches and add
     for (size_t i = 0; i < batch_size; ++i) {
       create_cpu_task(handle, ops::cpu::add<Compute_T>,
@@ -124,7 +124,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
     return nullptr;
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     // For GPU, we need to manually loop over batches and add
     for (size_t i = 0; i < batch_size; ++i) {
       create_cuda_task(handle, ops::cuda::cuda_add<Compute_T>,
@@ -165,7 +165,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
     batch_size *= shape[i];
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     for (size_t i = 0; i < batch_size; ++i) {
       create_cpu_task(handle, ops::cpu::add<Compute_T>,
                       pos_embedding_gradients->data_as<Compute_T>(),
@@ -175,7 +175,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
     return nullptr;
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     for (size_t i = 0; i < batch_size; ++i) {
       create_cuda_task(handle, ops::cuda::cuda_add<Compute_T>,
                        pos_embedding_gradients->data_as<Compute_T>(),

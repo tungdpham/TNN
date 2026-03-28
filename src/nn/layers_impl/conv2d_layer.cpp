@@ -121,12 +121,12 @@ Tensor Conv2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   }
 
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cudnn_forward(input, mb_id);
   }
 #endif
 #ifdef USE_DNNL
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     return dnnl_forward(input, mb_id);
   }
 #endif
@@ -160,12 +160,12 @@ Tensor Conv2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) 
   Tensor grad_input = get_output_tensor(input_shape);
 
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cudnn_backward(grad_output, mb_id);
   }
 #endif
 #ifdef USE_DNNL
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     return dnnl_backward(grad_output, mb_id);
   }
 #endif
@@ -183,7 +183,7 @@ Tensor Conv2DLayer::def_forward(const ConstTensor &input, size_t mb_id) {
 
   Tensor output = get_output_tensor({batch_size, output_h, output_w, out_channels_});
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
       create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::forward<T>, input->data_as<T>(),
                       weights_->data_as<T>(), use_bias_ ? bias_->data_as<T>() : nullptr,
@@ -204,7 +204,7 @@ Tensor Conv2DLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
 
   Tensor grad_input = get_output_tensor(input->shape());
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
       create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::backward_data<T>,
                       grad_output->data_as<T>(), weights_->data_as<T>(), grad_input->data_as<T>(),

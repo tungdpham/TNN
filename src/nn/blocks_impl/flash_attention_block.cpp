@@ -7,7 +7,6 @@
 #include "nn/blocks_impl/flash_attention_block.hpp"
 
 #include "device/cuda/cuda_context.hpp"
-#include "device/device_type.hpp"
 #include "device/task.hpp"
 #include "nn/blocks_impl/common/flash_attention.hpp"
 #include "nn/layer.hpp"
@@ -70,7 +69,7 @@ Vec<Tensor> FlashAttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, si
   }
 
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return {cudnn_forward(input, mb_id)};
   } else
 #endif
@@ -304,7 +303,7 @@ Vec<Tensor> FlashAttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outp
   const ConstTensor &grad_output = grad_outputs[0];
 
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return {cudnn_backward(grad_output, mb_id)};
   } else
 #endif
@@ -361,7 +360,7 @@ size_t FlashAttentionBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) 
   // cuDNN flash attention workspace
   size_t cudnn_ws_bytes = 0;
 #ifdef USE_CUDNN
-  if (allocator_ && allocator_->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     build_graph(shape);
     size_t shape_key = get_shape_hash({batch_size, num_heads_, seq_len, head_dim_});
     cudnn_ws_bytes = stats_cache.at(shape_key).fwd_workspace_size;
@@ -401,7 +400,7 @@ size_t FlashAttentionBlock::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) 
   size_t cudnn_ws_bytes = 0;
 
 #ifdef USE_CUDNN
-  if (allocator_ && allocator_->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     size_t shape_key = get_shape_hash({batch_size, num_heads_, seq_len, head_dim_});
     build_graph(shape);
     const AttentionStats &stats = stats_cache.at(shape_key);

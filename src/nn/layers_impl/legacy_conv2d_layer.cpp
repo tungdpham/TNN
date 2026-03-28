@@ -104,7 +104,7 @@ Tensor LegacyConv2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   }
 
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cudnn_forward(input, mb_id);
   }
 #endif
@@ -126,7 +126,7 @@ Tensor LegacyConv2DLayer::backward_impl(const ConstTensor &grad_output, size_t m
   }
 
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cudnn_backward(grad_output, mb_id);
   }
 #endif

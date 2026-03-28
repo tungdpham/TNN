@@ -81,7 +81,7 @@ Tensor DenseLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   }
 
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cudnn_forward(input, mb_id);
   } else
 #endif
@@ -102,7 +102,7 @@ Tensor DenseLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   Tensor grad_input = get_output_tensor(input->shape());
 
 #ifdef USE_CUDNN
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cudnn_backward(grad_output, mb_id);
   } else
 #endif
@@ -119,7 +119,7 @@ Tensor DenseLayer::def_forward(const ConstTensor &input, size_t mb_id) {
   }
 
   Tensor output = get_output_tensor({batch_size, output_features_});
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
       create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_forward<T>, input->data_as<T>(),
                       weights_->data_as<T>(), output->data_as<T>(), batch_size, input_features_,
@@ -155,7 +155,7 @@ Tensor DenseLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
 
   Tensor grad_input = get_output_tensor(input_shape);
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
       create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_weight_gradients<T>,
                       input->data_as<T>(), grad_output->data_as<T>(),
@@ -212,7 +212,7 @@ std::unique_ptr<Task> DenseLayer::compute_bias_gradients(const ConstTensor &grad
   if (bias_gradient->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error("DenseLayer bias grad_output dtype mismatch with dispatch Param_T");
   }
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "DenseLayer mixed dtype dispatch not implemented for CPU "
@@ -223,7 +223,7 @@ std::unique_ptr<Task> DenseLayer::compute_bias_gradients(const ConstTensor &grad
                            output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle,
                             cuda::legacy_dense::run_bias_gradients<IO_T, Param_T, Compute_T>,
                             grad_output->data_as<IO_T>(), bias_gradient->data_as<Param_T>(),
@@ -246,7 +246,7 @@ std::unique_ptr<Task> DenseLayer::add_bias(const Tensor &output, const ConstTens
   if (bias->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error("DenseLayer bias dtype mismatch with dispatch Param_T");
   }
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "DenseLayer mixed dtype dispatch not implemented for CPU "
@@ -256,7 +256,7 @@ std::unique_ptr<Task> DenseLayer::add_bias(const Tensor &output, const ConstTens
                            bias->data_as<IO_T>(), batch_size, output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle, cuda::legacy_dense::add_bias<IO_T, Param_T, Compute_T>,
                             output->data_as<IO_T>(), bias->data_as<Param_T>(), batch_size,
                             output_features);

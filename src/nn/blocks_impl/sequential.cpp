@@ -41,7 +41,6 @@ Vec<Tensor> Sequential::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_i
       allocator_->flip();
     }
   }
-  this->device().getFlow(this->flow_handle_)->synchronize();
   return current_outputs;
 }
 
@@ -62,7 +61,6 @@ Vec<Tensor> Sequential::backward_impl(const Vec<ConstTensor> &grad_outputs, size
       allocator_->flip();  // algorithm 1 definitely applies
     }
   }
-  this->device().getFlow(this->flow_handle_)->synchronize();
   return grad_inputs;
 }
 

@@ -167,6 +167,8 @@ void CPUContext::deallocateAlignedMemory(void *ptr) {
 #endif
 }
 
+EngineType CPUContext::get_engine() const { return EngineType::CPU; }
+
 void CPUContext::createFlow(flowHandle_t handle) {
   if (flows_.find(handle) == flows_.end()) {
     flows_[handle] = std::make_unique<CPUFlow>();

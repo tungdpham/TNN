@@ -46,9 +46,9 @@ private:
     }
     IO_T *grad_input_ptr = grad_input->data_as<IO_T>();
 
-    if (device().device_type() == DeviceType::CPU) {
+    if (get_engine_type() == EngineType::CPU) {
       cpu::nary_forward<IO_T>(grad_output_ptrs, grad_input_ptr, output_shape, NAryOp::ADD);
-    } else if (device().device_type() == DeviceType::GPU) {
+    } else if (get_engine_type() == EngineType::CUDA) {
 #ifdef USE_CUDA
       Tensor ws = this->get_workspace({cuda::nary_forward_workspace_bytes(grad_output_ptrs.size())},
                                       DType_t::BYTE);

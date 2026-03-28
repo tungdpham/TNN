@@ -8,7 +8,6 @@
 
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "device.hpp"
 #include "type/type.hpp"

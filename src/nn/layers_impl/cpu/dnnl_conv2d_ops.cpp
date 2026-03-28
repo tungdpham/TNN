@@ -6,8 +6,12 @@
  */
 #include "nn/layers_impl/cpu/dnnl_conv2d_ops.hpp"
 
+#include <iostream>
+#include <oneapi/dnnl/dnnl.hpp>
+
 #ifdef USE_DNNL
 
+#include <cstring>
 #include <dnnl.hpp>
 #include <stdexcept>
 #include <unordered_map>
@@ -47,6 +51,8 @@ struct dnnlHandle_t {
   bool has_bwd_weights_scratchpad = false;
 
   bool needs_weights_reorder = false;
+  bool weights_is_packed = false;
+  bool external_buffer_compatible = false;
   dnnl::memory::desc user_weights_ohwi_md;
   dnnl::memory user_weights_mem;
   dnnl::memory packed_weights;
@@ -73,6 +79,41 @@ dnnl::memory::data_type get_dnnl_dtype(DType_t dtype) {
   }
 }
 
+void print_dnnl_memory_format_kind(const dnnl::memory::desc &md) {
+  auto fmt = md.get_format_kind();
+  switch (fmt) {
+    case dnnl::memory::format_kind::undef:
+      std::cout << "undef";
+      break;
+    case dnnl::memory::format_kind::any:
+      std::cout << "any";
+      break;
+    case dnnl::memory::format_kind::blocked:
+      std::cout << "blocked";
+      break;
+    case dnnl::memory::format_kind::opaque:
+      std::cout << "opaque";
+      break;
+    case dnnl::memory::format_kind::sparse:
+      std::cout << "sparse";
+      break;
+    default:
+      std::cout << "unknown_format";
+  }
+}
+
+void print_dnnl_memory_format(const dnnl::memory::desc &md) {
+  print_dnnl_memory_format_kind(md);
+  std::cout << " (ndims=" << md.get_ndims() << ", dims=[";
+  for (int i = 0; i < md.get_ndims(); ++i) {
+    std::cout << md.get_dims()[i];
+    if (i < md.get_ndims() - 1) {
+      std::cout << ",";
+    }
+  }
+  std::cout << "])";
+}
+
 dnnlHandle_t *initialize_dnnl_handle(ConvolutionStats &stats, DType_t dtype) {
   auto *handle = new dnnlHandle_t();
   handle->engine = dnnl::engine(dnnl::engine::kind::cpu, 0);
@@ -95,11 +136,11 @@ dnnlHandle_t *initialize_dnnl_handle(ConvolutionStats &stats, DType_t dtype) {
   const int64_t ph = static_cast<int64_t>(stats.pad_h);
   const int64_t pw = static_cast<int64_t>(stats.pad_w);
 
-  auto src_md = dnnl::memory::desc({n, ic, ih, iw}, dt, dnnl::memory::format_tag::nhwc);
+  auto src_md = dnnl::memory::desc({n, ic, ih, iw}, dt, dnnl::memory::format_tag::any);
   auto user_weights_ohwi_md_local =
       dnnl::memory::desc({oc, ic, kh, kw}, dt, dnnl::memory::format_tag::ohwi);
   auto weights_md = dnnl::memory::desc({oc, ic, kh, kw}, dt, dnnl::memory::format_tag::any);
-  auto dst_md = dnnl::memory::desc({n, oc, oh, ow}, dt, dnnl::memory::format_tag::nhwc);
+  auto dst_md = dnnl::memory::desc({n, oc, oh, ow}, dt, dnnl::memory::format_tag::any);
 
   dnnl::memory::dims strides = {sh, sw};
   dnnl::memory::dims pad_l = {ph, pw};
@@ -136,18 +177,29 @@ dnnlHandle_t *initialize_dnnl_handle(ConvolutionStats &stats, DType_t dtype) {
   dnnl::memory::desc optimal_weights_md = fwd_pd.weights_desc();
   handle->needs_weights_reorder = !(optimal_weights_md == user_weights_ohwi_md_local);
   if (handle->needs_weights_reorder) {
+    std::cout << "DNNL convolution: optimal weights layout: ";
+    print_dnnl_memory_format(optimal_weights_md);
+    std::cout << " differs from user layout OHWI; reorder required" << std::endl;
     handle->user_weights_ohwi_md = user_weights_ohwi_md_local;
+    handle->external_buffer_compatible =
+        (optimal_weights_md.get_size() == user_weights_ohwi_md_local.get_size());
     handle->packed_weights = dnnl::memory(optimal_weights_md, handle->engine);
-    handle->packed_grad_weights = dnnl::memory(optimal_weights_md, handle->engine);
+    if (handle->external_buffer_compatible) {
+      // Gradients will be written directly into the external weight_gradients buffer; no
+      // separate allocation or back-reorder needed.
+      handle->packed_grad_weights = dnnl::memory(optimal_weights_md, handle->engine, nullptr);
+    } else {
+      handle->packed_grad_weights = dnnl::memory(optimal_weights_md, handle->engine);
+      auto reorder_pd_bwd = dnnl::reorder::primitive_desc(
+          handle->engine, optimal_weights_md, handle->engine, user_weights_ohwi_md_local);
+      handle->grad_weights_to_user_reorder = dnnl::reorder(reorder_pd_bwd);
+      handle->user_grad_weights_mem =
+          dnnl::memory(user_weights_ohwi_md_local, handle->engine, nullptr);
+    }
     auto reorder_pd_fwd = dnnl::reorder::primitive_desc(handle->engine, user_weights_ohwi_md_local,
                                                         handle->engine, optimal_weights_md);
     handle->weights_to_packed_reorder = dnnl::reorder(reorder_pd_fwd);
-    auto reorder_pd_bwd = dnnl::reorder::primitive_desc(handle->engine, optimal_weights_md,
-                                                        handle->engine, user_weights_ohwi_md_local);
-    handle->grad_weights_to_user_reorder = dnnl::reorder(reorder_pd_bwd);
     handle->user_weights_mem = dnnl::memory(user_weights_ohwi_md_local, handle->engine, nullptr);
-    handle->user_grad_weights_mem =
-        dnnl::memory(user_weights_ohwi_md_local, handle->engine, nullptr);
   } else {
     handle->fwd_weights_direct_mem = dnnl::memory(optimal_weights_md, handle->engine, nullptr);
   }
@@ -227,9 +279,30 @@ void run_forward(dnnlHandle_t *handle, const ConvolutionStats & /*stats*/, const
 
   dnnl::memory *weights_mem_ptr;
   if (handle->needs_weights_reorder) {
-    handle->user_weights_mem.set_data_handle(const_cast<void *>(weight_data));
-    handle->weights_to_packed_reorder.execute(
-        s, {{DNNL_ARG_FROM, handle->user_weights_mem}, {DNNL_ARG_TO, handle->packed_weights}});
+    if (handle->external_buffer_compatible) {
+      if (!handle->weights_is_packed) {
+        // One-time reorder: convert OHWI weights to the DNNL optimal blocked layout.
+        // After this the external weights_ buffer holds blocked data permanently and
+        // the optimizer can update it in-place without any further re-packing.
+        handle->user_weights_mem.set_data_handle(const_cast<void *>(weight_data));
+        handle->weights_to_packed_reorder.execute(
+            s, {{DNNL_ARG_FROM, handle->user_weights_mem}, {DNNL_ARG_TO, handle->packed_weights}});
+        s.wait();
+        size_t packed_size = handle->packed_weights.get_desc().get_size();
+        std::memcpy(const_cast<void *>(weight_data), handle->packed_weights.get_data_handle(),
+                    packed_size);
+        handle->packed_weights.set_data_handle(const_cast<void *>(weight_data));
+        handle->weights_is_packed = true;
+      } else {
+        // Weights are already in blocked format in the external buffer; just refresh the ptr.
+        handle->packed_weights.set_data_handle(const_cast<void *>(weight_data));
+      }
+    } else {
+      // Blocked format is larger than the user buffer (padding required).  Re-pack every call.
+      handle->user_weights_mem.set_data_handle(const_cast<void *>(weight_data));
+      handle->weights_to_packed_reorder.execute(
+          s, {{DNNL_ARG_FROM, handle->user_weights_mem}, {DNNL_ARG_TO, handle->packed_weights}});
+    }
     weights_mem_ptr = &handle->packed_weights;
   } else {
     handle->fwd_weights_direct_mem.set_data_handle(const_cast<void *>(weight_data));
@@ -270,6 +343,10 @@ void run_backward_data(dnnlHandle_t *handle, const ConvolutionStats & /*stats*/,
 
   dnnl::memory *weights_mem_ptr;
   if (handle->needs_weights_reorder) {
+    if (handle->external_buffer_compatible) {
+      // Blocked weights live in the external buffer; refresh the data handle.
+      handle->packed_weights.set_data_handle(const_cast<void *>(weight_data));
+    }
     weights_mem_ptr = &handle->packed_weights;
   } else {
     handle->bwd_data_weights_direct_mem.set_data_handle(const_cast<void *>(weight_data));
@@ -306,6 +383,11 @@ void run_backward_weights_and_bias(dnnlHandle_t *handle, const ConvolutionStats 
 
   dnnl::memory *diff_weights_mem_ptr;
   if (handle->needs_weights_reorder) {
+    if (handle->external_buffer_compatible) {
+      // Write gradients directly into the external weight_gradients_ buffer in blocked format.
+      // The optimizer will see blocked gradients and update the blocked weights in-place.
+      handle->packed_grad_weights.set_data_handle(grad_weight_data);
+    }
     diff_weights_mem_ptr = &handle->packed_grad_weights;
   } else {
     handle->bwd_weights_diff_weights_direct_mem.set_data_handle(grad_weight_data);
@@ -333,7 +415,9 @@ void run_backward_weights_and_bias(dnnlHandle_t *handle, const ConvolutionStats 
   }
 
   handle->bwd_weights_conv.execute(s, args);
-  if (handle->needs_weights_reorder) {
+  if (handle->needs_weights_reorder && !handle->external_buffer_compatible) {
+    // Incompatible buffer sizes: reorder blocked gradients back to the user OHWI layout so
+    // the optimizer can read them from weight_gradients_->data().
     handle->user_grad_weights_mem.set_data_handle(grad_weight_data);
     handle->grad_weights_to_user_reorder.execute(s, {{DNNL_ARG_FROM, handle->packed_grad_weights},
                                                      {DNNL_ARG_TO, handle->user_grad_weights_mem}});

@@ -15,9 +15,19 @@
 
 namespace tnn {
 
+void Layer::set_engine_type(EngineType engine_type) {
+  engine_type_ = engine_type;
+  on_set_engine_type(engine_type);
+}
+
+EngineType Layer::get_engine_type() const { return engine_type_; }
+
 void Layer::init() {
   if (initialized_) {
     throw std::runtime_error("Cannot initalize Layer more than once. ");
+  }
+  if (engine_type_ == EngineType::UNKNOWN) {
+    throw std::runtime_error("Engine type must be set to a valid value before initializing Layer.");
   }
   init_impl();
   initialized_ = true;

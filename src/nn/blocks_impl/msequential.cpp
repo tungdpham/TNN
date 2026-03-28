@@ -142,8 +142,6 @@ Vec<Tensor> MSequential::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_
 
   Vec<Tensor> join_outputs = join_layer_->forward(join_inputs, mb_id);
 
-  this->device().getFlow(this->flow_handle_)->synchronize();
-
   return join_outputs;
 }
 
@@ -160,7 +158,6 @@ Vec<Tensor> MSequential::backward_impl(const Vec<ConstTensor> &grad_outputs, siz
     grad_inputs[i] = sequences_[i]->backward({current_grads[i]}, mb_id)[0];
   }
 
-  this->device().getFlow(this->flow_handle_)->synchronize();
   return grad_inputs;
 }
 

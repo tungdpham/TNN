@@ -110,7 +110,7 @@ std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
     throw std::runtime_error("GroupNormLayer gamma dtype mismatch with dispatch Param_T");
   }
 #ifdef USE_CUDA
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(this->flow_handle_, cuda::groupnorm::run_forward_fused<Compute_T>,
                             input->data_as<Compute_T>(), group_mean->data_as<Compute_T>(),
                             group_inv_std->data_as<Compute_T>(),
@@ -147,7 +147,7 @@ std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
     throw std::runtime_error("GroupNormLayer gamma dtype mismatch with dispatch Param_T");
   }
 #ifdef USE_CUDA
-  if (this->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(this->flow_handle_, cuda::groupnorm::run_backward_fused<Compute_T>,
                             grad_output->data_as<Compute_T>(), norm_input->data_as<Compute_T>(),
                             inv_std->data_as<Compute_T>(), gamma->data_as<Compute_T>(),

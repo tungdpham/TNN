@@ -114,12 +114,11 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(
     throw std::runtime_error("AttentionBlock IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     throw std::runtime_error("AttentionBlock CPU implementation not yet available.");
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
-
+  else if (get_engine_type() == EngineType::CUDA) {
     size_t L = seq_len;
     size_t batch_count = batch_size * num_heads_;
 
@@ -193,11 +192,11 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
     throw std::runtime_error("AttentionBlock IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     throw std::runtime_error("AttentionBlock CPU implementation not yet available.");
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     auto q_raw = q->data_as<IO_T>();
     auto k_raw = k->data_as<IO_T>();
     auto v_raw = v->data_as<IO_T>();

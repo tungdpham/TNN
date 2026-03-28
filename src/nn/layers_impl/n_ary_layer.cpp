@@ -174,7 +174,7 @@ size_t NAryOpLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto output_shapes = this->output_shapes(input_shapes);
   size_t output_bytes = get_shapes_bytes(output_shapes, io_dtype_);
 #ifdef USE_CUDA
-  if (allocator_ && allocator_->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cuda::nary_forward_workspace_bytes(input_shapes.size()) + output_bytes;
   }
 #endif
@@ -188,7 +188,7 @@ size_t NAryOpLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
 size_t NAryOpLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   size_t input_bytes = get_shapes_bytes(input_shapes, io_dtype_);
 #ifdef USE_CUDA
-  if (allocator_ && allocator_->device().device_type() == DeviceType::GPU) {
+  if (get_engine_type() == EngineType::CUDA) {
     return cuda::nary_backward_workspace_bytes(input_shapes.size()) + input_bytes;
   }
 #endif

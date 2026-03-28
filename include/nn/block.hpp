@@ -17,6 +17,13 @@ public:
   }
 
 protected:
+  void on_set_engine_type(EngineType engine_type) override {
+    auto layers = this->layers();
+    for (auto &layer : layers) {
+      layer->set_engine_type(engine_type);
+    }
+  }
+
   void init_impl() override {
     auto layers = this->layers();
     for (auto &layer : layers) {

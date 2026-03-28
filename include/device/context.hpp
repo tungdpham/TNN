@@ -10,6 +10,7 @@
 #include <cstdlib>
 
 #include "common/endian.hpp"
+#include "device/engine.hpp"
 #include "flow.hpp"
 
 namespace tnn {
@@ -29,5 +30,6 @@ public:
   virtual void createFlow(flowHandle_t flow_id) = 0;
   virtual Endianness get_endianness() const = 0;
   virtual Flow *getFlow(flowHandle_t flow_id) = 0;
+  virtual EngineType get_engine() const = 0;
 };
 }  // namespace tnn
