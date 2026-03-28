@@ -427,15 +427,15 @@ Tensor Conv2DLayer::dnnl_backward(const ConstTensor &grad_output, size_t mb_id) 
   const size_t max_ws =
       std::max(current_stats.wgrad_workspace_size, current_stats.dgrad_workspace_size);
   Tensor workspace = get_workspace({max_ws}, DType_t::BYTE);
-  void *ws_ptr = max_ws > 0 ? workspace->data() : nullptr;
 
   // Run backward data first: grad_output is fresher in cache from the forward pass.
   create_cpu_task(this->flow_handle_, cpu::dnnl_conv2d::run_backward_data, dnnl_handle,
-                  current_stats, grad_output->data(), weights_->data(), grad_input->data(), ws_ptr);
+                  current_stats, grad_output->data(), weights_->data(), grad_input->data(),
+                  workspace->data());
 
   create_cpu_task(this->flow_handle_, cpu::dnnl_conv2d::run_backward_weights_and_bias, dnnl_handle,
                   current_stats, input->data(), grad_output->data(), weight_gradients_->data(),
-                  use_bias_ ? bias_gradients_->data() : nullptr, ws_ptr);
+                  use_bias_ ? bias_gradients_->data() : nullptr, workspace->data());
 
   return grad_input;
 }

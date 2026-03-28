@@ -25,6 +25,7 @@ dnnl::memory::data_type get_dnnl_dtype(DType_t dtype);
 
 // Build and cache DNNL convolution primitives. Populates workspace sizes inside `stats`.
 dnnlHandle_t *initialize_dnnl_handle(ConvolutionStats &stats, DType_t dtype);
+
 void destroy_dnnl_handle(dnnlHandle_t *handle);
 
 void run_forward(dnnlHandle_t *handle, const ConvolutionStats &stats, const void *input_data,
