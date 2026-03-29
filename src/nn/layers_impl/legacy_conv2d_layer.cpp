@@ -146,36 +146,30 @@ Tensor LegacyConv2DLayer::def_forward(const ConstTensor &input, size_t mb_id) {
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
   micro_batch_input_shapes_[mb_id] = input->shape();
-  Tensor output = get_tensor({batch_size, out_channels_, output_h, output_w}, this->io_dtype_);
+  Tensor output = get_output_tensor({batch_size, out_channels_, output_h, output_w});
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
   size_t col_matrix_size = kernel_size * output_size;
 
-  // Ensure per-microbatch col buffer is allocated
-  Tensor &col_buffer = micro_batch_col_buffers_[mb_id];
-  if (col_buffer == nullptr) {
-    col_buffer = get_tensor({col_matrix_size}, io_dtype_);
-  } else {
-    col_buffer->ensure({col_matrix_size});
-  }
+  Tensor col_buffer = get_cache_tensor({col_matrix_size}, io_dtype_);
+  set_mutable_cache(mb_id, "col_buffer", col_buffer);
 
   size_t output_buffer_size = out_channels_ * output_size;
-  Tensor temp_output_buffer = get_tensor({output_buffer_size}, io_dtype_);
+  Tensor temp_output_buffer = get_workspace({output_buffer_size}, io_dtype_);
 
   DISPATCH_IO_DTYPE(ops::im2col, input, col_buffer, kernel_h_, kernel_w_, stride_h_, stride_w_,
                     pad_h_, pad_w_, this->flow_handle_);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_conv_forward_impl, col_buffer, weights_,
-                                 temp_output_buffer, output_size, kernel_size, out_channels_,
-                                 this->flow_handle_);
+  DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward, col_buffer, weights_, temp_output_buffer, output_size,
+                                 kernel_size, out_channels_, this->flow_handle_);
 
   DISPATCH_IO_DTYPE(ops::cnhw_to_nchw, temp_output_buffer, output, batch_size, out_channels_,
                     output_h, output_w, this->flow_handle_);
 
   if (use_bias_) {
-    DISPATCH_ON_3_DTYPES_TO_METHOD(add_bias_to_output_impl, output, bias_, batch_size, output_h,
-                                   output_w, out_channels_, this->flow_handle_);
+    DISPATCH_ON_3_DTYPES_TO_METHOD(add_bias, output, bias_, batch_size, output_h, output_w,
+                                   out_channels_, this->flow_handle_);
   }
 
   return output;
@@ -196,7 +190,7 @@ Tensor LegacyConv2DLayer::def_backward(const ConstTensor &grad_output, size_t mb
   const size_t output_h = grad_output->dimension(2);
   const size_t output_w = grad_output->dimension(3);
 
-  Tensor grad_input = get_tensor(input_shape, this->io_dtype_);
+  Tensor grad_input = get_output_tensor(input_shape);
   grad_input->fill(0);  // col2im accumulates, so we need to zero first
 
   auto it_col_buffer = micro_batch_col_buffers_.find(mb_id);
@@ -210,17 +204,17 @@ Tensor LegacyConv2DLayer::def_backward(const ConstTensor &grad_output, size_t mb
   size_t col_grad_matrix_size = kernel_size * output_size;
 
   size_t gradient_buffer_size = out_channels_ * output_size;
-  Tensor temp_gradient_buffer = get_tensor({gradient_buffer_size}, io_dtype_);
-  Tensor temp_col_grad_matrix_buffer = get_tensor({col_grad_matrix_size}, io_dtype_);
+  Tensor temp_gradient_buffer = get_workspace({gradient_buffer_size}, io_dtype_);
+  Tensor temp_col_grad_matrix_buffer = get_workspace({col_grad_matrix_size}, io_dtype_);
 
   DISPATCH_IO_DTYPE(ops::nchw_to_cnhw, grad_output, temp_gradient_buffer, batch_size, out_channels_,
                     output_h, output_w, this->flow_handle_);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_weight_gradients_impl, it_col_buffer->second,
-                                 temp_gradient_buffer, weight_gradients_, output_size, kernel_size,
-                                 out_channels_, this->flow_handle_);
+  DISPATCH_ON_3_DTYPES_TO_METHOD(run_wgrad, it_col_buffer->second, temp_gradient_buffer,
+                                 weight_gradients_, output_size, kernel_size, out_channels_,
+                                 this->flow_handle_);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_input_gradients_impl, temp_gradient_buffer, weights_,
+  DISPATCH_ON_3_DTYPES_TO_METHOD(run_dgrad, temp_gradient_buffer, weights_,
                                  temp_col_grad_matrix_buffer, output_size, kernel_size,
                                  out_channels_, this->flow_handle_);
 
@@ -229,9 +223,8 @@ Tensor LegacyConv2DLayer::def_backward(const ConstTensor &grad_output, size_t mb
                     this->flow_handle_);
 
   if (use_bias_) {
-    DISPATCH_ON_3_DTYPES_TO_METHOD(compute_bias_gradients_impl, grad_output, bias_gradients_,
-                                   batch_size, output_h, output_w, out_channels_,
-                                   this->flow_handle_);
+    DISPATCH_ON_3_DTYPES_TO_METHOD(run_bgrad, grad_output, bias_gradients_, batch_size, output_h,
+                                   output_w, out_channels_, this->flow_handle_);
   }
 
   return grad_input;
@@ -287,7 +280,7 @@ Tensor LegacyConv2DLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) 
     this->set_immutable_cache(mb_id, "input", input);
   }
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_compute_fwd, input, weights_, bias_, output, batch_size,
+  DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_run_forward, input, weights_, bias_, output, batch_size,
                                  input_h, input_w, output_h, output_w, cudnn_workspace,
                                  this->flow_handle_);
 
@@ -318,16 +311,16 @@ Tensor LegacyConv2DLayer::cudnn_backward(const ConstTensor &grad_output, size_t 
 
   Tensor cudnn_workspace = this->get_workspace({bwd_workspace}, DType_t::BYTE);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_backward_filter, input, grad_output, weight_gradients_,
-                                 batch_size, input_h, input_w, output_h, output_w, cudnn_workspace,
+  DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_run_wgrad, input, grad_output, weight_gradients_, batch_size,
+                                 input_h, input_w, output_h, output_w, cudnn_workspace,
                                  this->flow_handle_);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_backward_data, grad_output, weights_, grad_input, batch_size,
+  DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_run_dgrad, grad_output, weights_, grad_input, batch_size,
                                  input_h, input_w, output_h, output_w, cudnn_workspace,
                                  this->flow_handle_);
 
   if (use_bias_) {
-    DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_backward_bias, grad_output, bias_gradients_, batch_size,
+    DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_run_bgrad, grad_output, bias_gradients_, batch_size,
                                    output_h, output_w, out_channels_, this->flow_handle_);
   }
 
@@ -335,7 +328,7 @@ Tensor LegacyConv2DLayer::cudnn_backward(const ConstTensor &grad_output, size_t 
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyConv2DLayer::cudnn_compute_fwd(
+std::unique_ptr<Task> LegacyConv2DLayer::cudnn_run_forward(
     const ConstTensor &input, const ConstTensor &weight, const ConstTensor bias,
     const Tensor &output, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
     size_t output_w, const Tensor &cudnn_workspace, flowHandle_t handle) {
@@ -355,7 +348,7 @@ std::unique_ptr<Task> LegacyConv2DLayer::cudnn_compute_fwd(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_data(
+std::unique_ptr<Task> LegacyConv2DLayer::cudnn_run_dgrad(
     const ConstTensor &grad_output, const ConstTensor &weight, const Tensor &input_grad,
     size_t batch_size, size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const Tensor &cudnn_workspace, flowHandle_t handle) {
@@ -375,7 +368,7 @@ std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_data(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_filter(
+std::unique_ptr<Task> LegacyConv2DLayer::cudnn_run_wgrad(
     const ConstTensor &input, const ConstTensor &grad_output, const Tensor &weight_grad,
     size_t batch_size, size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const Tensor &cudnn_workspace, flowHandle_t handle) {
@@ -395,11 +388,10 @@ std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_filter(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_bias(const ConstTensor &grad_output,
-                                                             const Tensor &bias_grad,
-                                                             size_t batch_size, size_t output_h,
-                                                             size_t output_w, size_t out_channels,
-                                                             flowHandle_t handle) {
+std::unique_ptr<Task> LegacyConv2DLayer::cudnn_run_bgrad(const ConstTensor &grad_output,
+                                                         const Tensor &bias_grad, size_t batch_size,
+                                                         size_t output_h, size_t output_w,
+                                                         size_t out_channels, flowHandle_t handle) {
   if (grad_output->device_type() != DeviceType::GPU) {
     throw std::runtime_error("cuDNN backward bias requires GPU device");
   }
@@ -419,7 +411,7 @@ std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_bias(const ConstTensor &
 #endif
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyConv2DLayer::compute_conv_forward_impl(
+std::unique_ptr<Task> LegacyConv2DLayer::run_forward(
     const ConstTensor &col_data, const ConstTensor &weight_data, const Tensor &output_data,
     const size_t output_size, const size_t kernel_size, const size_t out_channels,
     flowHandle_t handle) {
@@ -460,10 +452,12 @@ std::unique_ptr<Task> LegacyConv2DLayer::compute_conv_forward_impl(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyConv2DLayer::compute_weight_gradients_impl(
-    const ConstTensor &col_data, const ConstTensor &gradient_data, const Tensor &weight_grad_data,
-    const size_t output_size, const size_t kernel_size, const size_t out_channels,
-    flowHandle_t handle) {
+std::unique_ptr<Task> LegacyConv2DLayer::run_wgrad(const ConstTensor &col_data,
+                                                   const ConstTensor &gradient_data,
+                                                   const Tensor &weight_grad_data,
+                                                   const size_t output_size,
+                                                   const size_t kernel_size,
+                                                   const size_t out_channels, flowHandle_t handle) {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "LegacyConv2DLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -501,7 +495,7 @@ std::unique_ptr<Task> LegacyConv2DLayer::compute_weight_gradients_impl(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyConv2DLayer::compute_input_gradients_impl(
+std::unique_ptr<Task> LegacyConv2DLayer::run_dgrad(
     const ConstTensor &gradient_data, const ConstTensor &weight_data, const Tensor &col_grad_data,
     const size_t output_size, const size_t kernel_size, const size_t out_channels,
     flowHandle_t handle) const {
@@ -543,9 +537,11 @@ std::unique_ptr<Task> LegacyConv2DLayer::compute_input_gradients_impl(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyConv2DLayer::compute_bias_gradients_impl(
-    const ConstTensor &gradient_data, const Tensor &bias_grad_data, const size_t batch_size,
-    const size_t output_h, const size_t output_w, const size_t out_channels, flowHandle_t handle) {
+std::unique_ptr<Task> LegacyConv2DLayer::run_bgrad(const ConstTensor &gradient_data,
+                                                   const Tensor &bias_grad_data,
+                                                   const size_t batch_size, const size_t output_h,
+                                                   const size_t output_w, const size_t out_channels,
+                                                   flowHandle_t handle) {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "LegacyConv2DLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -582,10 +578,11 @@ std::unique_ptr<Task> LegacyConv2DLayer::compute_bias_gradients_impl(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyConv2DLayer::add_bias_to_output_impl(
-    const Tensor &output_data, const ConstTensor &bias_data, const size_t batch_size,
-    const size_t output_h, const size_t output_w, const size_t out_channels,
-    flowHandle_t handle) const {
+std::unique_ptr<Task> LegacyConv2DLayer::add_bias(const Tensor &output_data,
+                                                  const ConstTensor &bias_data,
+                                                  const size_t batch_size, const size_t output_h,
+                                                  const size_t output_w, const size_t out_channels,
+                                                  flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "LegacyConv2DLayer mixed dtype dispatch not implemented (io/param/compute must match).");

@@ -56,38 +56,34 @@ private:
 #endif
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_conv_forward_impl(const ConstTensor &col_data,
-                                                  const ConstTensor &weight_data,
-                                                  const Tensor &output_data,
-                                                  const size_t output_size,
-                                                  const size_t kernel_size,
-                                                  const size_t out_channels, flowHandle_t handle);
+  std::unique_ptr<Task> run_forward(const ConstTensor &col_data, const ConstTensor &weight_data,
+                                    const Tensor &output_data, const size_t output_size,
+                                    const size_t kernel_size, const size_t out_channels,
+                                    flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> add_bias_to_output_impl(const Tensor &output_data,
-                                                const ConstTensor &bias_data,
-                                                const size_t batch_size, const size_t output_h,
-                                                const size_t output_w, const size_t out_channels,
-                                                flowHandle_t handle) const;
+  std::unique_ptr<Task> add_bias(const Tensor &output_data, const ConstTensor &bias_data,
+                                 const size_t batch_size, const size_t output_h,
+                                 const size_t output_w, const size_t out_channels,
+                                 flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_weight_gradients_impl(
-      const ConstTensor &col_data, const ConstTensor &gradient_data, const Tensor &weight_grad_data,
-      const size_t output_size, const size_t kernel_size, const size_t out_channels,
-      flowHandle_t handle);
+  std::unique_ptr<Task> run_wgrad(const ConstTensor &col_data, const ConstTensor &gradient_data,
+                                  const Tensor &weight_grad_data, const size_t output_size,
+                                  const size_t kernel_size, const size_t out_channels,
+                                  flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_input_gradients_impl(
-      const ConstTensor &gradient_data, const ConstTensor &weight_data, const Tensor &col_grad_data,
-      const size_t output_size, const size_t kernel_size, const size_t out_channels,
-      flowHandle_t handle) const;
+  std::unique_ptr<Task> run_dgrad(const ConstTensor &gradient_data, const ConstTensor &weight_data,
+                                  const Tensor &col_grad_data, const size_t output_size,
+                                  const size_t kernel_size, const size_t out_channels,
+                                  flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_bias_gradients_impl(const ConstTensor &gradient_data,
-                                                    const Tensor &bias_grad_data,
-                                                    const size_t batch_size, const size_t output_h,
-                                                    const size_t output_w,
-                                                    const size_t out_channels, flowHandle_t handle);
+  std::unique_ptr<Task> run_bgrad(const ConstTensor &gradient_data, const Tensor &bias_grad_data,
+                                  const size_t batch_size, const size_t output_h,
+                                  const size_t output_w, const size_t out_channels,
+                                  flowHandle_t handle);
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
@@ -114,31 +110,29 @@ private:
 
 #ifdef USE_CUDNN
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> cudnn_compute_fwd(const ConstTensor &input, const ConstTensor &weight,
+  std::unique_ptr<Task> cudnn_run_forward(const ConstTensor &input, const ConstTensor &weight,
                                           const ConstTensor bias, const Tensor &output,
                                           size_t batch_size, size_t input_h, size_t input_w,
                                           size_t output_h, size_t output_w,
                                           const Tensor &cudnn_workspace, flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> cudnn_backward_data(const ConstTensor &grad_output,
-                                            const ConstTensor &weight, const Tensor &input_grad,
-                                            size_t batch_size, size_t input_h, size_t input_w,
-                                            size_t output_h, size_t output_w,
-                                            const Tensor &cudnn_workspace, flowHandle_t handle);
+  std::unique_ptr<Task> cudnn_run_dgrad(const ConstTensor &grad_output, const ConstTensor &weight,
+                                        const Tensor &input_grad, size_t batch_size, size_t input_h,
+                                        size_t input_w, size_t output_h, size_t output_w,
+                                        const Tensor &cudnn_workspace, flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> cudnn_backward_filter(const ConstTensor &input,
-                                              const ConstTensor &grad_output,
-                                              const Tensor &weight_grad, size_t batch_size,
-                                              size_t input_h, size_t input_w, size_t output_h,
-                                              size_t output_w, const Tensor &cudnn_workspace,
-                                              flowHandle_t handle);
+  std::unique_ptr<Task> cudnn_run_wgrad(const ConstTensor &input, const ConstTensor &grad_output,
+                                        const Tensor &weight_grad, size_t batch_size,
+                                        size_t input_h, size_t input_w, size_t output_h,
+                                        size_t output_w, const Tensor &cudnn_workspace,
+                                        flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> cudnn_backward_bias(const ConstTensor &grad_output, const Tensor &bias_grad,
-                                            size_t batch_size, size_t output_h, size_t output_w,
-                                            size_t out_channels, flowHandle_t handle);
+  std::unique_ptr<Task> cudnn_run_bgrad(const ConstTensor &grad_output, const Tensor &bias_grad,
+                                        size_t batch_size, size_t output_h, size_t output_w,
+                                        size_t out_channels, flowHandle_t handle);
 #endif
 
   Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
