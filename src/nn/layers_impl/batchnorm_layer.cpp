@@ -170,9 +170,6 @@ Tensor BatchNormLayer::def_backward(const ConstTensor &grad_output, size_t mb_id
     throw std::runtime_error("BatchNormLayer::def_backward only supports CPU device");
   }
 
-  batch_mean = nullptr;
-  batch_invar = nullptr;
-
   return grad_input;
 }
 
