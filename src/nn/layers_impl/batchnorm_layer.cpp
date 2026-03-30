@@ -18,6 +18,9 @@
 #include "device/cuda/cuda_context.hpp"
 #include "nn/layers_impl/cuda/cudnn_batchnorm_ops.hpp"
 #endif
+#ifdef USE_DNNL
+#include "nn/layers_impl/cpu/dnnl_batchnorm_ops.hpp"
+#endif
 #include <cmath>
 #include <memory>
 #include <stdexcept>
@@ -41,6 +44,15 @@ BatchNormLayer::~BatchNormLayer() {
     }
   }
   fe_handle_cache.clear();
+#endif
+#ifdef USE_DNNL
+  for (auto &pair : dnnl_handle_cache) {
+    if (pair.second) {
+      cpu::dnnl_batchnorm::destroy_dnnl_handle(pair.second);
+    }
+  }
+  dnnl_handle_cache.clear();
+  dnnl_stats_cache.clear();
 #endif
 }
 
@@ -80,6 +92,11 @@ Tensor BatchNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
     return cudnn_forward(input, mb_id);
   }
 #endif
+#ifdef USE_DNNL
+  if (get_engine_type() == EngineType::CPU) {
+    return dnnl_forward(input, mb_id);
+  }
+#endif
   return def_forward(input, mb_id);
 }
 
@@ -87,6 +104,11 @@ Tensor BatchNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
 #ifdef USE_CUDNN
   if (get_engine_type() == EngineType::CUDA) {
     return cudnn_backward(grad_output, mb_id);
+  }
+#endif
+#ifdef USE_DNNL
+  if (get_engine_type() == EngineType::CPU) {
+    return dnnl_backward(grad_output, mb_id);
   }
 #endif
   return def_backward(grad_output, mb_id);
@@ -353,9 +375,114 @@ std::unique_ptr<Task> BatchNormLayer::backward_task(
 }
 #endif
 
+#ifdef USE_DNNL
+void BatchNormLayer::build_dnnl_handle(const Vec<size_t> &input_shape) const {
+  size_t shape_key = get_shape_hash(input_shape);
+  if (dnnl_handle_cache.find(shape_key) == dnnl_handle_cache.end()) {
+    BatchNormStats new_stats;
+    init_batchnorm_stats(new_stats, input_shape[0], input_shape[1], input_shape[2], input_shape[3],
+                         epsilon_, momentum_, use_relu_, affine_);
+    dnnl_handle_cache[shape_key] =
+        cpu::dnnl_batchnorm::initialize_dnnl_handle(new_stats, io_dtype_);
+    dnnl_stats_cache[shape_key] = new_stats;
+  }
+}
+
+Tensor BatchNormLayer::dnnl_forward(const ConstTensor &input, size_t mb_id) {
+  build_dnnl_handle(input->shape());
+  const size_t shape_key = get_shape_hash(input->shape());
+  cpu::dnnl_batchnorm::dnnlBNHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
+  const BatchNormStats &current_stats = dnnl_stats_cache.at(shape_key);
+
+  Tensor output = get_output_tensor(input->shape());
+
+  if (this->is_training_) {
+    set_immutable_cache(mb_id, "input", input);
+
+    Tensor batch_mean = get_cache_tensor({current_stats.channels}, DType_t::FP32);
+    Tensor batch_var = get_cache_tensor({current_stats.channels}, DType_t::FP32);
+    set_mutable_cache(mb_id, "dnnl_mean", batch_mean);
+    set_mutable_cache(mb_id, "dnnl_var", batch_var);
+
+    Tensor relu_ws;
+    if (use_relu_) {
+      relu_ws = get_cache_tensor({current_stats.relu_workspace_size}, DType_t::BYTE);
+      set_mutable_cache(mb_id, "dnnl_relu_ws", relu_ws);
+    }
+
+    Tensor workspace = get_workspace({current_stats.fwd_workspace_size}, DType_t::BYTE);
+
+    create_cpu_task(this->flow_handle_, cpu::dnnl_batchnorm::run_forward_training, dnnl_handle,
+                    current_stats, input->data(), affine_ ? gamma_->data() : nullptr,
+                    affine_ ? beta_->data() : nullptr, output->data(), batch_mean->data(),
+                    batch_var->data(), use_relu_ ? relu_ws->data() : nullptr,
+                    current_stats.fwd_workspace_size > 0 ? workspace->data() : nullptr);
+  } else {
+    Tensor workspace = get_workspace({current_stats.inf_workspace_size}, DType_t::BYTE);
+
+    create_cpu_task(this->flow_handle_, cpu::dnnl_batchnorm::run_forward_inference, dnnl_handle,
+                    current_stats, input->data(), affine_ ? gamma_->data() : nullptr,
+                    affine_ ? beta_->data() : nullptr, running_mean_->data(), running_var_->data(),
+                    output->data(),
+                    current_stats.inf_workspace_size > 0 ? workspace->data() : nullptr);
+  }
+
+  return output;
+}
+
+Tensor BatchNormLayer::dnnl_backward(const ConstTensor &grad_output, size_t mb_id) {
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
+  if (!input) {
+    throw std::runtime_error("dnnl_backward: no cached input for mb_id " + std::to_string(mb_id));
+  }
+
+  Tensor &batch_mean = this->get_mutable_cache(mb_id, "dnnl_mean");
+  Tensor &batch_var = this->get_mutable_cache(mb_id, "dnnl_var");
+
+  const auto &input_shape = input->shape();
+  build_dnnl_handle(input_shape);
+  const size_t shape_key = get_shape_hash(input_shape);
+  cpu::dnnl_batchnorm::dnnlBNHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
+  const BatchNormStats &current_stats = dnnl_stats_cache.at(shape_key);
+
+  Tensor grad_input = get_output_tensor(input_shape);
+  Tensor workspace = get_workspace({current_stats.bwd_workspace_size}, DType_t::BYTE);
+
+  void *relu_ws_ptr = nullptr;
+  if (use_relu_) {
+    relu_ws_ptr = this->get_mutable_cache(mb_id, "dnnl_relu_ws")->data();
+  }
+
+  create_cpu_task(this->flow_handle_, cpu::dnnl_batchnorm::run_backward, dnnl_handle, current_stats,
+                  input->data(), grad_output->data(), grad_input->data(),
+                  affine_ ? gamma_->data() : nullptr, affine_ ? gamma_gradients_->data() : nullptr,
+                  affine_ ? beta_gradients_->data() : nullptr, batch_mean->data(),
+                  batch_var->data(), relu_ws_ptr,
+                  current_stats.bwd_workspace_size > 0 ? workspace->data() : nullptr);
+
+  batch_mean = nullptr;
+  batch_var = nullptr;
+
+  return grad_input;
+}
+#endif  // USE_DNNL
+
 size_t BatchNormLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
   size_t total_cache = 0;
-  total_cache += get_shapes_bytes(input_shapes, io_dtype_);       // cache input for backward
+  total_cache += get_shapes_bytes(input_shapes, io_dtype_);  // cache input for backward
+#ifdef USE_DNNL
+  if (get_engine_type() == EngineType::CPU) {
+    // DNNL caches FP32 mean and variance (not packed invar like the default path)
+    total_cache += 2 * num_features_ * sizeof(fp32);  // dnnl_mean + dnnl_var
+    auto &shape = input_shapes[0];
+    if (!shape.empty() && shape.size() >= 4 && use_relu_) {
+      build_dnnl_handle(shape);
+      const size_t shape_key = get_shape_hash(shape);
+      total_cache += dnnl_stats_cache.at(shape_key).relu_workspace_size;
+    }
+    return total_cache;
+  }
+#endif
   total_cache += affine_ ? 2 * num_features_ * sizeof(fp32) : 0;  // cache batch mean and invar
   if (use_relu_) {
     total_cache += get_shapes_bytes(input_shapes, DType_t::BOOL);  // cache ReLU mask
@@ -375,6 +502,12 @@ size_t BatchNormLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const
   auto output_shapes = this->output_shapes(input_shapes);
   size_t total_workspace = stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
   return total_workspace;
+#elif defined(USE_DNNL)
+  build_dnnl_handle(shape);
+  const size_t shape_key = get_shape_hash(shape);
+  const BatchNormStats &stats = dnnl_stats_cache.at(shape_key);
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif
@@ -391,6 +524,12 @@ size_t BatchNormLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const
   round_workspace_size(stats);
   auto output_shapes = this->output_shapes(input_shapes);
   return get_shapes_bytes(output_shapes, io_dtype_) + stats.inf_workspace_size;
+#elif defined(USE_DNNL)
+  build_dnnl_handle(shape);
+  const size_t shape_key = get_shape_hash(shape);
+  const BatchNormStats &stats = dnnl_stats_cache.at(shape_key);
+  auto output_shapes = this->output_shapes(input_shapes);
+  return stats.inf_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
 #else
   return 0;
 #endif  // USE_CUDNN
@@ -407,7 +546,16 @@ size_t BatchNormLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const
   round_workspace_size(stats);
   auto output_shapes = this->output_shapes(input_shapes);
   return get_shapes_bytes(output_shapes, io_dtype_) + stats.bwd_workspace_size;
-
+#elif defined(USE_DNNL)
+  build_dnnl_handle(shape);
+  const size_t shape_key = get_shape_hash(shape);
+  const BatchNormStats &stats = dnnl_stats_cache.at(shape_key);
+  size_t grad_input_bytes = 0;
+  for (const auto &in_shape : input_shapes) {
+    grad_input_bytes += std::accumulate(in_shape.begin(), in_shape.end(), get_dtype_size(io_dtype_),
+                                        std::multiplies<size_t>());
+  }
+  return stats.bwd_workspace_size + grad_input_bytes;
 #else
   return 0;
 #endif

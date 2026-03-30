@@ -20,6 +20,9 @@
 
 #include "cuda/cudnn_batchnorm_ops.hpp"
 #endif
+#ifdef USE_DNNL
+#include "nn/layers_impl/cpu/dnnl_batchnorm_ops.hpp"
+#endif
 
 namespace tnn {
 
@@ -42,6 +45,15 @@ private:
   Tensor dummy_var_gradients_;
 
   mutable std::unordered_map<size_t, BatchNormStats> stats_cache;
+
+#ifdef USE_DNNL
+  void build_dnnl_handle(const Vec<size_t> &input_shape) const;
+  Tensor dnnl_forward(const ConstTensor &input, size_t mb_id);
+  Tensor dnnl_backward(const ConstTensor &grad_output, size_t mb_id);
+
+  mutable std::unordered_map<size_t, cpu::dnnl_batchnorm::dnnlBNHandle_t *> dnnl_handle_cache;
+  mutable std::unordered_map<size_t, BatchNormStats> dnnl_stats_cache;
+#endif
 
 #ifdef USE_CUDNN
   void build_graph(const Vec<size_t> &input_shape) const;

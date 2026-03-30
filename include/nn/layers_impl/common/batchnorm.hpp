@@ -17,14 +17,16 @@ struct BatchNormStats {
   double epsilon = 1e-5;
   double momentum = 0.1;
   bool use_relu = false;
+  bool affine = true;
   size_t fwd_workspace_size = 0;
   size_t bwd_workspace_size = 0;
   size_t inf_workspace_size = 0;
+  size_t relu_workspace_size = 0;  // DNNL fuse_norm_relu workspace (separate from scratchpad)
 };
 
 inline void init_batchnorm_stats(BatchNormStats &stats, size_t batch_size, size_t height,
                                  size_t width, size_t channels, double epsilon, double momentum,
-                                 bool use_relu) {
+                                 bool use_relu, bool affine = true) {
   stats.batch_size = batch_size;
   stats.channels = channels;
   stats.height = height;
@@ -32,9 +34,11 @@ inline void init_batchnorm_stats(BatchNormStats &stats, size_t batch_size, size_
   stats.epsilon = epsilon;
   stats.momentum = momentum;
   stats.use_relu = use_relu;
+  stats.affine = affine;
   stats.fwd_workspace_size = 0;
   stats.bwd_workspace_size = 0;
   stats.inf_workspace_size = 0;
+  stats.relu_workspace_size = 0;
 }
 
 inline void round_workspace_size(BatchNormStats &stats, size_t alignment = 16) {
