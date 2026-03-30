@@ -6,13 +6,10 @@
  */
 #include "nn/layers_impl/cpu/dnnl_conv2d_ops.hpp"
 
-#include <iostream>
-#include <oneapi/dnnl/dnnl.hpp>
-
 #ifdef USE_DNNL
-
 #include <cstring>
 #include <dnnl.hpp>
+#include <oneapi/dnnl/dnnl.hpp>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -89,39 +86,6 @@ dnnl::memory::data_type get_dnnl_dtype(DType_t dtype) {
   }
 }
 
-void print_dnnl_memory_format_kind(const dnnl::memory::desc &md) {
-  auto fmt = md.get_format_kind();
-  switch (fmt) {
-    case dnnl::memory::format_kind::undef:
-      std::cout << "undef";
-      break;
-    case dnnl::memory::format_kind::any:
-      std::cout << "any";
-      break;
-    case dnnl::memory::format_kind::blocked:
-      std::cout << "blocked";
-      break;
-    case dnnl::memory::format_kind::opaque:
-      std::cout << "opaque";
-      break;
-    case dnnl::memory::format_kind::sparse:
-      std::cout << "sparse";
-      break;
-    default:
-      std::cout << "unknown_format";
-  }
-}
-
-void print_dnnl_memory_format(const dnnl::memory::desc &md) {
-  print_dnnl_memory_format_kind(md);
-  std::cout << " (ndims=" << md.get_ndims() << ", dims=[";
-  for (int i = 0; i < md.get_ndims(); ++i) {
-    std::cout << md.get_dims()[i];
-    if (i < md.get_ndims() - 1) std::cout << ",";
-  }
-  std::cout << "])";
-}
-
 dnnlHandle_t *initialize_dnnl_handle(ConvolutionStats &stats, DType_t dtype) {
   auto *handle = new dnnlHandle_t();
   handle->engine = dnnl::engine(dnnl::engine::kind::cpu, 0);
@@ -159,9 +123,9 @@ dnnlHandle_t *initialize_dnnl_handle(ConvolutionStats &stats, DType_t dtype) {
 
   // fwd setup
   {
-    auto any_src_md = dnnl::memory::desc({n, ic, ih, iw}, dt, dnnl::memory::format_tag::any);
+    auto any_src_md = dnnl::memory::desc({n, ic, ih, iw}, dt, dnnl::memory::format_tag::nhwc);
     auto any_weights_md = dnnl::memory::desc({oc, ic, kh, kw}, dt, dnnl::memory::format_tag::any);
-    auto any_dst_md = dnnl::memory::desc({n, oc, oh, ow}, dt, dnnl::memory::format_tag::any);
+    auto any_dst_md = dnnl::memory::desc({n, oc, oh, ow}, dt, dnnl::memory::format_tag::nhwc);
 
     if (stats.use_bias) {
       auto bias_md = dnnl::memory::desc({oc}, dt, dnnl::memory::format_tag::a);
@@ -211,9 +175,9 @@ dnnlHandle_t *initialize_dnnl_handle(ConvolutionStats &stats, DType_t dtype) {
 
   // dgrad setup
   {
-    auto any_src_md = dnnl::memory::desc({n, ic, ih, iw}, dt, dnnl::memory::format_tag::any);
+    auto any_src_md = dnnl::memory::desc({n, ic, ih, iw}, dt, dnnl::memory::format_tag::nhwc);
     auto any_weights_md = dnnl::memory::desc({oc, ic, kh, kw}, dt, dnnl::memory::format_tag::any);
-    auto any_dst_md = dnnl::memory::desc({n, oc, oh, ow}, dt, dnnl::memory::format_tag::any);
+    auto any_dst_md = dnnl::memory::desc({n, oc, oh, ow}, dt, dnnl::memory::format_tag::nhwc);
 
     auto bwd_data_pd = dnnl::convolution_backward_data::primitive_desc(
         handle->engine, dnnl::algorithm::convolution_auto, any_src_md, any_weights_md, any_dst_md,
@@ -255,9 +219,9 @@ dnnlHandle_t *initialize_dnnl_handle(ConvolutionStats &stats, DType_t dtype) {
 
   // wgrad setup
   {
-    auto any_src_md = dnnl::memory::desc({n, ic, ih, iw}, dt, dnnl::memory::format_tag::any);
+    auto any_src_md = dnnl::memory::desc({n, ic, ih, iw}, dt, dnnl::memory::format_tag::nhwc);
     auto any_weights_md = dnnl::memory::desc({oc, ic, kh, kw}, dt, dnnl::memory::format_tag::any);
-    auto any_dst_md = dnnl::memory::desc({n, oc, oh, ow}, dt, dnnl::memory::format_tag::any);
+    auto any_dst_md = dnnl::memory::desc({n, oc, oh, ow}, dt, dnnl::memory::format_tag::nhwc);
 
     dnnl::convolution_backward_weights::primitive_desc bwd_weights_pd;
     if (stats.use_bias) {
@@ -415,6 +379,7 @@ void run_backward_data(dnnlHandle_t *handle, const ConvolutionStats &stats,
   }
 
   s.wait();
+
   // auto end_time = std::chrono::high_resolution_clock::now();
   // auto duration_ms =
   //     std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
@@ -471,6 +436,7 @@ void run_backward_weights_and_bias(dnnlHandle_t *handle, const ConvolutionStats 
   }
 
   s.wait();
+
   // auto end_time = std::chrono::high_resolution_clock::now();
   // auto duration_ms =
   //     std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();

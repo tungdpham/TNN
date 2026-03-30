@@ -230,8 +230,14 @@ void run_forward_training(dnnlBNHandle_t *handle, const BatchNormStats &stats,
     args[DNNL_ARG_WORKSPACE] = handle->fwd_workspace_mem;
   }
 
+  // auto start_time = std::chrono::high_resolution_clock::now();
   handle->fwd_prim.execute(s, args);
   s.wait();
+
+  // auto end_time = std::chrono::high_resolution_clock::now();
+  // auto duration_ms =
+  //     std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+  // std::cout << "DNNL batchnorm forward training pass took " << duration_ms << " ms" << std::endl;
 }
 
 void run_forward_inference(dnnlBNHandle_t *handle, const BatchNormStats &stats,
@@ -313,8 +319,13 @@ void run_backward(dnnlBNHandle_t *handle, const BatchNormStats &stats, const voi
     args[DNNL_ARG_WORKSPACE] = handle->bwd_workspace_mem;
   }
 
+  // auto start_time = std::chrono::high_resolution_clock::now();
   handle->bwd_prim.execute(s, args);
   s.wait();
+  // auto end_time = std::chrono::high_resolution_clock::now();
+  // auto duration_ms =
+  //     std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+  // std::cout << "DNNL batchnorm backward pass took " << duration_ms << " ms" << std::endl;
 }
 
 }  // namespace dnnl_batchnorm

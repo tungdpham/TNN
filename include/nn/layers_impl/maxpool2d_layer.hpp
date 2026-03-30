@@ -11,8 +11,12 @@
 #include <unordered_map>
 
 #include "device/task.hpp"
+#include "nn/layers_impl/common/maxpool.hpp"
 #include "stateless_layer.hpp"
 #include "tensor/tensor.hpp"
+#ifdef USE_DNNL
+#include "nn/layers_impl/cpu/dnnl_maxpool_ops.hpp"
+#endif
 
 namespace tnn {
 
@@ -29,6 +33,15 @@ private:
 
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
+
+#ifdef USE_DNNL
+  void build_dnnl_handle(const Vec<size_t> &input_shape) const;
+  Tensor dnnl_forward(const ConstTensor &input, size_t mb_id);
+  Tensor dnnl_backward(const ConstTensor &grad_output, size_t mb_id);
+
+  mutable std::unordered_map<size_t, cpu::dnnl_maxpool::dnnlMaxPoolHandle_t *> dnnl_handle_cache;
+  mutable std::unordered_map<size_t, MaxPoolStats> dnnl_stats_cache;
+#endif
 
   template <typename IO_T>
   std::unique_ptr<Task> compute_max_pool_forward_impl(const ConstTensor &input_data,
@@ -65,6 +78,7 @@ private:
 public:
   MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
                  size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "maxpool2d");
+  ~MaxPool2DLayer();
 
   static constexpr const char *TYPE_NAME = "maxpool2d";
 
@@ -72,18 +86,10 @@ public:
   LayerConfig get_config() const override;
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    return get_shapes_bytes(input_shapes, io_dtype_);
-  }
+  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
 
   static std::unique_ptr<MaxPool2DLayer> create_from_config(const LayerConfig &config);
 };
