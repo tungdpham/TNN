@@ -18,7 +18,6 @@
 #include "communicator.hpp"
 #include "device/device_manager.hpp"
 #include "device/flow.hpp"
-#include "device/iallocator.hpp"
 #include "device/pool_allocator.hpp"
 #include "distributed/command_type.hpp"
 #include "job.hpp"
@@ -145,37 +144,18 @@ protected:
       case CommandType::FORWARD_JOB: {
         auto forward_start = std::chrono::system_clock::now();
         const Job &forward_job = message.get<Job>();
-        IAllocator &out_allocator = communicator_->out_allocator();
-        DType_t input_dtype = forward_job.data->data_type();
-        auto output_shapes = this->model_->output_shapes({forward_job.data->shape()});
-        auto output_shape = output_shapes[0];
-        Tensor output_tensor;
         auto outputs = this->model_->forward({forward_job.data}, forward_job.mb_id);
-        if (out_allocator.device() == this->model_->device()) {
-          output_tensor = make_tensor(out_allocator, input_dtype, output_shape);
-          outputs[0]->copy_to(output_tensor);
-        } else {
-          output_tensor = outputs[0];
-        }
         auto forward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
-        Job output(output_tensor, forward_job.mb_id);
+        Job output(outputs[0], forward_job.mb_id);
         message = Message(CommandType::FORWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), next_stage_endpoint_);
       } break;
       case CommandType::BACKWARD_JOB: {
         auto backward_start = std::chrono::system_clock::now();
         const Job &backward_job = message.get<Job>();
-        IAllocator &out_allocator = communicator_->out_allocator();
-        Tensor output_tensor;
         auto outputs = this->model_->backward({backward_job.data}, backward_job.mb_id);
-        if (out_allocator.device() == this->model_->device()) {
-          output_tensor = make_tensor(out_allocator, backward_job.data->data_type(), {1});
-          outputs[0]->copy_to(output_tensor);
-        } else {
-          output_tensor = outputs[0];
-        }
         auto backward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
@@ -185,7 +165,7 @@ protected:
           communicator_->send_message(std::move(complete_msg), coordinator_endpoint_);
           break;
         }
-        Job output(output_tensor, backward_job.mb_id);
+        Job output(outputs[0], backward_job.mb_id);
         message = Message(CommandType::BACKWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), prev_stage_endpoint_);
       } break;

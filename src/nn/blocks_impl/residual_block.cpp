@@ -44,13 +44,15 @@ ResidualBlock::ResidualBlock(Vec<std::unique_ptr<Layer>> main_path,
 
 ResidualBlock::ResidualBlock(std::unique_ptr<Sequential> main_path,
                              std::unique_ptr<Sequential> shortcut_path,
-                             const std::string &final_activation, const std::string &name)
-    : main_path_(std::move(main_path)),
-      shortcut_path_(std::move(shortcut_path)),
-      activation_type_(final_activation) {
-  if (!main_path_) {
+                             const std::string &final_activation, const std::string &name) {
+  if (!main_path) {
     throw std::runtime_error("Main path of ResidualBlock cannot be null.");
   }
+  this->main_path_ = std::move(main_path);
+  if (shortcut_path) {
+    this->shortcut_path_ = std::move(shortcut_path);
+  }
+  this->activation_type_ = final_activation;
   this->name_ = name;
 
   if (final_activation != "none" && final_activation != "linear") {
@@ -172,8 +174,13 @@ std::unique_ptr<ResidualBlock> ResidualBlock::create_from_config(const LayerConf
   shortcut_path = nullptr;
   nlohmann::json shortcut_json =
       config.get<nlohmann::json>("shortcut_path", nlohmann::json::object());
-  if (!shortcut_json.is_null()) {
-    shortcut_path = Sequential::create_from_config(LayerConfig::from_json(shortcut_json));
+  if (!shortcut_json.is_null() && !shortcut_json.empty()) {
+    LayerConfig shortcut_config = LayerConfig::from_json(shortcut_json);
+    nlohmann::json layers_json =
+        shortcut_config.get<nlohmann::json>("layers", nlohmann::json::array());
+    if (layers_json.is_array() && !layers_json.empty()) {
+      shortcut_path = Sequential::create_from_config(shortcut_config);
+    }
   }
 
   std::string activation = config.get<std::string>("activation", "relu");
