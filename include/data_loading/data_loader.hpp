@@ -11,7 +11,6 @@
 #include <numeric>
 #include <random>
 #include <string>
-#include <vector>
 
 #include "data_augmentation/augmentation.hpp"
 #include "tensor/tensor.hpp"

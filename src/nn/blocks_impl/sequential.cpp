@@ -16,6 +16,7 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "device/flow.hpp"
 #include "nlohmann/json_fwd.hpp"
 #include "nn/block.hpp"
 #include "nn/layer.hpp"
@@ -41,6 +42,7 @@ Vec<Tensor> Sequential::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_i
       allocator_->flip();
     }
   }
+  this->device().getFlow(defaultFlowHandle)->synchronize();
   return current_outputs;
 }
 
@@ -61,6 +63,7 @@ Vec<Tensor> Sequential::backward_impl(const Vec<ConstTensor> &grad_outputs, size
       allocator_->flip();  // algorithm 1 definitely applies
     }
   }
+  this->device().getFlow(defaultFlowHandle)->synchronize();
   return grad_inputs;
 }
 
