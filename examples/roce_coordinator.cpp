@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
       std::make_unique<RoCEWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
 
   // initialize a partitioner with weights 2:1
-  auto partitioner = std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({1, 2}));
+  auto partitioner = std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
 
   CoordinatorConfig config{
       ParallelMode_t::PIPELINE, std::move(graph),        std::move(optimizer), std::move(scheduler),

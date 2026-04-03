@@ -86,7 +86,7 @@ int main() {
                                             train_config.device_type == DeviceType::GPU);
 
   unique_ptr<Partitioner> partitioner =
-      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({1, 2}));
+      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
 
   CoordinatorConfig config{
       ParallelMode_t::PIPELINE, std::move(graph),  std::move(optimizer), std::move(scheduler),
