@@ -1,9 +1,8 @@
 #pragma once
 
 #include <asio.hpp>
-#include <memory>
-#include <thread>
-#include <vector>
+
+#include "type/type.hpp"
 
 namespace tnn {
 class IoContextPool {

@@ -92,12 +92,11 @@ public:
 
   explicit TCPCommunicator(const Endpoint &endpoint, IAllocator &out_allocator,
                            TCPCommunicator::Config config)
-      : Communicator(endpoint),
+      : Communicator(endpoint, config.num_io_threads),
         int_allocator_(PoolAllocator::instance(getHost(), defaultFlowHandle)),
         out_allocator_(out_allocator),
         serializer_(int_allocator_),
         config_(config),
-        io_context_pool_(config.num_io_threads),
         acceptor_(io_context_pool_.acceptor()) {
     is_running_ = false;
   }
@@ -253,7 +252,6 @@ private:
   IAllocator &out_allocator_;
   BinarySerializer serializer_;
   Config config_;
-  IoContextPool io_context_pool_;
   asio::ip::tcp::acceptor acceptor_;
   std::thread pool_thread_;
   std::atomic<bool> is_running_;

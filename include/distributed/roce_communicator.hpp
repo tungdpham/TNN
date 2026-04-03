@@ -40,7 +40,6 @@ class RoCECommunicator : public Communicator {
 private:
   std::string device_name_;
   int port_;
-  asio::io_context io_context_;
   RoCEDevice device_;
   RoCECQ cq_obj_;
   IbvAllocator ibv_allocator_;
@@ -59,21 +58,22 @@ private:
 public:
   struct Config {
     uint64_t master_slab_size = 256 * 1024 * 1024;
+    uint32_t num_io_threads = 4;
   };
 
   RoCECommunicator(const std::string &host, int port, const std::string &device_name, int gid_index,
                    const Config &config)
-      : Communicator(Endpoint::roce(host, port, device_name, gid_index)),
+      : Communicator(Endpoint::roce(host, port, device_name, gid_index), config.num_io_threads),
         device_name_(device_name),
         port_(port),
         device_(device_name, 1, gid_index),
-        cq_obj_(device_, io_context_, ROCE_SQ_DEPTH + ROCE_RQ_DEPTH),
+        cq_obj_(device_, io_context_pool_.get(), ROCE_SQ_DEPTH + ROCE_RQ_DEPTH),
         ibv_allocator_(getHost(), device_.get_pd(), config.master_slab_size),
         serializer_(ibv_allocator_),
-        acceptor_(io_context_),
+        acceptor_(io_context_pool_.get()),
         is_running_(true) {
     asio::co_spawn(
-        io_context_,
+        io_context_pool_.get(),
         [this]() { return cq_obj_.run_loop(is_running_, [this](ibv_wc *wc) { process_wc(wc); }); },
         asio::detached);
   }
@@ -96,7 +96,7 @@ public:
     if (err) {
       std::cerr << "Error closing acceptor: " << ec.message() << std::endl;
     }
-    io_context_.stop();
+    io_context_pool_.stop();
     if (io_thread_.joinable()) {
       io_thread_.join();
     }
@@ -117,8 +117,8 @@ public:
     acceptor_.set_option(asio::ip::tcp::acceptor::reuse_address(true));
     acceptor_.bind(endpoint);
     acceptor_.listen();
-    asio::co_spawn(io_context_, [this]() { return accept_loop(); }, asio::detached);
-    io_thread_ = std::thread([this]() { io_context_.run(); });
+    asio::co_spawn(io_context_pool_.get(), [this]() { return accept_loop(); }, asio::detached);
+    io_thread_ = std::thread([this]() { io_context_pool_.run(); });
   }
   void send_impl(Message &&message, const Endpoint &endpoint) override {
     Sizer sizer;
@@ -179,8 +179,8 @@ protected:
       // Establish TCP connection for initial handshake and RoCE channel setup
       std::string host = endpoint.get_parameter<std::string>("host");
       int tcp_port = endpoint.get_parameter<int>("port");
-      asio::ip::tcp::socket socket(io_context_);
-      asio::ip::tcp::resolver resolver(io_context_);
+      asio::ip::tcp::socket socket(io_context_pool_.get());
+      asio::ip::tcp::resolver resolver(io_context_pool_.get());
       asio::connect(socket, resolver.resolve(host, std::to_string(tcp_port)));
       nlohmann::json local_endpoint_json = endpoint.to_json();
       std::string local_endpoint_str = local_endpoint_json.dump();
