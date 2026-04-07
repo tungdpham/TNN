@@ -11,6 +11,7 @@
 #include "data_loading/data_loader.hpp"
 #include "data_loading/regression_data_loader.hpp"
 #include "device/device_type.hpp"
+#include "nn/csv_logger.hpp"
 #include "nn/graph.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
@@ -63,6 +64,7 @@ struct TrainingConfig {
   DType_t io_dtype = DType_t::FP32;
   DType_t param_dtype = DType_t::FP32;
   DType_t compute_dtype = DType_t::FP32;
+  std::string log_dir = "logs";  // directory for CSV metric logs
 
   // Distributed params
   size_t num_microbatches = 2;
@@ -78,7 +80,8 @@ struct Result {
 };
 
 Result validate_model(Graph &graph, std::unique_ptr<BaseDataLoader> &val_loader,
-                      const std::unique_ptr<Loss> &criterion, const TrainingConfig &config);
+                      const std::unique_ptr<Loss> &criterion, const TrainingConfig &config,
+                      CsvLogger *logger = nullptr, int epoch = 0);
 
 void train_model(Graph &graph, std::unique_ptr<BaseDataLoader> &train_loader,
                  std::unique_ptr<BaseDataLoader> &val_loader, std::unique_ptr<Optimizer> &optimizer,

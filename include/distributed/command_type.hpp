@@ -71,6 +71,10 @@ enum CommandType : uint16_t {
   REPORT_PROFILING,
   PROFILING_REPORTED,
 
+  // metric logging
+  PRINT_LOGS,
+  LOGS_PRINTED,
+
   // handshake
   HANDSHAKE,
   HANDSHAKE_ACK,

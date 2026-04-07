@@ -21,6 +21,7 @@ public:
 
   virtual size_t getTotalMemory() const = 0;
   virtual size_t getAvailableMemory() const = 0;
+  virtual size_t getUsedMemory() const { return getTotalMemory() - getAvailableMemory(); }
   virtual void *allocateMemory(size_t size) = 0;
   virtual void deallocateMemory(void *ptr) = 0;
   virtual void *allocateAlignedMemory(size_t size, size_t alignment) = 0;

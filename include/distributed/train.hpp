@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "coordinator.hpp"
+#include "nn/csv_logger.hpp"
 #include "nn/train.hpp"
 #include "tensor/tensor_ops.hpp"
 #include "threading/thread_wrapper.hpp"
@@ -19,7 +20,7 @@ namespace tnn {
 inline Result train_semi_async_epoch(Coordinator &coordinator,
                                      std::unique_ptr<BaseDataLoader> &train_loader,
                                      const std::unique_ptr<Loss> &criterion,
-                                     const TrainingConfig &config) {
+                                     const TrainingConfig &config, CsvLogger &logger, int epoch) {
   train_loader->shuffle();
   train_loader->reset();
 
@@ -55,6 +56,14 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
     if (accumulation_steps == config.gradient_accumulation_steps) {
       coordinator.update_parameters();
       accumulation_steps = 0;
+    }
+
+    // Log batch metrics to CSV.
+    {
+      long time_ms = process_duration.count() / 1000;  // us -> ms
+      double acc_pct =
+          total_samples > 0 ? static_cast<double>(total_corrects) / total_samples * 100.0 : 0.0;
+      logger.log_batch(epoch, static_cast<int>(batch_index + 1), loss, acc_pct, time_ms);
     }
 
     if ((batch_index + 1) % config.progress_print_interval == 0) {
@@ -114,16 +123,23 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
                         TrainingConfig config = TrainingConfig()) {
   coordinator.start_profiling();
   ThreadWrapper thread_wrapper({config.num_threads});
+  CsvLogger logger(config.model_name, config.log_dir);
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
       std::cout << "Epoch " << (epoch + 1) << "/" << config.epochs << " ===" << std::endl;
-      train_semi_async_epoch(coordinator, train_loader, criterion, config);
+      auto [train_loss, train_acc] =
+          train_semi_async_epoch(coordinator, train_loader, criterion, config, logger, epoch + 1);
 
-      validate_semi_async_epoch(coordinator, val_loader, criterion, config);
+      auto [val_loss, val_acc] =
+          validate_semi_async_epoch(coordinator, val_loader, criterion, config);
+
+      logger.log_epoch(epoch + 1, train_loss, train_acc, val_loss, val_acc);
     }
 
     coordinator.fetch_profiling();
+    coordinator.print_logs();
+    logger.flush();
   });
 }
 

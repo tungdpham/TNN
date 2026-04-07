@@ -36,6 +36,7 @@ public:
   std::string getName() const;
   size_t getTotalMemory() const;
   size_t getAvailableMemory() const;
+  size_t getUsedMemory() const;
   void *allocateMemory(size_t size) const;
   void deallocateMemory(void *ptr) const;
   void *allocateAlignedMemory(size_t size, size_t alignment) const;

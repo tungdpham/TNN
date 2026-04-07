@@ -84,6 +84,14 @@ public:
     if (logger_) logger_->log(level, msg);
   }
 
+  void set_pattern(const std::string &pattern) {
+    if (logger_) logger_->set_pattern(pattern);
+  }
+
+  void flush() {
+    if (logger_) logger_->flush();
+  }
+
 private:
   std::shared_ptr<spdlog::logger> logger_;
   std::string logger_name_;

@@ -25,6 +25,7 @@ namespace tnn {
 class CUDAContext : public Context {
 private:
   std::unordered_map<flowHandle_t, std::unique_ptr<CUDAFlow>> flows_;
+  int device_id_;
 
 public:
   explicit CUDAContext(int id);
@@ -32,6 +33,7 @@ public:
 
   size_t getTotalMemory() const override;
   size_t getAvailableMemory() const override;
+  size_t getUsedMemory() const override;
   void *allocateMemory(size_t size) override;
   void deallocateMemory(void *ptr) override;
   void *allocateAlignedMemory(size_t size, size_t alignment) override;

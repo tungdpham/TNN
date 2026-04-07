@@ -357,6 +357,20 @@ public:
     }
   }
 
+  /**
+   * @brief Requests all workers to flush their metric CSV logs to disk.
+   */
+  void print_logs() {
+    for (const auto &worker_endpoint : worker_endpoints_) {
+      Message log_msg(CommandType::PRINT_LOGS, std::monostate{});
+      comm_->send_message(std::move(log_msg), worker_endpoint);
+    }
+    bool all_flushed = join(CommandType::LOGS_PRINTED, worker_endpoints_.size(), 30);
+    if (!all_flushed) {
+      std::cerr << "Warning: Not all workers confirmed log flush within timeout.\n";
+    }
+  }
+
   Vec<Message> dequeue_all_messages(CommandType target_type) {
     return comm_->dequeue_all_messages_by_type(target_type);
   }

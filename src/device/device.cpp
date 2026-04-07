@@ -49,6 +49,8 @@ size_t Device::getTotalMemory() const { return context_->getTotalMemory(); }
 
 size_t Device::getAvailableMemory() const { return context_->getAvailableMemory(); }
 
+size_t Device::getUsedMemory() const { return context_->getUsedMemory(); }
+
 void *Device::allocateMemory(size_t size) const { return context_->allocateMemory(size); }
 
 void Device::deallocateMemory(void *ptr) const { context_->deallocateMemory(ptr); }

@@ -1,6 +1,7 @@
 #include <cudnn_graph.h>
 #ifdef USE_CUDA
 #include <cuda_runtime.h>
+#include <nvml.h>
 
 #include <iostream>
 #include <stdexcept>
@@ -12,13 +13,15 @@
 namespace tnn {
 
 CUDAContext::CUDAContext(int id)
-    : Context() {
+    : Context(),
+      device_id_(id) {
   // Set the device for this context
   cudaError_t err = cudaSetDevice(id);
   if (err != cudaSuccess) {
     throw std::runtime_error("Failed to set CUDA device " + std::to_string(id) + ": " +
                              cudaGetErrorString(err));
   }
+  nvmlInit_v2();
   createFlow(defaultFlowHandle);
 }
 
@@ -52,6 +55,21 @@ size_t CUDAContext::getAvailableMemory() const {
                              std::string(cudaGetErrorString(err)));
   }
   return free_mem;
+}
+
+size_t CUDAContext::getUsedMemory() const {
+  nvmlDevice_t dev;
+  nvmlReturn_t ret = nvmlDeviceGetHandleByIndex_v2(device_id_, &dev);
+  if (ret != NVML_SUCCESS) {
+    // Fall back to cudaMemGetInfo if NVML fails
+    return getTotalMemory() - getAvailableMemory();
+  }
+  nvmlMemory_t mem;
+  ret = nvmlDeviceGetMemoryInfo(dev, &mem);
+  if (ret != NVML_SUCCESS) {
+    return getTotalMemory() - getAvailableMemory();
+  }
+  return mem.used;
 }
 
 void *CUDAContext::allocateMemory(size_t size) {

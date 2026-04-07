@@ -12,6 +12,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -22,15 +23,16 @@
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
+#include "nn/csv_logger.hpp"
 #include "nn/graph_executor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "type/type.hpp"
 #include "utils/env.hpp"
-#include "utils/memory.hpp"
 
 using namespace std;
 
 namespace tnn {
+
 void TrainingConfig::print_config() const {
   cout << "Training Configuration:" << endl;
   cout << "  Epochs: " << epochs << endl;
@@ -132,7 +134,8 @@ void TrainingConfig::load_from_json(const string &config_path) {
 
 static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
                           unique_ptr<Optimizer> &optimizer, const unique_ptr<Loss> &criterion,
-                          unique_ptr<Scheduler> &scheduler, const TrainingConfig &config) {
+                          unique_ptr<Scheduler> &scheduler, const TrainingConfig &config,
+                          CsvLogger &logger, int epoch) {
   auto train_start = chrono::high_resolution_clock::now();
   Tensor batch_data, batch_labels;
   const Device &model_device = graph.device();
@@ -204,6 +207,12 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
     }
     model_device.getFlow(defaultFlowHandle)->synchronize();
 
+    // Log batch metrics every batch for benchmarking.
+    {
+      double batch_acc_pct = cur_samples > 0 ? (total_corrects * 100.0 / cur_samples) : 0.0;
+      logger.log_batch(epoch, num_batches, loss, batch_acc_pct, batch_duration.count());
+    }
+
     if (num_batches % config.progress_print_interval == 0) {
       cout << "Batch ID: " << num_batches << ", Batch's Loss: " << fixed << setprecision(4) << loss
            << ", Cumulative Accuracy: " << setprecision(2) << (total_corrects * 100.0 / cur_samples)
@@ -228,17 +237,19 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
   ThreadWrapper thread_wrapper({config.num_threads});
 
   double best_val_accuracy = 0.0;
+  CsvLogger logger(graph.name(), config.log_dir);
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
       cout << "Epoch " << epoch + 1 << "/" << config.epochs << endl;
 
       // train phrase
-      auto [avg_train_loss, avg_train_accuracy] =
-          train_epoch(graph, train_loader, optimizer, criterion, scheduler, config);
+      auto [avg_train_loss, avg_train_accuracy] = train_epoch(
+          graph, train_loader, optimizer, criterion, scheduler, config, logger, epoch + 1);
 
       // validation phrase
-      auto [avg_val_loss, avg_val_accuracy] = validate_model(graph, val_loader, criterion, config);
+      auto [avg_val_loss, avg_val_accuracy] =
+          validate_model(graph, val_loader, criterion, config, &logger, epoch + 1);
 
       if (avg_val_accuracy > best_val_accuracy) {
         best_val_accuracy = avg_val_accuracy;
@@ -271,7 +282,8 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
         thread_wrapper.clean_buffers();
       }
 
-      cout << get_memory_usage_kb() / 1024 << " MB of memory used." << endl;
+      logger.log_epoch(epoch + 1, avg_train_loss, avg_train_accuracy * 100.0, avg_val_loss,
+                       avg_val_accuracy * 100.0);
     }
   });
 }
@@ -293,6 +305,7 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
   GraphExecutor executor(graph, ws_allocator);
 
   int grad_accum_counter = 0;
+  CsvLogger logger(graph.name(), config.log_dir);
 
   train_loader->reset();
   auto start_time = chrono::high_resolution_clock::now();
@@ -340,6 +353,12 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
         if (scheduler) {
           scheduler->step();
         }
+      }
+
+      // Log batch metrics for benchmarking.
+      {
+        double batch_acc_pct = corrects * 100.0 / config.batch_size;
+        logger.log_batch(1, steps, loss, batch_acc_pct, batch_duration.count());
       }
 
       if (steps % config.progress_print_interval == 0) {
@@ -393,7 +412,8 @@ void train_model(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 }
 
 Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
-                      const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
+                      const unique_ptr<Loss> &criterion, const TrainingConfig &config,
+                      CsvLogger *logger, int epoch) {
   auto &mem_pool = PoolAllocator::instance(graph.device(), defaultFlowHandle);
   auto ws_allocator = DELAllocatorV2::instance(graph.device(), defaultFlowHandle);
   GraphExecutor executor(graph, ws_allocator);
@@ -425,8 +445,14 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
     float loss;
     criterion->compute_loss(predictions, device_batch_labels, loss);
     val_loss += loss;
-    val_corrects += compute_class_corrects(predictions, device_batch_labels);
+    double batch_corrects = compute_class_corrects(predictions, device_batch_labels);
+    val_corrects += batch_corrects;
     ++val_batches;
+
+    if (logger) {
+      double batch_acc_pct = batch_corrects / config.batch_size * 100.0;
+      logger->log_val_batch(epoch, val_batches, loss, batch_acc_pct);
+    }
   }
 
   double avg_val_loss = val_loss / val_batches;
