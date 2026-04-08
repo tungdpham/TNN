@@ -426,7 +426,7 @@ public:
     }
 
     auto res_block =
-        std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut), "relu", name);
+        std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut), "none", name);
     layers_.push_back(std::move(res_block));
     return *this;
   }
