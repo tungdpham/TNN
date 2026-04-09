@@ -30,15 +30,15 @@ class TrainingConfig:
         self.epochs = int(os.getenv('EPOCHS', '5'))
         self.batch_size = int(os.getenv('BATCH_SIZE', '128'))
         self.lr_initial = float(os.getenv('LR_INITIAL', '0.1'))
-        self.lr_decay_factor = float(os.getenv('LR_DECAY_FACTOR', '0.9'))
+        self.lr_decay_factor = float(os.getenv('LR_DECAY_FACTOR', '0.1'))
         self.lr_decay_interval = int(os.getenv('LR_DECAY_INTERVAL', '5'))
         self.progress_print_interval = int(os.getenv('PROGRESS_PRINT_INTERVAL', '10'))
         self.device_type = os.getenv('DEVICE_TYPE', 'CPU')
         
-        # Adam optimizer params (matching TNN: lr, beta1=0.9, beta2=0.999, eps=1e-7)
+        # Adam optimizer params (matching TNN: lr, beta1=0.9, beta2=0.999, eps=1e-3)
         self.adam_beta1 = 0.9
         self.adam_beta2 = 0.999
-        self.adam_eps = 1e-7
+        self.adam_eps = 1e-3
         
         # Dataset
         self.dataset_path = 'data/tiny-imagenet-200'
@@ -248,25 +248,9 @@ class TinyImageNetDataset(Dataset):
 
 
 def get_data_augmentation():
-    """
-    Data augmentation matching TNN setup:
-    - horizontal_flip(0.2)
-    - rotation(0.2, 5.0)
-    - brightness(0.1, 0.15)
-    - contrast(0.1, 0.15)
-    - gaussian_noise(0.1, 0.05)
-    - random_crop(0.25, 4)
-    """
+    """No augmentation - normalize only."""
     return transforms.Compose([
-        transforms.RandomHorizontalFlip(p=0.2),
-        # transforms.RandomRotation(degrees=5.0),
-        # transforms.ColorJitter(brightness=0.15, contrast=0.15),
-        # transforms.RandomCrop(64, padding=4),
         transforms.ToTensor(),
-        # # Add Gaussian noise with probability 0.1
-        # transforms.Lambda(lambda x: x + torch.randn_like(x) * 0.05 if torch.rand(1).item() < 0.1 else x),
-        # # Normalize (using ImageNet stats as common practice)
-        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
 
@@ -274,7 +258,6 @@ def get_val_transform():
     """Validation transform (no augmentation)"""
     return transforms.Compose([
         transforms.ToTensor(),
-        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
 
@@ -431,7 +414,9 @@ def main():
         model.parameters(),
         lr=config.lr_initial,
         betas=(config.adam_beta1, config.adam_beta2),
-        eps=config.adam_eps
+        eps=config.adam_eps,
+        weight_decay=3e-4,
+        amsgrad=False,
     )
     
     # Learning rate scheduler

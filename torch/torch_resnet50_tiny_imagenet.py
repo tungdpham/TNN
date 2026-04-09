@@ -77,8 +77,6 @@ import torchvision.transforms as T
 
 def train_transform():
     return T.Compose([
-        T.RandomCrop(64, padding=8),
-        T.RandomHorizontalFlip(p=0.5),
         T.ToTensor(),
         T.Normalize(TINY_MEAN, TINY_STD),
     ])
@@ -249,12 +247,12 @@ def main():
         model.parameters(),
         lr=lr_initial,
         betas=(0.9, 0.999),
-        eps=1e-7,
-        weight_decay=5e-4,
-        amsgrad=True,
+        eps=1e-3,
+        weight_decay=3e-4,
+        amsgrad=False,
     )
 
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.5)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
 
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     log_dir = "logs"

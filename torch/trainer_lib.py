@@ -19,7 +19,7 @@ class RemoteTrainer:
         
         self.model = ResNet9Part2(num_classes=10).to(self.device)
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-3, weight_decay=3e-4, amsgrad=False)
         print(f">>> [RemoteTrainer] Model Part 2 initialized on {self.device}.")
 
     def run_train_step(self, h, y):

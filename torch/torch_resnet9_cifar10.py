@@ -1,7 +1,6 @@
 import csv
 import datetime
 import os
-import random
 import time
 import numpy as np
 
@@ -61,29 +60,11 @@ CIFAR10_STD  = torch.tensor([0.24703233, 0.24348505, 0.26158768]).view(3, 1, 1)
 def normalize(img: torch.Tensor) -> torch.Tensor:
     return (img - CIFAR10_MEAN) / CIFAR10_STD
 
-def random_horizontal_flip(img: torch.Tensor, p: float = 0.5) -> torch.Tensor:
-    if random.random() < p:
-        img = torch.flip(img, dims=[2])  
-    return img
-
-def random_crop_with_padding(img: torch.Tensor, padding: int = 4) -> torch.Tensor:
-    c, h, w = img.shape
-    padded = torch.zeros((c, h + 2 * padding, w + 2 * padding), dtype=img.dtype)
-    padded[:, padding:padding + h, padding:padding + w] = img
-    max_offset = 2 * padding
-    x = random.randint(0, max_offset)
-    y = random.randint(0, max_offset)
-    return padded[:, y:y + h, x:x + w]
-
 def train_transform(img: torch.Tensor) -> torch.Tensor:
-    img = random_crop_with_padding(img, padding=4)
-    img = random_horizontal_flip(img, p=0.5)
-    img = normalize(img)
-    return img
+    return normalize(img)
 
 def test_transform(img: torch.Tensor) -> torch.Tensor:
-    img = normalize(img)
-    return img
+    return normalize(img)
 
 class BasicResidualBlock(nn.Module):
     def __init__(self, channels: int):
@@ -194,13 +175,13 @@ def main():
         model.parameters(),
         lr=lr_initial,
         betas=(0.9, 0.999),
-        eps=1e-7,
-        weight_decay=1e-3,
-        amsgrad=True,
+        eps=1e-3,
+        weight_decay=3e-4,
+        amsgrad=False,
     )
 
     scheduler = optim.lr_scheduler.StepLR(
-        optimizer, step_size=40, gamma=0.5
+        optimizer, step_size=5, gamma=0.1
     )
 
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

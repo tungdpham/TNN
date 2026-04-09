@@ -47,7 +47,7 @@ def init_worker():
     
     model_part2 = ResNet9Part2(num_classes=10).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model_part2.parameters(), lr=0.001)
+    optimizer = optim.Adam(model_part2.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-3, weight_decay=3e-4, amsgrad=False)
     print(f">>> [WORKER] Model Part 2 initialized on {device}.")
 
 @torch.no_grad()

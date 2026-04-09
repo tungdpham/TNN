@@ -55,7 +55,7 @@ def main():
 
     # 3. Local Model Setup
     model_part1 = ResNet9Part1().to(device)
-    optimizer1 = optim.Adam(model_part1.parameters(), lr=0.001)
+    optimizer1 = optim.Adam(model_part1.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-3, weight_decay=3e-4, amsgrad=False)
     
     data_root = os.getenv("CIFAR10_BIN_ROOT", "data/cifar-10-batches-bin")
     train_loader = DataLoader(CIFAR10Bin(data_root, True, train_transform), batch_size=64, shuffle=True)
