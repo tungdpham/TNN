@@ -1,3 +1,5 @@
+import csv
+import datetime
 import os
 import random
 import time
@@ -254,10 +256,28 @@ def main():
 
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.5)
 
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    batch_csv_path = os.path.join(log_dir, f"torch_tiny_imagenet_resnet50_batch_{ts}.csv")
+    epoch_csv_path = os.path.join(log_dir, f"torch_tiny_imagenet_resnet50_epoch_{ts}.csv")
+    val_csv_path   = os.path.join(log_dir, f"torch_tiny_imagenet_resnet50_val_{ts}.csv")
+
+    batch_csv_file = open(batch_csv_path, "w", newline="")
+    epoch_csv_file = open(epoch_csv_path, "w", newline="")
+    val_csv_file   = open(val_csv_path,   "w", newline="")
+
+    batch_writer = csv.writer(batch_csv_file)
+    epoch_writer = csv.writer(epoch_csv_file)
+    val_writer   = csv.writer(val_csv_file)
+
+    batch_writer.writerow(["epoch", "step", "loss", "accuracy_pct", "time_ms"])
+    epoch_writer.writerow(["epoch", "train_loss", "train_accuracy_pct", "val_loss", "val_accuracy_pct"])
+    val_writer.writerow(["epoch", "step", "loss", "accuracy_pct"])
+
     for epoch in range(1, epochs + 1):
         print(f"\n===== Epoch {epoch}/{epochs} =====")
         epoch_start    = time.time()
-        last_100_start = time.time()
 
         # ---- Training ----
         model.train()
@@ -266,6 +286,7 @@ def main():
         running_total   = 0
 
         for batch_idx, (inputs, targets) in enumerate(train_loader):
+            step_start = time.time()
             inputs, targets = inputs.to(device), targets.to(device)
 
             optimizer.zero_grad()
@@ -274,19 +295,23 @@ def main():
             loss.backward()
             optimizer.step()
 
+            step_ms = int((time.time() - step_start) * 1000)
+
             running_loss    += loss.item() * inputs.size(0)
             _, predicted     = outputs.max(1)
             running_total   += targets.size(0)
             running_correct += predicted.eq(targets).sum().item()
 
+            batch_loss = loss.item()
+            batch_acc  = 100.0 * predicted.eq(targets).sum().item() / inputs.size(0)
+            batch_writer.writerow([epoch, batch_idx + 1, f"{batch_loss:.6f}", f"{batch_acc:.4f}", step_ms])
+            batch_csv_file.flush()
+
             if (batch_idx + 1) % 100 == 0:
-                batch_acc   = 100.0 * predicted.eq(targets).sum().item() / targets.size(0)
-                elapsed_100 = time.time() - last_100_start
-                last_100_start = time.time()
                 print(
                     f"[Train Batch {batch_idx+1}/{len(train_loader)}] "
-                    f"Loss: {loss.item():.4f} | Acc: {batch_acc:.2f}% | "
-                    f"100-batch time: {elapsed_100:.2f}s"
+                    f"Loss: {batch_loss:.4f} | Acc: {batch_acc:.2f}% | "
+                    f"Step time: {step_ms}ms"
                 )
 
         train_loss = running_loss / running_total
@@ -301,7 +326,7 @@ def main():
         val_total    = 0
 
         with torch.no_grad():
-            for inputs, targets in val_loader:
+            for val_step, (inputs, targets) in enumerate(val_loader):
                 inputs, targets = inputs.to(device), targets.to(device)
                 outputs = model(inputs)
                 loss    = criterion(outputs, targets)
@@ -311,10 +336,18 @@ def main():
                 val_total    += targets.size(0)
                 val_correct  += predicted.eq(targets).sum().item()
 
+                step_loss = loss.item()
+                step_acc  = 100.0 * predicted.eq(targets).sum().item() / inputs.size(0)
+                val_writer.writerow([epoch, val_step + 1, f"{step_loss:.6f}", f"{step_acc:.4f}"])
+            val_csv_file.flush()
+
         val_loss = val_loss_sum / val_total
         val_acc  = 100.0 * val_correct / val_total
 
         epoch_time = time.time() - epoch_start
+
+        epoch_writer.writerow([epoch, f"{train_loss:.6f}", f"{train_acc:.4f}", f"{val_loss:.6f}", f"{val_acc:.4f}"])
+        epoch_csv_file.flush()
 
         print(
             f"Epoch {epoch}/{epochs} completed in {epoch_time:.2f}s\n"
@@ -333,6 +366,10 @@ def main():
             "model_snapshots/resnet50_tiny_imagenet.pth",
         )
 
+    batch_csv_file.close()
+    epoch_csv_file.close()
+    val_csv_file.close()
+    print(f"\n>>> Logs saved to {log_dir}/torch_tiny_imagenet_resnet50_*_{ts}.csv")
     print("\n>>> Tiny ImageNet ResNet-50 training completed.")
 
 
