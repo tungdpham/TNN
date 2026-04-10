@@ -9,15 +9,11 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <numeric>
-#include <random>
 #include <sstream>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "data_loader.hpp"
-#include "tensor/tensor.hpp"
 
 namespace tnn {
 

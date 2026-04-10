@@ -6,12 +6,15 @@
  */
 #pragma once
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <algorithm>
-#include <fstream>
 #include <iostream>
-#include <sstream>
+#include <numeric>
 #include <string>
-#include <vector>
 
 #include "data_loading/image_data_loader.hpp"
 #include "tensor/tensor.hpp"
@@ -29,213 +32,216 @@ namespace tnn {
 /**
  * Enhanced MNIST data loader for CSV format adapted for CNN (2D images)
  * NHWC format: (Batch, Height, Width, Channels)
- * Works with type-erased Tensors
+ *
+ * Uses memory-mapped I/O + a line-position index built at load time.
+ * Only the line-start offsets (~480 KB for 60 k rows) are kept in RAM;
+ * the raw CSV bytes stay on disk and are paged in by the OS on demand.
  */
 class MNISTDataLoader : public ImageDataLoader {
 private:
-  Vec<Vec<float>> data_;
-  Vec<int> labels_;
+  int fd_ = -1;
+  const char *mapped_ = nullptr;
+  size_t file_size_ = 0;
 
-  Vec<Tensor> batched_data_;
-  Vec<Tensor> batched_labels_;
+  // Byte offset of the start of each sample line (after the header)
+  Vec<size_t> line_offsets_;
+  // Access order — shuffled in-place; current_index_ indexes into this
+  Vec<size_t> access_order_;
+
   DType_t dtype_ = DType_t::FP32;
 
-  template <typename T>
+  void cleanup_map() {
+    if (mapped_ && mapped_ != reinterpret_cast<const char *>(MAP_FAILED)) {
+      munmap(const_cast<char *>(mapped_), file_size_);
+    }
+    if (fd_ != -1) close(fd_);
+    mapped_ = nullptr;
+    fd_ = -1;
+    file_size_ = 0;
+  }
+
+  /**
+   * Parse a single CSV sample line starting at buf[0..len).
+   * Fills image_data (IMAGE_SIZE floats) and returns the integer label,
+   * or -1 on parse error.
+   */
+  static int parse_sample_line(const char *buf, size_t len, float *image_data) {
+    size_t pos = 0;
+
+    // Parse label
+    int label = 0;
+    bool got_digit = false;
+    while (pos < len && buf[pos] != ',') {
+      if (buf[pos] >= '0' && buf[pos] <= '9') {
+        label = label * 10 + (buf[pos] - '0');
+        got_digit = true;
+      }
+      ++pos;
+    }
+    if (!got_digit || pos >= len) return -1;
+    ++pos;  // skip comma
+
+    // Parse pixel values
+    for (size_t p = 0; p < mnist_constants::IMAGE_SIZE; ++p) {
+      int val = 0;
+      bool got = false;
+      while (pos < len && buf[pos] != ',' && buf[pos] != '\r' && buf[pos] != '\n') {
+        if (buf[pos] >= '0' && buf[pos] <= '9') {
+          val = val * 10 + (buf[pos] - '0');
+          got = true;
+        }
+        ++pos;
+      }
+      if (!got) return -1;
+      image_data[p] = static_cast<float>(val) / mnist_constants::NORMALIZATION_FACTOR;
+      if (pos < len && (buf[pos] == ',' || buf[pos] == '\r')) ++pos;
+    }
+
+    return label;
+  }
+
   bool load_data_impl(const std::string &source) {
-    std::ifstream file{source};
-    if (!file.is_open()) {
+    cleanup_map();
+    line_offsets_.clear();
+
+    fd_ = open(source.c_str(), O_RDONLY);
+    if (fd_ == -1) {
       std::cerr << "Error: Could not open file " << source << std::endl;
       return false;
     }
 
-    std::string line;
-    line.reserve(3136);
-
-    if (!std::getline(file, line)) {
-      std::cerr << "Error: Empty file " << source << std::endl;
+    struct stat sb;
+    if (fstat(fd_, &sb) == -1) {
+      close(fd_);
+      fd_ = -1;
       return false;
     }
+    file_size_ = static_cast<size_t>(sb.st_size);
 
-    data_.clear();
-    labels_.clear();
+    void *ptr = mmap(nullptr, file_size_, PROT_READ, MAP_PRIVATE, fd_, 0);
+    if (ptr == MAP_FAILED) {
+      std::cerr << "Error: mmap failed for " << source << std::endl;
+      close(fd_);
+      fd_ = -1;
+      return false;
+    }
+    mapped_ = static_cast<const char *>(ptr);
 
-    while (std::getline(file, line)) {
-      std::stringstream ss(line);
-      std::string cell;
+    // Skip the header line
+    size_t pos = 0;
+    while (pos < file_size_ && mapped_[pos] != '\n') ++pos;
+    ++pos;  // move past '\n'
 
-      if (!std::getline(ss, cell, ',')) continue;
-      labels_.push_back(std::stoi(cell));
-
-      Vec<float> row;
-      row.reserve(mnist_constants::IMAGE_SIZE);
-
-      while (std::getline(ss, cell, ',')) {
-        row.push_back(static_cast<float>(std::stod(cell) / mnist_constants::NORMALIZATION_FACTOR));
+    // Record start of each subsequent line
+    while (pos < file_size_) {
+      if (mapped_[pos] != '\r' && mapped_[pos] != '\n') {
+        line_offsets_.push_back(pos);
+        while (pos < file_size_ && mapped_[pos] != '\n') ++pos;
       }
-
-      if (row.size() != mnist_constants::IMAGE_SIZE) {
-        std::cerr << "Warning: Invalid image size " << row.size() << " expected "
-                  << mnist_constants::IMAGE_SIZE << std::endl;
-        continue;
-      }
-
-      data_.push_back(std::move(row));
+      ++pos;
     }
 
+    const size_t n = line_offsets_.size();
+    access_order_.resize(n);
+    std::iota(access_order_.begin(), access_order_.end(), 0);
+
     this->current_index_ = 0;
-    std::cout << "Loaded " << data_.size() << " samples from " << source << std::endl;
-    return !data_.empty();
+    std::cout << "Lazy-mapped " << n << " samples from " << source << std::endl;
+    return n > 0;
   }
 
   template <typename T>
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
-    if (this->current_index_ >= data_.size()) {
-      return false;
-    }
+    if (this->current_index_ >= access_order_.size()) return false;
 
-    const size_t actual_batch_size = std::min(batch_size, data_.size() - this->current_index_);
+    const size_t actual_batch_size =
+        std::min(batch_size, access_order_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
     batch_data = make_tensor<T>({actual_batch_size, mnist_constants::IMAGE_HEIGHT,
                                  mnist_constants::IMAGE_WIDTH, mnist_constants::NUM_CHANNELS});
-
     batch_labels = make_tensor<T>({actual_batch_size, mnist_constants::NUM_CLASSES});
     batch_labels->fill(0.0);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
-      const auto &image_data = data_[this->current_index_ + i];
+      const size_t sample_idx = access_order_[this->current_index_ + i];
+      const size_t line_start = line_offsets_[sample_idx];
 
-      // NHWC indexing: (batch, height, width, channel)
+      // Compute line length (up to next newline or end-of-file)
+      size_t line_end = line_start;
+      while (line_end < file_size_ && mapped_[line_end] != '\n') ++line_end;
+
+      float pixel_buf[mnist_constants::IMAGE_SIZE];
+      const int label = parse_sample_line(mapped_ + line_start, line_end - line_start, pixel_buf);
+
+      if (label < 0) continue;
+
+      // Store in NHWC (H, W, C=1) order
       for (size_t j = 0; j < mnist_constants::IMAGE_SIZE; ++j) {
         batch_data->at<T>({i, j / mnist_constants::IMAGE_WIDTH, j % mnist_constants::IMAGE_WIDTH,
-                           0}) = static_cast<T>(image_data[j]);
+                           0}) = static_cast<T>(pixel_buf[j]);
       }
 
-      const size_t label = labels_[this->current_index_ + i];
       if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
-        batch_labels->at<T>({i, label}) = static_cast<T>(1.0);
+        batch_labels->at<T>({i, static_cast<size_t>(label)}) = static_cast<T>(1.0);
       }
     }
 
     this->apply_augmentation(batch_data, batch_labels);
-
     this->current_index_ += actual_batch_size;
     return true;
   }
 
 public:
-  MNISTDataLoader(DType_t dtype = DType_t::FP32)
+  explicit MNISTDataLoader(DType_t dtype = DType_t::FP32)
       : ImageDataLoader(),
-        dtype_(dtype) {
-    data_.reserve(60000);
-    labels_.reserve(60000);
-  }
+        dtype_(dtype) {}
 
-  virtual ~MNISTDataLoader() = default;
+  virtual ~MNISTDataLoader() { cleanup_map(); }
 
   /**
-   * Load MNIST data from CSV file
-   * @param source Path to CSV file (train.csv or test.csv)
-   * @return true if successful, false otherwise
+   * Lazy-map MNIST data from a CSV file.
+   * Reads only the line-start index into RAM; pixel bytes stay on disk.
    */
-  bool load_data(const std::string &source) override {
-    DISPATCH_DTYPE(dtype_, T, return load_data_impl<T>(source));
-  }
+  bool load_data(const std::string &source) override { return load_data_impl(source); }
 
   bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
     DISPATCH_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
   }
 
-  /**
-   * Reset iterator to beginning of dataset
-   */
   void reset() override { this->current_index_ = 0; }
 
   /**
-   * Shuffle the dataset
+   * Shuffle the access order without copying any pixel data.
    */
   void shuffle() override {
-    if (data_.empty()) return;
-
-    Vec<size_t> indices = this->generate_shuffled_indices(data_.size());
-
-    Vec<Vec<float>> shuffled_data;
-    Vec<int> shuffled_labels;
-    shuffled_data.reserve(data_.size());
-    shuffled_labels.reserve(labels_.size());
-
-    for (const auto &idx : indices) {
-      shuffled_data.emplace_back(std::move(data_[idx]));
-      shuffled_labels.emplace_back(labels_[idx]);
-    }
-
-    data_ = std::move(shuffled_data);
-    labels_ = std::move(shuffled_labels);
+    if (access_order_.empty()) return;
+    access_order_ = this->generate_shuffled_indices(access_order_.size());
     this->current_index_ = 0;
   }
 
-  /**
-   * Get the total number of samples in the dataset
-   */
-  size_t size() const override { return data_.size(); }
+  size_t size() const override { return line_offsets_.size(); }
 
-  /**
-   * Get image dimensions (height, width, channels) for NHWC format
-   */
   Vec<size_t> get_data_shape() const override {
     return {mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH,
             mnist_constants::NUM_CHANNELS};
   }
 
-  /**
-   * Get number of classes
-   */
   int get_num_classes() const override { return static_cast<int>(mnist_constants::NUM_CLASSES); }
 
-  /**
-   * Get class names for MNIST (digits 0-9)
-   */
   Vec<std::string> get_class_names() const override {
     return {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
   }
 
-  /**
-   * Get data statistics for debugging
-   */
   void print_data_stats() const override {
-    if (data_.empty()) {
+    if (line_offsets_.empty()) {
       std::cout << "No data loaded" << std::endl;
       return;
     }
-
-    Vec<int> label_counts(mnist_constants::NUM_CLASSES, 0);
-    for (const auto &label : labels_) {
-      if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
-        label_counts[label]++;
-      }
-    }
-
-    std::cout << "MNIST Dataset Statistics (NHWC format):" << std::endl;
-    std::cout << "Total samples: " << data_.size() << std::endl;
+    std::cout << "MNIST Dataset Statistics (NHWC format, lazy-mapped):" << std::endl;
+    std::cout << "Total samples: " << line_offsets_.size() << std::endl;
     std::cout << "Image shape: " << mnist_constants::IMAGE_HEIGHT << "x"
               << mnist_constants::IMAGE_WIDTH << "x" << mnist_constants::NUM_CHANNELS << std::endl;
-    std::cout << "Class distribution:" << std::endl;
-
-    auto class_names = get_class_names();
-    for (int i = 0; i < static_cast<int>(mnist_constants::NUM_CLASSES); ++i) {
-      std::cout << "  Digit " << class_names[i] << ": " << label_counts[i] << " samples"
-                << std::endl;
-    }
-
-    if (!data_.empty()) {
-      float min_val = *std::min_element(data_[0].begin(), data_[0].end());
-      float max_val = *std::max_element(data_[0].begin(), data_[0].end());
-      float sum = std::accumulate(data_[0].begin(), data_[0].end(), 0.0f);
-      float mean = sum / static_cast<float>(data_[0].size());
-
-      std::cout << "Pixel value range: [" << min_val << ", " << max_val << "]" << std::endl;
-      std::cout << "First image mean pixel value: " << mean << std::endl;
-    }
   }
 
   static void create(const std::string &data_path, MNISTDataLoader &train_loader,
@@ -243,7 +249,6 @@ public:
     if (!train_loader.load_data(data_path + "/mnist_train.csv")) {
       throw std::runtime_error("Failed to load training data!");
     }
-
     if (!test_loader.load_data(data_path + "/mnist_test.csv")) {
       throw std::runtime_error("Failed to load test data!");
     }

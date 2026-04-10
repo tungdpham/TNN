@@ -6,12 +6,15 @@
  */
 #pragma once
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <algorithm>
-#include <fstream>
 #include <iostream>
 #include <numeric>
 #include <string>
-#include <vector>
 
 #include "data_loading/image_data_loader.hpp"
 #include "tensor/tensor.hpp"
@@ -31,16 +34,33 @@ namespace tnn {
 /**
  * Enhanced CIFAR-100 data loader for binary format adapted for CNN (2D RGB images)
  * NHWC format: (Batch, Height, Width, Channels)
+ * Uses memory-mapped I/O for lazy loading — only pages that are actually
+ * accessed are brought into RAM, keeping the full dataset off-heap.
  */
 class CIFAR100DataLoader : public ImageDataLoader {
 private:
-  Vec<Vec<float>> data_;
-  Vec<int> fine_labels_;
-  Vec<int> coarse_labels_;
+  struct MappedFile {
+    int fd = -1;
+    const uint8_t *data = nullptr;
+    size_t size = 0;
+    size_t num_records = 0;
 
-  Vec<Tensor> batched_data_;
-  Vec<Tensor> batched_fine_labels_;
-  Vec<Tensor> batched_coarse_labels_;
+    void unmap() {
+      if (data && data != reinterpret_cast<const uint8_t *>(MAP_FAILED)) {
+        munmap(const_cast<uint8_t *>(data), size);
+      }
+      if (fd != -1) close(fd);
+      data = nullptr;
+      fd = -1;
+    }
+  };
+
+  Vec<MappedFile> mapped_files_;
+  // sample_map_[i] = (file_idx, record_idx within that file)
+  Vec<std::pair<size_t, size_t>> sample_map_;
+  // Access order — shuffled in-place; current_index_ indexes into this
+  Vec<size_t> access_order_;
+
   bool use_coarse_labels_;
   DType_t dtype_ = DType_t::FP32;
 
@@ -84,55 +104,70 @@ private:
                                           "vehicles_1",
                                           "vehicles_2"};
 
-  template <typename T>
-  bool load_multiple_files_impl(const Vec<std::string> &filenames) {
-    data_.clear();
-    fine_labels_.clear();
-    coarse_labels_.clear();
+  void cleanup_maps() {
+    for (auto &mf : mapped_files_) mf.unmap();
+    mapped_files_.clear();
+  }
 
-    for (const auto &filename : filenames) {
-      std::ifstream file(filename, std::ios::binary);
-      if (!file.is_open()) {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
-        return false;
-      }
-
-      char buffer[cifar100_constants::RECORD_SIZE];
-      size_t records_loaded = 0;
-
-      while (file.read(buffer, cifar100_constants::RECORD_SIZE)) {
-        coarse_labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[0])));
-        fine_labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[1])));
-
-        Vec<float> image_data;
-        image_data.reserve(cifar100_constants::IMAGE_SIZE);
-        for (size_t i = 2; i < cifar100_constants::RECORD_SIZE; ++i) {
-          image_data.push_back(static_cast<float>(static_cast<unsigned char>(buffer[i]) /
-                                                  cifar100_constants::NORMALIZATION_FACTOR));
-        }
-
-        data_.push_back(std::move(image_data));
-        records_loaded++;
-      }
-
-      std::cout << "Loaded " << records_loaded << " samples from " << filename << std::endl;
+  bool map_file(const std::string &filename) {
+    MappedFile mf;
+    mf.fd = open(filename.c_str(), O_RDONLY);
+    if (mf.fd == -1) {
+      std::cerr << "Error: Could not open file " << filename << std::endl;
+      return false;
     }
 
+    struct stat sb;
+    if (fstat(mf.fd, &sb) == -1) {
+      close(mf.fd);
+      return false;
+    }
+    mf.size = static_cast<size_t>(sb.st_size);
+
+    void *ptr = mmap(nullptr, mf.size, PROT_READ, MAP_PRIVATE, mf.fd, 0);
+    if (ptr == MAP_FAILED) {
+      std::cerr << "Error: mmap failed for " << filename << std::endl;
+      close(mf.fd);
+      return false;
+    }
+    mf.data = static_cast<const uint8_t *>(ptr);
+    mf.num_records = mf.size / cifar100_constants::RECORD_SIZE;
+
+    const size_t file_idx = mapped_files_.size();
+    for (size_t r = 0; r < mf.num_records; ++r) {
+      sample_map_.emplace_back(file_idx, r);
+    }
+
+    mapped_files_.push_back(mf);
+    std::cout << "Mapped " << mf.num_records << " samples from " << filename << std::endl;
+    return true;
+  }
+
+  bool load_files_impl(const Vec<std::string> &filenames) {
+    cleanup_maps();
+    sample_map_.clear();
+
+    for (const auto &fn : filenames) {
+      if (!map_file(fn)) return false;
+    }
+
+    const size_t n = sample_map_.size();
+    access_order_.resize(n);
+    std::iota(access_order_.begin(), access_order_.end(), 0);
+
     this->current_index_ = 0;
-    std::cout << "Total loaded: " << data_.size() << " samples" << std::endl;
+    std::cout << "Total lazy-mapped: " << n << " samples" << std::endl;
     std::cout << "Using " << (use_coarse_labels_ ? "coarse" : "fine") << " labels" << std::endl;
-    return !data_.empty();
+    return n > 0;
   }
 
   template <typename T>
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
-    if (this->current_index_ >= data_.size()) {
-      return false;
-    }
+    if (this->current_index_ >= access_order_.size()) return false;
 
-    const size_t actual_batch_size = std::min(batch_size, data_.size() - this->current_index_);
+    const size_t actual_batch_size =
+        std::min(batch_size, access_order_.size() - this->current_index_);
 
-    // NHWC format: (Batch, Height, Width, Channels)
     batch_data =
         make_tensor<T>({actual_batch_size, cifar100_constants::IMAGE_HEIGHT,
                         cifar100_constants::IMAGE_WIDTH, cifar100_constants::NUM_CHANNELS});
@@ -143,178 +178,121 @@ private:
     batch_labels->fill(0.0);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
-      const auto &image_data = data_[this->current_index_ + i];
+      const size_t sample_idx = access_order_[this->current_index_ + i];
+      const auto &[file_idx, record_idx] = sample_map_[sample_idx];
+      const uint8_t *record =
+          mapped_files_[file_idx].data + record_idx * cifar100_constants::RECORD_SIZE;
 
-      // Convert from CHW (stored format) to HWC (NHWC tensor format)
+      // Record layout: [coarse_label(1B), fine_label(1B), pixels(3072B CHW)]
+      const size_t label =
+          use_coarse_labels_ ? static_cast<size_t>(record[0]) : static_cast<size_t>(record[1]);
+      const uint8_t *pixels = record + 2;
+
+      // Convert from CHW uint8 to NHWC float
       for (size_t c = 0; c < cifar100_constants::NUM_CHANNELS; ++c) {
         for (size_t h = 0; h < cifar100_constants::IMAGE_HEIGHT; ++h) {
           for (size_t w = 0; w < cifar100_constants::IMAGE_WIDTH; ++w) {
-            size_t pixel_idx =
+            const size_t src_idx =
                 c * cifar100_constants::IMAGE_HEIGHT * cifar100_constants::IMAGE_WIDTH +
                 h * cifar100_constants::IMAGE_WIDTH + w;
-            // NHWC indexing: (batch, height, width, channel)
-            batch_data->at<T>({i, h, w, c}) = static_cast<T>(image_data[pixel_idx]);
+            batch_data->at<T>({i, h, w, c}) =
+                static_cast<T>(pixels[src_idx] / cifar100_constants::NORMALIZATION_FACTOR);
           }
         }
       }
 
-      const size_t label = use_coarse_labels_
-                               ? static_cast<size_t>(coarse_labels_[this->current_index_ + i])
-                               : static_cast<size_t>(fine_labels_[this->current_index_ + i]);
-      batch_labels->at<T>({i, label}) = static_cast<T>(1.0);
+      if (label < num_classes) {
+        batch_labels->at<T>({i, label}) = static_cast<T>(1.0);
+      }
     }
 
     this->apply_augmentation(batch_data, batch_labels);
-
     this->current_index_ += actual_batch_size;
     return true;
   }
 
 public:
-  CIFAR100DataLoader(bool use_coarse_labels = false, DType_t dtype = DType_t::FP32)
+  explicit CIFAR100DataLoader(bool use_coarse_labels = false, DType_t dtype = DType_t::FP32)
       : ImageDataLoader(),
         use_coarse_labels_(use_coarse_labels),
-        dtype_(dtype) {
-    data_.reserve(50000);
-    fine_labels_.reserve(50000);
-    coarse_labels_.reserve(50000);
-  }
+        dtype_(dtype) {}
 
-  virtual ~CIFAR100DataLoader() = default;
+  virtual ~CIFAR100DataLoader() { cleanup_maps(); }
 
   /**
-   * Load CIFAR-100 data from binary file(s)
+   * Load CIFAR-100 data from a single binary file.
    */
   bool load_data(const std::string &source) override {
-    Vec<std::string> filenames;
-
     if (source.find(".bin") != std::string::npos) {
-      filenames.push_back(source);
-    } else {
-      std::cerr << "Error: For multiple files, use load_multiple_files() method" << std::endl;
-      return false;
+      return load_multiple_files({source});
     }
-
-    return load_multiple_files(filenames);
+    std::cerr << "Error: For multiple files, use load_multiple_files() method" << std::endl;
+    return false;
   }
 
   /**
-   * Load CIFAR-100 data from multiple binary files
+   * Lazy-map CIFAR-100 data from multiple binary files.
    */
-  bool load_multiple_files(const Vec<std::string> &filenames) {
-    DISPATCH_DTYPE(dtype_, T, return load_multiple_files_impl<T>(filenames));
-  }
+  bool load_multiple_files(const Vec<std::string> &filenames) { return load_files_impl(filenames); }
 
-  /**
-   * Get a specific batch size
-   */
   bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
     DISPATCH_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
   }
 
-  /**
-   * Reset iterator to beginning of dataset
-   */
   void reset() override { this->current_index_ = 0; }
 
   /**
-   * Shuffle the dataset
+   * Shuffle the access order without copying any pixel data.
    */
   void shuffle() override {
-    if (data_.empty()) return;
-
-    Vec<size_t> indices = this->generate_shuffled_indices(data_.size());
-
-    Vec<Vec<float>> shuffled_data;
-    Vec<int> shuffled_fine_labels;
-    Vec<int> shuffled_coarse_labels;
-
-    shuffled_data.reserve(data_.size());
-    shuffled_fine_labels.reserve(fine_labels_.size());
-    shuffled_coarse_labels.reserve(coarse_labels_.size());
-
-    for (const auto &idx : indices) {
-      shuffled_data.emplace_back(std::move(data_[idx]));
-      shuffled_fine_labels.emplace_back(fine_labels_[idx]);
-      shuffled_coarse_labels.emplace_back(coarse_labels_[idx]);
-    }
-
-    data_ = std::move(shuffled_data);
-    fine_labels_ = std::move(shuffled_fine_labels);
-    coarse_labels_ = std::move(shuffled_coarse_labels);
+    if (access_order_.empty()) return;
+    access_order_ = this->generate_shuffled_indices(access_order_.size());
     this->current_index_ = 0;
   }
 
-  /**
-   * Get the total number of samples in the dataset
-   */
-  size_t size() const override { return data_.size(); }
+  size_t size() const override { return sample_map_.size(); }
 
-  /**
-   * Get image dimensions (height, width, channels) for NHWC format
-   */
   Vec<size_t> get_data_shape() const override {
     return {cifar100_constants::IMAGE_HEIGHT, cifar100_constants::IMAGE_WIDTH,
             cifar100_constants::NUM_CHANNELS};
   }
 
-  /**
-   * Get number of classes
-   */
   int get_num_classes() const override {
     return use_coarse_labels_ ? static_cast<int>(cifar100_constants::NUM_COARSE_CLASSES)
                               : static_cast<int>(cifar100_constants::NUM_CLASSES);
   }
 
-  /**
-   * Get class names for CIFAR-100
-   */
   Vec<std::string> get_class_names() const override {
     return use_coarse_labels_ ? coarse_class_names_ : fine_class_names_;
   }
 
-  /**
-   * Toggle between fine and coarse labels
-   */
   void set_use_coarse_labels(bool use_coarse) { use_coarse_labels_ = use_coarse; }
 
-  /**
-   * Get data statistics for debugging
-   */
   void print_data_stats() const override {
-    if (data_.empty()) {
+    const size_t n = sample_map_.size();
+    if (n == 0) {
       std::cout << "No data loaded" << std::endl;
       return;
     }
 
     const size_t num_classes = use_coarse_labels_ ? cifar100_constants::NUM_COARSE_CLASSES
                                                   : cifar100_constants::NUM_CLASSES;
-    const auto &labels = use_coarse_labels_ ? coarse_labels_ : fine_labels_;
-
     Vec<int> label_counts(num_classes, 0);
-    for (const auto &label : labels) {
-      if (label >= 0 && label < static_cast<int>(num_classes)) {
-        label_counts[label]++;
-      }
+    for (size_t i = 0; i < n; ++i) {
+      const auto &[fi, ri] = sample_map_[i];
+      const uint8_t *record = mapped_files_[fi].data + ri * cifar100_constants::RECORD_SIZE;
+      const int label =
+          use_coarse_labels_ ? static_cast<int>(record[0]) : static_cast<int>(record[1]);
+      if (label >= 0 && label < static_cast<int>(num_classes)) label_counts[label]++;
     }
 
-    std::cout << "CIFAR-100 Dataset Statistics (NHWC format):" << std::endl;
-    std::cout << "Total samples: " << data_.size() << std::endl;
+    std::cout << "CIFAR-100 Dataset Statistics (NHWC format, lazy-mapped):" << std::endl;
+    std::cout << "Total samples: " << n << std::endl;
     std::cout << "Using " << (use_coarse_labels_ ? "coarse" : "fine") << " labels" << std::endl;
     std::cout << "Image shape: " << cifar100_constants::IMAGE_HEIGHT << "x"
               << cifar100_constants::IMAGE_WIDTH << "x" << cifar100_constants::NUM_CHANNELS
               << std::endl;
     std::cout << "Number of classes: " << num_classes << std::endl;
-
-    if (!data_.empty()) {
-      float min_val = *std::min_element(data_[0].begin(), data_[0].end());
-      float max_val = *std::max_element(data_[0].begin(), data_[0].end());
-      float sum = std::accumulate(data_[0].begin(), data_[0].end(), 0.0f);
-      float mean = sum / static_cast<float>(data_[0].size());
-
-      std::cout << "Pixel value range: [" << min_val << ", " << max_val << "]" << std::endl;
-      std::cout << "First image mean pixel value: " << mean << std::endl;
-    }
   }
 
   static void create(const std::string &data_path, CIFAR100DataLoader &train_loader,
