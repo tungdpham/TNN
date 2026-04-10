@@ -8,6 +8,7 @@
 #include "data_loading/cifar100_data_loader.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/data_loader_factory.hpp"
+#include "data_loading/imagenet100_data_loader.hpp"
 #include "data_loading/mnist_data_loader.hpp"
 #include "data_loading/open_webtext_data_loader.hpp"
 #include "data_loading/tiny_imagenet_data_loader.hpp"
@@ -61,6 +62,17 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
   } else if (dataset_type == "tiny_imagenet") {
     auto train = std::make_unique<TinyImageNetDataLoader>(io_dtype_);
     auto val = std::make_unique<TinyImageNetDataLoader>(io_dtype_);
+
+    if (train->load_data(dataset_path, true)) {
+      pair.train = std::move(train);
+    }
+
+    if (val->load_data(dataset_path, false)) {
+      pair.val = std::move(val);
+    }
+  } else if (dataset_type == "imagenet100") {
+    auto train = std::make_unique<ImageNet100DataLoader>(io_dtype_);
+    auto val = std::make_unique<ImageNet100DataLoader>(io_dtype_);
 
     if (train->load_data(dataset_path, true)) {
       pair.train = std::move(train);

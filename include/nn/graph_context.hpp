@@ -14,10 +14,14 @@ inline size_t get_bytes_size(const Vec<size_t> &shape, DType_t dtype) {
                          std::multiplies<size_t>());
 }
 
-struct GraphContextDescriptor {
+class GraphContextDescriptor {
+private:
   Vec<ParamDescriptor> param_descs;
   size_t param_bytes = 0;
   size_t grad_bytes = 0;
+
+public:
+  GraphContextDescriptor() = default;
 
   void register_desc(const ParamDescriptor &param_desc) {
     param_descs.push_back(param_desc);
@@ -30,20 +34,25 @@ struct GraphContextDescriptor {
     param_bytes += bytes_size;
     grad_bytes += bytes_size;
   }
+
+  size_t get_param_bytes() const { return param_bytes; }
+  size_t get_grad_bytes() const { return grad_bytes; }
+
+  const Vec<ParamDescriptor> &get_param_descs() const { return param_descs; }
 };
 
 class GraphContext {
 public:
-  GraphContext(IAllocator &allocator, GraphContextDescriptor ctx_desc)
-      : ctx_desc_(std::move(ctx_desc)),
+  GraphContext(IAllocator &allocator, const GraphContextDescriptor &ctx_desc)
+      : ctx_desc_(ctx_desc),
         allocator_(allocator) {
-    allocator.reserve(ctx_desc.param_bytes + ctx_desc.grad_bytes);
-    param_slab_ = allocator.allocate(ctx_desc_.param_bytes);
-    grad_slab_ = allocator.allocate(ctx_desc_.grad_bytes);
+    allocator.reserve(ctx_desc_.get_param_bytes() + ctx_desc_.get_grad_bytes());
+    param_slab_ = allocator.allocate(ctx_desc_.get_param_bytes());
+    grad_slab_ = allocator.allocate(ctx_desc_.get_grad_bytes());
 
     size_t param_offset = 0;
     size_t grad_offset = 0;
-    for (auto &param_desc : ctx_desc_.param_descs) {
+    for (const auto &param_desc : ctx_desc_.get_param_descs()) {
       size_t bytes_size = get_bytes_size(param_desc.shape, param_desc.dtype);
       // round up to 256 bytes for better memory access pattern, can be tuned later
       bytes_size = (bytes_size + 255) & ~255;
@@ -66,7 +75,7 @@ public:
     }
   }
 
-  GraphContextDescriptor descriptor() const { return ctx_desc_; }
+  const GraphContextDescriptor &descriptor() const { return ctx_desc_; }
 
   Vec<Tensor> &parameters() { return params_; }
   Vec<Tensor> &gradients() { return grads_; }

@@ -271,7 +271,7 @@ Sequential create_tiny_imagenet_resnet50(DType_t io_dtype_ = DType_t::FP32) {
 }
 
 Sequential create_resnet50_imagenet(DType_t io_dtype_ = DType_t::FP32) {
-  auto layers = LayerBuilder({{3, 224, 224}})
+  auto layers = LayerBuilder({{224, 224, 3}})
                     .dtype(io_dtype_)
                     .conv2d(64, 7, 7, 2, 2, 3, 3, true, "conv1")
                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn1")
@@ -302,6 +302,40 @@ Sequential create_resnet50_imagenet(DType_t io_dtype_ = DType_t::FP32) {
                     .dense(1000, true, "fc")
                     .build();
   return Sequential(std::move(layers), "imagenet_resnet50");
+}
+
+Sequential create_imagenet100_resnet50(DType_t io_dtype_ = DType_t::FP32) {
+  auto layers = LayerBuilder({{224, 224, 3}})
+                    .dtype(io_dtype_)
+                    .conv2d(64, 7, 7, 2, 2, 3, 3, true, "conv1")
+                    .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn1")
+                    .maxpool2d(3, 3, 2, 2, 1, 1, "maxpool")
+                    // Layer 1: 64 channels, 3 bottleneck blocks
+                    .bottleneck_residual_block(64, 64, 256, 1, "layer1_block1")
+                    .bottleneck_residual_block(256, 64, 256, 1, "layer1_block2")
+                    .bottleneck_residual_block(256, 64, 256, 1, "layer1_block3")
+                    // Layer 2: 128 channels, 4 bottleneck blocks with stride 2
+                    .bottleneck_residual_block(256, 128, 512, 2, "layer2_block1")
+                    .bottleneck_residual_block(512, 128, 512, 1, "layer2_block2")
+                    .bottleneck_residual_block(512, 128, 512, 1, "layer2_block3")
+                    .bottleneck_residual_block(512, 128, 512, 1, "layer2_block4")
+                    // Layer 3: 256 channels, 6 bottleneck blocks with stride 2
+                    .bottleneck_residual_block(512, 256, 1024, 2, "layer3_block1")
+                    .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block2")
+                    .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block3")
+                    .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block4")
+                    .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block5")
+                    .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block6")
+                    // Layer 4: 512 channels, 3 bottleneck blocks with stride 2
+                    .bottleneck_residual_block(1024, 512, 2048, 2, "layer4_block1")
+                    .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block2")
+                    .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3")
+                    // Global average pooling and classifier
+                    .avgpool2d(7, 7, 1, 1, 0, 0, "avgpool")
+                    .flatten(1, -1, "flatten")
+                    .dense(100, true, "fc")
+                    .build();
+  return Sequential(std::move(layers), "imagenet100_resnet50");
 }
 
 Sequential create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP32) {
@@ -568,6 +602,7 @@ void ExampleModels::register_defaults() {
 
   // ImageNet
   register_model(create_resnet50_imagenet);
+  register_model(create_imagenet100_resnet50);
 
   // GPT-2
   register_model(create_gpt2_small);

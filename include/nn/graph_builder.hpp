@@ -16,11 +16,7 @@ namespace tnn {
 class GraphBuilder {
 public:
   GraphBuilder()
-      : ctx_desc_{
-            .param_descs = {},
-            .param_bytes = 0,
-            .grad_bytes = 0,
-        } {}
+      : ctx_desc_() {}
 
   size_t num_nodes() const { return op_nodes_.size() + io_nodes_.size(); }
 

@@ -194,6 +194,7 @@ target_include_directories(tnn_data_loading PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(tnn_data_loading PUBLIC tnn_utils tnn_tensor tnn_matrix tnn_type)
+target_link_libraries(tnn_data_loading PUBLIC nlohmann_json::nlohmann_json)
 
 # Data augmentation library
 file(GLOB_RECURSE TNN_DATA_AUGMENTATION_SOURCES
