@@ -10,7 +10,7 @@
 
 namespace tnn {
 namespace cpu {
-
+namespace avgpool {
 template <typename T>
 void avgpool_forward(const T *input, T *output, size_t batch_size, size_t height, size_t width,
                      size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,
@@ -21,6 +21,6 @@ void avgpool_backward(const T *grad_output, T *grad_input, size_t batch_size, si
                       size_t input_w, size_t channels, size_t pool_h, size_t pool_w,
                       size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h,
                       size_t output_w);
-
+}  // namespace avgpool
 }  // namespace cpu
 }  // namespace tnn

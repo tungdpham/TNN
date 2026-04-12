@@ -5,7 +5,6 @@
 namespace tnn {
 namespace cpu {
 namespace batchnorm_nchw {
-
 template <typename T>
 void compute_inference_output(const T *input_data, const float *running_mean_data,
                               const float *running_var_data, const float *gamma_data,

@@ -10,7 +10,7 @@
 
 namespace tnn {
 namespace cpu {
-
+namespace sdpa {
 // Scaled Dot-Product Attention forward pass (CPU)
 // Q, K, V: (batch, heads, seq_len, head_dim)
 // Output: (batch, heads, seq_len, head_dim)
@@ -26,5 +26,6 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
                    T *grad_q, T *grad_k, T *grad_v, size_t batch_size, size_t num_heads,
                    size_t seq_len, size_t head_dim, float attn_scale, bool is_causal);
 
+}  // namespace sdpa
 }  // namespace cpu
 }  // namespace tnn

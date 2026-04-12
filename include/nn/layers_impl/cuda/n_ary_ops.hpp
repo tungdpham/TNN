@@ -16,9 +16,8 @@
 #endif
 
 namespace tnn {
-
 namespace cuda {
-
+namespace nary {
 // workspace must be a device pointer of at least nary_forward_workspace_bytes(n_inputs) bytes
 template <typename T>
 void nary_forward(const Vec<const T *> &inputs, T *output, const Vec<size_t> &shape,
@@ -36,6 +35,6 @@ inline size_t nary_forward_workspace_bytes(size_t n_inputs) { return n_inputs * 
 inline size_t nary_backward_workspace_bytes(size_t n_inputs) {
   return 2 * n_inputs * sizeof(void *);
 }
-
+}  // namespace nary
 }  // namespace cuda
 }  // namespace tnn

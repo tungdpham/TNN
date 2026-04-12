@@ -18,9 +18,6 @@
 
 namespace tnn {
 
-// ---------------------------------------------------------------------------
-// Builds a timestamp string (YYYYmmdd_HHMMSS) for use in CSV filenames.
-// ---------------------------------------------------------------------------
 inline std::string csv_timestamp() {
   auto now = std::chrono::system_clock::now();
   std::time_t t = std::chrono::system_clock::to_time_t(now);
@@ -31,15 +28,6 @@ inline std::string csv_timestamp() {
   return ts;
 }
 
-// ---------------------------------------------------------------------------
-// CsvLogger — per-run batch and epoch metric CSV files.
-//   Batch  CSV columns: epoch, step, loss, accuracy_pct, time_ms,
-//                       host_memory_mb, device_used_memory_mb
-//   Val    CSV columns: epoch, step, loss, accuracy_pct,
-//                       host_memory_mb, device_used_memory_mb
-//   Epoch  CSV columns: epoch, train_loss, train_accuracy_pct,
-//                       val_loss, val_accuracy_pct,
-// ---------------------------------------------------------------------------
 struct CsvLogger {
   Logger batch_logger;
   Logger val_logger;
@@ -105,11 +93,6 @@ struct CsvLogger {
   }
 };
 
-// ---------------------------------------------------------------------------
-// WorkerCsvLogger — per-worker compute timing CSV file.
-//   Columns: step, event_type, time_ms, device_used_memory_mb
-//   event_type is "forward" or "backward".
-// ---------------------------------------------------------------------------
 struct WorkerCsvLogger {
   Logger compute_logger;
 

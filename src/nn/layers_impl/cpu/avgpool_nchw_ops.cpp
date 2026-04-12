@@ -13,10 +13,9 @@ namespace tnn {
 namespace cpu {
 namespace avgpool_nchw {
 template <typename T>
-void compute_avg_pool_forward(const T *input_data, T *output_data, size_t batch_size,
-                              size_t channels, size_t input_h, size_t input_w, size_t output_h,
-                              size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,
-                              size_t stride_w, size_t pad_h, size_t pad_w) {
+void run_forward(const T *input_data, T *output_data, size_t batch_size, size_t channels,
+                 size_t input_h, size_t input_w, size_t output_h, size_t output_w, size_t pool_h,
+                 size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
   const T pool_size_inv = T(1.0) / T(pool_h * pool_w);
 
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
@@ -51,10 +50,9 @@ void compute_avg_pool_forward(const T *input_data, T *output_data, size_t batch_
 }
 
 template <typename T>
-void compute_avg_pool_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
-                               size_t channels, size_t input_h, size_t input_w, size_t output_h,
-                               size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,
-                               size_t stride_w, size_t pad_h, size_t pad_w) {
+void run_backward(const T *gradient_data, T *grad_input_data, size_t batch_size, size_t channels,
+                  size_t input_h, size_t input_w, size_t output_h, size_t output_w, size_t pool_h,
+                  size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
   const T pool_size_inv = T(1.0) / T(pool_h * pool_w);
 
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
@@ -87,16 +85,16 @@ void compute_avg_pool_backward(const T *gradient_data, T *grad_input_data, size_
   });
 }
 
-#define INSTANTIATE_AVGPOOL(T)                                                                 \
-  template void compute_avg_pool_forward<T>(                                                   \
-      const T *input_data, T *output_data, size_t batch_size, size_t channels, size_t input_h, \
-      size_t input_w, size_t output_h, size_t output_w, size_t pool_h, size_t pool_w,          \
-      size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w);                           \
-                                                                                               \
-  template void compute_avg_pool_backward<T>(                                                  \
-      const T *gradient_data, T *grad_input_data, size_t batch_size, size_t channels,          \
-      size_t input_h, size_t input_w, size_t output_h, size_t output_w, size_t pool_h,         \
-      size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w);
+#define INSTANTIATE_AVGPOOL(T)                                                                    \
+  template void run_forward<T>(const T *input_data, T *output_data, size_t batch_size,            \
+                               size_t channels, size_t input_h, size_t input_w, size_t output_h,  \
+                               size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,    \
+                               size_t stride_w, size_t pad_h, size_t pad_w);                      \
+                                                                                                  \
+  template void run_backward<T>(const T *gradient_data, T *grad_input_data, size_t batch_size,    \
+                                size_t channels, size_t input_h, size_t input_w, size_t output_h, \
+                                size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,   \
+                                size_t stride_w, size_t pad_h, size_t pad_w);
 
 INSTANTIATE_AVGPOOL(fp16)
 INSTANTIATE_AVGPOOL(bf16)

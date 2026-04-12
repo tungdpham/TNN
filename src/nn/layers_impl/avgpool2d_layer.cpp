@@ -50,8 +50,8 @@ Tensor AvgPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
 
   Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
 
-  DISPATCH_IO_DTYPE(compute_avg_pool_forward_impl, input, output, batch_size, input_h, input_w,
-                    channels, output_h, output_w, this->flow_handle_);
+  DISPATCH_IO_DTYPE(run_forward_impl, input, output, batch_size, input_h, input_w, channels,
+                    output_h, output_w, this->flow_handle_);
 
   return output;
 }
@@ -78,16 +78,18 @@ Tensor AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
   Tensor grad_input = get_output_tensor({batch_size, input_h, input_w, channels});
   grad_input->fill(0);
 
-  DISPATCH_IO_DTYPE(compute_avg_pool_backward_impl, grad_output, grad_input, batch_size, input_h,
-                    input_w, channels, output_h, output_w, this->flow_handle_);
+  DISPATCH_IO_DTYPE(run_backward_impl, grad_output, grad_input, batch_size, input_h, input_w,
+                    channels, output_h, output_w, this->flow_handle_);
 
   return grad_input;
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_forward_impl(
-    const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t height,
-    size_t width, size_t channels, size_t output_h, size_t output_w, flowHandle_t handle) const {
+std::unique_ptr<Task> AvgPool2DLayer::run_forward_impl(const ConstTensor &input_data,
+                                                       const Tensor &output_data, size_t batch_size,
+                                                       size_t height, size_t width, size_t channels,
+                                                       size_t output_h, size_t output_w,
+                                                       flowHandle_t handle) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("AvgPool2DLayer: data type mismatch in forward pass");
   }
@@ -111,10 +113,12 @@ std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_forward_impl(
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_backward_impl(
-    const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
-    size_t input_h, size_t input_w, size_t channels, size_t output_h, size_t output_w,
-    flowHandle_t handle) const {
+std::unique_ptr<Task> AvgPool2DLayer::run_backward_impl(const ConstTensor &gradient_data,
+                                                        const Tensor &grad_input_data,
+                                                        size_t batch_size, size_t input_h,
+                                                        size_t input_w, size_t channels,
+                                                        size_t output_h, size_t output_w,
+                                                        flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("AvgPool2DLayer: data type mismatch in backward pass");
