@@ -30,11 +30,10 @@ struct VectorType<double> {
 };
 
 template <typename T>
-__global__ void compute_dropout_forward_kernel_vectorized(const T* __restrict__ input_data,
-                                                          T* __restrict__ output_data,
-                                                          bool* __restrict__ mask_data,
-                                                          size_t n_elements, T dropout_rate,
-                                                          T scale, unsigned long long seed) {
+__global__ void run_forward_kernel_vectorized(const T* __restrict__ input_data,
+                                              T* __restrict__ output_data,
+                                              bool* __restrict__ mask_data, size_t n_elements,
+                                              T dropout_rate, T scale, unsigned long long seed) {
   using VecT = typename VectorType<T>::type;
   constexpr size_t vec_width = sizeof(VecT) / sizeof(T);
 
@@ -105,10 +104,9 @@ __global__ void compute_dropout_forward_kernel_vectorized(const T* __restrict__ 
 }
 
 template <typename T>
-__global__ void compute_dropout_forward_kernel(const T* input_data, T* output_data, bool* mask_data,
-                                               size_t batch_size, size_t channels,
-                                               size_t spatial_size, T dropout_rate, T scale,
-                                               unsigned long long seed) {
+__global__ void run_forward_kernel(const T* input_data, T* output_data, bool* mask_data,
+                                   size_t batch_size, size_t channels, size_t spatial_size,
+                                   T dropout_rate, T scale, unsigned long long seed) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_elements = batch_size * channels * spatial_size;
   int stride = blockDim.x * gridDim.x;
@@ -130,9 +128,8 @@ __global__ void compute_dropout_forward_kernel(const T* input_data, T* output_da
 }
 
 template <typename T>
-void compute_dropout_forward(const T* input_data, T* output_data, bool* mask_data,
-                             size_t batch_size, size_t channels, size_t spatial_size,
-                             T dropout_rate, cudaStream_t stream) {
+void run_forward(const T* input_data, T* output_data, bool* mask_data, size_t batch_size,
+                 size_t channels, size_t spatial_size, T dropout_rate, cudaStream_t stream) {
   size_t total_elements = batch_size * channels * spatial_size;
 
   int threads = BLOCK_SIZE;
@@ -145,20 +142,20 @@ void compute_dropout_forward(const T* input_data, T* output_data, bool* mask_dat
                             static_cast<unsigned long long>(std::time(nullptr));
 
   if constexpr (std::is_same<T, float>::value) {
-    compute_dropout_forward_kernel_vectorized<float><<<blocks, threads, 0, stream>>>(
+    run_forward_kernel_vectorized<float><<<blocks, threads, 0, stream>>>(
         input_data, output_data, mask_data, total_elements, dropout_rate, scale, seed);
   } else {
-    compute_dropout_forward_kernel<<<blocks, threads, 0, stream>>>(
-        input_data, output_data, mask_data, batch_size, channels, spatial_size, dropout_rate, scale,
-        seed);
+    run_forward_kernel<<<blocks, threads, 0, stream>>>(input_data, output_data, mask_data,
+                                                       batch_size, channels, spatial_size,
+                                                       dropout_rate, scale, seed);
   }
 }
 
 template <typename T>
-__global__ void compute_dropout_backward_kernel(const T* __restrict__ grad_output_data,
-                                                T* __restrict__ grad_input_data,
-                                                const bool* __restrict__ mask_data,
-                                                size_t total_elements, T scale) {
+__global__ void run_backward_kernel(const T* __restrict__ grad_output_data,
+                                    T* __restrict__ grad_input_data,
+                                    const bool* __restrict__ mask_data, size_t total_elements,
+                                    T scale) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = blockDim.x * gridDim.x;
 
@@ -168,26 +165,26 @@ __global__ void compute_dropout_backward_kernel(const T* __restrict__ grad_outpu
 }
 
 template <typename T>
-void compute_dropout_backward(const T* grad_output_data, T* grad_input_data, const bool* mask_data,
-                              size_t batch_size, size_t channels, size_t spatial_size, T scale,
-                              cudaStream_t stream) {
+void run_backward(const T* grad_output_data, T* grad_input_data, const bool* mask_data,
+                  size_t batch_size, size_t channels, size_t spatial_size, T scale,
+                  cudaStream_t stream) {
   size_t total_elements = batch_size * channels * spatial_size;
 
   int threads = BLOCK_SIZE;
   int blocks = (total_elements + threads - 1) / threads;
   blocks = std::min(blocks, 4096);
 
-  compute_dropout_backward_kernel<T><<<blocks, threads, 0, stream>>>(
-      grad_output_data, grad_input_data, mask_data, total_elements, scale);
+  run_backward_kernel<T><<<blocks, threads, 0, stream>>>(grad_output_data, grad_input_data,
+                                                         mask_data, total_elements, scale);
 }
 
-#define INSTANTIATE_DROPOUT(T)                                                                  \
-  template void compute_dropout_forward<T>(                                                     \
-      const T* input_data, T* output_data, bool* mask_data, size_t batch_size, size_t channels, \
-      size_t spatial_size, T dropout_rate, cudaStream_t stream);                                \
-  template void compute_dropout_backward<T>(                                                    \
-      const T* grad_output_data, T* grad_input_data, const bool* mask_data, size_t batch_size,  \
-      size_t channels, size_t spatial_size, T scale, cudaStream_t stream);
+#define INSTANTIATE_DROPOUT(T)                                                             \
+  template void run_forward<T>(const T* input_data, T* output_data, bool* mask_data,       \
+                               size_t batch_size, size_t channels, size_t spatial_size,    \
+                               T dropout_rate, cudaStream_t stream);                       \
+  template void run_backward<T>(const T* grad_output_data, T* grad_input_data,             \
+                                const bool* mask_data, size_t batch_size, size_t channels, \
+                                size_t spatial_size, T scale, cudaStream_t stream);
 INSTANTIATE_DROPOUT(fp16)
 INSTANTIATE_DROPOUT(bf16)
 INSTANTIATE_DROPOUT(float)

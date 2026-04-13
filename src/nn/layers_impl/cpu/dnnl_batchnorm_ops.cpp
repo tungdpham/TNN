@@ -25,7 +25,7 @@ struct dnnlBNHandle_t {
 
   dnnl::batch_normalization_forward fwd_prim;   // forward_training
   dnnl::batch_normalization_forward inf_prim;   // forward_inference
-  dnnl::batch_normalization_backward bwd_prim;  // backward (or backward_data)
+  dnnl::batch_normalization_backward bwd_prim;  // backward (or run_dgrad)
 
   // src / dst — NHWC, io dtype
   dnnl::memory fwd_src_mem, fwd_dst_mem;
@@ -191,10 +191,9 @@ dnnlBNHandle_t *initialize_dnnl_handle(BatchNormStats &stats, DType_t dtype) {
 
 void destroy_dnnl_handle(dnnlBNHandle_t *handle) { delete handle; }
 
-void run_forward_training(dnnlBNHandle_t *handle, const BatchNormStats &stats,
-                          const void *input_data, const void *scale_data, const void *shift_data,
-                          void *output_data, void *mean_data, void *var_data, void *relu_ws_data,
-                          void *scratchpad_data) {
+void run_forward(dnnlBNHandle_t *handle, const BatchNormStats &stats, const void *input_data,
+                 const void *scale_data, const void *shift_data, void *output_data, void *mean_data,
+                 void *var_data, void *relu_ws_data, void *scratchpad_data) {
   dnnl::stream &s = handle->stream;
 
   handle->fwd_src_mem.set_data_handle(const_cast<void *>(input_data));
@@ -217,15 +216,13 @@ void run_forward_training(dnnlBNHandle_t *handle, const BatchNormStats &stats,
   }
 
   if (handle->fwd_scratchpad_mem) {
-    if (!scratchpad_data)
-      throw std::runtime_error("dnnl_batchnorm run_forward_training: null scratchpad");
+    if (!scratchpad_data) throw std::runtime_error("dnnl_batchnorm run_forward: null scratchpad");
     handle->fwd_scratchpad_mem.set_data_handle(scratchpad_data);
     args[DNNL_ARG_SCRATCHPAD] = handle->fwd_scratchpad_mem;
   }
 
   if (handle->has_relu) {
-    if (!relu_ws_data)
-      throw std::runtime_error("dnnl_batchnorm run_forward_training: null relu workspace");
+    if (!relu_ws_data) throw std::runtime_error("dnnl_batchnorm run_forward: null relu workspace");
     handle->fwd_workspace_mem.set_data_handle(relu_ws_data);
     args[DNNL_ARG_WORKSPACE] = handle->fwd_workspace_mem;
   }
@@ -240,10 +237,9 @@ void run_forward_training(dnnlBNHandle_t *handle, const BatchNormStats &stats,
   // std::cout << "DNNL batchnorm forward training pass took " << duration_ms << " ms" << std::endl;
 }
 
-void run_forward_inference(dnnlBNHandle_t *handle, const BatchNormStats &stats,
-                           const void *input_data, const void *scale_data, const void *shift_data,
-                           const void *mean_data, const void *var_data, void *output_data,
-                           void *scratchpad_data) {
+void run_inference(dnnlBNHandle_t *handle, const BatchNormStats &stats, const void *input_data,
+                   const void *scale_data, const void *shift_data, const void *mean_data,
+                   const void *var_data, void *output_data, void *scratchpad_data) {
   dnnl::stream &s = handle->stream;
 
   handle->inf_src_mem.set_data_handle(const_cast<void *>(input_data));
@@ -270,8 +266,7 @@ void run_forward_inference(dnnlBNHandle_t *handle, const BatchNormStats &stats,
   }
 
   if (handle->inf_scratchpad_mem) {
-    if (!scratchpad_data)
-      throw std::runtime_error("dnnl_batchnorm run_forward_inference: null scratchpad");
+    if (!scratchpad_data) throw std::runtime_error("dnnl_batchnorm run_inference: null scratchpad");
     handle->inf_scratchpad_mem.set_data_handle(scratchpad_data);
     args[DNNL_ARG_SCRATCHPAD] = handle->inf_scratchpad_mem;
   }

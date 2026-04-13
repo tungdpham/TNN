@@ -66,7 +66,7 @@ protected:
   bool has_gpu_;
 };
 
-// ==================== compute_weight_gradients Tests ====================
+// ==================== run_wgrad Tests ====================
 
 TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsBasic) {
   const size_t output_size = 4;
@@ -85,9 +85,8 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsBasic) {
 
   // CPU version
   Vec<float> cpu_weight_grad(out_channels * kernel_size, 0.0f);
-  cpu::conv2d_nchw::compute_weight_gradients(col_data.data(), gradient_data.data(),
-                                             cpu_weight_grad.data(), output_size, kernel_size,
-                                             out_channels);
+  cpu::conv2d_nchw::run_wgrad(col_data.data(), gradient_data.data(), cpu_weight_grad.data(),
+                              output_size, kernel_size, out_channels);
 
   // GPU version
   dptr gpu_col = make_dptr_t<float>(getGPU(), col_data.size());
@@ -104,10 +103,10 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsBasic) {
                         zero_grad.size() * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_weight_gradients<float>,
-                       gpu_col.get<float>(), gpu_gradient.get<float>(),
-                       gpu_weight_grad.get<float>(), output_size, kernel_size, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU compute_weight_gradients task failed";
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::run_wgrad<float>, gpu_col.get<float>(),
+                       gpu_gradient.get<float>(), gpu_weight_grad.get<float>(), output_size,
+                       kernel_size, out_channels);
+  ASSERT_FALSE(gpu_task->sync()) << "GPU run_wgrad task failed";
 
   Vec<float> gpu_weight_grad_cpu(out_channels * kernel_size);
   getGPU().copyToHost(gpu_weight_grad_cpu.data(), gpu_weight_grad.get<float>(),
@@ -133,9 +132,8 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsMultiOutput) {
 
   // CPU version
   Vec<float> cpu_weight_grad(out_channels * kernel_size, 0.0f);
-  cpu::conv2d_nchw::compute_weight_gradients(col_data.data(), gradient_data.data(),
-                                             cpu_weight_grad.data(), output_size, kernel_size,
-                                             out_channels);
+  cpu::conv2d_nchw::run_wgrad(col_data.data(), gradient_data.data(), cpu_weight_grad.data(),
+                              output_size, kernel_size, out_channels);
 
   // GPU version
   dptr gpu_col = make_dptr_t<float>(getGPU(), col_data.size());
@@ -151,10 +149,10 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsMultiOutput) {
                         zero_grad.size() * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_weight_gradients<float>,
-                       gpu_col.get<float>(), gpu_gradient.get<float>(),
-                       gpu_weight_grad.get<float>(), output_size, kernel_size, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU compute_weight_gradients task failed";
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::run_wgrad<float>, gpu_col.get<float>(),
+                       gpu_gradient.get<float>(), gpu_weight_grad.get<float>(), output_size,
+                       kernel_size, out_channels);
+  ASSERT_FALSE(gpu_task->sync()) << "GPU run_wgrad task failed";
 
   Vec<float> gpu_weight_grad_cpu(out_channels * kernel_size);
   getGPU().copyToHost(gpu_weight_grad_cpu.data(), gpu_weight_grad.get<float>(),
@@ -180,9 +178,8 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsLargeKernel) {
 
   // CPU version
   Vec<float> cpu_weight_grad(out_channels * kernel_size, 0.0f);
-  cpu::conv2d_nchw::compute_weight_gradients(col_data.data(), gradient_data.data(),
-                                             cpu_weight_grad.data(), output_size, kernel_size,
-                                             out_channels);
+  cpu::conv2d_nchw::run_wgrad(col_data.data(), gradient_data.data(), cpu_weight_grad.data(),
+                              output_size, kernel_size, out_channels);
 
   // GPU version
   dptr gpu_col = make_dptr_t<float>(getGPU(), col_data.size());
@@ -198,10 +195,10 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsLargeKernel) {
                         zero_grad.size() * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_weight_gradients<float>,
-                       gpu_col.get<float>(), gpu_gradient.get<float>(),
-                       gpu_weight_grad.get<float>(), output_size, kernel_size, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU compute_weight_gradients task failed";
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::run_wgrad<float>, gpu_col.get<float>(),
+                       gpu_gradient.get<float>(), gpu_weight_grad.get<float>(), output_size,
+                       kernel_size, out_channels);
+  ASSERT_FALSE(gpu_task->sync()) << "GPU run_wgrad task failed";
 
   Vec<float> gpu_weight_grad_cpu(out_channels * kernel_size);
   getGPU().copyToHost(gpu_weight_grad_cpu.data(), gpu_weight_grad.get<float>(),
@@ -210,7 +207,7 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsLargeKernel) {
   compareArrays(cpu_weight_grad, gpu_weight_grad_cpu);
 }
 
-// ==================== compute_input_gradients Tests ====================
+// ==================== run_dgrad Tests ====================
 
 TEST_F(CUDAConv2NCHWOpsTest, InputGradientsBasic) {
   const size_t output_size = 4;
@@ -229,9 +226,8 @@ TEST_F(CUDAConv2NCHWOpsTest, InputGradientsBasic) {
 
   // CPU version
   Vec<float> cpu_col_grad(kernel_size * output_size, 0.0f);
-  cpu::conv2d_nchw::compute_input_gradients(gradient_data.data(), weight_data.data(),
-                                            cpu_col_grad.data(), output_size, kernel_size,
-                                            out_channels);
+  cpu::conv2d_nchw::run_dgrad(gradient_data.data(), weight_data.data(), cpu_col_grad.data(),
+                              output_size, kernel_size, out_channels);
 
   // GPU version
   dptr gpu_gradient = make_dptr_t<float>(getGPU(), gradient_data.size());
@@ -247,11 +243,10 @@ TEST_F(CUDAConv2NCHWOpsTest, InputGradientsBasic) {
   getGPU().copyToDevice(gpu_col_grad.get<float>(), zero_col_grad.data(),
                         zero_col_grad.size() * sizeof(float));
 
-  auto gpu_task =
-      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_input_gradients<float>,
-                       gpu_gradient.get<float>(), gpu_weight.get<float>(),
-                       gpu_col_grad.get<float>(), output_size, kernel_size, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU compute_input_gradients task failed";
+  auto gpu_task = create_cuda_task(
+      defaultFlowHandle, cuda::conv2d_nchw::run_dgrad<float>, gpu_gradient.get<float>(),
+      gpu_weight.get<float>(), gpu_col_grad.get<float>(), output_size, kernel_size, out_channels);
+  ASSERT_FALSE(gpu_task->sync()) << "GPU run_dgrad task failed";
 
   Vec<float> gpu_col_grad_cpu(kernel_size * output_size);
   getGPU().copyToHost(gpu_col_grad_cpu.data(), gpu_col_grad.get<float>(),
@@ -277,9 +272,8 @@ TEST_F(CUDAConv2NCHWOpsTest, InputGradientsLargeKernel) {
 
   // CPU version
   Vec<float> cpu_col_grad(kernel_size * output_size, 0.0f);
-  cpu::conv2d_nchw::compute_input_gradients(gradient_data.data(), weight_data.data(),
-                                            cpu_col_grad.data(), output_size, kernel_size,
-                                            out_channels);
+  cpu::conv2d_nchw::run_dgrad(gradient_data.data(), weight_data.data(), cpu_col_grad.data(),
+                              output_size, kernel_size, out_channels);
 
   // GPU version
   dptr gpu_gradient = make_dptr_t<float>(getGPU(), gradient_data.size());
@@ -295,11 +289,10 @@ TEST_F(CUDAConv2NCHWOpsTest, InputGradientsLargeKernel) {
   getGPU().copyToDevice(gpu_col_grad.get<float>(), zero_col_grad.data(),
                         zero_col_grad.size() * sizeof(float));
 
-  auto gpu_task =
-      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_input_gradients<float>,
-                       gpu_gradient.get<float>(), gpu_weight.get<float>(),
-                       gpu_col_grad.get<float>(), output_size, kernel_size, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU compute_input_gradients task failed";
+  auto gpu_task = create_cuda_task(
+      defaultFlowHandle, cuda::conv2d_nchw::run_dgrad<float>, gpu_gradient.get<float>(),
+      gpu_weight.get<float>(), gpu_col_grad.get<float>(), output_size, kernel_size, out_channels);
+  ASSERT_FALSE(gpu_task->sync()) << "GPU run_dgrad task failed";
 
   Vec<float> gpu_col_grad_cpu(kernel_size * output_size);
   getGPU().copyToHost(gpu_col_grad_cpu.data(), gpu_col_grad.get<float>(),
@@ -308,7 +301,7 @@ TEST_F(CUDAConv2NCHWOpsTest, InputGradientsLargeKernel) {
   compareArrays(cpu_col_grad, gpu_col_grad_cpu);
 }
 
-// ==================== compute_bias_gradients Tests ====================
+// ==================== run_bgrad Tests ====================
 
 TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsBasic) {
   const size_t batch_size = 2;
@@ -323,8 +316,8 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsBasic) {
 
   // CPU version
   Vec<float> cpu_bias_grad(out_channels, 0.0f);
-  cpu::conv2d_nchw::compute_bias_gradients(gradient_data.data(), cpu_bias_grad.data(), batch_size,
-                                           output_h, output_w, out_channels);
+  cpu::conv2d_nchw::run_bgrad(gradient_data.data(), cpu_bias_grad.data(), batch_size, output_h,
+                              output_w, out_channels);
 
   // GPU version
   dptr gpu_gradient = make_dptr_t<float>(getGPU(), gradient_data.size());
@@ -337,11 +330,10 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsBasic) {
   getGPU().copyToDevice(gpu_bias_grad.get<float>(), zero_bias_grad.data(),
                         out_channels * sizeof(float));
 
-  auto gpu_task =
-      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_bias_gradients<float>,
-                       gpu_gradient.get<float>(), gpu_bias_grad.get<float>(), batch_size, output_h,
-                       output_w, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU compute_bias_gradients task failed";
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::run_bgrad<float>,
+                                   gpu_gradient.get<float>(), gpu_bias_grad.get<float>(),
+                                   batch_size, output_h, output_w, out_channels);
+  ASSERT_FALSE(gpu_task->sync()) << "GPU run_bgrad task failed";
 
   Vec<float> gpu_bias_grad_cpu(out_channels);
   getGPU().copyToHost(gpu_bias_grad_cpu.data(), gpu_bias_grad.get<float>(),
@@ -363,8 +355,8 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsMultiBatch) {
 
   // CPU version
   Vec<float> cpu_bias_grad(out_channels, 0.0f);
-  cpu::conv2d_nchw::compute_bias_gradients(gradient_data.data(), cpu_bias_grad.data(), batch_size,
-                                           output_h, output_w, out_channels);
+  cpu::conv2d_nchw::run_bgrad(gradient_data.data(), cpu_bias_grad.data(), batch_size, output_h,
+                              output_w, out_channels);
 
   // GPU version
   dptr gpu_gradient = make_dptr_t<float>(getGPU(), gradient_data.size());
@@ -377,11 +369,10 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsMultiBatch) {
   getGPU().copyToDevice(gpu_bias_grad.get<float>(), zero_bias_grad.data(),
                         out_channels * sizeof(float));
 
-  auto gpu_task =
-      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_bias_gradients<float>,
-                       gpu_gradient.get<float>(), gpu_bias_grad.get<float>(), batch_size, output_h,
-                       output_w, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU compute_bias_gradients task failed";
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::run_bgrad<float>,
+                                   gpu_gradient.get<float>(), gpu_bias_grad.get<float>(),
+                                   batch_size, output_h, output_w, out_channels);
+  ASSERT_FALSE(gpu_task->sync()) << "GPU run_bgrad task failed";
 
   Vec<float> gpu_bias_grad_cpu(out_channels);
   getGPU().copyToHost(gpu_bias_grad_cpu.data(), gpu_bias_grad.get<float>(),
@@ -403,8 +394,8 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsLargeChannels) {
 
   // CPU version
   Vec<float> cpu_bias_grad(out_channels, 0.0f);
-  cpu::conv2d_nchw::compute_bias_gradients(gradient_data.data(), cpu_bias_grad.data(), batch_size,
-                                           output_h, output_w, out_channels);
+  cpu::conv2d_nchw::run_bgrad(gradient_data.data(), cpu_bias_grad.data(), batch_size, output_h,
+                              output_w, out_channels);
 
   // GPU version
   dptr gpu_gradient = make_dptr_t<float>(getGPU(), gradient_data.size());
@@ -417,11 +408,10 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsLargeChannels) {
   getGPU().copyToDevice(gpu_bias_grad.get<float>(), zero_bias_grad.data(),
                         out_channels * sizeof(float));
 
-  auto gpu_task =
-      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_bias_gradients<float>,
-                       gpu_gradient.get<float>(), gpu_bias_grad.get<float>(), batch_size, output_h,
-                       output_w, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU compute_bias_gradients task failed";
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::run_bgrad<float>,
+                                   gpu_gradient.get<float>(), gpu_bias_grad.get<float>(),
+                                   batch_size, output_h, output_w, out_channels);
+  ASSERT_FALSE(gpu_task->sync()) << "GPU run_bgrad task failed";
 
   Vec<float> gpu_bias_grad_cpu(out_channels);
   getGPU().copyToHost(gpu_bias_grad_cpu.data(), gpu_bias_grad.get<float>(),
@@ -430,7 +420,7 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsLargeChannels) {
   compareArrays(cpu_bias_grad, gpu_bias_grad_cpu);
 }
 
-// ==================== add_bias_to_output Tests ====================
+// ==================== add_bias Tests ====================
 
 TEST_F(CUDAConv2NCHWOpsTest, AddBiasBasic) {
   const size_t batch_size = 1;
@@ -450,8 +440,8 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasBasic) {
 
   // CPU version
   Vec<float> cpu_output = output_data;
-  cpu::conv2d_nchw::add_bias_to_output(cpu_output.data(), bias_data.data(), batch_size, output_h,
-                                       output_w, out_channels);
+  cpu::conv2d_nchw::add_bias(cpu_output.data(), bias_data.data(), batch_size, output_h, output_w,
+                             out_channels);
 
   // GPU version
   dptr gpu_output = make_dptr_t<float>(getGPU(), output_data.size());
@@ -461,10 +451,10 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasBasic) {
                         output_data.size() * sizeof(float));
   getGPU().copyToDevice(gpu_bias.get<float>(), bias_data.data(), bias_data.size() * sizeof(float));
 
-  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::add_bias_to_output<float>,
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::add_bias<float>,
                                    gpu_output.get<float>(), gpu_bias.get<float>(), batch_size,
                                    output_h, output_w, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU add_bias_to_output task failed";
+  ASSERT_FALSE(gpu_task->sync()) << "GPU add_bias task failed";
 
   Vec<float> gpu_output_cpu(output_data.size());
   getGPU().copyToHost(gpu_output_cpu.data(), gpu_output.get<float>(),
@@ -491,8 +481,8 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasMultiBatch) {
 
   // CPU version
   Vec<float> cpu_output = output_data;
-  cpu::conv2d_nchw::add_bias_to_output(cpu_output.data(), bias_data.data(), batch_size, output_h,
-                                       output_w, out_channels);
+  cpu::conv2d_nchw::add_bias(cpu_output.data(), bias_data.data(), batch_size, output_h, output_w,
+                             out_channels);
 
   // GPU version
   dptr gpu_output = make_dptr_t<float>(getGPU(), output_data.size());
@@ -502,10 +492,10 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasMultiBatch) {
                         output_data.size() * sizeof(float));
   getGPU().copyToDevice(gpu_bias.get<float>(), bias_data.data(), bias_data.size() * sizeof(float));
 
-  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::add_bias_to_output<float>,
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::add_bias<float>,
                                    gpu_output.get<float>(), gpu_bias.get<float>(), batch_size,
                                    output_h, output_w, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU add_bias_to_output task failed";
+  ASSERT_FALSE(gpu_task->sync()) << "GPU add_bias task failed";
 
   Vec<float> gpu_output_cpu(output_data.size());
   getGPU().copyToHost(gpu_output_cpu.data(), gpu_output.get<float>(),
@@ -532,8 +522,8 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasLargeOutput) {
 
   // CPU version
   Vec<float> cpu_output = output_data;
-  cpu::conv2d_nchw::add_bias_to_output(cpu_output.data(), bias_data.data(), batch_size, output_h,
-                                       output_w, out_channels);
+  cpu::conv2d_nchw::add_bias(cpu_output.data(), bias_data.data(), batch_size, output_h, output_w,
+                             out_channels);
 
   // GPU version
   dptr gpu_output = make_dptr_t<float>(getGPU(), output_data.size());
@@ -543,10 +533,10 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasLargeOutput) {
                         output_data.size() * sizeof(float));
   getGPU().copyToDevice(gpu_bias.get<float>(), bias_data.data(), bias_data.size() * sizeof(float));
 
-  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::add_bias_to_output<float>,
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::add_bias<float>,
                                    gpu_output.get<float>(), gpu_bias.get<float>(), batch_size,
                                    output_h, output_w, out_channels);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU add_bias_to_output task failed";
+  ASSERT_FALSE(gpu_task->sync()) << "GPU add_bias task failed";
 
   Vec<float> gpu_output_cpu(output_data.size());
   getGPU().copyToHost(gpu_output_cpu.data(), gpu_output.get<float>(),

@@ -18,9 +18,9 @@ namespace cpu {
 namespace batchnorm_nhwc {
 
 template <typename T>
-void compute_inference_output(const T *input, const float *running_mean, const float *running_var,
-                              const float *gamma, const float *beta, T *output, size_t N, size_t C,
-                              size_t S, float epsilon, bool affine) {
+void run_inference(const T *input, const float *running_mean, const float *running_var,
+                   const float *gamma, const float *beta, T *output, size_t N, size_t C, size_t S,
+                   float epsilon, bool affine) {
   std::vector<float> scale(C);
   std::vector<float> bias(C);
 
@@ -42,10 +42,10 @@ void compute_inference_output(const T *input, const float *running_mean, const f
 }
 
 template <typename T>
-void run_forward_fused(const T *input, float *mean, float *inv_std, float *running_mean,
-                       float *running_var, const float *gamma, const float *beta, T *output,
-                       bool *relu_mask, size_t N, size_t C, size_t S, float momentum, float epsilon,
-                       bool affine, bool use_relu) {
+void run_forward(const T *input, float *mean, float *inv_std, float *running_mean,
+                 float *running_var, const float *gamma, const float *beta, T *output,
+                 bool *relu_mask, size_t N, size_t C, size_t S, float momentum, float epsilon,
+                 bool affine, bool use_relu) {
   size_t M = N * S;
   float inv_M = 1.0f / static_cast<float>(M);
 
@@ -110,10 +110,9 @@ void run_forward_fused(const T *input, float *mean, float *inv_std, float *runni
 }
 
 template <typename T>
-void run_backward_fused(const T *grad_output, const T *input, const float *mean,
-                        const float *inv_std, const float *gamma, float *d_gamma, float *d_beta,
-                        T *grad_input, const bool *relu_mask, size_t N, size_t C, size_t S,
-                        bool affine, bool use_relu) {
+void run_backward(const T *grad_output, const T *input, const float *mean, const float *inv_std,
+                  const float *gamma, float *d_gamma, float *d_beta, T *grad_input,
+                  const bool *relu_mask, size_t N, size_t C, size_t S, bool affine, bool use_relu) {
   size_t M = N * S;
   float inv_M = 1.0f / static_cast<float>(M);
 
@@ -168,20 +167,20 @@ void run_backward_fused(const T *grad_output, const T *input, const float *mean,
   });
 }
 
-#define INSTANTIATE_BATCHNORM_NHWC(T)                                                           \
-  template void compute_inference_output<T>(                                                    \
-      const T *input, const float *running_mean, const float *running_var, const float *gamma,  \
-      const float *beta, T *output, size_t N, size_t C, size_t S, float epsilon, bool affine);  \
-                                                                                                \
-  template void run_forward_fused<T>(                                                           \
-      const T *input, float *mean, float *inv_std, float *running_mean, float *running_var,     \
-      const float *gamma, const float *beta, T *output, bool *relu_mask, size_t N, size_t C,    \
-      size_t S, float momentum, float epsilon, bool affine, bool use_relu);                     \
-                                                                                                \
-  template void run_backward_fused<T>(const T *grad_output, const T *input, const float *mean,  \
-                                      const float *inv_std, const float *gamma, float *d_gamma, \
-                                      float *d_beta, T *grad_input, const bool *relu_mask,      \
-                                      size_t N, size_t C, size_t S, bool affine, bool use_relu);
+#define INSTANTIATE_BATCHNORM_NHWC(T)                                                            \
+  template void run_inference<T>(                                                                \
+      const T *input, const float *running_mean, const float *running_var, const float *gamma,   \
+      const float *beta, T *output, size_t N, size_t C, size_t S, float epsilon, bool affine);   \
+                                                                                                 \
+  template void run_forward<T>(const T *input, float *mean, float *inv_std, float *running_mean, \
+                               float *running_var, const float *gamma, const float *beta,        \
+                               T *output, bool *relu_mask, size_t N, size_t C, size_t S,         \
+                               float momentum, float epsilon, bool affine, bool use_relu);       \
+                                                                                                 \
+  template void run_backward<T>(const T *grad_output, const T *input, const float *mean,         \
+                                const float *inv_std, const float *gamma, float *d_gamma,        \
+                                float *d_beta, T *grad_input, const bool *relu_mask, size_t N,   \
+                                size_t C, size_t S, bool affine, bool use_relu);
 
 INSTANTIATE_BATCHNORM_NHWC(fp16)
 INSTANTIATE_BATCHNORM_NHWC(bf16)

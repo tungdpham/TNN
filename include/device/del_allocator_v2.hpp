@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 
 #include <cassert>
+#include <functional>
 #include <iostream>
 #include <list>
 #include <map>
@@ -256,6 +257,26 @@ public:
     }
   }
 
+  size_t total_allocated() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return total_allocated_;
+  }
+
+  size_t add_allocation_hook(std::function<void(size_t)> hook) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    allocation_hooks_.push_back(hook);
+    return allocation_hooks_.size() - 1;
+  }
+
+  bool remove_allocation_hook(size_t hook_id) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (hook_id >= allocation_hooks_.size()) {
+      return false;
+    }
+    allocation_hooks_.erase(allocation_hooks_.begin() + hook_id);
+    return true;
+  }
+
 private:
   struct Block {
     Slab *slab;
@@ -273,18 +294,30 @@ private:
   int side_;
   std::list<Slab> slabs_;
   std::map<size_t, std::set<Block>> free_by_size_;  // size -> set of blocks
+  size_t total_allocated_ = 0;
+  std::vector<std::function<void(size_t)>> allocation_hooks_;
+
+  void set_allocated(size_t new_total) {
+    total_allocated_ = new_total;
+    for (auto &hook : allocation_hooks_) {
+      hook(total_allocated_);
+    }
+  }
 
   dptr create_dptr(Slab *slab, size_t offset, size_t size, size_t actual_size) {
     void *slice_ptr = static_cast<unsigned char *>(slab->ptr) + offset;
 
     slab->active_allocations++;
+    set_allocated(total_allocated_ + actual_size);
 
     auto self_shared = shared_from_this();
 
     auto storage = std::shared_ptr<device_storage>(
         new device_storage(device_, slice_ptr, size, DEFAULT_ALIGNMENT),
         [self_shared, slab, offset, actual_size](device_storage *storage) {
+          std::lock_guard<std::mutex> lock(self_shared->mutex_);
           self_shared->reclaim(slab, offset, actual_size);
+          self_shared->set_allocated(self_shared->total_allocated_ - actual_size);
           delete storage;
         });
 
@@ -292,7 +325,6 @@ private:
   }
 
   void reclaim(Slab *slab, size_t offset, size_t size) {
-    std::lock_guard<std::mutex> lock(mutex_);
     slab->active_allocations--;
 
     // coalesce forward

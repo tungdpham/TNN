@@ -12,19 +12,18 @@ namespace tnn {
 namespace cpu {
 namespace batchnorm_nhwc {
 template <typename T>
-void compute_inference_output(const T *input, const float *running_mean, const float *running_var,
-                              const float *gamma, const float *beta, T *output, size_t N, size_t C,
-                              size_t S, float epsilon, bool affine);
+void run_inference(const T *input, const float *running_mean, const float *running_var,
+                   const float *gamma, const float *beta, T *output, size_t N, size_t C, size_t S,
+                   float epsilon, bool affine);
 template <typename T>
-void run_forward_fused(const T *input, float *mean, float *inv_std, float *running_mean,
-                       float *running_var, const float *gamma, const float *beta, T *output,
-                       bool *relu_mask, size_t N, size_t C, size_t S, float momentum, float epsilon,
-                       bool affine, bool use_relu);
+void run_forward(const T *input, float *mean, float *inv_std, float *running_mean,
+                 float *running_var, const float *gamma, const float *beta, T *output,
+                 bool *relu_mask, size_t N, size_t C, size_t S, float momentum, float epsilon,
+                 bool affine, bool use_relu);
 template <typename T>
-void run_backward_fused(const T *grad_output, const T *input, const float *mean,
-                        const float *inv_std, const float *gamma, float *d_gamma, float *d_beta,
-                        T *grad_input, const bool *relu_mask, size_t N, size_t C, size_t S,
-                        bool affine, bool use_relu);
+void run_backward(const T *grad_output, const T *input, const float *mean, const float *inv_std,
+                  const float *gamma, float *d_gamma, float *d_beta, T *grad_input,
+                  const bool *relu_mask, size_t N, size_t C, size_t S, bool affine, bool use_relu);
 
 }  // namespace batchnorm_nhwc
 }  // namespace cpu

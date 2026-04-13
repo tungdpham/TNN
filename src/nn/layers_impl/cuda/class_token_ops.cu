@@ -13,10 +13,10 @@
 
 namespace tnn {
 namespace cuda {
-
+namespace class_token {
 template <typename T>
-__global__ void class_token_forward_imp(const T* input, const T* token, T* output, size_t seq_len,
-                                        size_t embed_dim, size_t total_elements) {
+__global__ void run_forward_imp(const T* input, const T* token, T* output, size_t seq_len,
+                                size_t embed_dim, size_t total_elements) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_elements) return;
 
@@ -40,19 +40,19 @@ __global__ void class_token_forward_imp(const T* input, const T* token, T* outpu
 }
 
 template <typename T>
-void class_token_forward(const T* input, const T* token, T* output, size_t batch_size,
-                         size_t seq_len, size_t embed_dim, cudaStream_t stream) {
+void run_forward(const T* input, const T* token, T* output, size_t batch_size, size_t seq_len,
+                 size_t embed_dim, cudaStream_t stream) {
   size_t output_seq_len = seq_len + 1;
   size_t total_elements = batch_size * output_seq_len * embed_dim;
   int threads = 256;
   int blocks = (total_elements + threads - 1) / threads;
-  class_token_forward_imp<T>
+  run_forward_imp<T>
       <<<blocks, threads, 0, stream>>>(input, token, output, seq_len, embed_dim, total_elements);
 }
 
 template <typename T>
-__global__ void class_token_backward_input_imp(const T* grad_output, T* grad_input, size_t seq_len,
-                                               size_t embed_dim, size_t total_input_elements) {
+__global__ void run_backward_input_imp(const T* grad_output, T* grad_input, size_t seq_len,
+                                       size_t embed_dim, size_t total_input_elements) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_input_elements) return;
 
@@ -70,9 +70,8 @@ __global__ void class_token_backward_input_imp(const T* grad_output, T* grad_inp
 }
 
 template <typename T>
-__global__ void class_token_backward_token_imp(const T* grad_output, T* grad_token,
-                                               size_t batch_size, size_t seq_len,
-                                               size_t embed_dim) {
+__global__ void run_backward_token_imp(const T* grad_output, T* grad_token, size_t batch_size,
+                                       size_t seq_len, size_t embed_dim) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_items = batch_size * embed_dim;
   if (idx >= total_items) return;
@@ -89,34 +88,33 @@ __global__ void class_token_backward_token_imp(const T* grad_output, T* grad_tok
 }
 
 template <typename T>
-void class_token_backward(const T* grad_output, T* grad_input, T* grad_token, size_t batch_size,
-                          size_t seq_len, size_t embed_dim, cudaStream_t stream) {
+void run_backward(const T* grad_output, T* grad_input, T* grad_token, size_t batch_size,
+                  size_t seq_len, size_t embed_dim, cudaStream_t stream) {
   size_t total_input = batch_size * seq_len * embed_dim;
   int threads = 256;
   int blocks = (total_input + threads - 1) / threads;
-  class_token_backward_input_imp<T>
+  run_backward_input_imp<T>
       <<<blocks, threads, 0, stream>>>(grad_output, grad_input, seq_len, embed_dim, total_input);
 
   // Parallelize over (batch * embed_dim) to accumulate
   size_t total_token_contribs = batch_size * embed_dim;
   blocks = (total_token_contribs + threads - 1) / threads;
-  class_token_backward_token_imp<T>
+  run_backward_token_imp<T>
       <<<blocks, threads, 0, stream>>>(grad_output, grad_token, batch_size, seq_len, embed_dim);
 }
 
 #define INSTANTIATE_CLASS_TOKEN(T)                                                           \
-  template void class_token_forward<T>(const T* input, const T* token, T* output,            \
-                                       size_t batch_size, size_t seq_len, size_t embed_dim,  \
-                                       cudaStream_t stream);                                 \
-  template void class_token_backward<T>(const T* grad_output, T* grad_input, T* grad_token,  \
-                                        size_t batch_size, size_t seq_len, size_t embed_dim, \
-                                        cudaStream_t stream);
+  template void run_forward<T>(const T* input, const T* token, T* output, size_t batch_size, \
+                               size_t seq_len, size_t embed_dim, cudaStream_t stream);       \
+  template void run_backward<T>(const T* grad_output, T* grad_input, T* grad_token,          \
+                                size_t batch_size, size_t seq_len, size_t embed_dim,         \
+                                cudaStream_t stream);
 
 INSTANTIATE_CLASS_TOKEN(fp16)
 INSTANTIATE_CLASS_TOKEN(bf16)
 INSTANTIATE_CLASS_TOKEN(float)
 INSTANTIATE_CLASS_TOKEN(double)
 #undef INSTANTIATE_CLASS_TOKEN
-
+}  // namespace class_token
 }  // namespace cuda
 }  // namespace tnn

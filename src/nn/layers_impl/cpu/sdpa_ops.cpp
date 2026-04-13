@@ -12,11 +12,10 @@
 
 namespace tnn {
 namespace cpu {
-
+namespace sdpa {
 template <typename T>
-void sdpa_forward(const T *q, const T *k, const T *v, T *output, size_t batch_size,
-                  size_t num_heads, size_t seq_len, size_t head_dim, float attn_scale,
-                  bool is_causal) {
+void run_forward(const T *q, const T *k, const T *v, T *output, size_t batch_size, size_t num_heads,
+                 size_t seq_len, size_t head_dim, float attn_scale, bool is_causal) {
   // Shapes: Q, K, V: (batch, heads, seq_len, head_dim)
   const size_t q_stride_b = num_heads * seq_len * head_dim;
   const size_t q_stride_h = seq_len * head_dim;
@@ -46,8 +45,8 @@ void sdpa_forward(const T *q, const T *k, const T *v, T *output, size_t batch_si
               score = -std::numeric_limits<T>::infinity();
             }
 
-            size_t score_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                               i * seq_len + j;
+            size_t score_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             scores[score_idx] = score;
           }
         }
@@ -57,8 +56,8 @@ void sdpa_forward(const T *q, const T *k, const T *v, T *output, size_t batch_si
           // Find max for numerical stability
           T max_score = -std::numeric_limits<T>::infinity();
           for (size_t j = 0; j < seq_len; ++j) {
-            size_t score_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                               i * seq_len + j;
+            size_t score_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             if (std::isfinite(scores[score_idx])) {
               max_score = std::max(max_score, scores[score_idx]);
             }
@@ -67,20 +66,20 @@ void sdpa_forward(const T *q, const T *k, const T *v, T *output, size_t batch_si
           // Compute exp and sum
           T sum_exp = 0;
           for (size_t j = 0; j < seq_len; ++j) {
-            size_t score_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                               i * seq_len + j;
-            T exp_val = std::isfinite(scores[score_idx]) ? std::exp(scores[score_idx] - max_score)
-                                                         : 0;
-            size_t attn_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                              i * seq_len + j;
+            size_t score_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+            T exp_val =
+                std::isfinite(scores[score_idx]) ? std::exp(scores[score_idx] - max_score) : 0;
+            size_t attn_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             attn_weights[attn_idx] = exp_val;
             sum_exp += exp_val;
           }
 
           // Normalize
           for (size_t j = 0; j < seq_len; ++j) {
-            size_t attn_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                              i * seq_len + j;
+            size_t attn_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             attn_weights[attn_idx] /= (sum_exp + 1e-9f);
           }
         }
@@ -94,8 +93,8 @@ void sdpa_forward(const T *q, const T *k, const T *v, T *output, size_t batch_si
           for (size_t d = 0; d < head_dim; ++d) {
             T val = 0;
             for (size_t j = 0; j < seq_len; ++j) {
-              size_t attn_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                                i * seq_len + j;
+              size_t attn_idx =
+                  b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
               size_t v_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
               val += attn_weights[attn_idx] * v[v_idx];
             }
@@ -116,9 +115,9 @@ void sdpa_forward(const T *q, const T *k, const T *v, T *output, size_t batch_si
 }
 
 template <typename T>
-void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T *grad_output,
-                   T *grad_q, T *grad_k, T *grad_v, size_t batch_size, size_t num_heads,
-                   size_t seq_len, size_t head_dim, float attn_scale, bool is_causal) {
+void run_backward(const T *q, const T *k, const T *v, const T *output, const T *grad_output,
+                  T *grad_q, T *grad_k, T *grad_v, size_t batch_size, size_t num_heads,
+                  size_t seq_len, size_t head_dim, float attn_scale, bool is_causal) {
   // Simplified backward: recompute forward to get attention weights
   // In production, you'd cache these during forward
 
@@ -148,8 +147,8 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
               score = -std::numeric_limits<T>::infinity();
             }
 
-            size_t score_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                               i * seq_len + j;
+            size_t score_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             scores[score_idx] = score;
           }
         }
@@ -158,8 +157,8 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
         for (size_t i = 0; i < seq_len; ++i) {
           T max_score = -std::numeric_limits<T>::infinity();
           for (size_t j = 0; j < seq_len; ++j) {
-            size_t score_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                               i * seq_len + j;
+            size_t score_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             if (std::isfinite(scores[score_idx])) {
               max_score = std::max(max_score, scores[score_idx]);
             }
@@ -167,19 +166,19 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
 
           T sum_exp = 0;
           for (size_t j = 0; j < seq_len; ++j) {
-            size_t score_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                               i * seq_len + j;
+            size_t score_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             T exp_val =
                 std::isfinite(scores[score_idx]) ? std::exp(scores[score_idx] - max_score) : 0;
-            size_t attn_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                              i * seq_len + j;
+            size_t attn_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             attn_weights[attn_idx] = exp_val;
             sum_exp += exp_val;
           }
 
           for (size_t j = 0; j < seq_len; ++j) {
-            size_t attn_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                              i * seq_len + j;
+            size_t attn_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             attn_weights[attn_idx] /= (sum_exp + 1e-9f);
           }
         }
@@ -194,8 +193,8 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
           for (size_t d = 0; d < head_dim; ++d) {
             T val = 0;
             for (size_t i = 0; i < seq_len; ++i) {
-              size_t attn_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                                i * seq_len + j;
+              size_t attn_idx =
+                  b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
               size_t grad_o_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
               val += attn_weights[attn_idx] * grad_output[grad_o_idx];
             }
@@ -219,15 +218,15 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
             }
 
             // Apply softmax gradient
-            size_t attn_idx = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                              i * seq_len + j;
+            size_t attn_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             T p = attn_weights[attn_idx];
 
             // Compute sum of grad_scores * attention for numerical stability
             T sum_grad_scores_p = 0;
             for (size_t jj = 0; jj < seq_len; ++jj) {
-              size_t attn_idx2 = b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) +
-                                 i * seq_len + jj;
+              size_t attn_idx2 =
+                  b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + jj;
               T p2 = attn_weights[attn_idx2];
 
               T val2 = 0;
@@ -240,8 +239,8 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
               sum_grad_scores_p += p2 * val2;
             }
 
-            size_t grad_scores_idx = b * (num_heads * seq_len * seq_len) +
-                                     h * (seq_len * seq_len) + i * seq_len + j;
+            size_t grad_scores_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             grad_scores[grad_scores_idx] = p * (val - sum_grad_scores_p);
           }
         }
@@ -255,8 +254,8 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
           for (size_t d = 0; d < head_dim; ++d) {
             T val = 0;
             for (size_t j = 0; j < seq_len; ++j) {
-              size_t grad_scores_idx = b * (num_heads * seq_len * seq_len) +
-                                       h * (seq_len * seq_len) + i * seq_len + j;
+              size_t grad_scores_idx =
+                  b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
               size_t k_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
               val += grad_scores[grad_scores_idx] * k[k_idx];
             }
@@ -275,8 +274,8 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
           for (size_t d = 0; d < head_dim; ++d) {
             T val = 0;
             for (size_t i = 0; i < seq_len; ++i) {
-              size_t grad_scores_idx = b * (num_heads * seq_len * seq_len) +
-                                       h * (seq_len * seq_len) + i * seq_len + j;
+              size_t grad_scores_idx =
+                  b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
               size_t q_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
               val += grad_scores[grad_scores_idx] * q[q_idx];
             }
@@ -301,17 +300,18 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
 }
 
 // Explicit instantiations
-template void sdpa_forward<float>(const float *, const float *, const float *, float *, size_t,
+template void run_forward<float>(const float *, const float *, const float *, float *, size_t,
+                                 size_t, size_t, size_t, float, bool);
+template void run_forward<double>(const double *, const double *, const double *, double *, size_t,
                                   size_t, size_t, size_t, float, bool);
-template void sdpa_forward<double>(const double *, const double *, const double *, double *, size_t,
-                                   size_t, size_t, size_t, float, bool);
 
-template void sdpa_backward<float>(const float *, const float *, const float *, const float *,
-                                   const float *, float *, float *, float *, size_t, size_t, size_t,
-                                   size_t, float, bool);
-template void sdpa_backward<double>(const double *, const double *, const double *, const double *,
-                                    const double *, double *, double *, double *, size_t, size_t,
-                                    size_t, size_t, float, bool);
+template void run_backward<float>(const float *, const float *, const float *, const float *,
+                                  const float *, float *, float *, float *, size_t, size_t, size_t,
+                                  size_t, float, bool);
+template void run_backward<double>(const double *, const double *, const double *, const double *,
+                                   const double *, double *, double *, double *, size_t, size_t,
+                                   size_t, size_t, float, bool);
 
+}  // namespace sdpa
 }  // namespace cpu
 }  // namespace tnn

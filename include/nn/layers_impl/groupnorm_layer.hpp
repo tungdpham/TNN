@@ -27,21 +27,20 @@ private:
   Tensor beta_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward_fused(const ConstTensor &input, const Tensor &group_mean,
-                                          const Tensor &group_inv_std, const ConstTensor &gamma,
-                                          const ConstTensor &beta, const Tensor &output,
-                                          const Tensor &norm_cache, size_t batch_size,
-                                          size_t channels, size_t spatial_size,
-                                          flowHandle_t handle = defaultFlowHandle) const;
+  std::unique_ptr<Task> run_forward(const ConstTensor &input, const Tensor &group_mean,
+                                    const Tensor &group_inv_std, const ConstTensor &gamma,
+                                    const ConstTensor &beta, const Tensor &output,
+                                    const Tensor &norm_cache, size_t batch_size, size_t channels,
+                                    size_t spatial_size,
+                                    flowHandle_t handle = defaultFlowHandle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_backward_fused(const ConstTensor &grad_output,
-                                           const ConstTensor &norm_input,
-                                           const ConstTensor &inv_std, const ConstTensor &gamma,
-                                           const Tensor &d_gamma, const Tensor &d_beta,
-                                           const Tensor &grad_input, size_t batch_size,
-                                           size_t channels, size_t spatial_size,
-                                           flowHandle_t handle = defaultFlowHandle) const;
+  std::unique_ptr<Task> run_backward(const ConstTensor &grad_output, const ConstTensor &norm_input,
+                                     const ConstTensor &inv_std, const ConstTensor &gamma,
+                                     const Tensor &d_gamma, const Tensor &d_beta,
+                                     const Tensor &grad_input, size_t batch_size, size_t channels,
+                                     size_t spatial_size,
+                                     flowHandle_t handle = defaultFlowHandle) const;
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;

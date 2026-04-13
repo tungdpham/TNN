@@ -91,6 +91,7 @@ public:
 
   Vec<Tensor> parameters();
   Vec<Tensor> gradients();
+  void clear_cache(size_t mb_id);
 
   const Device &device() const {
     if (!allocator_) {
@@ -137,7 +138,6 @@ protected:
   Tensor get_output_tensor(const Vec<size_t> &shape);
   Tensor get_cache_tensor(const Vec<size_t> &shape = {}, DType_t dtype = DType_t::FP32);
   Tensor get_workspace(const Vec<size_t> &shape, DType_t dtype = DType_t::FP32);
-  void clear_cache(size_t mb_id);
 };
 
 #define DISPATCH_IO_DTYPE(method_name, ...)                                \

@@ -57,8 +57,8 @@ Tensor LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id
     mask_indices->ensure({batch_size, channels, output_h, output_w});
   }
 
-  compute_max_pool_forward(input, output, batch_size, channels, input_h, input_w, output_h,
-                           output_w, micro_batch_mask_indices_[mb_id], this->flow_handle_);
+  run_forward(input, output, batch_size, channels, input_h, input_w, output_h, output_w,
+              micro_batch_mask_indices_[mb_id], this->flow_handle_);
 
   return output;
 }
@@ -95,14 +95,14 @@ Tensor LegacyMaxPool2DLayer::backward_impl(const ConstTensor &grad_output, size_
 
   grad_input->fill(0);
 
-  compute_max_pool_backward(grad_output, grad_input, batch_size, channels, output_h, output_w,
-                            mask_indices, this->flow_handle_);
+  run_backward(grad_output, grad_input, batch_size, channels, output_h, output_w, mask_indices,
+               this->flow_handle_);
 
   return grad_input;
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward_impl(
+std::unique_ptr<Task> LegacyMaxPool2DLayer::run_forward(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w, const Tensor &mask_indices,
     flowHandle_t handle) const {
@@ -114,39 +114,41 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward_impl(
   }
 
   if (input_data->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::maxpool_nchw::compute_max_pool_forward<IO_T>,
+    return create_cpu_task(handle, cpu::maxpool_nchw::run_forward<IO_T>,
                            input_data->data_as<IO_T>(), output_data->data_as<IO_T>(), batch_size,
                            channels, input_h, input_w, output_h, output_w, pool_h_, pool_w_,
                            stride_h_, stride_w_, pad_h_, pad_w_, mask_indices->data_as<size_t>());
   }
 #ifdef USE_CUDA
   else if (input_data->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, cuda::maxpool_nchw::compute_max_pool_forward<IO_T>,
+    return create_cuda_task(handle, cuda::maxpool_nchw::run_forward<IO_T>,
                             input_data->data_as<IO_T>(), output_data->data_as<IO_T>(), batch_size,
                             channels, input_h, input_w, output_h, output_w, pool_h_, pool_w_,
                             stride_h_, stride_w_, pad_h_, pad_w_, mask_indices->data_as<size_t>());
   }
 #endif
   else {
-    throw std::runtime_error("Unsupported device type for compute_max_pool_forward");
+    throw std::runtime_error("Unsupported device type for run_forward");
   }
   return nullptr;
 }
 
-std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward(
+std::unique_ptr<Task> LegacyMaxPool2DLayer::run_forward(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w, const Tensor &mask_indices,
     flowHandle_t handle) const {
-  DISPATCH_IO_DTYPE(compute_max_pool_forward_impl, input_data, output_data, batch_size, channels,
-                    input_h, input_w, output_h, output_w, mask_indices, handle);
+  DISPATCH_IO_DTYPE(run_forward, input_data, output_data, batch_size, channels, input_h, input_w,
+                    output_h, output_w, mask_indices, handle);
   return nullptr;
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward_impl(
-    const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
-    size_t channels, size_t output_h, size_t output_w, const ConstTensor &mask_indices,
-    flowHandle_t handle) const {
+std::unique_ptr<Task> LegacyMaxPool2DLayer::run_backward(const ConstTensor &gradient_data,
+                                                         const Tensor &grad_input_data,
+                                                         size_t batch_size, size_t channels,
+                                                         size_t output_h, size_t output_w,
+                                                         const ConstTensor &mask_indices,
+                                                         flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyMaxPool2DLayer tensor dtype mismatch with dispatch type");
@@ -156,31 +158,33 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward_impl(
   }
 
   if (gradient_data->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::maxpool_nchw::compute_max_pool_backward<IO_T>,
+    return create_cpu_task(handle, cpu::maxpool_nchw::run_backward<IO_T>,
                            gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
                            batch_size, channels, output_h, output_w,
                            mask_indices->data_as<size_t>());
   }
 #ifdef USE_CUDA
   else if (gradient_data->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, cuda::maxpool_nchw::compute_max_pool_backward<IO_T>,
+    return create_cuda_task(handle, cuda::maxpool_nchw::run_backward<IO_T>,
                             gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
                             batch_size, channels, output_h, output_w,
                             mask_indices->data_as<size_t>());
   }
 #endif
   else {
-    throw std::runtime_error("Unsupported device type for compute_max_pool_backward");
+    throw std::runtime_error("Unsupported device type for run_backward");
   }
   return nullptr;
 }
 
-std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward(
-    const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
-    size_t channels, size_t output_h, size_t output_w, const ConstTensor &mask_indices,
-    flowHandle_t handle) const {
-  DISPATCH_IO_DTYPE(compute_max_pool_backward_impl, gradient_data, grad_input_data, batch_size,
-                    channels, output_h, output_w, mask_indices, handle);
+std::unique_ptr<Task> LegacyMaxPool2DLayer::run_backward(const ConstTensor &gradient_data,
+                                                         const Tensor &grad_input_data,
+                                                         size_t batch_size, size_t channels,
+                                                         size_t output_h, size_t output_w,
+                                                         const ConstTensor &mask_indices,
+                                                         flowHandle_t handle) const {
+  DISPATCH_IO_DTYPE(run_backward, gradient_data, grad_input_data, batch_size, channels, output_h,
+                    output_w, mask_indices, handle);
   return nullptr;
 }
 

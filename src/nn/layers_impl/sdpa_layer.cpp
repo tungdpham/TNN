@@ -213,15 +213,15 @@ std::unique_ptr<Task> SDPALayer::compute_sdpa_forward_impl(
   }
 
   if (q->device_type() == DeviceType::CPU) {
-    cpu::sdpa_forward<IO_T>(q->data_as<IO_T>(), k->data_as<IO_T>(), v->data_as<IO_T>(),
-                            output->data_as<IO_T>(), batch_size, num_heads, seq_len, head_dim,
-                            attn_scale_, is_causal_);
+    cpu::sdpa::run_forward<IO_T>(q->data_as<IO_T>(), k->data_as<IO_T>(), v->data_as<IO_T>(),
+                                 output->data_as<IO_T>(), batch_size, num_heads, seq_len, head_dim,
+                                 attn_scale_, is_causal_);
   }
 #ifdef USE_CUDA
   else if (q->device_type() == DeviceType::GPU) {
-    cuda::sdpa_forward<IO_T>(q->data_as<IO_T>(), k->data_as<IO_T>(), v->data_as<IO_T>(),
-                             output->data_as<IO_T>(), batch_size, num_heads, seq_len, head_dim,
-                             attn_scale_, is_causal_);
+    cuda::sdpa::run_forward<IO_T>(q->data_as<IO_T>(), k->data_as<IO_T>(), v->data_as<IO_T>(),
+                                  output->data_as<IO_T>(), batch_size, num_heads, seq_len, head_dim,
+                                  attn_scale_, is_causal_);
   }
 #endif
   else {
@@ -244,14 +244,14 @@ std::unique_ptr<Task> SDPALayer::compute_sdpa_backward_impl(
   }
 
   if (grad_output->device_type() == DeviceType::CPU) {
-    cpu::sdpa_backward<IO_T>(
+    cpu::sdpa::run_backward<IO_T>(
         q->data_as<IO_T>(), k->data_as<IO_T>(), v->data_as<IO_T>(), output->data_as<IO_T>(),
         grad_output->data_as<IO_T>(), grad_q->data_as<IO_T>(), grad_k->data_as<IO_T>(),
         grad_v->data_as<IO_T>(), batch_size, num_heads, seq_len, head_dim, attn_scale_, is_causal_);
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    cuda::sdpa_backward<IO_T>(
+    cuda::sdpa::run_backward<IO_T>(
         q->data_as<IO_T>(), k->data_as<IO_T>(), v->data_as<IO_T>(), output->data_as<IO_T>(),
         grad_output->data_as<IO_T>(), grad_q->data_as<IO_T>(), grad_k->data_as<IO_T>(),
         grad_v->data_as<IO_T>(), batch_size, num_heads, seq_len, head_dim, attn_scale_, is_causal_);

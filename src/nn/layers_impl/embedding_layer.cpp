@@ -100,14 +100,14 @@ std::unique_ptr<Task> EmbeddingLayer::compute_forward_impl(
   }
 
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::embedding::compute_embedding_forward<Compute_T>,
+    return create_cpu_task(handle, cpu::embedding::run_forward<Compute_T>,
                            input->data_as<Compute_T>(), weight->data_as<Compute_T>(),
                            output->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
                            padding_idx);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, cuda::embedding::compute_embedding_forward<Compute_T>,
+    return create_cuda_task(handle, cuda::embedding::run_forward<Compute_T>,
                             input->data_as<Compute_T>(), weight->data_as<Compute_T>(),
                             output->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
                             padding_idx);
@@ -139,14 +139,14 @@ std::unique_ptr<Task> EmbeddingLayer::compute_backward_impl(const ConstTensor &i
   }
 
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::embedding::compute_embedding_backward<Compute_T>,
+    return create_cpu_task(handle, cpu::embedding::run_backward<Compute_T>,
                            input->data_as<Compute_T>(), grad_output->data_as<Compute_T>(),
                            weight_gradients->data_as<Compute_T>(), num_indices, vocab_size,
                            embed_dim, padding_idx);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, cuda::embedding::compute_embedding_backward<Compute_T>,
+    return create_cuda_task(handle, cuda::embedding::run_backward<Compute_T>,
                             input->data_as<Compute_T>(), grad_output->data_as<Compute_T>(),
                             weight_gradients->data_as<Compute_T>(), num_indices, vocab_size,
                             embed_dim, padding_idx);

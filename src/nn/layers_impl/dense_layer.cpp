@@ -157,15 +157,14 @@ Tensor DenseLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
 
   if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
-      create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_weight_gradients<T>,
-                      input->data_as<T>(), grad_output->data_as<T>(),
-                      weight_gradients_->data_as<T>(), batch_size, input_features_,
-                      output_features_);
-      create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_input_gradients<T>,
+      create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_wgrad<T>, input->data_as<T>(),
+                      grad_output->data_as<T>(), weight_gradients_->data_as<T>(), batch_size,
+                      input_features_, output_features_);
+      create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_dgrad<T>,
                       grad_output->data_as<T>(), weights_->data_as<T>(), grad_input->data_as<T>(),
                       batch_size, input_features_, output_features_);
       if (use_bias_) {
-        create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_bias_gradients<T>,
+        create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_bgrad<T>,
                         grad_output->data_as<T>(), bias_gradients_->data_as<T>(), batch_size,
                         output_features_);
       }
@@ -202,10 +201,9 @@ void DenseLayer::build_cudnn_graph(const Vec<size_t> &input_shape) const {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> DenseLayer::compute_bias_gradients(const ConstTensor &grad_output,
-                                                         const Tensor &bias_gradient,
-                                                         size_t batch_size, size_t output_features,
-                                                         flowHandle_t handle) const {
+std::unique_ptr<Task> DenseLayer::run_bgrad(const ConstTensor &grad_output,
+                                            const Tensor &bias_gradient, size_t batch_size,
+                                            size_t output_features, flowHandle_t handle) const {
   if (grad_output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayer grad_output dtype mismatch with dispatch IO_T");
   }
@@ -218,20 +216,18 @@ std::unique_ptr<Task> DenseLayer::compute_bias_gradients(const ConstTensor &grad
           "DenseLayer mixed dtype dispatch not implemented for CPU "
           "(io/param/compute must match).");
     }
-    return create_cpu_task(handle, cpu::legacy_dense::run_bias_gradients<IO_T>,
-                           grad_output->data_as<IO_T>(), bias_gradient->data_as<IO_T>(), batch_size,
-                           output_features);
+    return create_cpu_task(handle, cpu::legacy_dense::run_bgrad<IO_T>, grad_output->data_as<IO_T>(),
+                           bias_gradient->data_as<IO_T>(), batch_size, output_features);
   }
 #ifdef USE_CUDA
   else if (get_engine_type() == EngineType::CUDA) {
-    return create_cuda_task(handle,
-                            cuda::legacy_dense::run_bias_gradients<IO_T, Param_T, Compute_T>,
+    return create_cuda_task(handle, cuda::legacy_dense::run_bgrad<IO_T, Param_T, Compute_T>,
                             grad_output->data_as<IO_T>(), bias_gradient->data_as<Param_T>(),
                             batch_size, output_features);
   }
 #endif
   else {
-    throw std::runtime_error("Unsupported device type for compute_bias_gradients");
+    throw std::runtime_error("Unsupported device type for run_bgrad");
   }
   return nullptr;
 }
@@ -321,7 +317,7 @@ Tensor DenseLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_id) 
                    grad_output->data(), weight_gradients_->data(), cudnn_workspace->data());
 
   if (use_bias_) {
-    DISPATCH_ON_3_DTYPES_TO_METHOD(compute_bias_gradients, grad_output, bias_gradients_, batch_size,
+    DISPATCH_ON_3_DTYPES_TO_METHOD(run_bgrad, grad_output, bias_gradients_, batch_size,
                                    output_features_, this->flow_handle_);
   }
 

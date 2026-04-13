@@ -14,13 +14,13 @@ namespace tnn {
 namespace cpu {
 namespace nary {
 template <typename T>
-void nary_forward(const Vec<const T *> &inputs, T *output, const Vec<size_t> &shape,
-                  const NAryOp &op_type);
+void run_forward(const Vec<const T *> &inputs, T *output, const Vec<size_t> &shape,
+                 const NAryOp &op_type);
 
 // Backward pass: computes gradients with respect to each input
 template <typename T>
-void nary_backward(const T *grad_output, Vec<T *> &grad_inputs, const Vec<const T *> &fwd_inputs,
-                   const Vec<size_t> &shape, const NAryOp &op_type);
+void run_backward(const T *grad_output, Vec<T *> &grad_inputs, const Vec<const T *> &fwd_inputs,
+                  const Vec<size_t> &shape, const NAryOp &op_type);
 
 }  // namespace nary
 }  // namespace cpu

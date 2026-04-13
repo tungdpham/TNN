@@ -80,8 +80,8 @@ Tensor MaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
 
     Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
 
-    compute_max_pool_forward(input, output, batch_size, input_h, input_w, channels, output_h,
-                             output_w, mask_indices, this->flow_handle_);
+    run_forward(input, output, batch_size, input_h, input_w, channels, output_h, output_w,
+                mask_indices, this->flow_handle_);
 
     return output;
   } else {
@@ -90,8 +90,8 @@ Tensor MaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
     Tensor mask_indices =
         this->get_cache_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
 
-    compute_max_pool_forward(input, output, batch_size, input_h, input_w, channels, output_h,
-                             output_w, mask_indices, this->flow_handle_);
+    run_forward(input, output, batch_size, input_h, input_w, channels, output_h, output_w,
+                mask_indices, this->flow_handle_);
 
     return output;
   }
@@ -122,33 +122,35 @@ Tensor MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
 
   grad_input->fill(0);
 
-  compute_max_pool_backward(grad_output, grad_input, batch_size, channels, output_h, output_w,
-                            mask_indices, this->flow_handle_);
+  run_backward(grad_output, grad_input, batch_size, channels, output_h, output_w, mask_indices,
+               this->flow_handle_);
 
   return grad_input;
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward_impl(
-    const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t height,
-    size_t width, size_t channels, size_t output_h, size_t output_w, const Tensor &mask_indices,
-    flowHandle_t handle) const {
+std::unique_ptr<Task> MaxPool2DLayer::run_forward(const ConstTensor &input_data,
+                                                  const Tensor &output_data, size_t batch_size,
+                                                  size_t height, size_t width, size_t channels,
+                                                  size_t output_h, size_t output_w,
+                                                  const Tensor &mask_indices,
+                                                  flowHandle_t handle) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("MaxPool2DLayer: data type mismatch in forward pass");
   }
 
   if (input_data->device_type() == DeviceType::CPU) {
-    cpu::maxpool_forward<IO_T>(input_data->data_as<IO_T>(), output_data->data_as<IO_T>(),
-                               mask_indices->data_as<int>(), batch_size, height, width, channels,
-                               pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_, output_h,
-                               output_w);
+    cpu::maxpool::run_forward<IO_T>(input_data->data_as<IO_T>(), output_data->data_as<IO_T>(),
+                                    mask_indices->data_as<int>(), batch_size, height, width,
+                                    channels, pool_h_, pool_w_, stride_h_, stride_w_, pad_h_,
+                                    pad_w_, output_h, output_w);
   }
 #ifdef USE_CUDA
   else if (input_data->device_type() == DeviceType::GPU) {
-    cuda::maxpool_forward<IO_T>(input_data->data_as<IO_T>(), output_data->data_as<IO_T>(),
-                                mask_indices->data_as<int>(), batch_size, height, width, channels,
-                                pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_, output_h,
-                                output_w);
+    cuda::maxpool::run_forward<IO_T>(input_data->data_as<IO_T>(), output_data->data_as<IO_T>(),
+                                     mask_indices->data_as<int>(), batch_size, height, width,
+                                     channels, pool_h_, pool_w_, stride_h_, stride_w_, pad_h_,
+                                     pad_w_, output_h, output_w);
   }
 #endif
   else {
@@ -157,35 +159,38 @@ std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward_impl(
   return nullptr;
 }
 
-std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward(
-    const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t height,
-    size_t width, size_t channels, size_t output_h, size_t output_w, const Tensor &mask_indices,
-    flowHandle_t handle) const {
-  DISPATCH_IO_DTYPE(compute_max_pool_forward_impl, input_data, output_data, batch_size, height,
-                    width, channels, output_h, output_w, mask_indices, handle);
+std::unique_ptr<Task> MaxPool2DLayer::run_forward(const ConstTensor &input_data,
+                                                  const Tensor &output_data, size_t batch_size,
+                                                  size_t height, size_t width, size_t channels,
+                                                  size_t output_h, size_t output_w,
+                                                  const Tensor &mask_indices,
+                                                  flowHandle_t handle) const {
+  DISPATCH_IO_DTYPE(run_forward, input_data, output_data, batch_size, height, width, channels,
+                    output_h, output_w, mask_indices, handle);
   return nullptr;
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_backward_impl(
-    const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
-    size_t channels, size_t output_h, size_t output_w, const ConstTensor &mask_indices,
-    flowHandle_t handle) const {
+std::unique_ptr<Task> MaxPool2DLayer::run_backward(const ConstTensor &gradient_data,
+                                                   const Tensor &grad_input_data, size_t batch_size,
+                                                   size_t channels, size_t output_h,
+                                                   size_t output_w, const ConstTensor &mask_indices,
+                                                   flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("MaxPool2DLayer: data type mismatch in backward pass");
   }
 
   if (gradient_data->device_type() == DeviceType::CPU) {
-    cpu::maxpool_backward<IO_T>(gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
-                                mask_indices->data_as<int>(), batch_size, channels, output_h,
-                                output_w);
+    cpu::maxpool::run_backward<IO_T>(gradient_data->data_as<IO_T>(),
+                                     grad_input_data->data_as<IO_T>(), mask_indices->data_as<int>(),
+                                     batch_size, channels, output_h, output_w);
   }
 #ifdef USE_CUDA
   else if (gradient_data->device_type() == DeviceType::GPU) {
-    cuda::maxpool_backward<IO_T>(gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
-                                 mask_indices->data_as<int>(), batch_size, channels, output_h,
-                                 output_w);
+    cuda::maxpool::run_backward<IO_T>(
+        gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
+        mask_indices->data_as<int>(), batch_size, channels, output_h, output_w);
   }
 #endif
   else {
@@ -194,14 +199,13 @@ std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_backward_impl(
   return nullptr;
 }
 
-std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_backward(const ConstTensor &gradient_data,
-                                                                const Tensor &grad_input_data,
-                                                                size_t batch_size, size_t channels,
-                                                                size_t output_h, size_t output_w,
-                                                                const ConstTensor &mask_indices,
-                                                                flowHandle_t handle) const {
-  DISPATCH_IO_DTYPE(compute_max_pool_backward_impl, gradient_data, grad_input_data, batch_size,
-                    channels, output_h, output_w, mask_indices, handle);
+std::unique_ptr<Task> MaxPool2DLayer::run_backward(const ConstTensor &gradient_data,
+                                                   const Tensor &grad_input_data, size_t batch_size,
+                                                   size_t channels, size_t output_h,
+                                                   size_t output_w, const ConstTensor &mask_indices,
+                                                   flowHandle_t handle) const {
+  DISPATCH_IO_DTYPE(run_backward, gradient_data, grad_input_data, batch_size, channels, output_h,
+                    output_w, mask_indices, handle);
   return nullptr;
 }
 
@@ -271,7 +275,7 @@ Tensor MaxPool2DLayer::dnnl_forward(const ConstTensor &input, size_t mb_id) {
     create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_forward, dnnl_handle, current_stats,
                     input->data(), output->data(), pool_ws->data(), nullptr);
   } else {
-    create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_forward_inference, dnnl_handle,
+    create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_inference, dnnl_handle,
                     current_stats, input->data(), output->data(), nullptr);
   }
 

@@ -141,8 +141,8 @@ void run_forward(dnnlMaxPoolHandle_t *handle, const MaxPoolStats &stats, const v
   //           << std::endl;
 }
 
-void run_forward_inference(dnnlMaxPoolHandle_t *handle, const MaxPoolStats & /*stats*/,
-                           const void *input_data, void *output_data, void * /*scratchpad_data*/) {
+void run_inference(dnnlMaxPoolHandle_t *handle, const MaxPoolStats & /*stats*/,
+                   const void *input_data, void *output_data, void * /*scratchpad_data*/) {
   dnnl::stream &s = handle->stream;
 
   handle->inf_user_src_mem.set_data_handle(const_cast<void *>(input_data));

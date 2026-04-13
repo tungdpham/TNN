@@ -336,9 +336,8 @@ void run_forward(dnnlHandle_t *handle, const ConvolutionStats &stats, const void
   // std::cout << "DNNL convolution forward pass took " << duration_ms << " ms" << std::endl;
 }
 
-void run_backward_data(dnnlHandle_t *handle, const ConvolutionStats &stats,
-                       const void *grad_output_data, const void *weight_data, void *grad_input_data,
-                       void *workspace_data) {
+void run_dgrad(dnnlHandle_t *handle, const ConvolutionStats &stats, const void *grad_output_data,
+               const void *weight_data, void *grad_input_data, void *workspace_data) {
   dnnl::stream &s = handle->stream;
 
   // prepare inputs
@@ -386,10 +385,9 @@ void run_backward_data(dnnlHandle_t *handle, const ConvolutionStats &stats,
   // std::cout << "DNNL convolution backward data pass took " << duration_ms << " ms" << std::endl;
 }
 
-void run_backward_weights_and_bias(dnnlHandle_t *handle, const ConvolutionStats &stats,
-                                   const void *input_data, const void *grad_output_data,
-                                   void *grad_weight_data, void *grad_bias_data,
-                                   void *workspace_data) {
+void run_wgrad_and_bgrad(dnnlHandle_t *handle, const ConvolutionStats &stats,
+                         const void *input_data, const void *grad_output_data,
+                         void *grad_weight_data, void *grad_bias_data, void *workspace_data) {
   dnnl::stream &s = handle->stream;
 
   // prepare inputs

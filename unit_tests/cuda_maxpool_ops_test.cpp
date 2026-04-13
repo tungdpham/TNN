@@ -105,9 +105,9 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardBasic) {
 
   Vec<float> cpu_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
-  cpu::maxpool_nchw::compute_max_pool_forward<float>(
-      input_data.data(), cpu_output.data(), batch_size, channels, input_h, input_w, output_h,
-      output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
+  cpu::maxpool_nchw::run_forward<float>(input_data.data(), cpu_output.data(), batch_size, channels,
+                                        input_h, input_w, output_h, output_w, pool_h, pool_w,
+                                        stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
 
   dptr gpu_input = make_dptr_t<float>(getGPU(), input_data.size());
   dptr gpu_output = make_dptr_t<float>(getGPU(), batch_size * channels * output_h * output_w);
@@ -116,10 +116,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardBasic) {
                         input_data.size() * sizeof(float));
 
   dptr gpu_mask = make_dptr_t<size_t>(getGPU(), mask_size);
-  auto gpu_task = create_cuda_task(
-      defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_forward<float>,
-      gpu_input.get<float>(), gpu_output.get<float>(), batch_size, channels, input_h, input_w,
-      output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::run_forward<float>,
+                                   gpu_input.get<float>(), gpu_output.get<float>(), batch_size,
+                                   channels, input_h, input_w, output_h, output_w, pool_h, pool_w,
+                                   stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_task->sync()) << "GPU maxpool forward task failed";
 
   Vec<float> gpu_output_cpu(batch_size * channels * output_h * output_w);
@@ -152,9 +152,9 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
 
   Vec<float> cpu_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
-  cpu::maxpool_nchw::compute_max_pool_forward<float>(
-      input_data.data(), cpu_output.data(), batch_size, channels, input_h, input_w, output_h,
-      output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
+  cpu::maxpool_nchw::run_forward<float>(input_data.data(), cpu_output.data(), batch_size, channels,
+                                        input_h, input_w, output_h, output_w, pool_h, pool_w,
+                                        stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
 
   dptr gpu_input = make_dptr_t<float>(getGPU(), input_data.size());
   dptr gpu_output = make_dptr_t<float>(getGPU(), batch_size * channels * output_h * output_w);
@@ -163,10 +163,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
                         input_data.size() * sizeof(float));
 
   dptr gpu_mask = make_dptr_t<size_t>(getGPU(), mask_size);
-  auto gpu_task = create_cuda_task(
-      defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_forward<float>,
-      gpu_input.get<float>(), gpu_output.get<float>(), batch_size, channels, input_h, input_w,
-      output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::run_forward<float>,
+                                   gpu_input.get<float>(), gpu_output.get<float>(), batch_size,
+                                   channels, input_h, input_w, output_h, output_w, pool_h, pool_w,
+                                   stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_task->sync()) << "GPU maxpool forward task failed";
 
   Vec<float> gpu_output_cpu(batch_size * channels * output_h * output_w);
@@ -199,10 +199,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
 
   Vec<float> cpu_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
-  auto cpu_task = create_cpu_task(
-      defaultFlowHandle, cpu::maxpool_nchw::compute_max_pool_forward<float>, input_data.data(),
-      cpu_output.data(), batch_size, channels, input_h, input_w, output_h, output_w, pool_h, pool_w,
-      stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
+  auto cpu_task =
+      create_cpu_task(defaultFlowHandle, cpu::maxpool_nchw::run_forward<float>, input_data.data(),
+                      cpu_output.data(), batch_size, channels, input_h, input_w, output_h, output_w,
+                      pool_h, pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
   ASSERT_FALSE(cpu_task->sync()) << "CPU maxpool forward task failed";
 
   dptr gpu_input = make_dptr_t<float>(getGPU(), input_data.size());
@@ -212,10 +212,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
                         input_data.size() * sizeof(float));
 
   dptr gpu_mask = make_dptr_t<size_t>(getGPU(), mask_size);
-  auto gpu_task = create_cuda_task(
-      defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_forward<float>,
-      gpu_input.get<float>(), gpu_output.get<float>(), batch_size, channels, input_h, input_w,
-      output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::run_forward<float>,
+                                   gpu_input.get<float>(), gpu_output.get<float>(), batch_size,
+                                   channels, input_h, input_w, output_h, output_w, pool_h, pool_w,
+                                   stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_task->sync()) << "GPU maxpool forward task failed";
 
   Vec<float> gpu_output_cpu(batch_size * channels * output_h * output_w);
@@ -248,10 +248,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
 
   Vec<float> cpu_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
-  auto cpu_task = create_cpu_task(
-      defaultFlowHandle, cpu::maxpool_nchw::compute_max_pool_forward<float>, input_data.data(),
-      cpu_output.data(), batch_size, channels, input_h, input_w, output_h, output_w, pool_h, pool_w,
-      stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
+  auto cpu_task =
+      create_cpu_task(defaultFlowHandle, cpu::maxpool_nchw::run_forward<float>, input_data.data(),
+                      cpu_output.data(), batch_size, channels, input_h, input_w, output_h, output_w,
+                      pool_h, pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
   ASSERT_FALSE(cpu_task->sync()) << "CPU maxpool forward task failed";
 
   dptr gpu_input = make_dptr_t<float>(getGPU(), input_data.size());
@@ -261,10 +261,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
                         input_data.size() * sizeof(float));
 
   dptr gpu_mask = make_dptr_t<size_t>(getGPU(), mask_size);
-  auto gpu_task = create_cuda_task(
-      defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_forward<float>,
-      gpu_input.get<float>(), gpu_output.get<float>(), batch_size, channels, input_h, input_w,
-      output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::run_forward<float>,
+                                   gpu_input.get<float>(), gpu_output.get<float>(), batch_size,
+                                   channels, input_h, input_w, output_h, output_w, pool_h, pool_w,
+                                   stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_task->sync()) << "GPU maxpool forward task failed";
 
   Vec<float> gpu_output_cpu(batch_size * channels * output_h * output_w);
@@ -297,9 +297,9 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
 
   Vec<float> forward_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
-  cpu::maxpool_nchw::compute_max_pool_forward<float>(
-      input_data.data(), forward_output.data(), batch_size, channels, input_h, input_w, output_h,
-      output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
+  cpu::maxpool_nchw::run_forward<float>(input_data.data(), forward_output.data(), batch_size,
+                                        channels, input_h, input_w, output_h, output_w, pool_h,
+                                        pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
 
   Vec<float> gradient_data(batch_size * channels * output_h * output_w);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
@@ -307,9 +307,8 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
   }
 
   Vec<float> cpu_grad_input(batch_size * channels * input_h * input_w, 0.0f);
-  cpu::maxpool_nchw::compute_max_pool_backward<float>(gradient_data.data(), cpu_grad_input.data(),
-                                                      batch_size, channels, output_h, output_w,
-                                                      cpu_mask.get<size_t>());
+  cpu::maxpool_nchw::run_backward<float>(gradient_data.data(), cpu_grad_input.data(), batch_size,
+                                         channels, output_h, output_w, cpu_mask.get<size_t>());
 
   dptr gpu_input = make_dptr_t<float>(getGPU(), input_data.size());
   dptr gpu_forward_output = make_dptr_t<float>(getGPU(), mask_size);
@@ -318,11 +317,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
   getGPU().copyToDevice(gpu_input.get<float>(), input_data.data(),
                         input_data.size() * sizeof(float));
 
-  auto gpu_forward_task =
-      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_forward<float>,
-                       gpu_input.get<float>(), gpu_forward_output.get<float>(), batch_size,
-                       channels, input_h, input_w, output_h, output_w, pool_h, pool_w, stride_h,
-                       stride_w, 0, 0, gpu_mask.get<size_t>());
+  auto gpu_forward_task = create_cuda_task(
+      defaultFlowHandle, cuda::maxpool_nchw::run_forward<float>, gpu_input.get<float>(),
+      gpu_forward_output.get<float>(), batch_size, channels, input_h, input_w, output_h, output_w,
+      pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_forward_task->sync()) << "GPU maxpool forward task failed";
 
   dptr gpu_gradient = make_dptr_t<float>(getGPU(), gradient_data.size());
@@ -336,7 +334,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
                         zero_grad.size() * sizeof(float));
 
   auto gpu_backward_task =
-      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_backward<float>,
+      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::run_backward<float>,
                        gpu_gradient.get<float>(), gpu_grad_input.get<float>(), batch_size, channels,
                        output_h, output_w, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_backward_task->sync()) << "GPU maxpool backward task failed";
@@ -370,10 +368,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
 
   Vec<float> forward_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
-  auto cpu_forward_task = create_cpu_task(
-      defaultFlowHandle, cpu::maxpool_nchw::compute_max_pool_forward<float>, input_data.data(),
-      forward_output.data(), batch_size, channels, input_h, input_w, output_h, output_w, pool_h,
-      pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
+  auto cpu_forward_task =
+      create_cpu_task(defaultFlowHandle, cpu::maxpool_nchw::run_forward<float>, input_data.data(),
+                      forward_output.data(), batch_size, channels, input_h, input_w, output_h,
+                      output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
   ASSERT_FALSE(cpu_forward_task->sync()) << "CPU maxpool forward task failed";
 
   Vec<float> gradient_data(batch_size * channels * output_h * output_w);
@@ -383,7 +381,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
 
   Vec<float> cpu_grad_input(batch_size * channels * input_h * input_w, 0.0f);
   auto cpu_backward_task = create_cpu_task(
-      defaultFlowHandle, cpu::maxpool_nchw::compute_max_pool_backward<float>, gradient_data.data(),
+      defaultFlowHandle, cpu::maxpool_nchw::run_backward<float>, gradient_data.data(),
       cpu_grad_input.data(), batch_size, channels, output_h, output_w, cpu_mask.get<size_t>());
   ASSERT_FALSE(cpu_backward_task->sync()) << "CPU maxpool backward task failed";
 
@@ -394,11 +392,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
   getGPU().copyToDevice(gpu_input.get<float>(), input_data.data(),
                         input_data.size() * sizeof(float));
 
-  auto gpu_forward_task =
-      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_forward<float>,
-                       gpu_input.get<float>(), gpu_forward_output.get<float>(), batch_size,
-                       channels, input_h, input_w, output_h, output_w, pool_h, pool_w, stride_h,
-                       stride_w, 0, 0, gpu_mask.get<size_t>());
+  auto gpu_forward_task = create_cuda_task(
+      defaultFlowHandle, cuda::maxpool_nchw::run_forward<float>, gpu_input.get<float>(),
+      gpu_forward_output.get<float>(), batch_size, channels, input_h, input_w, output_h, output_w,
+      pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_forward_task->sync()) << "GPU maxpool forward task failed";
 
   dptr gpu_gradient = make_dptr_t<float>(getGPU(), gradient_data.size());
@@ -412,7 +409,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
                         zero_grad.size() * sizeof(float));
 
   auto gpu_backward_task =
-      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_backward<float>,
+      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::run_backward<float>,
                        gpu_gradient.get<float>(), gpu_grad_input.get<float>(), batch_size, channels,
                        output_h, output_w, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_backward_task->sync()) << "GPU maxpool backward task failed";
@@ -446,10 +443,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
 
   Vec<float> forward_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
-  auto cpu_forward_task = create_cpu_task(
-      defaultFlowHandle, cpu::maxpool_nchw::compute_max_pool_forward<float>, input_data.data(),
-      forward_output.data(), batch_size, channels, input_h, input_w, output_h, output_w, pool_h,
-      pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
+  auto cpu_forward_task =
+      create_cpu_task(defaultFlowHandle, cpu::maxpool_nchw::run_forward<float>, input_data.data(),
+                      forward_output.data(), batch_size, channels, input_h, input_w, output_h,
+                      output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
   ASSERT_FALSE(cpu_forward_task->sync()) << "CPU maxpool forward task failed";
 
   Vec<float> gradient_data(batch_size * channels * output_h * output_w);
@@ -459,7 +456,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
 
   Vec<float> cpu_grad_input(batch_size * channels * input_h * input_w, 0.0f);
   auto cpu_backward_task = create_cpu_task(
-      defaultFlowHandle, cpu::maxpool_nchw::compute_max_pool_backward<float>, gradient_data.data(),
+      defaultFlowHandle, cpu::maxpool_nchw::run_backward<float>, gradient_data.data(),
       cpu_grad_input.data(), batch_size, channels, output_h, output_w, cpu_mask.get<size_t>());
   ASSERT_FALSE(cpu_backward_task->sync()) << "CPU maxpool backward task failed";
 
@@ -470,11 +467,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
   getGPU().copyToDevice(gpu_input.get<float>(), input_data.data(),
                         input_data.size() * sizeof(float));
 
-  auto gpu_forward_task =
-      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_forward<float>,
-                       gpu_input.get<float>(), gpu_forward_output.get<float>(), batch_size,
-                       channels, input_h, input_w, output_h, output_w, pool_h, pool_w, stride_h,
-                       stride_w, 0, 0, gpu_mask.get<size_t>());
+  auto gpu_forward_task = create_cuda_task(
+      defaultFlowHandle, cuda::maxpool_nchw::run_forward<float>, gpu_input.get<float>(),
+      gpu_forward_output.get<float>(), batch_size, channels, input_h, input_w, output_h, output_w,
+      pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_forward_task->sync()) << "GPU maxpool forward task failed";
 
   dptr gpu_gradient = make_dptr_t<float>(getGPU(), gradient_data.size());
@@ -488,7 +484,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
                         zero_grad.size() * sizeof(float));
 
   auto gpu_backward_task =
-      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_backward<float>,
+      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::run_backward<float>,
                        gpu_gradient.get<float>(), gpu_grad_input.get<float>(), batch_size, channels,
                        output_h, output_w, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_backward_task->sync()) << "GPU maxpool backward task failed";
@@ -522,10 +518,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
 
   Vec<float> forward_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
-  auto cpu_forward_task = create_cpu_task(
-      defaultFlowHandle, cpu::maxpool_nchw::compute_max_pool_forward<float>, input_data.data(),
-      forward_output.data(), batch_size, channels, input_h, input_w, output_h, output_w, pool_h,
-      pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
+  auto cpu_forward_task =
+      create_cpu_task(defaultFlowHandle, cpu::maxpool_nchw::run_forward<float>, input_data.data(),
+                      forward_output.data(), batch_size, channels, input_h, input_w, output_h,
+                      output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, cpu_mask.get<size_t>());
   ASSERT_FALSE(cpu_forward_task->sync()) << "CPU maxpool forward task failed";
 
   Vec<float> gradient_data(batch_size * channels * output_h * output_w);
@@ -535,7 +531,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
 
   Vec<float> cpu_grad_input(batch_size * channels * input_h * input_w, 0.0f);
   auto cpu_backward_task = create_cpu_task(
-      defaultFlowHandle, cpu::maxpool_nchw::compute_max_pool_backward<float>, gradient_data.data(),
+      defaultFlowHandle, cpu::maxpool_nchw::run_backward<float>, gradient_data.data(),
       cpu_grad_input.data(), batch_size, channels, output_h, output_w, cpu_mask.get<size_t>());
   ASSERT_FALSE(cpu_backward_task->sync()) << "CPU maxpool backward task failed";
 
@@ -546,11 +542,10 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
   getGPU().copyToDevice(gpu_input.get<float>(), input_data.data(),
                         input_data.size() * sizeof(float));
 
-  auto gpu_forward_task =
-      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_forward<float>,
-                       gpu_input.get<float>(), gpu_forward_output.get<float>(), batch_size,
-                       channels, input_h, input_w, output_h, output_w, pool_h, pool_w, stride_h,
-                       stride_w, 0, 0, gpu_mask.get<size_t>());
+  auto gpu_forward_task = create_cuda_task(
+      defaultFlowHandle, cuda::maxpool_nchw::run_forward<float>, gpu_input.get<float>(),
+      gpu_forward_output.get<float>(), batch_size, channels, input_h, input_w, output_h, output_w,
+      pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_forward_task->sync()) << "GPU maxpool forward task failed";
 
   dptr gpu_gradient = make_dptr_t<float>(getGPU(), gradient_data.size());
@@ -564,7 +559,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
                         zero_grad.size() * sizeof(float));
 
   auto gpu_backward_task =
-      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::compute_max_pool_backward<float>,
+      create_cuda_task(defaultFlowHandle, cuda::maxpool_nchw::run_backward<float>,
                        gpu_gradient.get<float>(), gpu_grad_input.get<float>(), batch_size, channels,
                        output_h, output_w, gpu_mask.get<size_t>());
   ASSERT_FALSE(gpu_backward_task->sync()) << "GPU maxpool backward task failed";

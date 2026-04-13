@@ -27,10 +27,9 @@ void run_forward(const IO_T* input_data, const Param_T* weight_data, IO_T* outpu
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-void run_weight_gradients(const IO_T* input_data, const IO_T* gradient_data,
-                          Param_T* weight_grad_data, const size_t batch_size,
-                          const size_t input_features, const size_t output_features,
-                          cudaStream_t stream) {
+void run_wgrad(const IO_T* input_data, const IO_T* gradient_data, Param_T* weight_grad_data,
+               const size_t batch_size, const size_t input_features, const size_t output_features,
+               cudaStream_t stream) {
   Compute_T alpha = static_cast<Compute_T>(1.0f);
   Compute_T beta = static_cast<Compute_T>(1.0f);
 
@@ -40,10 +39,9 @@ void run_weight_gradients(const IO_T* input_data, const IO_T* gradient_data,
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-void run_input_gradients(const IO_T* gradient_data, const Param_T* weight_data,
-                         IO_T* grad_input_data, const size_t batch_size,
-                         const size_t input_features, const size_t output_features,
-                         cudaStream_t stream) {
+void run_dgrad(const IO_T* gradient_data, const Param_T* weight_data, IO_T* grad_input_data,
+               const size_t batch_size, const size_t input_features, const size_t output_features,
+               cudaStream_t stream) {
   Compute_T alpha = static_cast<Compute_T>(1.0f);
   Compute_T beta = static_cast<Compute_T>(0.0f);
 
@@ -53,9 +51,8 @@ void run_input_gradients(const IO_T* gradient_data, const Param_T* weight_data,
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-__global__ void compute_bias_gradients_kernel_ex(const IO_T* current_grad_data,
-                                                 Param_T* bias_gradient_data, size_t batch_size,
-                                                 size_t output_features) {
+__global__ void run_bgrad_kernel_ex(const IO_T* current_grad_data, Param_T* bias_gradient_data,
+                                    size_t batch_size, size_t output_features) {
   int out_f = blockIdx.x;
   if (out_f >= static_cast<int>(output_features)) return;
 
@@ -85,14 +82,13 @@ __global__ void compute_bias_gradients_kernel_ex(const IO_T* current_grad_data,
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-void run_bias_gradients(const IO_T* current_grad_data, Param_T* bias_gradient_data,
-                        const size_t batch_size, const size_t output_features,
-                        cudaStream_t stream) {
+void run_bgrad(const IO_T* current_grad_data, Param_T* bias_gradient_data, const size_t batch_size,
+               const size_t output_features, cudaStream_t stream) {
   int threads_per_block = 256;
   int num_blocks = static_cast<int>(output_features);
   size_t shared_mem_size = threads_per_block * sizeof(Compute_T);
 
-  compute_bias_gradients_kernel_ex<IO_T, Param_T, Compute_T>
+  run_bgrad_kernel_ex<IO_T, Param_T, Compute_T>
       <<<num_blocks, threads_per_block, shared_mem_size, stream>>>(
           current_grad_data, bias_gradient_data, batch_size, output_features);
 }
@@ -125,15 +121,15 @@ void add_bias(IO_T* output_data, const Param_T* bias_data, const size_t batch_si
       const IO_T* input_data, const Param_T* weight_data, IO_T* output_data,               \
       const size_t batch_size, const size_t input_features, const size_t output_features,  \
       cudaStream_t stream);                                                                \
-  template void run_weight_gradients<IO_T, Param_T, Compute_T>(                            \
+  template void run_wgrad<IO_T, Param_T, Compute_T>(                                       \
       const IO_T* input_data, const IO_T* gradient_data, Param_T* weight_grad_data,        \
       const size_t batch_size, const size_t input_features, const size_t output_features,  \
       cudaStream_t stream);                                                                \
-  template void run_input_gradients<IO_T, Param_T, Compute_T>(                             \
+  template void run_dgrad<IO_T, Param_T, Compute_T>(                                       \
       const IO_T* gradient_data, const Param_T* weight_data, IO_T* grad_input_data,        \
       const size_t batch_size, const size_t input_features, const size_t output_features,  \
       cudaStream_t stream);                                                                \
-  template void run_bias_gradients<IO_T, Param_T, Compute_T>(                              \
+  template void run_bgrad<IO_T, Param_T, Compute_T>(                                       \
       const IO_T* current_grad_data, Param_T* bias_gradient_data, const size_t batch_size, \
       const size_t output_features, cudaStream_t stream);                                  \
   template void add_bias<IO_T, Param_T, Compute_T>(                                        \

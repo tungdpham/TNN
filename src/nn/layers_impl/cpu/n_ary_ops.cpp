@@ -14,7 +14,7 @@
 
 namespace tnn {
 namespace cpu {
-
+namespace nary {
 // Helper to compute total number of elements
 static size_t compute_total_elements(const Vec<size_t> &shape) {
   size_t total = 1;
@@ -25,10 +25,10 @@ static size_t compute_total_elements(const Vec<size_t> &shape) {
 }
 
 template <typename T>
-void nary_forward(const Vec<const T *> &inputs, T *output, const Vec<size_t> &shape,
-                  const NAryOp &op_type) {
+void run_forward(const Vec<const T *> &inputs, T *output, const Vec<size_t> &shape,
+                 const NAryOp &op_type) {
   if (inputs.empty()) {
-    throw std::runtime_error("nary_forward: requires at least one input");
+    throw std::runtime_error("run_forward: requires at least one input");
   }
 
   size_t total_elements = compute_total_elements(shape);
@@ -83,7 +83,7 @@ void nary_forward(const Vec<const T *> &inputs, T *output, const Vec<size_t> &sh
         for (size_t i = 0; i < total_elements; ++i) {
           // Add small epsilon to avoid division by zero
           if (std::abs(static_cast<float>(inputs[input_idx][i])) < 1e-8) {
-            throw std::runtime_error("nary_forward (DIV): division by near-zero value");
+            throw std::runtime_error("run_forward (DIV): division by near-zero value");
           }
           output[i] /= inputs[input_idx][i];
         }
@@ -91,15 +91,15 @@ void nary_forward(const Vec<const T *> &inputs, T *output, const Vec<size_t> &sh
       break;
     }
     default:
-      throw std::runtime_error("nary_forward: unknown operation type");
+      throw std::runtime_error("run_forward: unknown operation type");
   }
 }
 
 template <typename T>
-void nary_backward(const T *grad_output, Vec<T *> &grad_inputs, const Vec<const T *> &fwd_inputs,
-                   const Vec<size_t> &shape, const NAryOp &op_type) {
+void run_backward(const T *grad_output, Vec<T *> &grad_inputs, const Vec<const T *> &fwd_inputs,
+                  const Vec<size_t> &shape, const NAryOp &op_type) {
   if (fwd_inputs.empty() || grad_inputs.empty()) {
-    throw std::runtime_error("nary_backward: requires at least one input");
+    throw std::runtime_error("run_backward: requires at least one input");
   }
 
   size_t total_elements = compute_total_elements(shape);
@@ -168,7 +168,7 @@ void nary_backward(const T *grad_output, Vec<T *> &grad_inputs, const Vec<const 
       // Gradient for i0
       for (size_t i = 0; i < total_elements; ++i) {
         if (std::abs(static_cast<float>(denom_prod[i])) < 1e-8) {
-          throw std::runtime_error("nary_backward (DIV): near-zero denominator");
+          throw std::runtime_error("run_backward (DIV): near-zero denominator");
         }
         grad_inputs[0][i] += grad_output[i] / denom_prod[i];
       }
@@ -177,7 +177,7 @@ void nary_backward(const T *grad_output, Vec<T *> &grad_inputs, const Vec<const 
       for (size_t input_idx = 1; input_idx < n_inputs; ++input_idx) {
         for (size_t i = 0; i < total_elements; ++i) {
           if (std::abs(static_cast<float>(fwd_inputs[input_idx][i])) < 1e-8) {
-            throw std::runtime_error("nary_backward (DIV): near-zero divisor");
+            throw std::runtime_error("run_backward (DIV): near-zero divisor");
           }
           T grad_contrib =
               -grad_output[i] * fwd_inputs[0][i] / (denom_prod[i] * fwd_inputs[input_idx][i]);
@@ -187,14 +187,14 @@ void nary_backward(const T *grad_output, Vec<T *> &grad_inputs, const Vec<const 
       break;
     }
     default:
-      throw std::runtime_error("nary_backward: unknown operation type");
+      throw std::runtime_error("run_backward: unknown operation type");
   }
 }
 
-#define INSTANTIATE_NARY_OPS(T)                                                                    \
-  template void nary_forward<T>(const Vec<const T *> &, T *, const Vec<size_t> &, const NAryOp &); \
-  template void nary_backward<T>(const T *, Vec<T *> &, const Vec<const T *> &,                    \
-                                 const Vec<size_t> &, const NAryOp &);
+#define INSTANTIATE_NARY_OPS(T)                                                                   \
+  template void run_forward<T>(const Vec<const T *> &, T *, const Vec<size_t> &, const NAryOp &); \
+  template void run_backward<T>(const T *, Vec<T *> &, const Vec<const T *> &,                    \
+                                const Vec<size_t> &, const NAryOp &);
 
 INSTANTIATE_NARY_OPS(fp16)
 INSTANTIATE_NARY_OPS(bf16)
@@ -203,5 +203,6 @@ INSTANTIATE_NARY_OPS(double)
 
 #undef INSTANTIATE_NARY_OPS
 
+}  // namespace nary
 }  // namespace cpu
 }  // namespace tnn

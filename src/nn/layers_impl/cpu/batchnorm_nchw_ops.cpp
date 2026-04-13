@@ -15,10 +15,10 @@ namespace tnn {
 namespace cpu {
 namespace batchnorm_nchw {
 template <typename T>
-void compute_inference_output(const T *input_data, const float *running_mean_data,
-                              const float *running_var_data, const float *gamma_data,
-                              const float *beta_data, T *output_data, size_t batch_size,
-                              size_t channels, size_t spatial_size, float epsilon, bool affine) {
+void run_inference(const T *input_data, const float *running_mean_data,
+                   const float *running_var_data, const float *gamma_data, const float *beta_data,
+                   T *output_data, size_t batch_size, size_t channels, size_t spatial_size,
+                   float epsilon, bool affine) {
   const size_t channel_stride = channels * spatial_size;
 
   parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
@@ -49,10 +49,10 @@ void compute_inference_output(const T *input_data, const float *running_mean_dat
 }
 
 template <typename T>
-void run_forward_fused(const T *input, float *mean, float *inv_std, float *running_mean,
-                       float *running_var, const float *gamma, const float *beta, T *output,
-                       float *norm_cache, size_t N, size_t C, size_t S, float momentum,
-                       float epsilon, bool affine) {
+void run_forward(const T *input, float *mean, float *inv_std, float *running_mean,
+                 float *running_var, const float *gamma, const float *beta, T *output,
+                 float *norm_cache, size_t N, size_t C, size_t S, float momentum, float epsilon,
+                 bool affine) {
   const size_t total_elements = N * S;
   const size_t channel_stride = C * S;
   const float inv_total = 1.0f / static_cast<float>(total_elements);
@@ -124,9 +124,9 @@ void run_forward_fused(const T *input, float *mean, float *inv_std, float *runni
 }
 
 template <typename T>
-void run_backward_fused(const T *grad_output, const float *norm_input, const float *inv_std,
-                        const float *gamma, float *d_gamma, float *d_beta, T *grad_input, size_t N,
-                        size_t C, size_t S, bool affine) {
+void run_backward(const T *grad_output, const float *norm_input, const float *inv_std,
+                  const float *gamma, float *d_gamma, float *d_beta, T *grad_input, size_t N,
+                  size_t C, size_t S, bool affine) {
   const size_t channel_stride = C * S;
   const size_t M = N * S;
   const float inv_M = 1.0f / static_cast<float>(M);
@@ -183,19 +183,19 @@ void run_backward_fused(const T *grad_output, const float *norm_input, const flo
   });
 }
 
-#define INSTANTIATE_BATCHNORM(T)                                                               \
-  template void compute_inference_output<T>(                                                   \
-      const T *input_data, const float *running_mean_data, const float *running_var_data,      \
-      const float *gamma_data, const float *beta_data, T *output_data, size_t batch_size,      \
-      size_t channels, size_t spatial_size, float epsilon, bool affine);                       \
-                                                                                               \
-  template void run_forward_fused<T>(                                                          \
-      const T *input, float *mean, float *inv_std, float *running_mean, float *running_var,    \
-      const float *gamma, const float *beta, T *output, float *norm_cache, size_t N, size_t C, \
-      size_t S, float momentum, float epsilon, bool affine);                                   \
-                                                                                               \
-  template void run_backward_fused<T>(                                                         \
-      const T *grad_output, const float *norm_input, const float *inv_std, const float *gamma, \
+#define INSTANTIATE_BATCHNORM(T)                                                                 \
+  template void run_inference<T>(                                                                \
+      const T *input_data, const float *running_mean_data, const float *running_var_data,        \
+      const float *gamma_data, const float *beta_data, T *output_data, size_t batch_size,        \
+      size_t channels, size_t spatial_size, float epsilon, bool affine);                         \
+                                                                                                 \
+  template void run_forward<T>(const T *input, float *mean, float *inv_std, float *running_mean, \
+                               float *running_var, const float *gamma, const float *beta,        \
+                               T *output, float *norm_cache, size_t N, size_t C, size_t S,       \
+                               float momentum, float epsilon, bool affine);                      \
+                                                                                                 \
+  template void run_backward<T>(                                                                 \
+      const T *grad_output, const float *norm_input, const float *inv_std, const float *gamma,   \
       float *d_gamma, float *d_beta, T *grad_input, size_t N, size_t C, size_t S, bool affine);
 INSTANTIATE_BATCHNORM(fp16)
 INSTANTIATE_BATCHNORM(bf16)

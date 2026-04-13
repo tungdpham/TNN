@@ -37,21 +37,21 @@ private:
 
   // Cache for memory planning
   struct SequenceMemInfo {
-    size_t cycling_cost;  // M_b,i: peak buffer requirement for sequence i
-    size_t output_size;   // O_i: terminal output size of sequence i
-    int priority;         // M_b,i - O_i: used for scheduling order
-    size_t index;         // original index in sequences_ vector
+    size_t cycling_cost;  // W_i: peak memory pressure during sequence execution (measured via hook)
+    size_t output_size;  // b_i = O_i + R_i: retained memory after forward (output + residual cache)
+    int priority;        // W_i - b_i: scheduling priority (descending = execute first)
+    size_t index;        // original index in sequences_ vector
   };
 
   // Cached execution order (sorted by priority, descending)
-  mutable Vec<size_t> execution_order_;
-  mutable bool execution_order_cached_ = false;
+  Vec<size_t> execution_order_;
+  bool execution_order_cached_ = false;
 
   std::unordered_map<size_t, Vec<Vec<size_t>>> input_shapes_cache_;
 
-  Vec<size_t> compute_execution_order(const Vec<Vec<size_t>> &input_shapes) const;
+  Vec<size_t> compute_execution_order(const Vec<ConstTensor> &inputs, size_t mb_id);
 
-  SequenceMemInfo compute_sequence_memory(size_t seq_idx, const Vec<size_t> &input_shapes) const;
+  SequenceMemInfo measure_sequence_memory(size_t seq_idx, ConstTensor input, size_t mb_id);
 
 protected:
   Vec<Layer *> layers() override {

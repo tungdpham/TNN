@@ -88,13 +88,13 @@ std::unique_ptr<Task> NAryOpLayer::compute_nary_forward_impl(const Vec<ConstTens
   }
 
   if (inputs[0]->device_type() == DeviceType::CPU) {
-    cpu::nary_forward<Compute_T>(input_ptrs, output->data_as<Compute_T>(), shape, op_type_);
+    cpu::nary::run_forward<Compute_T>(input_ptrs, output->data_as<Compute_T>(), shape, op_type_);
   }
 #ifdef USE_CUDA
   else if (inputs[0]->device_type() == DeviceType::GPU) {
-    size_t ws_bytes = cuda::nary_forward_workspace_bytes(input_ptrs.size());
+    size_t ws_bytes = cuda::nary::nary_forward_workspace_bytes(input_ptrs.size());
     Tensor ws = this->get_workspace({ws_bytes}, DType_t::BYTE);
-    return create_cuda_task(handle, cuda::nary_forward<Compute_T>, input_ptrs,
+    return create_cuda_task(handle, cuda::nary::run_forward<Compute_T>, input_ptrs,
                             output->data_as<Compute_T>(), shape, op_type_, ws->data());
   }
 #endif
@@ -126,14 +126,14 @@ std::unique_ptr<Task> NAryOpLayer::compute_nary_backward_impl(const ConstTensor 
   }
 
   if (grad_output->device_type() == DeviceType::CPU) {
-    cpu::nary_backward<Compute_T>(grad_output->data_as<Compute_T>(), grad_input_ptrs,
-                                  fwd_input_ptrs, shape, op_type_);
+    cpu::nary::run_backward<Compute_T>(grad_output->data_as<Compute_T>(), grad_input_ptrs,
+                                       fwd_input_ptrs, shape, op_type_);
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    size_t ws_bytes = cuda::nary_backward_workspace_bytes(fwd_input_ptrs.size());
+    size_t ws_bytes = cuda::nary::nary_backward_workspace_bytes(fwd_input_ptrs.size());
     Tensor ws = this->get_workspace({ws_bytes}, DType_t::BYTE);
-    return create_cuda_task(handle, cuda::nary_backward<Compute_T>,
+    return create_cuda_task(handle, cuda::nary::run_backward<Compute_T>,
                             grad_output->data_as<Compute_T>(), grad_input_ptrs, fwd_input_ptrs,
                             shape, op_type_, ws->data());
   }
@@ -175,7 +175,7 @@ size_t NAryOpLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   size_t output_bytes = get_shapes_bytes(output_shapes, io_dtype_);
 #ifdef USE_CUDA
   if (get_engine_type() == EngineType::CUDA) {
-    return cuda::nary_forward_workspace_bytes(input_shapes.size()) + output_bytes;
+    return cuda::nary::nary_forward_workspace_bytes(input_shapes.size()) + output_bytes;
   }
 #endif
   return output_bytes;
@@ -189,7 +189,7 @@ size_t NAryOpLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   size_t input_bytes = get_shapes_bytes(input_shapes, io_dtype_);
 #ifdef USE_CUDA
   if (get_engine_type() == EngineType::CUDA) {
-    return cuda::nary_backward_workspace_bytes(input_shapes.size()) + input_bytes;
+    return cuda::nary::nary_backward_workspace_bytes(input_shapes.size()) + input_bytes;
   }
 #endif
   return input_bytes;

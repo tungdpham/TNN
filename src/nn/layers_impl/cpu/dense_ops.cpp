@@ -21,24 +21,22 @@ void run_forward(const T *input_data, const T *weight_data, T *output_data, cons
 }
 
 template <typename T>
-void run_weight_gradients(const T *input_data, const T *gradient_data, T *weight_grad_data,
-                          const size_t batch_size, const size_t input_features,
-                          const size_t output_features) {
+void run_wgrad(const T *input_data, const T *gradient_data, T *weight_grad_data,
+               const size_t batch_size, const size_t input_features, const size_t output_features) {
   cpu::gemm<T>(gradient_data, input_data, weight_grad_data, output_features, input_features,
                batch_size, true, false, T(1.0), T(1.0));
 }
 
 template <typename T>
-void run_input_gradients(const T *gradient_data, const T *weight_data, T *grad_input_data,
-                         const size_t batch_size, const size_t input_features,
-                         const size_t output_features) {
+void run_dgrad(const T *gradient_data, const T *weight_data, T *grad_input_data,
+               const size_t batch_size, const size_t input_features, const size_t output_features) {
   cpu::gemm<T>(gradient_data, weight_data, grad_input_data, batch_size, input_features,
                output_features, false, false, T(1.0), T(0.0));
 }
 
 template <typename T>
-void run_bias_gradients(const T *current_grad_data, T *bias_gradient_data, const size_t batch_size,
-                        const size_t output_features) {
+void run_bgrad(const T *current_grad_data, T *bias_gradient_data, const size_t batch_size,
+               const size_t output_features) {
   parallel_for<size_t>(0, output_features, [&](size_t out_f) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
@@ -56,23 +54,23 @@ void add_bias(T *output_data, const T *bias_data, const size_t batch_size,
   });
 }
 
-#define INSTANTIATE_DENSE(T)                                                                       \
-  template void run_forward<T>(const T *input_data, const T *weight_data, T *output_data,          \
-                               const size_t batch_size, const size_t input_features,               \
-                               const size_t output_features);                                      \
-                                                                                                   \
-  template void run_weight_gradients<T>(                                                           \
-      const T *input_data, const T *gradient_data, T *weight_grad_data, const size_t batch_size,   \
-      const size_t input_features, const size_t output_features);                                  \
-                                                                                                   \
-  template void run_input_gradients<T>(const T *gradient_data, const T *weight_data,               \
-                                       T *grad_input_data, const size_t batch_size,                \
-                                       const size_t input_features, const size_t output_features); \
-                                                                                                   \
-  template void run_bias_gradients<T>(const T *current_grad_data, T *bias_gradient_data,           \
-                                      const size_t batch_size, const size_t output_features);      \
-                                                                                                   \
-  template void add_bias<T>(T * output_data, const T *bias_data, const size_t batch_size,          \
+#define INSTANTIATE_DENSE(T)                                                                   \
+  template void run_forward<T>(const T *input_data, const T *weight_data, T *output_data,      \
+                               const size_t batch_size, const size_t input_features,           \
+                               const size_t output_features);                                  \
+                                                                                               \
+  template void run_wgrad<T>(const T *input_data, const T *gradient_data, T *weight_grad_data, \
+                             const size_t batch_size, const size_t input_features,             \
+                             const size_t output_features);                                    \
+                                                                                               \
+  template void run_dgrad<T>(const T *gradient_data, const T *weight_data, T *grad_input_data, \
+                             const size_t batch_size, const size_t input_features,             \
+                             const size_t output_features);                                    \
+                                                                                               \
+  template void run_bgrad<T>(const T *current_grad_data, T *bias_gradient_data,                \
+                             const size_t batch_size, const size_t output_features);           \
+                                                                                               \
+  template void add_bias<T>(T * output_data, const T *bias_data, const size_t batch_size,      \
                             const size_t output_features);
 INSTANTIATE_DENSE(fp16)
 INSTANTIATE_DENSE(bf16)

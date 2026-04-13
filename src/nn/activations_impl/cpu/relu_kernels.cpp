@@ -1,6 +1,5 @@
 #include "nn/activations_impl/cpu/relu_kernels.hpp"
 
-#include "ops/cpu/kernels.hpp"
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
@@ -24,7 +23,7 @@ INSTANTIATE_RELU(fp16)
 INSTANTIATE_RELU(bf16)
 INSTANTIATE_RELU(float)
 INSTANTIATE_RELU(double)
-#undef INSTANTIATE_RELUss
+#undef INSTANTIATE_RELU
 
 }  // namespace cpu
 }  // namespace tnn

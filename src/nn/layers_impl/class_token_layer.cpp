@@ -50,19 +50,19 @@ std::unique_ptr<Task> ClassTokenLayer::forward_task(const ConstTensor &input, co
   }
 
   if (get_engine_type() == EngineType::CPU) {
-    return create_cpu_task(handle, cpu::class_token_forward<Compute_T>, input->data_as<Compute_T>(),
-                           class_token->data_as<Compute_T>(), output->data_as<Compute_T>(),
-                           batch_size, seq_len, embed_dim);
+    return create_cpu_task(handle, cpu::class_token::run_forward<Compute_T>,
+                           input->data_as<Compute_T>(), class_token->data_as<Compute_T>(),
+                           output->data_as<Compute_T>(), batch_size, seq_len, embed_dim);
   }
 #ifdef USE_CUDA
   else if (get_engine_type() == EngineType::CUDA) {
-    return create_cuda_task(handle, cuda::class_token_forward<Compute_T>,
+    return create_cuda_task(handle, cuda::class_token::run_forward<Compute_T>,
                             input->data_as<Compute_T>(), class_token->data_as<Compute_T>(),
                             output->data_as<Compute_T>(), batch_size, seq_len, embed_dim);
   }
 #endif
   else {
-    throw std::runtime_error("Unsupported device type for class_token_forward");
+    throw std::runtime_error("Unsupported device type for run_forward");
   }
   return nullptr;
 }
@@ -87,21 +87,21 @@ std::unique_ptr<Task> ClassTokenLayer::backward_task(const ConstTensor &grad_out
   }
 
   if (get_engine_type() == EngineType::CPU) {
-    return create_cpu_task(handle, cpu::class_token_backward<Compute_T>,
+    return create_cpu_task(handle, cpu::class_token::run_backward<Compute_T>,
                            grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                            class_token_gradients->data_as<Compute_T>(), batch_size, seq_len,
                            embed_dim);
   }
 #ifdef USE_CUDA
   else if (get_engine_type() == EngineType::CUDA) {
-    return create_cuda_task(handle, cuda::class_token_backward<Compute_T>,
+    return create_cuda_task(handle, cuda::class_token::run_backward<Compute_T>,
                             grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                             class_token_gradients->data_as<Compute_T>(), batch_size, seq_len,
                             embed_dim);
   }
 #endif
   else {
-    throw std::runtime_error("Unsupported device type for class_token_backward");
+    throw std::runtime_error("Unsupported device type for run_backward");
   }
   return nullptr;
 }

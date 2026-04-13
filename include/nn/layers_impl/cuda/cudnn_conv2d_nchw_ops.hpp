@@ -50,10 +50,10 @@ void forward_with_bias(ConvolutionHandle *handle, const void *input_data, const 
                        cudaStream_t stream);
 
 template <typename T>
-void backward_data(ConvolutionHandle *handle, const void *gradient_data, const void *weight_data,
-                   void *input_grad_data, size_t batch_size, size_t in_channels, size_t input_h,
-                   size_t input_w, size_t out_channels, size_t output_h, size_t output_w,
-                   void *workspace, size_t workspace_size, cudaStream_t stream);
+void run_dgrad(ConvolutionHandle *handle, const void *gradient_data, const void *weight_data,
+               void *input_grad_data, size_t batch_size, size_t in_channels, size_t input_h,
+               size_t input_w, size_t out_channels, size_t output_h, size_t output_w,
+               void *workspace, size_t workspace_size, cudaStream_t stream);
 
 template <typename T>
 void backward_filter(ConvolutionHandle *handle, const void *input_data, const void *gradient_data,
@@ -62,9 +62,9 @@ void backward_filter(ConvolutionHandle *handle, const void *input_data, const vo
                      void *workspace, size_t workspace_size, cudaStream_t stream);
 
 template <typename T>
-void backward_bias(ConvolutionHandle *handle, const void *gradient_data, void *bias_grad_data,
-                   size_t batch_size, size_t out_channels, size_t output_h, size_t output_w,
-                   cudaStream_t stream);
+void run_bgrad(ConvolutionHandle *handle, const void *gradient_data, void *bias_grad_data,
+               size_t batch_size, size_t out_channels, size_t output_h, size_t output_w,
+               cudaStream_t stream);
 }  // namespace cudnn_conv2d
 }  // namespace cuda
 }  // namespace tnn

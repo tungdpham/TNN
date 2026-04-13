@@ -9,8 +9,9 @@
 #ifdef USE_CUDA
 
 #include <cuda_runtime.h>
-#include <stdexcept>
+
 #include <algorithm>
+#include <stdexcept>
 
 namespace tnn {
 namespace cuda {
@@ -19,7 +20,7 @@ constexpr int BLOCK_SIZE = 32;
 
 // CUDA kernel for attention score computation
 template <typename T>
-__global__ void compute_attention_scores_kernel(const T *q, const T *k, T *scores, size_t seq_len,
+__global__ void compute_attention_scores_kernel(const T* q, const T* k, T* scores, size_t seq_len,
                                                 size_t head_dim, float scale, bool is_causal,
                                                 size_t batch_heads_idx) {
   // blockIdx.x: position i, blockIdx.y: position j
@@ -29,8 +30,8 @@ __global__ void compute_attention_scores_kernel(const T *q, const T *k, T *score
   int d = threadIdx.x;
 
   if (d < head_dim) {
-    const T *q_ptr = q + batch_heads_idx * seq_len * head_dim + i * head_dim;
-    const T *k_ptr = k + batch_heads_idx * seq_len * head_dim + j * head_dim;
+    const T* q_ptr = q + batch_heads_idx * seq_len * head_dim + i * head_dim;
+    const T* k_ptr = k + batch_heads_idx * seq_len * head_dim + j * head_dim;
 
     // Compute dot product for this thread
     T val = q_ptr[d] * k_ptr[d];
@@ -38,7 +39,7 @@ __global__ void compute_attention_scores_kernel(const T *q, const T *k, T *score
 
     // Reduce within block
     extern __shared__ char shared_mem[];
-    T *shared = reinterpret_cast<T *>(shared_mem);
+    T* shared = reinterpret_cast<T*>(shared_mem);
     shared[d] = val;
     __syncthreads();
 
@@ -61,12 +62,12 @@ __global__ void compute_attention_scores_kernel(const T *q, const T *k, T *score
 
 // CUDA kernel for softmax
 template <typename T>
-__global__ void softmax_kernel(T *scores, T *attn_weights, size_t seq_len, size_t batch_heads_idx) {
+__global__ void softmax_kernel(T* scores, T* attn_weights, size_t seq_len, size_t batch_heads_idx) {
   int i = blockIdx.x;
   int j = threadIdx.x;
 
   if (j < seq_len) {
-    T *score_ptr = scores + batch_heads_idx * seq_len * seq_len + i * seq_len;
+    T* score_ptr = scores + batch_heads_idx * seq_len * seq_len + i * seq_len;
 
     // Find max for numerical stability
     T max_val = -1e9f;
@@ -87,13 +88,14 @@ __global__ void softmax_kernel(T *scores, T *attn_weights, size_t seq_len, size_
     }
     __syncthreads();
 
-    attn_weights[batch_heads_idx * seq_len * seq_len + i * seq_len + j] = exp_val / (sum_exp + 1e-9f);
+    attn_weights[batch_heads_idx * seq_len * seq_len + i * seq_len + j] =
+        exp_val / (sum_exp + 1e-9f);
   }
 }
 
 // CUDA kernel for output computation: O = Attention @ V
 template <typename T>
-__global__ void attention_output_kernel(const T *attn_weights, const T *v, T *output,
+__global__ void attention_output_kernel(const T* attn_weights, const T* v, T* output,
                                         size_t seq_len, size_t head_dim, size_t batch_heads_idx) {
   int i = blockIdx.x;
   int d = threadIdx.x;
@@ -110,15 +112,14 @@ __global__ void attention_output_kernel(const T *attn_weights, const T *v, T *ou
 }
 
 template <typename T>
-void sdpa_forward(const T *q, const T *k, const T *v, T *output, size_t batch_size,
-                  size_t num_heads, size_t seq_len, size_t head_dim, float attn_scale,
-                  bool is_causal) {
+void run_forward(const T* q, const T* k, const T* v, T* output, size_t batch_size, size_t num_heads,
+                 size_t seq_len, size_t head_dim, float attn_scale, bool is_causal) {
   // Allocate temporary memory for scores and attention weights
   size_t scores_size = batch_size * num_heads * seq_len * seq_len * sizeof(T);
   size_t attn_weights_size = batch_size * num_heads * seq_len * seq_len * sizeof(T);
 
-  T *scores;
-  T *attn_weights;
+  T* scores;
+  T* attn_weights;
   cudaMalloc(&scores, scores_size);
   cudaMalloc(&attn_weights, attn_weights_size);
 
@@ -144,14 +145,14 @@ void sdpa_forward(const T *q, const T *k, const T *v, T *output, size_t batch_si
         // Softmax
         dim3 softmax_grid(seq_len);
         dim3 softmax_block(seq_len);
-        softmax_kernel<T><<<softmax_grid, softmax_block>>>(scores, attn_weights, seq_len,
-                                                            batch_heads_idx);
+        softmax_kernel<T>
+            <<<softmax_grid, softmax_block>>>(scores, attn_weights, seq_len, batch_heads_idx);
 
         // Output: Attention @ V
         dim3 output_grid(seq_len);
         dim3 output_block(min((int)head_dim, 512));
-        attention_output_kernel<T><<<output_grid, output_block>>>(
-            attn_weights, v, output, seq_len, head_dim, batch_heads_idx);
+        attention_output_kernel<T><<<output_grid, output_block>>>(attn_weights, v, output, seq_len,
+                                                                  head_dim, batch_heads_idx);
       }
     }
 
@@ -167,17 +168,17 @@ void sdpa_forward(const T *q, const T *k, const T *v, T *output, size_t batch_si
 }
 
 template <typename T>
-void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T *grad_output,
-                   T *grad_q, T *grad_k, T *grad_v, size_t batch_size, size_t num_heads,
-                   size_t seq_len, size_t head_dim, float attn_scale, bool is_causal) {
+void run_backward(const T* q, const T* k, const T* v, const T* output, const T* grad_output,
+                  T* grad_q, T* grad_k, T* grad_v, size_t batch_size, size_t num_heads,
+                  size_t seq_len, size_t head_dim, float attn_scale, bool is_causal) {
   // Allocate temporary memory - recompute attention weights for backward
   size_t scores_size = batch_size * num_heads * seq_len * seq_len * sizeof(T);
   size_t attn_weights_size = batch_size * num_heads * seq_len * seq_len * sizeof(T);
   size_t grad_scores_size = batch_size * num_heads * seq_len * seq_len * sizeof(T);
 
-  T *scores;
-  T *attn_weights;
-  T *grad_scores;
+  T* scores;
+  T* attn_weights;
+  T* grad_scores;
 
   cudaMalloc(&scores, scores_size);
   cudaMalloc(&attn_weights, attn_weights_size);
@@ -204,8 +205,8 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
 
         dim3 softmax_grid(seq_len);
         dim3 softmax_block(seq_len);
-        softmax_kernel<T><<<softmax_grid, softmax_block>>>(scores, attn_weights, seq_len,
-                                                            batch_heads_idx);
+        softmax_kernel<T>
+            <<<softmax_grid, softmax_block>>>(scores, attn_weights, seq_len, batch_heads_idx);
       }
     }
 
@@ -227,17 +228,17 @@ void sdpa_backward(const T *q, const T *k, const T *v, const T *output, const T 
 }
 
 // Explicit instantiations
-template void sdpa_forward<float>(const float *, const float *, const float *, float *, size_t,
+template void run_forward<float>(const float*, const float*, const float*, float*, size_t, size_t,
+                                 size_t, size_t, float, bool);
+template void run_forward<double>(const double*, const double*, const double*, double*, size_t,
                                   size_t, size_t, size_t, float, bool);
-template void sdpa_forward<double>(const double *, const double *, const double *, double *, size_t,
-                                   size_t, size_t, size_t, float, bool);
 
-template void sdpa_backward<float>(const float *, const float *, const float *, const float *,
-                                   const float *, float *, float *, float *, size_t, size_t, size_t,
+template void run_backward<float>(const float*, const float*, const float*, const float*,
+                                  const float*, float*, float*, float*, size_t, size_t, size_t,
+                                  size_t, float, bool);
+template void run_backward<double>(const double*, const double*, const double*, const double*,
+                                   const double*, double*, double*, double*, size_t, size_t, size_t,
                                    size_t, float, bool);
-template void sdpa_backward<double>(const double *, const double *, const double *, const double *,
-                                    const double *, double *, double *, double *, size_t, size_t,
-                                    size_t, size_t, float, bool);
 
 }  // namespace cuda
 }  // namespace tnn

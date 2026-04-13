@@ -32,9 +32,9 @@ private:
   void build_cudnn_graph(const Vec<size_t> &input_shape) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_bias_gradients(const ConstTensor &grad_output,
-                                               const Tensor &bias_gradient, size_t batch_size,
-                                               size_t output_features, flowHandle_t handle) const;
+  std::unique_ptr<Task> run_bgrad(const ConstTensor &grad_output, const Tensor &bias_gradient,
+                                  size_t batch_size, size_t output_features,
+                                  flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> add_bias(const Tensor &output, const ConstTensor &bias, size_t batch_size,

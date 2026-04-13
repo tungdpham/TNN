@@ -409,13 +409,13 @@ void destroy_fe_handle(feHandle_t* handle) {
   delete handle;
 }
 
-void run_forward_training(feHandle_t* handle, const BatchNormStats& stats, const void* input,
-                          const void* gamma, const void* beta, void* output,
-                          void* prev_running_mean, void* prev_running_var, void* next_running_mean,
-                          void* next_running_var, void* batch_mean, void* batch_invar,
-                          void* relu_mask, void* workspace, cudaStream_t stream) {
+void run_forward(feHandle_t* handle, const BatchNormStats& stats, const void* input,
+                 const void* gamma, const void* beta, void* output, void* prev_running_mean,
+                 void* prev_running_var, void* next_running_mean, void* next_running_var,
+                 void* batch_mean, void* batch_invar, void* relu_mask, void* workspace,
+                 cudaStream_t stream) {
   if (!handle) {
-    throw std::runtime_error("run_forward_training called with null feHandle");
+    throw std::runtime_error("run_forward called with null feHandle");
   }
 
   cudnnSetStream(handle->cudnn_handle, stream);
@@ -440,12 +440,11 @@ void run_forward_training(feHandle_t* handle, const BatchNormStats& stats, const
   ensure_ok(status, "batchnorm forward execute");
 }
 
-void run_forward_inference(feHandle_t* handle, const BatchNormStats& stats, const void* input,
-                           const void* gamma, const void* beta, const void* saved_mean,
-                           const void* saved_var, void* output, void* workspace,
-                           cudaStream_t stream) {
+void run_inference(feHandle_t* handle, const BatchNormStats& stats, const void* input,
+                   const void* gamma, const void* beta, const void* saved_mean,
+                   const void* saved_var, void* output, void* workspace, cudaStream_t stream) {
   if (!handle) {
-    throw std::runtime_error("run_forward_inference called with null feHandle");
+    throw std::runtime_error("run_inference called with null feHandle");
   }
 
   cudnnSetStream(handle->cudnn_handle, stream);

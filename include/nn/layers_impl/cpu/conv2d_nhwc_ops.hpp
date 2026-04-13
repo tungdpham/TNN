@@ -7,9 +7,10 @@ namespace cpu {
 namespace conv2d_nhwc {
 
 template <typename T>
-void forward(const T *input, const T *weights, const T *bias, T *output, size_t batch, size_t in_h,
-             size_t in_w, size_t in_c, size_t out_c, size_t k_h, size_t k_w, size_t s_h, size_t s_w,
-             size_t p_h, size_t p_w, size_t out_h, size_t out_w, bool use_bias) {
+void run_forward(const T *input, const T *weights, const T *bias, T *output, size_t batch,
+                 size_t in_h, size_t in_w, size_t in_c, size_t out_c, size_t k_h, size_t k_w,
+                 size_t s_h, size_t s_w, size_t p_h, size_t p_w, size_t out_h, size_t out_w,
+                 bool use_bias) {
   for (size_t n = 0; n < batch; ++n) {
     for (size_t oh = 0; oh < out_h; ++oh) {
       for (size_t ow = 0; ow < out_w; ++ow) {
@@ -39,9 +40,9 @@ void forward(const T *input, const T *weights, const T *bias, T *output, size_t 
 }
 
 template <typename T>
-void backward_data(const T *grad_output, const T *weights, T *grad_input, size_t batch, size_t in_h,
-                   size_t in_w, size_t in_c, size_t out_c, size_t k_h, size_t k_w, size_t s_h,
-                   size_t s_w, size_t p_h, size_t p_w, size_t out_h, size_t out_w) {
+void run_dgrad(const T *grad_output, const T *weights, T *grad_input, size_t batch, size_t in_h,
+               size_t in_w, size_t in_c, size_t out_c, size_t k_h, size_t k_w, size_t s_h,
+               size_t s_w, size_t p_h, size_t p_w, size_t out_h, size_t out_w) {
   // Initialize grad_input with zeros
   for (size_t i = 0; i < batch * in_h * in_w * in_c; ++i) {
     grad_input[i] = T(0);
@@ -73,9 +74,9 @@ void backward_data(const T *grad_output, const T *weights, T *grad_input, size_t
 }
 
 template <typename T>
-void backward_weights(const T *input, const T *grad_output, T *grad_weights, size_t batch,
-                      size_t in_h, size_t in_w, size_t in_c, size_t out_c, size_t k_h, size_t k_w,
-                      size_t s_h, size_t s_w, size_t p_h, size_t p_w, size_t out_h, size_t out_w) {
+void run_wgrad(const T *input, const T *grad_output, T *grad_weights, size_t batch, size_t in_h,
+               size_t in_w, size_t in_c, size_t out_c, size_t k_h, size_t k_w, size_t s_h,
+               size_t s_w, size_t p_h, size_t p_w, size_t out_h, size_t out_w) {
   // Initialize grad_weights with zeros
   for (size_t i = 0; i < out_c * k_h * k_w * in_c; ++i) {
     grad_weights[i] = T(0);
@@ -107,8 +108,8 @@ void backward_weights(const T *input, const T *grad_output, T *grad_weights, siz
 }
 
 template <typename T>
-void backward_bias(const T *grad_output, T *grad_bias, size_t batch, size_t out_h, size_t out_w,
-                   size_t out_c) {
+void run_bgrad(const T *grad_output, T *grad_bias, size_t batch, size_t out_h, size_t out_w,
+               size_t out_c) {
   // Initialize grad_bias with zeros
   for (size_t i = 0; i < out_c; ++i) {
     grad_bias[i] = T(0);

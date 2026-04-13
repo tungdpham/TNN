@@ -16,9 +16,8 @@ namespace cpu {
 namespace embedding {
 
 template <typename T>
-void compute_embedding_forward(const T *input_data, const T *weight_data, T *output_data,
-                               size_t num_indices, size_t vocab_size, size_t embed_dim,
-                               size_t padding_idx) {
+void run_forward(const T *input_data, const T *weight_data, T *output_data, size_t num_indices,
+                 size_t vocab_size, size_t embed_dim, size_t padding_idx) {
   for (size_t i = 0; i < num_indices; ++i) {
     size_t idx = static_cast<size_t>(input_data[i]);
     if (idx >= vocab_size) {
@@ -38,9 +37,8 @@ void compute_embedding_forward(const T *input_data, const T *weight_data, T *out
 }
 
 template <typename T>
-void compute_embedding_backward(const T *input_data, const T *gradient_data, T *weight_grad_data,
-                                size_t num_indices, size_t vocab_size, size_t embed_dim,
-                                size_t padding_idx) {
+void run_backward(const T *input_data, const T *gradient_data, T *weight_grad_data,
+                  size_t num_indices, size_t vocab_size, size_t embed_dim, size_t padding_idx) {
   for (size_t i = 0; i < num_indices; ++i) {
     size_t idx = static_cast<size_t>(input_data[i]);
     if (idx >= vocab_size) idx = 0;
@@ -58,12 +56,10 @@ void compute_embedding_backward(const T *input_data, const T *gradient_data, T *
   }
 }
 
-#define INSTANTIATE_EMBEDDING(T)                                                                 \
-  template void compute_embedding_forward<T>(const T *, const T *, T *, size_t, size_t, size_t,  \
-                                             size_t);                                            \
-                                                                                                 \
-  template void compute_embedding_backward<T>(const T *, const T *, T *, size_t, size_t, size_t, \
-                                              size_t);
+#define INSTANTIATE_EMBEDDING(T)                                                           \
+  template void run_forward<T>(const T *, const T *, T *, size_t, size_t, size_t, size_t); \
+                                                                                           \
+  template void run_backward<T>(const T *, const T *, T *, size_t, size_t, size_t, size_t);
 INSTANTIATE_EMBEDDING(fp16)
 INSTANTIATE_EMBEDDING(bf16)
 INSTANTIATE_EMBEDDING(float)

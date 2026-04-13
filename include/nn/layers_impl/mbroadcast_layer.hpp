@@ -47,13 +47,13 @@ private:
     IO_T *grad_input_ptr = grad_input->data_as<IO_T>();
 
     if (get_engine_type() == EngineType::CPU) {
-      cpu::nary_forward<IO_T>(grad_output_ptrs, grad_input_ptr, output_shape, NAryOp::ADD);
+      cpu::nary::run_forward<IO_T>(grad_output_ptrs, grad_input_ptr, output_shape, NAryOp::ADD);
     } else if (get_engine_type() == EngineType::CUDA) {
 #ifdef USE_CUDA
-      Tensor ws = this->get_workspace({cuda::nary_forward_workspace_bytes(grad_output_ptrs.size())},
-                                      DType_t::BYTE);
-      create_cuda_task(flow_handle_, cuda::nary_forward<IO_T>, grad_output_ptrs, grad_input_ptr,
-                       output_shape, NAryOp::ADD, ws->data());
+      Tensor ws = this->get_workspace(
+          {cuda::nary::nary_forward_workspace_bytes(grad_output_ptrs.size())}, DType_t::BYTE);
+      create_cuda_task(flow_handle_, cuda::nary::run_forward<IO_T>, grad_output_ptrs,
+                       grad_input_ptr, output_shape, NAryOp::ADD, ws->data());
 #else
       throw std::runtime_error("MBroadcastLayer backward: CUDA support not compiled");
 #endif

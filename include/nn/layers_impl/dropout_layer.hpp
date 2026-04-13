@@ -21,13 +21,12 @@ private:
   mutable std::mt19937 generator_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_dropout_forward(const ConstTensor &input, const Tensor &output,
-                                                const Tensor &mask, flowHandle_t handle) const;
+  std::unique_ptr<Task> run_forward(const ConstTensor &input, const Tensor &output,
+                                    const Tensor &mask, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_dropout_backward(const ConstTensor &grad_output,
-                                                 const Tensor &grad_input, const ConstTensor &mask,
-                                                 flowHandle_t handle) const;
+  std::unique_ptr<Task> run_backward(const ConstTensor &grad_output, const Tensor &grad_input,
+                                     const ConstTensor &mask, flowHandle_t handle) const;
 
   Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;

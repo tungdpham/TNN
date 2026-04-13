@@ -35,9 +35,8 @@ __global__ void embedding_forward_kernel(const T* input, const T* weight, T* out
 }
 
 template <typename T>
-void compute_embedding_forward(const T* input_data, const T* weight_data, T* output_data,
-                               size_t num_indices, size_t vocab_size, size_t embed_dim,
-                               size_t padding_idx, cudaStream_t stream) {
+void run_forward(const T* input_data, const T* weight_data, T* output_data, size_t num_indices,
+                 size_t vocab_size, size_t embed_dim, size_t padding_idx, cudaStream_t stream) {
   size_t total_elements = num_indices * embed_dim;
   int blockSize = 256;
   int numBlocks = (total_elements + blockSize - 1) / blockSize;
@@ -65,9 +64,9 @@ __global__ void embedding_backward_kernel(const T* input, const T* grad, T* weig
 }
 
 template <typename T>
-void compute_embedding_backward(const T* input_data, const T* gradient_data, T* weight_grad_data,
-                                size_t num_indices, size_t vocab_size, size_t embed_dim,
-                                size_t padding_idx, cudaStream_t stream) {
+void run_backward(const T* input_data, const T* gradient_data, T* weight_grad_data,
+                  size_t num_indices, size_t vocab_size, size_t embed_dim, size_t padding_idx,
+                  cudaStream_t stream) {
   size_t total_elements = num_indices * embed_dim;
   int blockSize = 256;
   int numBlocks = (total_elements + blockSize - 1) / blockSize;
@@ -75,12 +74,12 @@ void compute_embedding_backward(const T* input_data, const T* gradient_data, T* 
       input_data, gradient_data, weight_grad_data, num_indices, vocab_size, embed_dim, padding_idx);
 }
 
-#define INSTANTIATE_EMBEDDING(T)                                                              \
-  template void compute_embedding_forward<T>(const T*, const T*, T*, size_t, size_t, size_t,  \
-                                             size_t, cudaStream_t);                           \
-                                                                                              \
-  template void compute_embedding_backward<T>(const T*, const T*, T*, size_t, size_t, size_t, \
-                                              size_t, cudaStream_t);
+#define INSTANTIATE_EMBEDDING(T)                                                        \
+  template void run_forward<T>(const T*, const T*, T*, size_t, size_t, size_t, size_t,  \
+                               cudaStream_t);                                           \
+                                                                                        \
+  template void run_backward<T>(const T*, const T*, T*, size_t, size_t, size_t, size_t, \
+                                cudaStream_t);
 INSTANTIATE_EMBEDDING(fp16)
 INSTANTIATE_EMBEDDING(bf16)
 INSTANTIATE_EMBEDDING(float)

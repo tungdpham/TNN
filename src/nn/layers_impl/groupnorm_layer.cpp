@@ -61,8 +61,8 @@ Tensor GroupNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   Tensor inv_std = this->get_cache_tensor({batch_size * num_groups_}, io_dtype_);
   set_mutable_cache(mb_id, "inv_std", inv_std);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward_fused, input, mean, inv_std, gamma_, beta_, output,
-                                 norm, batch_size, channels, spatial_size, this->flow_handle_);
+  DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward, input, mean, inv_std, gamma_, beta_, output, norm,
+                                 batch_size, channels, spatial_size, this->flow_handle_);
 
   if (this->is_training_) {
     this->set_immutable_cache(mb_id, "input", input);
@@ -86,7 +86,7 @@ Tensor GroupNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
 
   Tensor grad_input = get_output_tensor(input->shape());
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward_fused, grad_output, normalized, inv_std, gamma_,
+  DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward, grad_output, normalized, inv_std, gamma_,
                                  gamma_gradients_, beta_gradients_, grad_input, batch_size,
                                  channels, spatial_size, this->flow_handle_);
 
@@ -94,11 +94,13 @@ Tensor GroupNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
-    const ConstTensor &input, const Tensor &group_mean, const Tensor &group_inv_std,
-    const ConstTensor &gamma, const ConstTensor &beta, const Tensor &output,
-    const Tensor &norm_cache, size_t batch_size, size_t channels, size_t spatial_size,
-    flowHandle_t handle) const {
+std::unique_ptr<Task> GroupNormLayer::run_forward(const ConstTensor &input,
+                                                  const Tensor &group_mean,
+                                                  const Tensor &group_inv_std,
+                                                  const ConstTensor &gamma, const ConstTensor &beta,
+                                                  const Tensor &output, const Tensor &norm_cache,
+                                                  size_t batch_size, size_t channels,
+                                                  size_t spatial_size, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "GroupNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -111,7 +113,7 @@ std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
   }
 #ifdef USE_CUDA
   if (get_engine_type() == EngineType::CUDA) {
-    return create_cuda_task(this->flow_handle_, cuda::groupnorm::run_forward_fused<Compute_T>,
+    return create_cuda_task(this->flow_handle_, cuda::groupnorm::run_forward<Compute_T>,
                             input->data_as<Compute_T>(), group_mean->data_as<Compute_T>(),
                             group_inv_std->data_as<Compute_T>(),
                             affine_ ? gamma->data_as<Compute_T>() : nullptr,
@@ -121,7 +123,7 @@ std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
   } else
 #endif
   {
-    return create_cpu_task(this->flow_handle_, cpu::groupnorm::run_forward_fused<Compute_T>,
+    return create_cpu_task(this->flow_handle_, cpu::groupnorm::run_forward<Compute_T>,
                            input->data_as<Compute_T>(), group_mean->data_as<Compute_T>(),
                            group_inv_std->data_as<Compute_T>(),
                            affine_ ? gamma->data_as<Compute_T>() : nullptr,
@@ -132,7 +134,7 @@ std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
+std::unique_ptr<Task> GroupNormLayer::run_backward(
     const ConstTensor &grad_output, const ConstTensor &norm_input, const ConstTensor &inv_std,
     const ConstTensor &gamma, const Tensor &d_gamma, const Tensor &d_beta, const Tensor &grad_input,
     size_t batch_size, size_t channels, size_t spatial_size, flowHandle_t handle) const {
@@ -148,7 +150,7 @@ std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
   }
 #ifdef USE_CUDA
   if (get_engine_type() == EngineType::CUDA) {
-    return create_cuda_task(this->flow_handle_, cuda::groupnorm::run_backward_fused<Compute_T>,
+    return create_cuda_task(this->flow_handle_, cuda::groupnorm::run_backward<Compute_T>,
                             grad_output->data_as<Compute_T>(), norm_input->data_as<Compute_T>(),
                             inv_std->data_as<Compute_T>(), gamma->data_as<Compute_T>(),
                             d_gamma->data_as<Compute_T>(), d_beta->data_as<Compute_T>(),
@@ -157,7 +159,7 @@ std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
   } else
 #endif
   {
-    return create_cpu_task(this->flow_handle_, cpu::groupnorm::run_backward_fused<Compute_T>,
+    return create_cpu_task(this->flow_handle_, cpu::groupnorm::run_backward<Compute_T>,
                            grad_output->data_as<Compute_T>(), norm_input->data_as<Compute_T>(),
                            inv_std->data_as<Compute_T>(), gamma->data_as<Compute_T>(),
                            d_gamma->data_as<Compute_T>(), d_beta->data_as<Compute_T>(),

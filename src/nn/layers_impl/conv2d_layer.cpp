@@ -185,7 +185,7 @@ Tensor Conv2DLayer::def_forward(const ConstTensor &input, size_t mb_id) {
 
   if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
-      create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::forward<T>, input->data_as<T>(),
+      create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::run_forward<T>, input->data_as<T>(),
                       weights_->data_as<T>(), use_bias_ ? bias_->data_as<T>() : nullptr,
                       output->data_as<T>(), input->dimension(0), input->dimension(1),
                       input->dimension(2), in_channels_, out_channels_, kernel_h_, kernel_w_,
@@ -206,22 +206,20 @@ Tensor Conv2DLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
 
   if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
-      create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::backward_data<T>,
-                      grad_output->data_as<T>(), weights_->data_as<T>(), grad_input->data_as<T>(),
-                      grad_output->dimension(0), grad_output->dimension(1),
-                      grad_output->dimension(2), in_channels_, out_channels_, kernel_h_, kernel_w_,
-                      stride_h_, stride_w_, pad_h_, pad_w_, grad_output->dimension(1),
-                      grad_output->dimension(2));
-
-      create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::backward_weights<T>,
-                      input->data_as<T>(), grad_output->data_as<T>(),
-                      weight_gradients_->data_as<T>(), grad_output->dimension(0),
-                      input->dimension(1), input->dimension(2), in_channels_, out_channels_,
-                      kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_,
+      create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::run_dgrad<T>, grad_output->data_as<T>(),
+                      weights_->data_as<T>(), grad_input->data_as<T>(), grad_output->dimension(0),
+                      grad_output->dimension(1), grad_output->dimension(2), in_channels_,
+                      out_channels_, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_,
                       grad_output->dimension(1), grad_output->dimension(2));
 
+      create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::run_wgrad<T>, input->data_as<T>(),
+                      grad_output->data_as<T>(), weight_gradients_->data_as<T>(),
+                      grad_output->dimension(0), input->dimension(1), input->dimension(2),
+                      in_channels_, out_channels_, kernel_h_, kernel_w_, stride_h_, stride_w_,
+                      pad_h_, pad_w_, grad_output->dimension(1), grad_output->dimension(2));
+
       if (use_bias_) {
-        create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::backward_bias<T>,
+        create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::run_bgrad<T>,
                         grad_output->data_as<T>(), bias_gradients_->data_as<T>(),
                         grad_output->dimension(0), grad_output->dimension(1),
                         grad_output->dimension(2), out_channels_);
@@ -265,7 +263,7 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_data_task(
     throw std::runtime_error("Conv2DLayer IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  return create_cuda_task(handle, cuda::cudnn_conv2d::run_backward_data, fe_handle, stats,
+  return create_cuda_task(handle, cuda::cudnn_conv2d::run_dgrad, fe_handle, stats,
                           grad_output->data(), weights->data(), grad_input->data(),
                           workspace->data());
 }
@@ -283,8 +281,8 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_weights_and_bias_task(
     throw std::runtime_error("Conv2DLayer input/grad_output dtype mismatch with dispatch IO_T");
   }
 
-  return create_cuda_task(handle, cuda::cudnn_conv2d::run_backward_weights_and_bias, fe_handle,
-                          stats, input->data(), grad_output->data(), weight_gradients->data(),
+  return create_cuda_task(handle, cuda::cudnn_conv2d::run_wgrad_and_bgrad, fe_handle, stats,
+                          input->data(), grad_output->data(), weight_gradients->data(),
                           use_bias_ ? bias_gradients->data() : nullptr, workspace->data());
 }
 
@@ -429,11 +427,10 @@ Tensor Conv2DLayer::dnnl_backward(const ConstTensor &grad_output, size_t mb_id) 
   Tensor workspace = get_workspace({max_ws}, DType_t::BYTE);
 
   // Run backward data first: grad_output is fresher in cache from the forward pass.
-  create_cpu_task(this->flow_handle_, cpu::dnnl_conv2d::run_backward_data, dnnl_handle,
-                  current_stats, grad_output->data(), weights_->data(), grad_input->data(),
-                  workspace->data());
+  create_cpu_task(this->flow_handle_, cpu::dnnl_conv2d::run_dgrad, dnnl_handle, current_stats,
+                  grad_output->data(), weights_->data(), grad_input->data(), workspace->data());
 
-  create_cpu_task(this->flow_handle_, cpu::dnnl_conv2d::run_backward_weights_and_bias, dnnl_handle,
+  create_cpu_task(this->flow_handle_, cpu::dnnl_conv2d::run_wgrad_and_bgrad, dnnl_handle,
                   current_stats, input->data(), grad_output->data(), weight_gradients_->data(),
                   use_bias_ ? bias_gradients_->data() : nullptr, workspace->data());
 

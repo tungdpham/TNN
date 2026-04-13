@@ -87,7 +87,7 @@ Tensor LegacyAvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> LegacyAvgPool2DLayer::run_forward_impl(
+std::unique_ptr<Task> LegacyAvgPool2DLayer::run_forward(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w, flowHandle_t handle) const {
   if (input_data->data_type() != dtype_of<Compute_T>() ||
@@ -121,18 +121,18 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::run_forward_impl(
 std::unique_ptr<Task> LegacyAvgPool2DLayer::run_forward(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w, flowHandle_t handle) const {
-  DISPATCH_IO_DTYPE(run_forward_impl, input_data, output_data, batch_size, channels, input_h,
-                    input_w, output_h, output_w, handle);
+  DISPATCH_IO_DTYPE(run_forward, input_data, output_data, batch_size, channels, input_h, input_w,
+                    output_h, output_w, handle);
   return nullptr;
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> LegacyAvgPool2DLayer::run_backward_impl(const ConstTensor &gradient_data,
-                                                              const Tensor &grad_input_data,
-                                                              size_t batch_size, size_t channels,
-                                                              size_t input_h, size_t input_w,
-                                                              size_t output_h, size_t output_w,
-                                                              flowHandle_t handle) const {
+std::unique_ptr<Task> LegacyAvgPool2DLayer::run_backward(const ConstTensor &gradient_data,
+                                                         const Tensor &grad_input_data,
+                                                         size_t batch_size, size_t channels,
+                                                         size_t input_h, size_t input_w,
+                                                         size_t output_h, size_t output_w,
+                                                         flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<Compute_T>() ||
       grad_input_data->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("LegacyAvgPool2DLayer tensor dtype mismatch with dispatch type");
@@ -167,8 +167,8 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::run_backward(const ConstTensor &grad
                                                          size_t input_h, size_t input_w,
                                                          size_t output_h, size_t output_w,
                                                          flowHandle_t handle) const {
-  DISPATCH_IO_DTYPE(run_backward_impl, gradient_data, grad_input_data, batch_size, channels,
-                    input_h, input_w, output_h, output_w, handle);
+  DISPATCH_IO_DTYPE(run_backward, gradient_data, grad_input_data, batch_size, channels, input_h,
+                    input_w, output_h, output_w, handle);
   return nullptr;
 }
 

@@ -139,7 +139,7 @@ Tensor BatchNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
       Tensor output = get_output_tensor(input->shape());
 
       DISPATCH_DTYPE(io_dtype_, T, {
-        create_cpu_task(this->flow_handle_, cpu::batchnorm_nhwc::run_forward_fused<T>,
+        create_cpu_task(this->flow_handle_, cpu::batchnorm_nhwc::run_forward<T>,
                         input->data_as<T>(), batch_mean->data_as<float>(),
                         batch_invar->data_as<float>(), running_mean_->data_as<float>(),
                         running_var_->data_as<float>(), gamma_->data_as<float>(),
@@ -153,7 +153,7 @@ Tensor BatchNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
       Tensor output = get_output_tensor(input->shape());
 
       DISPATCH_DTYPE(io_dtype_, T, {
-        create_cpu_task(this->flow_handle_, cpu::batchnorm_nhwc::compute_inference_output<T>,
+        create_cpu_task(this->flow_handle_, cpu::batchnorm_nhwc::run_inference<T>,
                         input->data_as<T>(), running_mean_->data_as<float>(),
                         running_var_->data_as<float>(), gamma_->data_as<float>(),
                         beta_->data_as<float>(), output->data_as<T>(), N, C, S, epsilon_, affine_);
@@ -182,7 +182,7 @@ Tensor BatchNormLayer::def_backward(const ConstTensor &grad_output, size_t mb_id
   if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
       create_cpu_task(
-          this->flow_handle_, cpu::batchnorm_nhwc::run_backward_fused<T>, grad_output->data_as<T>(),
+          this->flow_handle_, cpu::batchnorm_nhwc::run_backward<T>, grad_output->data_as<T>(),
           input->data_as<T>(), batch_mean->data_as<float>(), batch_invar->data_as<float>(),
           gamma_->data_as<float>(), gamma_gradients_->data_as<float>(),
           beta_gradients_->data_as<float>(), grad_input->data_as<T>(),
@@ -309,7 +309,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_training_task(
 
   if (get_engine_type() == EngineType::CUDA) {
 #ifdef USE_CUDNN
-    return create_cuda_task(handle, cuda::cudnn_batchnorm::run_forward_training, fe_handle, stats,
+    return create_cuda_task(handle, cuda::cudnn_batchnorm::run_forward, fe_handle, stats,
                             input->data(), gamma->data(), beta->data(), output->data(),
                             running_mean_->data(), running_var_->data(), running_mean_->data(),
                             running_var_->data(), batch_mean->data(), batch_invar->data(),
@@ -336,7 +336,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_inference_task(
 
   if (get_engine_type() == EngineType::CUDA) {
 #ifdef USE_CUDNN
-    return create_cuda_task(handle, cuda::cudnn_batchnorm::run_forward_inference, fe_handle, stats,
+    return create_cuda_task(handle, cuda::cudnn_batchnorm::run_inference, fe_handle, stats,
                             input->data(), gamma->data(), beta->data(), saved_mean->data(),
                             saved_var->data(), output->data(), workspace->data());
 #endif
@@ -412,7 +412,7 @@ Tensor BatchNormLayer::dnnl_forward(const ConstTensor &input, size_t mb_id) {
 
     Tensor workspace = get_workspace({current_stats.fwd_workspace_size}, DType_t::BYTE);
 
-    create_cpu_task(this->flow_handle_, cpu::dnnl_batchnorm::run_forward_training, dnnl_handle,
+    create_cpu_task(this->flow_handle_, cpu::dnnl_batchnorm::run_forward, dnnl_handle,
                     current_stats, input->data(), affine_ ? gamma_->data() : nullptr,
                     affine_ ? beta_->data() : nullptr, output->data(), batch_mean->data(),
                     batch_var->data(), use_relu_ ? relu_ws->data() : nullptr,
@@ -420,7 +420,7 @@ Tensor BatchNormLayer::dnnl_forward(const ConstTensor &input, size_t mb_id) {
   } else {
     Tensor workspace = get_workspace({current_stats.inf_workspace_size}, DType_t::BYTE);
 
-    create_cpu_task(this->flow_handle_, cpu::dnnl_batchnorm::run_forward_inference, dnnl_handle,
+    create_cpu_task(this->flow_handle_, cpu::dnnl_batchnorm::run_inference, dnnl_handle,
                     current_stats, input->data(), affine_ ? gamma_->data() : nullptr,
                     affine_ ? beta_->data() : nullptr, running_mean_->data(), running_var_->data(),
                     output->data(),

@@ -20,6 +20,7 @@
 
 namespace tnn {
 namespace cuda {
+namespace nary {
 
 static size_t compute_total_elements(const Vec<size_t>& shape) {
   size_t total = 1;
@@ -193,10 +194,10 @@ static T** upload_ptrs(const Vec<T*>& host_ptrs, void* workspace, size_t byte_of
 }
 
 template <typename T>
-void nary_forward(const Vec<const T*>& inputs, T* output, const Vec<size_t>& shape,
-                  const NAryOp& op_type, void* workspace, cudaStream_t stream) {
+void run_forward(const Vec<const T*>& inputs, T* output, const Vec<size_t>& shape,
+                 const NAryOp& op_type, void* workspace, cudaStream_t stream) {
   if (inputs.empty()) {
-    throw std::runtime_error("nary_forward (CUDA): requires at least one input");
+    throw std::runtime_error("run_forward (CUDA): requires at least one input");
   }
 
   size_t total_elements = compute_total_elements(shape);
@@ -239,16 +240,16 @@ void nary_forward(const Vec<const T*>& inputs, T* output, const Vec<size_t>& sha
       launch_forward(functors::Div<T>{});
       break;
     default:
-      throw std::runtime_error("nary_forward (CUDA): unknown operation type");
+      throw std::runtime_error("run_forward (CUDA): unknown operation type");
   }
 }
 
 template <typename T>
-void nary_backward(const T* grad_output, Vec<T*>& grad_inputs, const Vec<const T*>& fwd_inputs,
-                   const Vec<size_t>& shape, const NAryOp& op_type, void* workspace,
-                   cudaStream_t stream) {
+void run_backward(const T* grad_output, Vec<T*>& grad_inputs, const Vec<const T*>& fwd_inputs,
+                  const Vec<size_t>& shape, const NAryOp& op_type, void* workspace,
+                  cudaStream_t stream) {
   if (fwd_inputs.empty() || grad_inputs.empty()) {
-    throw std::runtime_error("nary_backward (CUDA): requires at least one input");
+    throw std::runtime_error("run_backward (CUDA): requires at least one input");
   }
 
   size_t total_elements = compute_total_elements(shape);
@@ -305,15 +306,15 @@ void nary_backward(const T* grad_output, Vec<T*>& grad_inputs, const Vec<const T
       break;
     }
     default:
-      throw std::runtime_error("nary_backward (CUDA): unknown operation type");
+      throw std::runtime_error("run_backward (CUDA): unknown operation type");
   }
 }
 
-#define INSTANTIATE_NARY_OPS(T)                                                                \
-  template void nary_forward<T>(const Vec<const T*>&, T*, const Vec<size_t>&, const NAryOp&,   \
-                                void*, cudaStream_t);                                          \
-  template void nary_backward<T>(const T*, Vec<T*>&, const Vec<const T*>&, const Vec<size_t>&, \
-                                 const NAryOp&, void*, cudaStream_t);
+#define INSTANTIATE_NARY_OPS(T)                                                                    \
+  template void run_forward<T>(const Vec<const T*>&, T*, const Vec<size_t>&, const NAryOp&, void*, \
+                               cudaStream_t);                                                      \
+  template void run_backward<T>(const T*, Vec<T*>&, const Vec<const T*>&, const Vec<size_t>&,      \
+                                const NAryOp&, void*, cudaStream_t);
 
 INSTANTIATE_NARY_OPS(fp16)
 INSTANTIATE_NARY_OPS(bf16)
@@ -322,6 +323,7 @@ INSTANTIATE_NARY_OPS(double)
 
 #undef INSTANTIATE_NARY_OPS
 
+}  // namespace nary
 }  // namespace cuda
 }  // namespace tnn
 

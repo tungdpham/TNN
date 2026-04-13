@@ -12,13 +12,13 @@ namespace tnn {
 namespace cuda {
 namespace maxpool {
 template <typename T>
-void maxpool_forward(const T *input, T *output, int *mask_indices, size_t batch_size, size_t height,
-                     size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,
-                     size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);
+void run_forward(const T *input, T *output, int *mask_indices, size_t batch_size, size_t height,
+                 size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,
+                 size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);
 
 template <typename T>
-void maxpool_backward(const T *grad_output, T *grad_input, const int *mask_indices,
-                      size_t batch_size, size_t channels, size_t output_h, size_t output_w);
+void run_backward(const T *grad_output, T *grad_input, const int *mask_indices, size_t batch_size,
+                  size_t channels, size_t output_h, size_t output_w);
 
 }  // namespace maxpool
 }  // namespace cuda

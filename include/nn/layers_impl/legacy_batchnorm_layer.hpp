@@ -37,34 +37,29 @@ private:
   Tensor def_backward(const ConstTensor &grad_output, size_t mb_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_inference_output_impl(const ConstTensor &input,
-                                                      const Tensor &output, size_t batch_size,
-                                                      size_t channels, size_t spatial_size,
-                                                      flowHandle_t handle = defaultFlowHandle);
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_inference_output(const ConstTensor &input, const Tensor &output,
-                                                 size_t batch_size, size_t channels,
-                                                 size_t spatial_size,
-                                                 flowHandle_t handle = defaultFlowHandle);
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward_fused(const ConstTensor &input, const Tensor &batch_mean,
-                                          const Tensor &batch_inv_std, const Tensor &running_mean,
-                                          const Tensor &running_var, const ConstTensor &gamma,
-                                          const ConstTensor &beta, const Tensor &output,
-                                          const Tensor &norm, size_t batch_size, size_t channels,
-                                          size_t spatial_size,
-                                          flowHandle_t handle = defaultFlowHandle);
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_backward_fused(const ConstTensor &grad_output,
-                                           const ConstTensor &norm_input,
-                                           const ConstTensor &inv_std, const ConstTensor &gamma,
-                                           const Tensor &d_gamma, const Tensor &d_beta,
-                                           const Tensor &grad_input, size_t batch_size,
-                                           size_t channels, size_t spatial_size,
+  std::unique_ptr<Task> run_inference_impl(const ConstTensor &input, const Tensor &output,
+                                           size_t batch_size, size_t channels, size_t spatial_size,
                                            flowHandle_t handle = defaultFlowHandle);
+
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> run_inference(const ConstTensor &input, const Tensor &output,
+                                      size_t batch_size, size_t channels, size_t spatial_size,
+                                      flowHandle_t handle = defaultFlowHandle);
+
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> run_forward(const ConstTensor &input, const Tensor &batch_mean,
+                                    const Tensor &batch_inv_std, const Tensor &running_mean,
+                                    const Tensor &running_var, const ConstTensor &gamma,
+                                    const ConstTensor &beta, const Tensor &output,
+                                    const Tensor &norm, size_t batch_size, size_t channels,
+                                    size_t spatial_size, flowHandle_t handle = defaultFlowHandle);
+
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> run_backward(const ConstTensor &grad_output, const ConstTensor &norm_input,
+                                     const ConstTensor &inv_std, const ConstTensor &gamma,
+                                     const Tensor &d_gamma, const Tensor &d_beta,
+                                     const Tensor &grad_input, size_t batch_size, size_t channels,
+                                     size_t spatial_size, flowHandle_t handle = defaultFlowHandle);
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;

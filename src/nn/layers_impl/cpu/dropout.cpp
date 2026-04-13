@@ -12,9 +12,8 @@ namespace dropout {
 constexpr size_t DROPOUT_BLOCK_SIZE = 1024;
 
 template <typename T>
-void compute_dropout_forward(const T *input_data, T *output_data, bool *mask_data,
-                             size_t batch_size, size_t channels, size_t spatial_size,
-                             T dropout_rate) {
+void run_forward(const T *input_data, T *output_data, bool *mask_data, size_t batch_size,
+                 size_t channels, size_t spatial_size, T dropout_rate) {
   T scale = T(1) / (T(1) - dropout_rate);
 
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
@@ -50,8 +49,8 @@ void compute_dropout_forward(const T *input_data, T *output_data, bool *mask_dat
 }
 
 template <typename T>
-void compute_dropout_backward(const T *grad_output_data, T *grad_input_data, const bool *mask_data,
-                              size_t batch_size, size_t channels, size_t spatial_size, T scale) {
+void run_backward(const T *grad_output_data, T *grad_input_data, const bool *mask_data,
+                  size_t batch_size, size_t channels, size_t spatial_size, T scale) {
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     size_t offset = (n * channels + c) * spatial_size;
     const T *grad_out_ptr = grad_output_data + offset;
@@ -64,13 +63,13 @@ void compute_dropout_backward(const T *grad_output_data, T *grad_input_data, con
   });
 }
 
-#define INSTANTIATE_DROPOUT(T)                                                                   \
-  template void compute_dropout_forward<T>(const T *input_data, T *output_data, bool *mask_data, \
-                                           size_t batch_size, size_t channels,                   \
-                                           size_t spatial_size, T dropout_rate);                 \
-  template void compute_dropout_backward<T>(const T *grad_output_data, T *grad_input_data,       \
-                                            const bool *mask_data, size_t batch_size,            \
-                                            size_t channels, size_t spatial_size, T scale);
+#define INSTANTIATE_DROPOUT(T)                                                             \
+  template void run_forward<T>(const T *input_data, T *output_data, bool *mask_data,       \
+                               size_t batch_size, size_t channels, size_t spatial_size,    \
+                               T dropout_rate);                                            \
+  template void run_backward<T>(const T *grad_output_data, T *grad_input_data,             \
+                                const bool *mask_data, size_t batch_size, size_t channels, \
+                                size_t spatial_size, T scale);
 INSTANTIATE_DROPOUT(fp16)
 INSTANTIATE_DROPOUT(bf16)
 INSTANTIATE_DROPOUT(float)
