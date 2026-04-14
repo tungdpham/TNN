@@ -30,7 +30,8 @@ namespace tnn {
 // Constructor
 FlashAttentionBlock::FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal,
                                          const std::string &name)
-    : embed_dim_(embed_dim),
+    : Block(name),
+      embed_dim_(embed_dim),
       num_heads_(num_heads),
       is_causal_(is_causal) {
   if (embed_dim % num_heads != 0) {
@@ -59,7 +60,8 @@ Vec<Tensor> FlashAttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, si
   const ConstTensor &input = inputs[0];
 
   if (input->dims() != 3) {
-    throw std::invalid_argument("FlashAttentionBlock: Input must be 3D (B, S, E)");
+    throw std::invalid_argument("FlashAttentionBlock: Input must be 3D (B, S, E) but got " +
+                                std::to_string(input->dims()) + "D");
   }
 
   size_t embed_dim = input->dimension(2);

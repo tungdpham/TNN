@@ -278,7 +278,10 @@ Tensor DenseLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
   cuda::cudnn_gemm::feHandle_t *handle = fe_handle_cache[shape_key];
   GemmStats &stats = stats_cache[shape_key];
 
-  Tensor output = get_output_tensor({batch_size, output_features_});
+  Vec<size_t> out_shape = input->shape();
+  out_shape.back() = output_features_;
+
+  Tensor output = get_output_tensor(out_shape);
 
   Tensor cudnn_workspace = this->get_workspace({stats.fwd_workspace_size}, DType_t::BYTE);
 

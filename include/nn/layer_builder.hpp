@@ -588,9 +588,9 @@ public:
 
     // 1. Attention Sub-block (Residual)
     auto attn_main = LayerBuilder(batchless_shape)
-                         .layernorm(dtype_eps(io_dtype_), true, "ln_1")
-                         .flash_attention(embed_dim, num_heads, is_causal, "attn")
-                         .dropout(dropout_rate)
+                         .layernorm(dtype_eps(io_dtype_), true, valid_name + "_ln_1")
+                         .flash_attention(embed_dim, num_heads, is_causal, valid_name + "_attn")
+                         .dropout(dropout_rate, valid_name + "_attn_dropout")
                          .build();
 
     auto attn_res = std::make_unique<ResidualBlock>(
@@ -599,11 +599,11 @@ public:
 
     // 2. Feed-Forward Sub-block (Residual)
     auto ffn_main = LayerBuilder(batchless_shape)
-                        .layernorm(dtype_eps(io_dtype_), true, "ln_2")
-                        .dense(ffn_dim, true, "mlp_fc1")
-                        .activation(activation_fn)
-                        .dense(embed_dim, true, "mlp_fc2")
-                        .dropout(dropout_rate)
+                        .layernorm(dtype_eps(io_dtype_), true, valid_name + "_ln_2")
+                        .dense(ffn_dim, true, valid_name + "_mlp_fc1")
+                        .activation(activation_fn, valid_name + "_mlp_activation")
+                        .dense(embed_dim, true, valid_name + "_mlp_fc2")
+                        .dropout(dropout_rate, valid_name + "_mlp_dropout")
                         .build();
 
     auto ffn_res = std::make_unique<ResidualBlock>(
