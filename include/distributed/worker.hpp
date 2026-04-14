@@ -118,6 +118,7 @@ public:
         SchedulerFactory::create_from_config(config.scheduler_config, this->optimizer_.get());
 
     // initialize per-worker compute logger
+    compute_logger_ = nullptr;  // delete old one
     std::string worker_name = model_config.name.empty() ? "worker" : model_config.name;
     compute_logger_ = std::make_unique<WorkerCsvLogger>(worker_name, "logs");
 

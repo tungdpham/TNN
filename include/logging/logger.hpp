@@ -18,7 +18,7 @@ public:
   Logger(const std::string &name = "default_logger", const std::string &log_file = "",
          LogLevel level = LogLevel::info);
 
-  ~Logger() = default;
+  ~Logger();
 
   void set_level(LogLevel level);
 

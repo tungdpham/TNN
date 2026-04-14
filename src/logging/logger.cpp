@@ -17,6 +17,12 @@ Logger::Logger(const std::string &name, const std::string &log_file, LogLevel le
   logger_->set_pattern("[%^%l%$] %v");
 }
 
+Logger::~Logger() {
+  if (logger_) {
+    spdlog::drop(logger_name_);
+  }
+}
+
 void Logger::set_level(spdlog::level::level_enum level) {
   if (logger_) {
     logger_->set_level(level);
