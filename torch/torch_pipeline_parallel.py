@@ -705,7 +705,7 @@ def main():
                         help="GPT-2 sequence length (ignored for image models)")
     args = parser.parse_args()
 
-    # --- Distributed init ---
+    #  Distributed init 
     dist.init_process_group(backend="nccl")
     rank       = dist.get_rank()
     local_rank = int(os.environ["LOCAL_RANK"])
@@ -716,7 +716,7 @@ def main():
 
     print(f"[Rank {rank}] model={args.model}  device={device}")
 
-    # --- Build model stage ---
+    #  Build model stage 
     model = cfg["stage0_cls"]() if rank == 0 else cfg["stage1_cls"]()
     model.to(device)
 
@@ -727,7 +727,7 @@ def main():
         device=device,
     )
 
-    # --- Optimizer & scheduler (identical to each standalone script) ---
+    #  Optimizer & scheduler (identical to each standalone script) 
     optimizer = optim.Adam(
         model.parameters(),
         lr=cfg["lr"],
@@ -738,7 +738,7 @@ def main():
     )
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
 
-    # --- Dataset ---
+    #  Dataset 
     # Both ranks load the same dataset and iterate in lock-step.
     # Rank 0 feeds x into the pipeline; rank 1 uses y as the loss target.
     batch_size = cfg["batch_size"]
@@ -751,7 +751,7 @@ def main():
         drop_last=True,
     )
 
-    # --- Pipeline schedule ---
+    #  Pipeline schedule 
     num_microbatches = batch_size // args.micro_bs
     schedule = Schedule1F1B(
         stage,
@@ -759,7 +759,7 @@ def main():
         loss_fn=cfg["loss_fn"] if rank == 1 else None,
     )
 
-    # --- Training loop ---
+    #  Training loop 
     model.train()
     epochs = cfg["epochs"]
     for epoch in range(epochs):

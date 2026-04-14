@@ -33,13 +33,15 @@ class OpenWebTextDataset(Dataset):
 
     Every item is a (input, target) pair of length SEQ_LEN where
     target = input shifted one position to the right (standard CLM).
+    
+    Uses memory-mapped file access to avoid loading the entire dataset into RAM.
     """
     def __init__(self, path: str, seq_len: int = SEQ_LEN):
         if not os.path.isfile(path):
             raise FileNotFoundError(f"Data file not found: {path}")
         self.seq_len = seq_len
-        data = np.memmap(path, dtype=np.uint16, mode="r")
-        self.data = torch.from_numpy(data.astype(np.int64))
+        # Keep as memmap - do NOT convert to torch tensor to avoid loading into memory
+        self.data = np.memmap(path, dtype=np.uint16, mode="r")
         # number of full windows of size seq_len+1
         self.n = (len(self.data) - 1) // seq_len
 
@@ -48,7 +50,9 @@ class OpenWebTextDataset(Dataset):
 
     def __getitem__(self, idx):
         start = idx * self.seq_len
-        chunk = self.data[start : start + self.seq_len + 1]
+        # Only load the specific chunk needed, then convert to torch tensor
+        chunk = self.data[start : start + self.seq_len + 1].astype(np.int64)
+        chunk = torch.from_numpy(chunk)
         x = chunk[:-1]   # [SEQ_LEN]
         y = chunk[1:]    # [SEQ_LEN]
         return x, y
