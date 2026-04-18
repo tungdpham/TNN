@@ -17,32 +17,6 @@ namespace layer_norm {
 
 namespace {
 
-// atomicAdd for double is not available on very old GPUs.
-__device__ inline double atomicAddCompat(double* address, double val) {
-#if __CUDA_ARCH__ >= 600
-  return atomicAdd(address, val);
-#else
-  unsigned long long int* address_as_ull = (unsigned long long int*)address;
-  unsigned long long int old = *address_as_ull, assumed;
-  do {
-    assumed = old;
-    old = atomicCAS(address_as_ull, assumed,
-                    __double_as_longlong(val + __longlong_as_double(assumed)));
-  } while (assumed != old);
-  return __longlong_as_double(old);
-#endif
-}
-
-template <typename T>
-__device__ inline T atomicAddT(T* address, T val) {
-  return atomicAdd(address, val);
-}
-
-template <>
-__device__ inline double atomicAddT<double>(double* address, double val) {
-  return atomicAddCompat(address, val);
-}
-
 template <typename T>
 __global__ void run_forward_kernel(const T* input, T* output, const T* gamma, const T* beta,
                                    size_t channels, T epsilon) {
@@ -108,11 +82,13 @@ __global__ void run_backward_kernel(const T* grad_output, const T* input, const 
     sum_dl_dnorm += dl_dnorm;
     sum_dl_dnorm_x_hat += dl_dnorm * x_hat;
 
-    if (grad_gamma) {
-      atomicAddT(&grad_gamma[c], go[c] * x_hat);
-    }
-    if (grad_beta) {
-      atomicAddT(&grad_beta[c], go[c]);
+    if constexpr (std::is_floating_point<T>::value) {
+      if (grad_gamma) {
+        atomicAdd(&grad_gamma[c], go[c] * x_hat);
+      }
+      if (grad_beta) {
+        atomicAdd(&grad_beta[c], go[c]);
+      }
     }
   }
 
@@ -156,7 +132,7 @@ void run_backward(const T* grad_output, const T* input, const T* gamma, T* grad_
                                                          grad_gamma, grad_beta, channels, epsilon);
 }
 
-#define INSTANTIATE_LAYER_NORM(T)                                                              \
+#define INSTANTIATE(T)                                                                         \
   template void run_forward<T>(const T* input, T* output, const T* gamma, const T* beta,       \
                                size_t batch_size, size_t channels, T epsilon,                  \
                                cudaStream_t stream);                                           \
@@ -164,11 +140,9 @@ void run_backward(const T* grad_output, const T* input, const T* gamma, T* grad_
   template void run_backward<T>(const T* grad_output, const T* input, const T* gamma,          \
                                 T* grad_input, T* grad_gamma, T* grad_beta, size_t batch_size, \
                                 size_t channels, T epsilon, cudaStream_t stream);
-INSTANTIATE_LAYER_NORM(fp16)
-INSTANTIATE_LAYER_NORM(bf16)
-INSTANTIATE_LAYER_NORM(float)
-INSTANTIATE_LAYER_NORM(double)
-#undef INSTANTIATE_LAYER_NORM
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace layer_norm
 }  // namespace cuda

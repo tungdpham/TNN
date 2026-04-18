@@ -172,10 +172,7 @@ private:
         make_tensor<T>({actual_batch_size, cifar100_constants::IMAGE_HEIGHT,
                         cifar100_constants::IMAGE_WIDTH, cifar100_constants::NUM_CHANNELS});
 
-    const size_t num_classes = use_coarse_labels_ ? cifar100_constants::NUM_COARSE_CLASSES
-                                                  : cifar100_constants::NUM_CLASSES;
-    batch_labels = make_tensor<T>({actual_batch_size, num_classes});
-    batch_labels->fill(0.0);
+    batch_labels = make_tensor<int>({actual_batch_size});
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
@@ -183,12 +180,10 @@ private:
       const uint8_t *record =
           mapped_files_[file_idx].data + record_idx * cifar100_constants::RECORD_SIZE;
 
-      // Record layout: [coarse_label(1B), fine_label(1B), pixels(3072B CHW)]
       const size_t label =
           use_coarse_labels_ ? static_cast<size_t>(record[0]) : static_cast<size_t>(record[1]);
       const uint8_t *pixels = record + 2;
 
-      // Convert from CHW uint8 to NHWC float
       for (size_t c = 0; c < cifar100_constants::NUM_CHANNELS; ++c) {
         for (size_t h = 0; h < cifar100_constants::IMAGE_HEIGHT; ++h) {
           for (size_t w = 0; w < cifar100_constants::IMAGE_WIDTH; ++w) {
@@ -201,9 +196,7 @@ private:
         }
       }
 
-      if (label < num_classes) {
-        batch_labels->at<T>({i, label}) = static_cast<T>(1.0);
-      }
+      batch_labels->at<int>({i}) = static_cast<int>(label);
     }
 
     this->apply_augmentation(batch_data, batch_labels);

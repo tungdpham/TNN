@@ -54,7 +54,7 @@ void add_bias(T *output_data, const T *bias_data, const size_t batch_size,
   });
 }
 
-#define INSTANTIATE_DENSE(T)                                                                   \
+#define INSTANTIATE(T)                                                                         \
   template void run_forward<T>(const T *input_data, const T *weight_data, T *output_data,      \
                                const size_t batch_size, const size_t input_features,           \
                                const size_t output_features);                                  \
@@ -72,11 +72,9 @@ void add_bias(T *output_data, const T *bias_data, const size_t batch_size,
                                                                                                \
   template void add_bias<T>(T * output_data, const T *bias_data, const size_t batch_size,      \
                             const size_t output_features);
-INSTANTIATE_DENSE(fp16)
-INSTANTIATE_DENSE(bf16)
-INSTANTIATE_DENSE(float)
-INSTANTIATE_DENSE(double)
-#undef INSTANTIATE_DENSE
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 }  // namespace legacy_dense
 }  // namespace cpu
 }  // namespace tnn

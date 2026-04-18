@@ -21,15 +21,6 @@
 
 namespace tnn {
 
-/**
- * MSequential: Multi-Input Single-Output (MISO) Block
- *
- * Implements the joining architecture described in Section 3.1.2 of the paper.
- * Multiple independent Sequential branches converge into a single join layer.
- *
- * Memory scheduling follows Algorithm 2 (Minimum Space for m joining SISO sequences)
- * to optimize buffer reuse by executing branches in order of decreasing (M_b,i - O_i).
- */
 class MSequential : public Block {
 private:
   Vec<std::unique_ptr<Sequential>> sequences_;
@@ -84,11 +75,6 @@ public:
   std::string type() const override { return TYPE_NAME; }
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
-
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
 
   void print_summary(const Vec<Vec<size_t>> &input_shapes) const;
 

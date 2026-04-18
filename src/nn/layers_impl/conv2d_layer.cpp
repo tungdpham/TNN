@@ -6,9 +6,6 @@
  */
 #include "nn/layers_impl/conv2d_layer.hpp"
 
-#include <numeric>
-
-#include "device/device_type.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/conv2d_nhwc_ops.hpp"
 #include "tensor/tensor.hpp"
@@ -478,89 +475,6 @@ std::unique_ptr<Conv2DLayer> Conv2DLayer::create_from_config(const LayerConfig &
   bool use_bias = config.get<bool>("use_bias", true);
   return std::make_unique<Conv2DLayer>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                        stride_w, pad_h, pad_w, use_bias, config.name);
-}
-
-size_t Conv2DLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-  // Cache the input for backward pass
-  auto &shape = input_shapes[0];
-  size_t input_bytes = std::accumulate(shape.begin(), shape.end(), get_dtype_size(io_dtype_),
-                                       std::multiplies<size_t>());
-  return input_bytes;
-}
-
-size_t Conv2DLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto &shape = input_shapes[0];
-#ifdef USE_CUDNN
-  build_graph(shape);
-  const size_t shape_key = get_shape_hash(shape);
-  const ConvolutionStats &stats = stats_cache.at(shape_key);
-  auto output_shapes = this->output_shapes(input_shapes);
-  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
-#elif defined(USE_DNNL)
-  build_dnnl_handle(shape);
-  const size_t shape_key = get_shape_hash(shape);
-  const ConvolutionStats &stats = dnnl_stats_cache.at(shape_key);
-  auto output_shapes = this->output_shapes(input_shapes);
-  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
-#else
-  return 0;
-#endif
-}
-
-size_t Conv2DLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto &shape = input_shapes[0];
-#ifdef USE_CUDNN
-  if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) {
-    std::cerr << "Conv2DLayer::inf_workspace: No GPU allocator available, returning 0\n";
-    return 0;
-  }
-  build_graph(shape);
-  const size_t shape_key = get_shape_hash(shape);
-  const ConvolutionStats &stats = stats_cache.at(shape_key);
-  auto output_shapes = this->output_shapes(input_shapes);
-  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
-#elif defined(USE_DNNL)
-  if (!allocator_ || allocator_->device().device_type() != DeviceType::CPU) {
-    return 0;
-  }
-  build_dnnl_handle(shape);
-  const size_t shape_key = get_shape_hash(shape);
-  const ConvolutionStats &stats = dnnl_stats_cache.at(shape_key);
-  auto output_shapes = this->output_shapes(input_shapes);
-  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
-#else
-  return 0;
-#endif
-}
-
-size_t Conv2DLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto &shape = input_shapes[0];
-#ifdef USE_CUDNN
-  build_graph(shape);
-  const size_t shape_key = get_shape_hash(shape);
-  const ConvolutionStats &stats = stats_cache.at(shape_key);
-  size_t max_workspace_size = std::max(
-      {stats.wgrad_workspace_size, stats.dgrad_workspace_size, stats.bgrad_workspace_size});
-  size_t grad_input_bytes = 0;
-  for (const auto &in_shape : input_shapes) {
-    grad_input_bytes += std::accumulate(in_shape.begin(), in_shape.end(), get_dtype_size(io_dtype_),
-                                        std::multiplies<size_t>());
-  }
-  return max_workspace_size + grad_input_bytes;
-#elif defined(USE_DNNL)
-  build_dnnl_handle(shape);
-  const size_t shape_key = get_shape_hash(shape);
-  const ConvolutionStats &stats = dnnl_stats_cache.at(shape_key);
-  size_t max_workspace_size = std::max(stats.wgrad_workspace_size, stats.dgrad_workspace_size);
-  size_t grad_input_bytes = 0;
-  for (const auto &in_shape : input_shapes) {
-    grad_input_bytes += std::accumulate(in_shape.begin(), in_shape.end(), get_dtype_size(io_dtype_),
-                                        std::multiplies<size_t>());
-  }
-  return max_workspace_size + grad_input_bytes;
-#else
-  return 0;
-#endif
 }
 
 }  // namespace tnn

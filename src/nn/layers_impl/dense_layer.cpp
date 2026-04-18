@@ -333,55 +333,6 @@ Tensor DenseLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_id) 
 }
 #endif
 
-size_t DenseLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-  // Cache the input for backward pass
-  auto &shape = input_shapes[0];
-  size_t input_bytes = std::accumulate(shape.begin(), shape.end(), get_dtype_size(io_dtype_),
-                                       std::multiplies<size_t>());
-  return input_bytes;
-}
-
-size_t DenseLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto &shape = input_shapes[0];
-#ifdef USE_CUDNN
-  if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) return 0;
-  build_cudnn_graph(shape);
-  size_t batch_size = 1;
-  for (size_t i = 0; i < shape.size() - 1; ++i) {
-    batch_size *= shape[i];
-  }
-  size_t shape_key = get_shape_hash({batch_size});
-  const GemmStats &stats = stats_cache.at(shape_key);
-  auto output_shapes = this->output_shapes(input_shapes);
-  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
-#else
-  return 0;
-#endif
-}
-
-size_t DenseLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  return fwd_workspace(input_shapes);
-}
-
-size_t DenseLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto &shape = input_shapes[0];
-#ifdef USE_CUDNN
-  if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) return 0;
-  build_cudnn_graph(shape);
-  size_t batch_size = 1;
-  for (size_t i = 0; i < shape.size() - 1; ++i) {
-    batch_size *= shape[i];
-  }
-  size_t shape_key = get_shape_hash({batch_size});
-  const GemmStats &stats = stats_cache.at(shape_key);
-  size_t max_workspace = std::max(stats.dgrad_workspace_size, stats.wgrad_workspace_size);
-  auto output_shapes = this->output_shapes(input_shapes);
-  return max_workspace + get_shapes_bytes(output_shapes, io_dtype_);
-#else
-  return 0;
-#endif
-}
-
 LayerConfig DenseLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;

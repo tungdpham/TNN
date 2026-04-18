@@ -67,8 +67,9 @@ protected:
 
 class CrossEntropyLoss : public Loss {
 public:
-  explicit CrossEntropyLoss(double epsilon = 1e-15)
-      : epsilon_(epsilon) {}
+  explicit CrossEntropyLoss(bool use_logits = true, double epsilon = 1e-15)
+      : use_logits_(use_logits),
+        epsilon_(epsilon) {}
 
   std::string name() const override { return "CrossEntropyLoss"; }
 
@@ -76,15 +77,20 @@ public:
     LossConfig config;
     config.type = "crossentropy";
     config.name = "CrossEntropyLoss";
+    config.set("use_logits", use_logits_);
     config.set("epsilon", epsilon_);
     return config;
   }
 
   std::unique_ptr<Loss> clone() const override {
-    return std::make_unique<CrossEntropyLoss>(epsilon_);
+    return std::make_unique<CrossEntropyLoss>(use_logits_, epsilon_);
   }
 
+  bool uses_logits() const { return use_logits_; }
+  double get_epsilon() const { return epsilon_; }
+
 private:
+  bool use_logits_;  // If true, expects logits; if false, expects probabilities
   double epsilon_;
 
   std::unique_ptr<Task> compute_loss_impl(const ConstTensor &predictions,
@@ -109,18 +115,35 @@ private:
       batch_size *= predictions->shape()[i];
     }
 
-    if (predictions->device_type() == DeviceType::CPU) {
-      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
-                             num_classes, static_cast<T>(epsilon_));
-    }
+    if (use_logits_) {
+      // Use numerically stable logits version
+      if (predictions->device_type() == DeviceType::CPU) {
+        return create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss_logits<T>,
+                               predictions->data_as<T>(), targets->data_as<int>(), loss, batch_size,
+                               num_classes);
+      }
 #ifdef USE_CUDA
-    else if (predictions->device_type() == DeviceType::GPU) {
-      return create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss<T>,
-                              predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
-                              num_classes, static_cast<T>(epsilon_));
-    }
+      else if (predictions->device_type() == DeviceType::GPU) {
+        return create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss_logits<T>,
+                                predictions->data_as<T>(), targets->data_as<int>(), loss,
+                                batch_size, num_classes);
+      }
 #endif
+    } else {
+      // Use probabilities version
+      if (predictions->device_type() == DeviceType::CPU) {
+        return create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss_probs<T>,
+                               predictions->data_as<T>(), targets->data_as<int>(), loss, batch_size,
+                               num_classes, static_cast<T>(epsilon_));
+      }
+#ifdef USE_CUDA
+      else if (predictions->device_type() == DeviceType::GPU) {
+        return create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss_probs<T>,
+                                predictions->data_as<T>(), targets->data_as<int>(), loss,
+                                batch_size, num_classes, static_cast<T>(epsilon_));
+      }
+#endif
+    }
     throw std::runtime_error("Unsupported device type for CrossEntropyLoss.");
   }
 
@@ -134,111 +157,40 @@ private:
       batch_size *= predictions->shape()[i];
     }
 
-    if (predictions->device_type() == DeviceType::CPU) {
-      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_gradient<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(),
-                             gradient->data_as<T>(), batch_size, num_classes,
-                             static_cast<T>(epsilon_));
-    }
+    if (use_logits_) {
+      // Use numerically stable logits version
+      if (predictions->device_type() == DeviceType::CPU) {
+        return create_cpu_task(defaultFlowHandle,
+                               cpu::loss::compute_crossentropy_gradient_logits<T>,
+                               predictions->data_as<T>(), targets->data_as<int>(),
+                               gradient->data_as<T>(), batch_size, num_classes);
+      }
 #ifdef USE_CUDA
-    else if (predictions->device_type() == DeviceType::GPU) {
-      return create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_gradient<T>,
-                              predictions->data_as<T>(), targets->data_as<T>(),
-                              gradient->data_as<T>(), batch_size, num_classes,
-                              static_cast<T>(epsilon_));
-    }
+      else if (predictions->device_type() == DeviceType::GPU) {
+        return create_cuda_task(defaultFlowHandle,
+                                cuda::loss::compute_crossentropy_gradient_logits<T>,
+                                predictions->data_as<T>(), targets->data_as<int>(),
+                                gradient->data_as<T>(), batch_size, num_classes);
+      }
 #endif
+    } else {
+      // Use probabilities version
+      if (predictions->device_type() == DeviceType::CPU) {
+        return create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_gradient_probs<T>,
+                               predictions->data_as<T>(), targets->data_as<int>(),
+                               gradient->data_as<T>(), batch_size, num_classes,
+                               static_cast<T>(epsilon_));
+      }
+#ifdef USE_CUDA
+      else if (predictions->device_type() == DeviceType::GPU) {
+        return create_cuda_task(
+            defaultFlowHandle, cuda::loss::compute_crossentropy_gradient_probs<T>,
+            predictions->data_as<T>(), targets->data_as<int>(), gradient->data_as<T>(), batch_size,
+            num_classes, static_cast<T>(epsilon_));
+      }
+#endif
+    }
     throw std::runtime_error("Unsupported device type for CrossEntropyLoss.");
-  }
-};
-
-// Numerically stable LogSoftmax + CrossEntropy combined loss
-class LogSoftmaxCrossEntropyLoss : public Loss {
-public:
-  LogSoftmaxCrossEntropyLoss() = default;
-
-  std::string name() const override { return "LogSoftmaxCrossEntropyLoss"; }
-
-  LossConfig get_config() const override {
-    LossConfig config;
-    config.type = "logsoftmax_crossentropy";
-    config.name = "LogSoftmaxCrossEntropyLoss";
-    return config;
-  }
-
-  std::unique_ptr<Loss> clone() const override {
-    return std::make_unique<LogSoftmaxCrossEntropyLoss>();
-  }
-
-private:
-  std::unique_ptr<Task> compute_loss_impl(const ConstTensor &logits, const ConstTensor &targets,
-                                          float &loss) override {
-    if (logits->device() != targets->device()) {
-      throw std::runtime_error(
-          "Logits and targets must be on the same device for LogSoftmaxCrossEntropyLoss.");
-    }
-    DISPATCH_DTYPE(logits->data_type(), T, return compute_loss_t<T>(logits, targets, loss));
-  }
-
-  std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &logits, const ConstTensor &targets,
-                                              const Tensor &gradient) override {
-    if (logits->device() != targets->device() || logits->device() != gradient->device()) {
-      throw std::runtime_error(
-          "Logits, targets, and gradient must be on the same device for "
-          "LogSoftmaxCrossEntropyLoss.");
-    }
-    DISPATCH_DTYPE(logits->data_type(), T, return compute_gradient_t<T>(logits, targets, gradient));
-  }
-
-  template <typename T>
-  std::unique_ptr<Task> compute_loss_t(const ConstTensor &logits, const ConstTensor &targets,
-                                       float &loss) {
-    const size_t num_classes = logits->shape().back();
-    size_t batch_size = 1;
-    for (size_t i = 0; i < logits->dims() - 1; ++i) {
-      batch_size *= logits->shape()[i];
-    }
-
-    if (logits->device_type() == DeviceType::CPU) {
-      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_logsoftmax_crossentropy_loss<T>,
-                             logits->data_as<T>(), targets->data_as<T>(), loss, batch_size,
-                             num_classes);
-    }
-#ifdef USE_CUDA
-    else if (logits->device_type() == DeviceType::GPU) {
-      return create_cuda_task(
-          defaultFlowHandle, cuda::loss::compute_logsoftmax_crossentropy_loss<T>,
-          logits->data_as<T>(), targets->data_as<T>(), loss, batch_size, num_classes);
-    }
-#endif
-    throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
-  }
-
-  template <typename T>
-  std::unique_ptr<Task> compute_gradient_t(const ConstTensor &logits, const ConstTensor &targets,
-                                           const Tensor &gradient) {
-    gradient->ensure(logits->shape());
-    const size_t num_classes = logits->shape().back();
-    size_t batch_size = 1;
-    for (size_t i = 0; i < logits->dims() - 1; ++i) {
-      batch_size *= logits->shape()[i];
-    }
-
-    if (logits->device_type() == DeviceType::CPU) {
-      return create_cpu_task(defaultFlowHandle,
-                             cpu::loss::compute_logsoftmax_crossentropy_gradient<T>,
-                             logits->data_as<T>(), targets->data_as<T>(), gradient->data_as<T>(),
-                             batch_size, num_classes);
-    }
-#ifdef USE_CUDA
-    else if (logits->device_type() == DeviceType::GPU) {
-      return create_cuda_task(defaultFlowHandle,
-                              cuda::loss::compute_logsoftmax_crossentropy_gradient<T>,
-                              logits->data_as<T>(), targets->data_as<T>(), gradient->data_as<T>(),
-                              batch_size, num_classes);
-    }
-#endif
-    throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
   }
 };
 
@@ -513,10 +465,11 @@ class LossFactory {
 public:
   static std::unique_ptr<Loss> create(const std::string &loss_type) {
     if (loss_type == "crossentropy" || loss_type == "ce") {
-      return std::make_unique<CrossEntropyLoss>();
+      return std::make_unique<CrossEntropyLoss>(true);  // Default to logits
     }
+    // Backward compatibility: logsoftmax_crossentropy -> CrossEntropyLoss with use_logits=true
     if (loss_type == "logsoftmax_crossentropy" || loss_type == "logsoftmax_ce") {
-      return std::make_unique<LogSoftmaxCrossEntropyLoss>();
+      return std::make_unique<CrossEntropyLoss>(true);
     }
     if (loss_type == "mse" || loss_type == "mean_squared_error") {
       return std::make_unique<MSELoss>();
@@ -532,11 +485,13 @@ public:
 
   static std::unique_ptr<Loss> create_from_config(const LossConfig &config) {
     if (config.type == "crossentropy" || config.type == "ce") {
+      bool use_logits = config.get<bool>("use_logits", true);
       double epsilon = config.get<double>("epsilon", 1e-15);
-      return std::make_unique<CrossEntropyLoss>(epsilon);
+      return std::make_unique<CrossEntropyLoss>(use_logits, epsilon);
     }
+    // Backward compatibility: logsoftmax_crossentropy -> CrossEntropyLoss with use_logits=true
     if (config.type == "logsoftmax_crossentropy" || config.type == "logsoftmax_ce") {
-      return std::make_unique<LogSoftmaxCrossEntropyLoss>();
+      return std::make_unique<CrossEntropyLoss>(true);
     }
     if (config.type == "mse" || config.type == "mean_squared_error") {
       return std::make_unique<MSELoss>();
@@ -551,12 +506,13 @@ public:
     throw std::invalid_argument("Unknown loss type: " + config.type);
   }
 
-  static std::unique_ptr<Loss> create_crossentropy(double epsilon = 1e-15) {
-    return std::make_unique<CrossEntropyLoss>(epsilon);
+  static std::unique_ptr<Loss> create_crossentropy(bool use_logits = true, double epsilon = 1e-15) {
+    return std::make_unique<CrossEntropyLoss>(use_logits, epsilon);
   }
 
+  // Deprecated: use create_crossentropy with use_logits=true instead
   static std::unique_ptr<Loss> create_logsoftmax_crossentropy() {
-    return std::make_unique<LogSoftmaxCrossEntropyLoss>();
+    return std::make_unique<CrossEntropyLoss>(true);
   }
 
   static std::unique_ptr<Loss> create_mse() { return std::make_unique<MSELoss>(); }

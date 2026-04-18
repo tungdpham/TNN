@@ -15,7 +15,6 @@
 #include <cstddef>
 #include <functional>
 #include <iostream>
-#include <numeric>
 #include <stdexcept>
 
 #include "nlohmann/json_fwd.hpp"
@@ -180,120 +179,6 @@ Vec<Vec<size_t>> MSequential::output_shapes(const Vec<Vec<size_t>> &input_shapes
   return join_layer_->output_shapes(sequence_output_shapes);
 }
 
-size_t MSequential::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-  if (sequences_.empty()) return 0;
-
-  size_t total_cache = 0;
-  Vec<Vec<size_t>> current_shapes = input_shapes;
-
-  for (auto it = sequences_.begin(); it != sequences_.end(); ++it) {
-    const auto &layer = *it;
-    total_cache += layer->fwd_cache_bytes(current_shapes);
-    current_shapes = layer->output_shapes(current_shapes);
-  }
-
-  return total_cache;
-}
-
-size_t MSequential::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  if (sequences_.empty()) return 0;
-
-  size_t total_ws = 0;
-
-  size_t total_seq_ws = 0;
-  for (size_t i = 0; i < sequences_.size(); ++i) {
-    size_t seq_ws = sequences_[i]->fwd_workspace({input_shapes[i]});
-    total_seq_ws = std::max(total_seq_ws, seq_ws);
-  }
-  total_ws = std::max(total_ws, total_seq_ws);
-
-  Vec<Vec<size_t>> seq_output_shapes;
-  for (size_t i = 0; i < sequences_.size(); ++i) {
-    auto seq_outs = sequences_[i]->output_shapes({{input_shapes[i]}});
-    seq_output_shapes.push_back(seq_outs[0]);
-  }
-
-  size_t total_join_ws = join_layer_->fwd_workspace(seq_output_shapes);
-
-  total_ws = std::max(total_ws, total_join_ws);
-
-  return total_ws;
-}
-
-size_t MSequential::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  if (sequences_.empty()) return 0;
-
-  size_t dtype_size = get_dtype_size(io_dtype_);
-
-  // Analytically compute costs for ordering (W_i and b_i = O_i at inference, R_i = 0)
-  struct SeqInfo {
-    size_t cycling_cost;  // a_i = M_b,i: seq->inf_workspace
-    size_t output_size;   // b_i = O_i: terminal output bytes
-    int priority;         // a_i - b_i
-  };
-
-  Vec<SeqInfo> infos;
-  infos.reserve(sequences_.size());
-  for (size_t i = 0; i < sequences_.size(); ++i) {
-    size_t cycling = sequences_[i]->inf_workspace({input_shapes[i]});
-    auto out_shapes = sequences_[i]->output_shapes({{input_shapes[i]}});
-    size_t out_bytes = std::accumulate(out_shapes[0].begin(), out_shapes[0].end(), dtype_size,
-                                       std::multiplies<size_t>());
-    infos.push_back({cycling, out_bytes, static_cast<int>(cycling) - static_cast<int>(out_bytes)});
-  }
-
-  std::sort(infos.begin(), infos.end(),
-            [](const SeqInfo &a, const SeqInfo &b) { return a.priority > b.priority; });
-
-  size_t k = 0;
-  size_t accumulated = 0;
-  for (const auto &info : infos) {
-    k = std::max(k, info.cycling_cost + accumulated);
-    accumulated += info.output_size;
-  }
-
-  Vec<Vec<size_t>> seq_output_shapes;
-  seq_output_shapes.reserve(sequences_.size());
-  for (size_t i = 0; i < sequences_.size(); ++i) {
-    auto seq_outs = sequences_[i]->output_shapes({{input_shapes[i]}});
-    seq_output_shapes.push_back(seq_outs[0]);
-  }
-
-  size_t join_ws = join_layer_->inf_workspace(seq_output_shapes);
-  Vec<size_t> join_output = join_layer_->output_shapes(seq_output_shapes)[0];
-  size_t join_output_bytes = std::accumulate(join_output.begin(), join_output.end(), dtype_size,
-                                             std::multiplies<size_t>());
-
-  k = std::max(k, accumulated + join_ws + join_output_bytes);
-
-  return k;
-}
-
-size_t MSequential::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  if (sequences_.empty()) return 0;
-
-  size_t dtype_size = get_dtype_size(io_dtype_);
-
-  size_t total_ws = 0;
-
-  for (size_t i = 0; i < sequences_.size(); ++i) {
-    Vec<size_t> seq_output = sequences_[i]->output_shapes({{input_shapes[i]}})[0];
-    size_t grad_bytes = std::accumulate(seq_output.begin(), seq_output.end(), dtype_size,
-                                        std::multiplies<size_t>());
-    total_ws += grad_bytes;
-
-    total_ws += sequences_[i]->bwd_workspace({{input_shapes[i]}});
-  }
-
-  Vec<Vec<size_t>> seq_output_shapes;
-  for (size_t i = 0; i < sequences_.size(); ++i) {
-    seq_output_shapes.push_back(sequences_[i]->output_shapes({{input_shapes[i]}})[0]);
-  }
-  total_ws += join_layer_->bwd_workspace(seq_output_shapes);
-
-  return total_ws;
-}
-
 void MSequential::print_summary(const Vec<Vec<size_t>> &input_shapes) const {
   if (sequences_.empty()) {
     std::cout << "Empty MSequential model.\n";
@@ -340,46 +225,6 @@ void MSequential::print_summary(const Vec<Vec<size_t>> &input_shapes) const {
 
   Vec<Vec<size_t>> final_output = join_layer_->output_shapes(seq_outputs);
   std::cout << "Output shape: " << format_shape(final_output[0]) << "\n";
-
-  std::cout << "\n--- Memory Statistics ---\n";
-  std::cout << "Inference workspace: " << inf_workspace(input_shapes) / (1024.0 * 1024.0)
-            << " MB\n";
-  std::cout << "Forward workspace: " << fwd_workspace(input_shapes) / (1024.0 * 1024.0) << " MB\n";
-  std::cout << "Backward workspace: " << bwd_workspace(input_shapes) / (1024.0 * 1024.0) << " MB\n";
-
-  Vec<size_t> order;
-  {
-    // Analytically compute the optimal order for display purposes
-    struct SeqInfo {
-      size_t cycling_cost;
-      size_t output_size;
-      int priority;
-      size_t index;
-    };
-    Vec<SeqInfo> infos;
-    infos.reserve(sequences_.size());
-    size_t dtype_size = get_dtype_size(io_dtype_);
-    for (size_t i = 0; i < sequences_.size(); ++i) {
-      size_t cycling = sequences_[i]->inf_workspace({input_shapes[i]});
-      auto out_shapes = sequences_[i]->output_shapes({{input_shapes[i]}});
-      size_t out_bytes = std::accumulate(out_shapes[0].begin(), out_shapes[0].end(), dtype_size,
-                                         std::multiplies<size_t>());
-      infos.push_back(
-          {cycling, out_bytes, static_cast<int>(cycling) - static_cast<int>(out_bytes), i});
-    }
-    std::sort(infos.begin(), infos.end(),
-              [](const SeqInfo &a, const SeqInfo &b) { return a.priority > b.priority; });
-    order.reserve(infos.size());
-    for (const auto &info : infos) order.push_back(info.index);
-  }
-  std::cout << "\nOptimal execution order (by priority W_i - b_i): ";
-  for (size_t i = 0; i < order.size(); ++i) {
-    if (i > 0) std::cout << " -> ";
-    std::cout << "Branch_" << order[i];
-  }
-  std::cout << " -> Join\n";
-
-  std::cout << std::string(100, '-') << "\n";
 }
 
 Vec<Sequential *> MSequential::get_sequences() {

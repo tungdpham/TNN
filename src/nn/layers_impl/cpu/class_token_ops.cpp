@@ -50,17 +50,16 @@ void run_backward(const T *grad_output, T *grad_input, T *grad_token, size_t bat
   }
 }
 
-#define INSTANTIATE_CLASS_TOKEN(T)                                                           \
+#define INSTANTIATE(T)                                                                       \
   template void run_forward<T>(const T *input, const T *token, T *output, size_t batch_size, \
                                size_t seq_len, size_t embed_dim);                            \
                                                                                              \
   template void run_backward<T>(const T *grad_output, T *grad_input, T *grad_token,          \
                                 size_t batch_size, size_t seq_len, size_t embed_dim);
-INSTANTIATE_CLASS_TOKEN(fp16)
-INSTANTIATE_CLASS_TOKEN(bf16)
-INSTANTIATE_CLASS_TOKEN(float)
-INSTANTIATE_CLASS_TOKEN(double)
-#undef INSTANTIATE_CLASS_TOKEN
+
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 }  // namespace class_token
 }  // namespace cpu
 }  // namespace tnn

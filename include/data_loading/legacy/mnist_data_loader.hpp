@@ -99,8 +99,7 @@ private:
     batch_data = make_tensor<T>({actual_batch_size, mnist_constants::NUM_CHANNELS,
                                  mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
 
-    batch_labels = make_tensor<T>({actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL});
-    batch_labels->fill(0.0);
+    batch_labels = make_tensor<int>({actual_batch_size});
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const auto &image_data = data_[this->current_index_ + i];
@@ -111,9 +110,7 @@ private:
       }
 
       const size_t label = labels_[this->current_index_ + i];
-      if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
-        batch_labels->at<T>({i, label, 0, 0}) = static_cast<T>(1.0);
-      }
+      batch_labels->at<int>({i}) = static_cast<int>(label);
     }
 
     this->apply_augmentation(batch_data, batch_labels);

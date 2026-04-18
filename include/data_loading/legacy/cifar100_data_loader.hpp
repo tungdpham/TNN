@@ -139,10 +139,7 @@ private:
         make_tensor<T>({actual_batch_size, cifar100_constants::NUM_CHANNELS,
                         cifar100_constants::IMAGE_HEIGHT, cifar100_constants::IMAGE_WIDTH});
 
-    const size_t num_classes = use_coarse_labels_ ? cifar100_constants::NUM_COARSE_CLASSES
-                                                  : cifar100_constants::NUM_CLASSES;
-    batch_labels = make_tensor<T>({actual_batch_size, num_classes, 1, 1});
-    batch_labels->fill(0.0);
+    batch_labels = make_tensor<int>({actual_batch_size});
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const auto &image_data = data_[this->current_index_ + i];
@@ -161,7 +158,7 @@ private:
       const size_t label = use_coarse_labels_
                                ? static_cast<size_t>(coarse_labels_[this->current_index_ + i])
                                : static_cast<size_t>(fine_labels_[this->current_index_ + i]);
-      batch_labels->at<T>({i, label, 0, 0}) = static_cast<T>(1.0);
+      batch_labels->at<int>({i}) = static_cast<int>(label);
     }
 
     this->apply_augmentation(batch_data, batch_labels);

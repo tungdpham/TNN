@@ -37,22 +37,19 @@ void permute_heads(const I_T *input, O_T *output, size_t B, size_t L, size_t H, 
   });
 }
 
-#define INSTANTIATE_PERMUTE_HEADS(I_T, O_T)                                                \
+#define INSTANTIATE_BOTH(I_T, O_T)                                                         \
   template void permute_heads<I_T, O_T>(const I_T *input, O_T *output, size_t B, size_t L, \
                                         size_t H, size_t D);
-#define INSTANTIATE_PERMUTE_HEADS_BOTH(I_T) \
-  INSTANTIATE_PERMUTE_HEADS(I_T, fp16)      \
-  INSTANTIATE_PERMUTE_HEADS(I_T, bf16)      \
-  INSTANTIATE_PERMUTE_HEADS(I_T, float)     \
-  INSTANTIATE_PERMUTE_HEADS(I_T, double)
+#define INSTANTIATE(I_T)       \
+  INSTANTIATE_BOTH(I_T, fp16)  \
+  INSTANTIATE_BOTH(I_T, bf16)  \
+  INSTANTIATE_BOTH(I_T, float) \
+  INSTANTIATE_BOTH(I_T, double)
 
-INSTANTIATE_PERMUTE_HEADS_BOTH(fp16)
-INSTANTIATE_PERMUTE_HEADS_BOTH(bf16)
-INSTANTIATE_PERMUTE_HEADS_BOTH(float)
-INSTANTIATE_PERMUTE_HEADS_BOTH(double)
+#include "macros/floating_type_instantiation.hpp"
 
-#undef INSTANTIATE_PERMUTE_HEADS_BOTH
-#undef INSTANTIATE_PERMUTE_HEADS
+#undef INSTANTIATE_BOTH
+#undef INSTANTIATE
 
 }  // namespace cpu
 }  // namespace tnn

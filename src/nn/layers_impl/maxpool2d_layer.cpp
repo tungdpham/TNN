@@ -17,8 +17,6 @@
 #include "utils/misc.hpp"
 #endif
 #include <cstddef>
-#include <functional>
-#include <numeric>
 #include <stdexcept>
 
 namespace tnn {
@@ -300,67 +298,5 @@ Tensor MaxPool2DLayer::dnnl_backward(const ConstTensor &grad_output, size_t mb_i
   return grad_input;
 }
 #endif  // USE_DNNL
-
-size_t MaxPool2DLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-#ifdef USE_DNNL
-  if (get_engine_type() == EngineType::CPU) {
-    auto &shape = input_shapes[0];
-    if (shape.empty() || shape.size() < 4) return 0;
-    build_dnnl_handle(shape);
-    const size_t shape_key = get_shape_hash(shape);
-    return dnnl_stats_cache.at(shape_key).pool_workspace_size;
-  }
-#endif
-  return 0;
-}
-
-size_t MaxPool2DLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto output_shapes = this->output_shapes(input_shapes);
-#ifdef USE_DNNL
-  if (get_engine_type() == EngineType::CPU) {
-    auto &shape = input_shapes[0];
-    if (shape.empty() || shape.size() < 4) return 0;
-    build_dnnl_handle(shape);
-    const size_t shape_key = get_shape_hash(shape);
-    const MaxPoolStats &stats = dnnl_stats_cache.at(shape_key);
-    return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
-  }
-#endif
-  return get_shapes_bytes(output_shapes, io_dtype_);
-}
-
-size_t MaxPool2DLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto output_shapes = this->output_shapes(input_shapes);
-#ifdef USE_DNNL
-  if (get_engine_type() == EngineType::CPU) {
-    auto &shape = input_shapes[0];
-    if (shape.empty() || shape.size() < 4) return 0;
-    build_dnnl_handle(shape);
-    const size_t shape_key = get_shape_hash(shape);
-    const MaxPoolStats &stats = dnnl_stats_cache.at(shape_key);
-    return stats.inf_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
-  }
-#endif
-  return get_shapes_bytes(output_shapes, io_dtype_);
-}
-
-size_t MaxPool2DLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-#ifdef USE_DNNL
-  if (get_engine_type() == EngineType::CPU) {
-    auto &shape = input_shapes[0];
-    if (shape.empty() || shape.size() < 4) return 0;
-    build_dnnl_handle(shape);
-    const size_t shape_key = get_shape_hash(shape);
-    const MaxPoolStats &stats = dnnl_stats_cache.at(shape_key);
-    size_t grad_input_bytes = 0;
-    for (const auto &in_shape : input_shapes) {
-      grad_input_bytes += std::accumulate(in_shape.begin(), in_shape.end(),
-                                          get_dtype_size(io_dtype_), std::multiplies<size_t>());
-    }
-    return stats.bwd_workspace_size + grad_input_bytes;
-  }
-#endif
-  return get_shapes_bytes(input_shapes, io_dtype_);
-}
 
 }  // namespace tnn

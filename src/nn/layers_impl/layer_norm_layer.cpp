@@ -338,55 +338,6 @@ Tensor LayerNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
   }
 }
 
-size_t LayerNormLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-  auto &shape = input_shapes[0];
-  if (shape.empty() || shape.size() < 2) return 0;
-  size_t batch_size = 1;
-  for (size_t i = 0; i < shape.size() - 1; ++i) {
-    batch_size *= shape[i];
-  }
-  return batch_size * sizeof(float) + batch_size * sizeof(float);  // mean + inv_variance
-}
-
-size_t LayerNormLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto &shape = input_shapes[0];
-  if (shape.empty() || shape.size() < 2) return 0;
-#ifdef USE_CUDNN
-  if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) return 0;
-  build_graph(shape);
-  size_t channels = shape.back();
-  size_t batch_size = 1;
-  for (size_t i = 0; i < shape.size() - 1; ++i) batch_size *= shape[i];
-  size_t shape_key = get_shape_hash({batch_size, channels});
-  const LayerNormStats &stats = stats_cache.at(shape_key);
-  auto output_shapes = this->output_shapes(input_shapes);
-  return stats.fwd_workspace_size + get_shapes_bytes(output_shapes, io_dtype_);
-#else
-  return 0;
-#endif
-}
-
-size_t LayerNormLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  return fwd_workspace(input_shapes);
-}
-
-size_t LayerNormLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto &shape = input_shapes[0];
-  if (shape.empty() || shape.size() < 2) return 0;
-#ifdef USE_CUDNN
-  if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) return 0;
-  build_graph(shape);
-  size_t channels = shape.back();
-  size_t batch_size = 1;
-  for (size_t i = 0; i < shape.size() - 1; ++i) batch_size *= shape[i];
-  size_t shape_key = get_shape_hash({batch_size, channels});
-  const LayerNormStats &stats = stats_cache.at(shape_key);
-  return stats.bwd_workspace_size + get_shapes_bytes(input_shapes, io_dtype_);
-#else
-  return 0;
-#endif
-}
-
 LayerConfig LayerNormLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;

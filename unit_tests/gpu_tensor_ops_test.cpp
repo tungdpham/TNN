@@ -83,11 +83,11 @@ TEST_F(GPUopsTest, PadBasic) {
   }
 
   Tensor cpu_padded = make_tensor<float>({1, 1, 5, 5});
-  ops::pad<float>(cpu_tensor, cpu_padded, 1, 1, 0.0f);
+  ops::pad(cpu_tensor, cpu_padded, 1, 1);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_padded = make_tensor<float>({1, 1, 5, 5}, getGPU());
-  ops::pad<float>(gpu_tensor, gpu_padded, 1, 1, 0.0f);
+  ops::pad(gpu_tensor, gpu_padded, 1, 1);
 
   compareTensors<float>(cpu_padded, gpu_padded);
 }
@@ -97,11 +97,11 @@ TEST_F(GPUopsTest, PadMultiChannel) {
   cpu_tensor->fill_random_uniform(10.0f);
 
   Tensor cpu_padded = make_tensor<float>({2, 3, 8, 8});
-  ops::pad<float>(cpu_tensor, cpu_padded, 2, 2, -1.0f);
+  ops::pad_t<float>(cpu_tensor, cpu_padded, 2, 2, -1.0f);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_padded = make_tensor<float>({2, 3, 8, 8}, getGPU());
-  ops::pad<float>(gpu_tensor, gpu_padded, 2, 2, -1.0f);
+  ops::pad_t<float>(gpu_tensor, gpu_padded, 2, 2, -1.0f);
 
   compareTensors<float>(cpu_padded, gpu_padded);
 }
@@ -111,11 +111,11 @@ TEST_F(GPUopsTest, PadAsymmetric) {
   cpu_tensor->fill_random_uniform(5.0f);
 
   Tensor cpu_padded = make_tensor<float>({1, 2, 11, 9});
-  ops::pad<float>(cpu_tensor, cpu_padded, 3, 1, 2.5f);
+  ops::pad_t<float>(cpu_tensor, cpu_padded, 3, 1, 2.5f);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_padded = make_tensor<float>({1, 2, 11, 9}, getGPU());
-  ops::pad<float>(gpu_tensor, gpu_padded, 3, 1, 2.5f);
+  ops::pad_t<float>(gpu_tensor, gpu_padded, 3, 1, 2.5f);
 
   compareTensors<float>(cpu_padded, gpu_padded);
 }
@@ -125,11 +125,11 @@ TEST_F(GPUopsTest, UnpadBasic) {
   cpu_tensor->fill_random_uniform(10.0f);
 
   Tensor cpu_unpadded = make_tensor<float>({1, 1, 3, 3});
-  ops::unpad<float>(cpu_tensor, cpu_unpadded, 1, 1);
+  ops::unpad(cpu_tensor, cpu_unpadded, 1, 1);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_unpadded = make_tensor<float>({1, 1, 3, 3}, getGPU());
-  ops::unpad<float>(gpu_tensor, gpu_unpadded, 1, 1);
+  ops::unpad(gpu_tensor, gpu_unpadded, 1, 1);
 
   compareTensors<float>(cpu_unpadded, gpu_unpadded);
 }
@@ -139,11 +139,11 @@ TEST_F(GPUopsTest, UnpadMultiChannel) {
   cpu_tensor->fill_random_uniform(15.0f);
 
   Tensor cpu_unpadded = make_tensor<float>({2, 3, 4, 4});
-  ops::unpad<float>(cpu_tensor, cpu_unpadded, 2, 2);
+  ops::unpad(cpu_tensor, cpu_unpadded, 2, 2);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_unpadded = make_tensor<float>({2, 3, 4, 4}, getGPU());
-  ops::unpad<float>(gpu_tensor, gpu_unpadded, 2, 2);
+  ops::unpad(gpu_tensor, gpu_unpadded, 2, 2);
 
   compareTensors<float>(cpu_unpadded, gpu_unpadded);
 }
@@ -153,15 +153,15 @@ TEST_F(GPUopsTest, PadUnpadRoundTrip) {
   cpu_original->fill_random_uniform(8.0f);
 
   Tensor cpu_padded = make_tensor<float>({1, 2, 8, 8});
-  ops::pad<float>(cpu_original, cpu_padded, 2, 2, 0.0f);
+  ops::pad(cpu_original, cpu_padded, 2, 2);
   Tensor cpu_restored = make_tensor<float>({1, 2, 4, 4});
-  ops::unpad<float>(cpu_padded, cpu_restored, 2, 2);
+  ops::unpad(cpu_padded, cpu_restored, 2, 2);
 
   Tensor gpu_original = cpu_original->to_device(getGPU());
   Tensor gpu_padded = make_tensor<float>({1, 2, 8, 8}, getGPU());
-  ops::pad<float>(gpu_original, gpu_padded, 2, 2, 0.0f);
+  ops::pad(gpu_original, gpu_padded, 2, 2);
   Tensor gpu_restored = make_tensor<float>({1, 2, 4, 4}, getGPU());
-  ops::unpad<float>(gpu_padded, gpu_restored, 2, 2);
+  ops::unpad(gpu_padded, gpu_restored, 2, 2);
 
   compareTensors<float>(cpu_original, cpu_restored);
   compareTensors<float>(cpu_original, gpu_restored);
@@ -176,11 +176,11 @@ TEST_F(GPUopsTest, CropBasic) {
   }
 
   Tensor cpu_cropped = make_tensor<float>({1, 1, 3, 3});
-  ops::crop<float>(cpu_tensor, cpu_cropped, 1, 1, 3, 3);
+  ops::crop(cpu_tensor, cpu_cropped, 1, 1, 3, 3);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_cropped = make_tensor<float>({1, 1, 3, 3}, getGPU());
-  ops::crop<float>(gpu_tensor, gpu_cropped, 1, 1, 3, 3);
+  ops::crop(gpu_tensor, gpu_cropped, 1, 1, 3, 3);
 
   compareTensors<float>(cpu_cropped, gpu_cropped);
 }
@@ -190,11 +190,11 @@ TEST_F(GPUopsTest, CropMultiChannel) {
   cpu_tensor->fill_random_uniform(20.0f);
 
   Tensor cpu_cropped = make_tensor<float>({2, 3, 6, 6});
-  ops::crop<float>(cpu_tensor, cpu_cropped, 2, 3, 7, 8);
+  ops::crop(cpu_tensor, cpu_cropped, 2, 3, 7, 8);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_cropped = make_tensor<float>({2, 3, 6, 6}, getGPU());
-  ops::crop<float>(gpu_tensor, gpu_cropped, 2, 3, 7, 8);
+  ops::crop(gpu_tensor, gpu_cropped, 2, 3, 7, 8);
 
   compareTensors<float>(cpu_cropped, gpu_cropped);
 }
@@ -204,11 +204,11 @@ TEST_F(GPUopsTest, CropCorner) {
   cpu_tensor->fill_random_uniform(12.0f);
 
   Tensor cpu_cropped = make_tensor<float>({1, 2, 4, 4});
-  ops::crop<float>(cpu_tensor, cpu_cropped, 0, 0, 3, 3);
+  ops::crop(cpu_tensor, cpu_cropped, 0, 0, 3, 3);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_cropped = make_tensor<float>({1, 2, 4, 4}, getGPU());
-  ops::crop<float>(gpu_tensor, gpu_cropped, 0, 0, 3, 3);
+  ops::crop(gpu_tensor, gpu_cropped, 0, 0, 3, 3);
 
   compareTensors<float>(cpu_cropped, gpu_cropped);
 }
@@ -218,11 +218,11 @@ TEST_F(GPUopsTest, CropBottomRight) {
   cpu_tensor->fill_random_uniform(10.0f);
 
   Tensor cpu_cropped = make_tensor<float>({1, 1, 3, 3});
-  ops::crop<float>(cpu_tensor, cpu_cropped, 3, 3, 5, 5);
+  ops::crop(cpu_tensor, cpu_cropped, 3, 3, 5, 5);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_cropped = make_tensor<float>({1, 1, 3, 3}, getGPU());
-  ops::crop<float>(gpu_tensor, gpu_cropped, 3, 3, 5, 5);
+  ops::crop(gpu_tensor, gpu_cropped, 3, 3, 5, 5);
 
   compareTensors<float>(cpu_cropped, gpu_cropped);
 }
@@ -232,11 +232,11 @@ TEST_F(GPUopsTest, SliceBatchBasic) {
   cpu_tensor->fill_random_uniform(15.0f);
 
   Tensor cpu_sliced = make_tensor<float>({2, 2, 3, 3});
-  ops::slice_batch<float>(cpu_tensor, cpu_sliced, 1, 3);
+  ops::slice_batch(cpu_tensor, cpu_sliced, 1, 3);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_sliced = make_tensor<float>({2, 2, 3, 3}, getGPU());
-  ops::slice_batch<float>(gpu_tensor, gpu_sliced, 1, 3);
+  ops::slice_batch(gpu_tensor, gpu_sliced, 1, 3);
 
   compareTensors<float>(cpu_sliced, gpu_sliced);
 }
@@ -246,11 +246,11 @@ TEST_F(GPUopsTest, SliceBatchSingle) {
   cpu_tensor->fill_random_uniform(10.0f);
 
   Tensor cpu_sliced = make_tensor<float>({1, 3, 4, 4});
-  ops::slice_batch<float>(cpu_tensor, cpu_sliced, 2, 3);
+  ops::slice_batch(cpu_tensor, cpu_sliced, 2, 3);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_sliced = make_tensor<float>({1, 3, 4, 4}, getGPU());
-  ops::slice_batch<float>(gpu_tensor, gpu_sliced, 2, 3);
+  ops::slice_batch(gpu_tensor, gpu_sliced, 2, 3);
 
   compareTensors<float>(cpu_sliced, gpu_sliced);
 }
@@ -260,11 +260,11 @@ TEST_F(GPUopsTest, SliceBatchFirstBatch) {
   cpu_tensor->fill_random_uniform(8.0f);
 
   Tensor cpu_sliced = make_tensor<float>({1, 2, 5, 5});
-  ops::slice_batch<float>(cpu_tensor, cpu_sliced, 0, 1);
+  ops::slice_batch(cpu_tensor, cpu_sliced, 0, 1);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_sliced = make_tensor<float>({1, 2, 5, 5}, getGPU());
-  ops::slice_batch<float>(gpu_tensor, gpu_sliced, 0, 1);
+  ops::slice_batch(gpu_tensor, gpu_sliced, 0, 1);
 
   compareTensors<float>(cpu_sliced, gpu_sliced);
 }
@@ -274,10 +274,10 @@ TEST_F(GPUopsTest, SplitBasic) {
   cpu_tensor->fill_random_uniform(10.0f);
 
   Vec<Tensor> cpu_splits, gpu_splits;
-  ops::split<float>(cpu_tensor, cpu_splits, 2);
+  ops::split(cpu_tensor, cpu_splits, 2);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
-  ops::split<float>(gpu_tensor, gpu_splits, 2);
+  ops::split(gpu_tensor, gpu_splits, 2);
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
 
   for (size_t i = 0; i < cpu_splits.size(); ++i) {
@@ -289,11 +289,11 @@ TEST_F(GPUopsTest, SplitMultiple) {
   Tensor cpu_tensor = make_tensor<float>({8, 3, 4, 4});
   cpu_tensor->fill_random_uniform(15.0f);
   Vec<Tensor> cpu_splits;
-  ops::split<float>(cpu_tensor, cpu_splits, 4);
+  ops::split(cpu_tensor, cpu_splits, 4);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Vec<Tensor> gpu_splits;
-  ops::split<float>(gpu_tensor, gpu_splits, 4);
+  ops::split(gpu_tensor, gpu_splits, 4);
 
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
 
@@ -319,10 +319,10 @@ TEST_F(GPUopsTest, SplitSingleBatch) {
   cpu_tensor->fill_random_uniform(12.0f);
 
   Vec<Tensor> cpu_splits, gpu_splits;
-  ops::split<float>(cpu_tensor, cpu_splits, 6);
+  ops::split(cpu_tensor, cpu_splits, 6);
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
-  ops::split<float>(gpu_tensor, gpu_splits, 6);
+  ops::split(gpu_tensor, gpu_splits, 6);
 
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
 
@@ -348,11 +348,11 @@ TEST_F(GPUopsTest, Im2colBasicKernel3x3) {
   size_t col_size = input_shape[0] * input_shape[1] * kernel_h * kernel_w * output_h * output_w;
 
   Tensor cpu_col_data = make_tensor<float>({col_size});
-  ops::im2col<float>(cpu_input, cpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::im2col(cpu_input, cpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_input = cpu_input->to_device(getGPU());
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::im2col(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Vec<float> cpu_col_cpu(col_size);
   Vec<float> gpu_col_cpu(col_size);
@@ -381,11 +381,11 @@ TEST_F(GPUopsTest, Im2colWithPadding) {
   size_t col_size = input_shape[0] * input_shape[1] * kernel_h * kernel_w * output_h * output_w;
 
   Tensor cpu_col_data = make_tensor<float>({col_size});
-  ops::im2col<float>(cpu_input, cpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::im2col(cpu_input, cpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_input = cpu_input->to_device(getGPU());
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::im2col(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Vec<float> cpu_col_cpu(col_size);
   Vec<float> gpu_col_cpu(col_size);
@@ -412,11 +412,11 @@ TEST_F(GPUopsTest, Im2colWithStride) {
   size_t col_size = input_shape[0] * input_shape[1] * kernel_h * kernel_w * output_h * output_w;
 
   Tensor cpu_col = make_tensor<float>({col_size});
-  ops::im2col<float>(cpu_input, cpu_col, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::im2col(cpu_input, cpu_col, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_input = cpu_input->to_device(getGPU());
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::im2col(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Vec<float> cpu_col_cpu(col_size);
   Vec<float> gpu_col_cpu(col_size);
@@ -444,11 +444,11 @@ TEST_F(GPUopsTest, Im2colMultiBatch) {
   size_t col_size = input_shape[0] * input_shape[1] * kernel_h * kernel_w * output_h * output_w;
 
   Tensor cpu_col = make_tensor<float>({col_size});
-  ops::im2col<float>(cpu_input, cpu_col, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::im2col(cpu_input, cpu_col, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_input = cpu_input->to_device(getGPU());
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::im2col(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Vec<float> cpu_col_cpu(col_size);
   Vec<float> gpu_col_cpu(col_size);
@@ -478,16 +478,16 @@ TEST_F(GPUopsTest, Col2imBasic) {
 
   Tensor cpu_result = make_tensor<float>({batch_size * channels * height * width});
   cpu_result->fill(0.0f);
-  ops::col2im<float>(cpu_col_data, cpu_result, batch_size, channels, height, width, kernel_h,
-                     kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::col2im(cpu_col_data, cpu_result, batch_size, channels, height, width, kernel_h, kernel_w,
+              stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_col_data = cpu_col_data->to_device(getGPU());
 
   Tensor gpu_result = make_tensor<float>({batch_size * channels * height * width}, getGPU());
   gpu_result->fill(0.0f);
 
-  ops::col2im<float>(gpu_col_data, gpu_result, batch_size, channels, height, width, kernel_h,
-                     kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::col2im(gpu_col_data, gpu_result, batch_size, channels, height, width, kernel_h, kernel_w,
+              stride_h, stride_w, pad_h, pad_w);
 
   Vec<float> cpu_result_cpu(batch_size * channels * height * width);
   Vec<float> gpu_result_cpu(batch_size * channels * height * width);
@@ -521,16 +521,16 @@ TEST_F(GPUopsTest, Col2imWithPadding) {
 
   Tensor cpu_result = make_tensor<float>({batch_size * channels * height * width});
   cpu_result->fill(0.0f);
-  ops::col2im<float>(cpu_col_data, cpu_result, batch_size, channels, height, width, kernel_h,
-                     kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::col2im(cpu_col_data, cpu_result, batch_size, channels, height, width, kernel_h, kernel_w,
+              stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_col_data = cpu_col_data->to_device(getGPU());
 
   Tensor gpu_result = make_tensor<float>({batch_size * channels * height * width}, getGPU());
   gpu_result->fill(0.0f);
 
-  ops::col2im<float>(gpu_col_data, gpu_result, batch_size, channels, height, width, kernel_h,
-                     kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::col2im(gpu_col_data, gpu_result, batch_size, channels, height, width, kernel_h, kernel_w,
+              stride_h, stride_w, pad_h, pad_w);
 
   Vec<float> cpu_result_cpu(batch_size * channels * height * width);
   Vec<float> gpu_result_cpu(batch_size * channels * height * width);
@@ -558,24 +558,23 @@ TEST_F(GPUopsTest, Im2colCol2imRoundTrip) {
   size_t col_size = input_shape[0] * input_shape[1] * kernel_h * kernel_w * output_h * output_w;
 
   Tensor cpu_col_data = make_tensor<float>({col_size});
-  ops::im2col<float>(cpu_input, cpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::im2col(cpu_input, cpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor cpu_reconstructed = make_tensor<float>({1, 1, 6, 6});
   cpu_reconstructed->fill(0.0f);
-  ops::col2im<float>(cpu_col_data, cpu_reconstructed, input_shape[0], input_shape[1],
-                     input_shape[2], input_shape[3], kernel_h, kernel_w, stride_h, stride_w, pad_h,
-                     pad_w);
+  ops::col2im(cpu_col_data, cpu_reconstructed, input_shape[0], input_shape[1], input_shape[2],
+              input_shape[3], kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_input = cpu_input->to_device(getGPU());
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::im2col(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_reconstructed = make_tensor<float>({1, 1, 6, 6}, getGPU());
   gpu_reconstructed->fill(0.0f);
   auto gpu_input_shape = gpu_input->shape();
-  ops::col2im<float>(gpu_col_data, gpu_reconstructed, gpu_input_shape[0], gpu_input_shape[1],
-                     gpu_input_shape[2], gpu_input_shape[3], kernel_h, kernel_w, stride_h, stride_w,
-                     pad_h, pad_w);
+  ops::col2im(gpu_col_data, gpu_reconstructed, gpu_input_shape[0], gpu_input_shape[1],
+              gpu_input_shape[2], gpu_input_shape[3], kernel_h, kernel_w, stride_h, stride_w, pad_h,
+              pad_w);
 
   compareTensors<float>(cpu_reconstructed, gpu_reconstructed, 1e-4f);
 }
@@ -585,19 +584,19 @@ TEST_F(GPUopsTest, CombinedPadCropSlice) {
   cpu_original->fill_random_uniform(15.0f);
 
   Tensor cpu_padded = make_tensor<float>({4, 3, 12, 12});
-  ops::pad<float>(cpu_original, cpu_padded, 2, 2, 0.0f);
+  ops::pad(cpu_original, cpu_padded, 2, 2);
   Tensor cpu_cropped = make_tensor<float>({4, 3, 6, 6});
-  ops::crop<float>(cpu_padded, cpu_cropped, 3, 3, 8, 8);
+  ops::crop(cpu_padded, cpu_cropped, 3, 3, 8, 8);
   Tensor cpu_sliced = make_tensor<float>({2, 3, 6, 6});
-  ops::slice_batch<float>(cpu_cropped, cpu_sliced, 1, 3);
+  ops::slice_batch(cpu_cropped, cpu_sliced, 1, 3);
 
   Tensor gpu_original = cpu_original->to_device(getGPU());
   Tensor gpu_padded = make_tensor<float>({4, 3, 12, 12}, getGPU());
-  ops::pad<float>(gpu_original, gpu_padded, 2, 2, 0.0f);
+  ops::pad(gpu_original, gpu_padded, 2, 2);
   Tensor gpu_cropped = make_tensor<float>({4, 3, 6, 6}, getGPU());
-  ops::crop<float>(gpu_padded, gpu_cropped, 3, 3, 8, 8);
+  ops::crop(gpu_padded, gpu_cropped, 3, 3, 8, 8);
   Tensor gpu_sliced = make_tensor<float>({2, 3, 6, 6}, getGPU());
-  ops::slice_batch<float>(gpu_cropped, gpu_sliced, 1, 3);
+  ops::slice_batch(gpu_cropped, gpu_sliced, 1, 3);
 
   compareTensors<float>(cpu_sliced, gpu_sliced);
 }
@@ -607,22 +606,22 @@ TEST_F(GPUopsTest, LargeTensorOperations) {
   cpu_tensor->fill_random_uniform(20.0f);
 
   Tensor cpu_padded = make_tensor<float>({8, 16, 36, 36});
-  ops::pad<float>(cpu_tensor, cpu_padded, 2, 2, 0.0f);
+  ops::pad(cpu_tensor, cpu_padded, 2, 2);
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_padded = make_tensor<float>({8, 16, 36, 36}, getGPU());
-  ops::pad<float>(gpu_tensor, gpu_padded, 2, 2, 0.0f);
+  ops::pad(gpu_tensor, gpu_padded, 2, 2);
   compareTensors<float>(cpu_padded, gpu_padded);
 
   Tensor cpu_cropped = make_tensor<float>({8, 16, 22, 22});
-  ops::crop<float>(cpu_tensor, cpu_cropped, 5, 5, 26, 26);
+  ops::crop(cpu_tensor, cpu_cropped, 5, 5, 26, 26);
   Tensor gpu_cropped = make_tensor<float>({8, 16, 22, 22}, getGPU());
-  ops::crop<float>(gpu_tensor, gpu_cropped, 5, 5, 26, 26);
+  ops::crop(gpu_tensor, gpu_cropped, 5, 5, 26, 26);
   compareTensors<float>(cpu_cropped, gpu_cropped);
 
   Tensor cpu_sliced = make_tensor<float>({4, 16, 32, 32});
-  ops::slice_batch<float>(cpu_tensor, cpu_sliced, 2, 6);
+  ops::slice_batch(cpu_tensor, cpu_sliced, 2, 6);
   Tensor gpu_sliced = make_tensor<float>({4, 16, 32, 32}, getGPU());
-  ops::slice_batch<float>(gpu_tensor, gpu_sliced, 2, 6);
+  ops::slice_batch(gpu_tensor, gpu_sliced, 2, 6);
   compareTensors<float>(cpu_sliced, gpu_sliced);
 }
 
@@ -632,10 +631,10 @@ TEST_F(GPUopsTest, MinimalTensor) {
   cpu_data[0] = 42.0f;
 
   Tensor cpu_padded = make_tensor<float>({1, 1, 3, 3});
-  ops::pad<float>(cpu_tensor, cpu_padded, 1, 1, 0.0f);
+  ops::pad(cpu_tensor, cpu_padded, 1, 1);
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_padded = make_tensor<float>({1, 1, 3, 3}, getGPU());
-  ops::pad<float>(gpu_tensor, gpu_padded, 1, 1, 0.0f);
+  ops::pad(gpu_tensor, gpu_padded, 1, 1);
 
   compareTensors<float>(cpu_padded, gpu_padded);
 }
@@ -645,10 +644,10 @@ TEST_F(GPUopsTest, SinglePixelPadding) {
   cpu_tensor->fill_random_uniform(5.0f);
 
   Tensor cpu_padded = make_tensor<float>({1, 1, 5, 5});
-  ops::pad<float>(cpu_tensor, cpu_padded, 1, 1, -1.0f);
+  ops::pad_t<float>(cpu_tensor, cpu_padded, 1, 1, -1.0f);
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_padded = make_tensor<float>({1, 1, 5, 5}, getGPU());
-  ops::pad<float>(gpu_tensor, gpu_padded, 1, 1, -1.0f);
+  ops::pad_t<float>(gpu_tensor, gpu_padded, 1, 1, -1.0f);
 
   compareTensors<float>(cpu_padded, gpu_padded);
 }
@@ -658,10 +657,10 @@ TEST_F(GPUopsTest, AsymmetricDimensions) {
   cpu_tensor->fill_random_uniform(10.0f);
 
   Tensor cpu_padded = make_tensor<float>({1, 1, 24, 13});
-  ops::pad<float>(cpu_tensor, cpu_padded, 2, 5, 1.0f);
+  ops::pad_t<float>(cpu_tensor, cpu_padded, 2, 5, 1.0f);
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
   Tensor gpu_padded = make_tensor<float>({1, 1, 24, 13}, getGPU());
-  ops::pad<float>(gpu_tensor, gpu_padded, 2, 5, 1.0f);
+  ops::pad_t<float>(gpu_tensor, gpu_padded, 2, 5, 1.0f);
 
   compareTensors<float>(cpu_padded, gpu_padded);
 
@@ -669,10 +668,10 @@ TEST_F(GPUopsTest, AsymmetricDimensions) {
   cpu_tensor2->fill_random_uniform(10.0f);
 
   Tensor cpu_padded2 = make_tensor<float>({1, 1, 13, 24});
-  ops::pad<float>(cpu_tensor2, cpu_padded2, 5, 2, -2.0f);
+  ops::pad_t<float>(cpu_tensor2, cpu_padded2, 5, 2, -2.0f);
   Tensor gpu_tensor2 = cpu_tensor2->to_device(getGPU());
   Tensor gpu_padded2 = make_tensor<float>({1, 1, 13, 24}, getGPU());
-  ops::pad<float>(gpu_tensor2, gpu_padded2, 5, 2, -2.0f);
+  ops::pad_t<float>(gpu_tensor2, gpu_padded2, 5, 2, -2.0f);
 
   compareTensors<float>(cpu_padded2, gpu_padded2);
 }

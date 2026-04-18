@@ -2,6 +2,7 @@
 
 #include "cpu/tensor_ops.hpp"
 #include "device/task.hpp"
+#include "type/type.hpp"
 #ifdef USE_CUDA
 #include "cuda/tensor_ops.hpp"
 #endif
@@ -11,19 +12,11 @@ namespace tnn {
 namespace ops {
 
 template <typename T>
-std::unique_ptr<Task> im2col(const ConstTensor &input_tensor, const Tensor &col_data,
-                             size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
-                             size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
-                             flowHandle_t handle = defaultFlowHandle) {
-  if (col_data->device_type() != input_tensor->device_type()) {
-    throw std::runtime_error("im2col: Mismatched device types between col_data and input_tensor");
-  }
-
+std::unique_ptr<Task> im2col_t(const ConstTensor &input_tensor, const Tensor &col_data,
+                               size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
+                               size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
+                               flowHandle_t handle = defaultFlowHandle) {
   const auto &shape = input_tensor->shape();
-  if (shape.size() != 4) {
-    throw std::invalid_argument("im2col: Input tensor must be 4-dimensional (NCHW)");
-  }
-
   const size_t batch_size = shape[0];
   const size_t channels = shape[1];
   const size_t height = shape[2];
@@ -54,15 +47,36 @@ std::unique_ptr<Task> im2col(const ConstTensor &input_tensor, const Tensor &col_
   }
 }
 
-template <typename T>
-std::unique_ptr<Task> col2im(const ConstTensor &col_data, const Tensor &result_data,
-                             size_t batch_size, size_t channels, size_t height, size_t width,
-                             size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
-                             size_t pad_h, size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
-  if (col_data->device_type() != result_data->device_type()) {
-    throw std::runtime_error("col2im: Mismatched device types between col_data and result_data");
+inline std::unique_ptr<Task> im2col(const ConstTensor &input_tensor, const Tensor &col_data,
+                                    size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
+                                    size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
+                                    flowHandle_t handle = defaultFlowHandle) {
+  if (col_data->device_type() != input_tensor->device_type()) {
+    throw std::runtime_error("im2col: Mismatched device types between col_data and input_tensor");
   }
 
+  if (input_tensor->data_type() != col_data->data_type()) {
+    throw std::runtime_error("im2col: Mismatched data types between col_data and input_tensor");
+  }
+
+  const auto &shape = input_tensor->shape();
+  if (shape.size() != 4) {
+    throw std::invalid_argument("im2col: Input tensor must be 4-dimensional (NCHW)");
+  }
+
+  DType_t dtype = input_tensor->data_type();
+
+  DISPATCH_ANY_DTYPE(dtype, T,
+                     return im2col_t<T>(input_tensor, col_data, kernel_h, kernel_w, stride_h,
+                                        stride_w, pad_h, pad_w, handle));
+}
+
+template <typename T>
+std::unique_ptr<Task> col2im_t(const ConstTensor &col_data, const Tensor &result_data,
+                               size_t batch_size, size_t channels, size_t height, size_t width,
+                               size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
+                               size_t pad_h, size_t pad_w,
+                               flowHandle_t handle = defaultFlowHandle) {
   const size_t padded_h = height + 2 * pad_h;
   const size_t padded_w = width + 2 * pad_w;
   const size_t output_h = (padded_h - kernel_h) / stride_h + 1;
@@ -88,14 +102,31 @@ std::unique_ptr<Task> col2im(const ConstTensor &col_data, const Tensor &result_d
   }
 }
 
-template <typename T>
-std::unique_ptr<Task> pad(const ConstTensor &input, const Tensor &result, size_t pad_h,
-                          size_t pad_w, T value = T(0), flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input->shape();
-  if (shape.size() != 4) {
-    throw std::invalid_argument("pad: Input tensor must be 4-dimensional (NCHW)");
+inline std::unique_ptr<Task> col2im(const ConstTensor &col_data, const Tensor &result_data,
+                                    size_t batch_size, size_t channels, size_t height, size_t width,
+                                    size_t kernel_h, size_t kernel_w, size_t stride_h,
+                                    size_t stride_w, size_t pad_h, size_t pad_w,
+                                    flowHandle_t handle = defaultFlowHandle) {
+  if (col_data->device_type() != result_data->device_type()) {
+    throw std::runtime_error("col2im: Mismatched device types between col_data and result_data");
   }
 
+  if (col_data->data_type() != result_data->data_type()) {
+    throw std::runtime_error("col2im: Mismatched data types between col_data and result_data");
+  }
+
+  DType_t dtype = col_data->data_type();
+
+  DISPATCH_ANY_DTYPE(
+      dtype, T,
+      return col2im_t<T>(col_data, result_data, batch_size, channels, height, width, kernel_h,
+                         kernel_w, stride_h, stride_w, pad_h, pad_w, handle));
+}
+
+template <typename T>
+std::unique_ptr<Task> pad_t(const ConstTensor &input, const Tensor &result, size_t pad_h,
+                            size_t pad_w, T value = T(0), flowHandle_t handle = defaultFlowHandle) {
+  const auto &shape = input->shape();
   const size_t batch_size = shape[0];
   const size_t channels = shape[1];
   const size_t height = shape[2];
@@ -119,22 +150,34 @@ std::unique_ptr<Task> pad(const ConstTensor &input, const Tensor &result, size_t
   }
 }
 
-template <typename T>
-std::unique_ptr<Task> unpad(const ConstTensor &input, const Tensor &result, size_t pad_h,
-                            size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input->shape();
-  if (shape.size() != 4) {
-    throw std::invalid_argument("unpad: Input tensor must be 4-dimensional (NCHW)");
+inline std::unique_ptr<Task> pad(const ConstTensor &input, const Tensor &result, size_t pad_h,
+                                 size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
+  if (input->device_type() != result->device_type()) {
+    throw std::runtime_error("pad: Mismatched device types between input and result");
   }
 
+  if (input->data_type() != result->data_type()) {
+    throw std::runtime_error("pad: Mismatched data types between input and result");
+  }
+
+  const auto &shape = input->shape();
+  if (shape.size() != 4) {
+    throw std::invalid_argument("pad: Input tensor must be 4-dimensional (NCHW)");
+  }
+
+  DType_t dtype = input->data_type();
+
+  DISPATCH_ANY_DTYPE(dtype, T, return pad_t<T>(input, result, pad_h, pad_w, T(0), handle));
+}
+
+template <typename T>
+std::unique_ptr<Task> unpad_t(const ConstTensor &input, const Tensor &result, size_t pad_h,
+                              size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
+  const auto &shape = input->shape();
   const size_t batch_size = shape[0];
   const size_t channels = shape[1];
   const size_t padded_height = shape[2];
   const size_t padded_width = shape[3];
-
-  if (padded_height <= 2 * pad_h || padded_width <= 2 * pad_w) {
-    throw std::invalid_argument("Padding size too large for unpadding");
-  }
 
   const size_t height = padded_height - 2 * pad_h;
   const size_t width = padded_width - 2 * pad_w;
@@ -157,23 +200,42 @@ std::unique_ptr<Task> unpad(const ConstTensor &input, const Tensor &result, size
   }
 }
 
-template <typename T>
-std::unique_ptr<Task> crop(const ConstTensor &input, const Tensor &result, const size_t start_h,
-                           const size_t start_w, const size_t end_h, const size_t end_w,
-                           flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input->shape();
-  if (shape.size() != 4) {
-    throw std::invalid_argument("crop: Input tensor must be 4-dimensional (NCHW)");
+inline std::unique_ptr<Task> unpad(const ConstTensor &input, const Tensor &result, size_t pad_h,
+                                   size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
+  if (input->device_type() != result->device_type()) {
+    throw std::runtime_error("unpad: Mismatched device types between input and result");
   }
 
+  if (input->data_type() != result->data_type()) {
+    throw std::runtime_error("unpad: Mismatched data types between input and result");
+  }
+
+  const auto &shape = input->shape();
+  if (shape.size() != 4) {
+    throw std::invalid_argument("unpad: Input tensor must be 4-dimensional (NCHW)");
+  }
+
+  const size_t padded_height = shape[2];
+  const size_t padded_width = shape[3];
+
+  if (padded_height <= 2 * pad_h || padded_width <= 2 * pad_w) {
+    throw std::invalid_argument("Padding size too large for unpadding");
+  }
+
+  DType_t dtype = input->data_type();
+
+  DISPATCH_ANY_DTYPE(dtype, T, return unpad_t<T>(input, result, pad_h, pad_w, handle));
+}
+
+template <typename T>
+std::unique_ptr<Task> crop_t(const ConstTensor &input, const Tensor &result, const size_t start_h,
+                             const size_t start_w, const size_t end_h, const size_t end_w,
+                             flowHandle_t handle = defaultFlowHandle) {
+  const auto &shape = input->shape();
   const size_t batch_size = shape[0];
   const size_t channels = shape[1];
   const size_t height = shape[2];
   const size_t width = shape[3];
-
-  if (end_h >= height || end_w >= width || start_h > end_h || start_w > end_w) {
-    throw std::invalid_argument("Invalid crop dimensions");
-  }
 
   const size_t new_height = end_h - start_h + 1;
   const size_t new_width = end_w - start_w + 1;
@@ -196,17 +258,40 @@ std::unique_ptr<Task> crop(const ConstTensor &input, const Tensor &result, const
   }
 }
 
-template <typename T>
-std::unique_ptr<Task> slice_batch(const ConstTensor &input, const Tensor &result,
-                                  size_t start_batch, size_t end_batch,
-                                  flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input->shape();
-  const size_t batch_size = shape[0];
-
-  if (end_batch > batch_size || start_batch > end_batch) {
-    throw std::invalid_argument("Invalid batch slice range");
+inline std::unique_ptr<Task> crop(const ConstTensor &input, const Tensor &result,
+                                  const size_t start_h, const size_t start_w, const size_t end_h,
+                                  const size_t end_w, flowHandle_t handle = defaultFlowHandle) {
+  if (input->device_type() != result->device_type()) {
+    throw std::runtime_error("crop: Mismatched device types between input and result");
   }
 
+  if (input->data_type() != result->data_type()) {
+    throw std::runtime_error("crop: Mismatched data types between input and result");
+  }
+
+  const auto &shape = input->shape();
+  if (shape.size() != 4) {
+    throw std::invalid_argument("crop: Input tensor must be 4-dimensional (NCHW)");
+  }
+
+  const size_t height = shape[2];
+  const size_t width = shape[3];
+
+  if (end_h >= height || end_w >= width || start_h > end_h || start_w > end_w) {
+    throw std::invalid_argument("Invalid crop dimensions");
+  }
+
+  DType_t dtype = input->data_type();
+
+  DISPATCH_ANY_DTYPE(dtype, T,
+                     return crop_t<T>(input, result, start_h, start_w, end_h, end_w, handle));
+}
+
+template <typename T>
+std::unique_ptr<Task> slice_batch_t(const ConstTensor &input, const Tensor &result,
+                                    size_t start_batch, size_t end_batch,
+                                    flowHandle_t handle = defaultFlowHandle) {
+  const auto &shape = input->shape();
   size_t batch_stride = 1;
   for (size_t i = 1; i < shape.size(); ++i) {
     batch_stride *= shape[i];
@@ -236,15 +321,35 @@ std::unique_ptr<Task> slice_batch(const ConstTensor &input, const Tensor &result
   }
 }
 
-template <typename T>
-std::unique_ptr<Task> split(const ConstTensor &input, Vec<Tensor> &results, size_t num_splits,
-                            flowHandle_t handle = defaultFlowHandle) {
+inline std::unique_ptr<Task> slice_batch(const ConstTensor &input, const Tensor &result,
+                                         size_t start_batch, size_t end_batch,
+                                         flowHandle_t handle = defaultFlowHandle) {
+  if (input->device_type() != result->device_type()) {
+    throw std::runtime_error("slice_batch: Mismatched device types between input and result");
+  }
+
+  if (input->data_type() != result->data_type()) {
+    throw std::runtime_error("slice_batch: Mismatched data types between input and result");
+  }
+
   const auto &shape = input->shape();
   const size_t batch_size = shape[0];
 
-  if (num_splits == 0 || num_splits > batch_size) {
-    throw std::invalid_argument("Invalid number of splits");
+  if (end_batch > batch_size || start_batch > end_batch) {
+    throw std::invalid_argument("Invalid batch slice range");
   }
+
+  DType_t dtype = input->data_type();
+
+  DISPATCH_ANY_DTYPE(dtype, T,
+                     return slice_batch_t<T>(input, result, start_batch, end_batch, handle));
+}
+
+template <typename T>
+std::unique_ptr<Task> split_t(const ConstTensor &input, Vec<Tensor> &results, size_t num_splits,
+                              flowHandle_t handle = defaultFlowHandle) {
+  const auto &shape = input->shape();
+  const size_t batch_size = shape[0];
 
   results.clear();
   results.reserve(num_splits);
@@ -260,20 +365,30 @@ std::unique_ptr<Task> split(const ConstTensor &input, Vec<Tensor> &results, size
 
     // Create a properly initialized tensor for this split
     Tensor split_tensor = make_tensor<T>(split_shape, input->device());
-    slice_batch<T>(input, split_tensor, start, end, handle);
+    slice_batch_t<T>(input, split_tensor, start, end, handle);
     results.push_back(split_tensor);
   }
 
   return nullptr;
 }
 
-template <typename T>
-std::unique_ptr<Task> transpose_2d(const ConstTensor &input, const Tensor &output, size_t rows,
-                                   size_t cols, flowHandle_t handle = defaultFlowHandle) {
-  if (output->device() != input->device()) {
-    throw std::runtime_error("transpose_2d: Input and output must be on the same device");
+inline std::unique_ptr<Task> split(const ConstTensor &input, Vec<Tensor> &results,
+                                   size_t num_splits, flowHandle_t handle = defaultFlowHandle) {
+  const auto &shape = input->shape();
+  const size_t batch_size = shape[0];
+
+  if (num_splits == 0 || num_splits > batch_size) {
+    throw std::invalid_argument("Invalid number of splits");
   }
 
+  DType_t dtype = input->data_type();
+
+  DISPATCH_ANY_DTYPE(dtype, T, return split_t<T>(input, results, num_splits, handle));
+}
+
+template <typename T>
+std::unique_ptr<Task> transpose_2d_t(const ConstTensor &input, const Tensor &output, size_t rows,
+                                     size_t cols, flowHandle_t handle = defaultFlowHandle) {
   const T *input_data = input->data_as<T>();
   T *output_data = output->data_as<T>();
 
@@ -295,14 +410,26 @@ std::unique_ptr<Task> transpose_2d(const ConstTensor &input, const Tensor &outpu
   }
 }
 
-template <typename T>
-std::unique_ptr<Task> nchw_to_cnhw(const ConstTensor &input, const Tensor &output, size_t n,
-                                   size_t c, size_t h, size_t w,
-                                   flowHandle_t handle = defaultFlowHandle) {
+inline std::unique_ptr<Task> transpose_2d(const ConstTensor &input, const Tensor &output,
+                                          size_t rows, size_t cols,
+                                          flowHandle_t handle = defaultFlowHandle) {
   if (output->device() != input->device()) {
-    throw std::runtime_error("nchw_to_cnhw: Input and output must be on the same device");
+    throw std::runtime_error("transpose_2d: Input and output must be on the same device");
   }
 
+  if (input->data_type() != output->data_type()) {
+    throw std::runtime_error("transpose_2d: Mismatched data types between input and output");
+  }
+
+  DType_t dtype = input->data_type();
+
+  DISPATCH_ANY_DTYPE(dtype, T, return transpose_2d_t<T>(input, output, rows, cols, handle));
+}
+
+template <typename T>
+std::unique_ptr<Task> nchw_to_cnhw_t(const ConstTensor &input, const Tensor &output, size_t n,
+                                     size_t c, size_t h, size_t w,
+                                     flowHandle_t handle = defaultFlowHandle) {
   const T *input_data = input->data_as<T>();
   T *output_data = output->data_as<T>();
 
@@ -324,14 +451,26 @@ std::unique_ptr<Task> nchw_to_cnhw(const ConstTensor &input, const Tensor &outpu
   }
 }
 
-template <typename T>
-std::unique_ptr<Task> cnhw_to_nchw(const ConstTensor &input, const Tensor &output, size_t n,
-                                   size_t c, size_t h, size_t w,
-                                   flowHandle_t handle = defaultFlowHandle) {
+inline std::unique_ptr<Task> nchw_to_cnhw(const ConstTensor &input, const Tensor &output, size_t n,
+                                          size_t c, size_t h, size_t w,
+                                          flowHandle_t handle = defaultFlowHandle) {
   if (output->device() != input->device()) {
-    throw std::runtime_error("cnhw_to_nchw: Input and output must be on the same device");
+    throw std::runtime_error("nchw_to_cnhw: Input and output must be on the same device");
   }
 
+  if (input->data_type() != output->data_type()) {
+    throw std::runtime_error("nchw_to_cnhw: Mismatched data types between input and output");
+  }
+
+  DType_t dtype = input->data_type();
+
+  DISPATCH_ANY_DTYPE(dtype, T, return nchw_to_cnhw_t<T>(input, output, n, c, h, w, handle));
+}
+
+template <typename T>
+std::unique_ptr<Task> cnhw_to_nchw_t(const ConstTensor &input, const Tensor &output, size_t n,
+                                     size_t c, size_t h, size_t w,
+                                     flowHandle_t handle = defaultFlowHandle) {
   const T *input_data = input->data_as<T>();
   T *output_data = output->data_as<T>();
 
@@ -351,6 +490,22 @@ std::unique_ptr<Task> cnhw_to_nchw(const ConstTensor &input, const Tensor &outpu
   else {
     throw std::runtime_error("Unsupported device type");
   }
+}
+
+inline std::unique_ptr<Task> cnhw_to_nchw(const ConstTensor &input, const Tensor &output, size_t n,
+                                          size_t c, size_t h, size_t w,
+                                          flowHandle_t handle = defaultFlowHandle) {
+  if (output->device() != input->device()) {
+    throw std::runtime_error("cnhw_to_nchw: Input and output must be on the same device");
+  }
+
+  if (input->data_type() != output->data_type()) {
+    throw std::runtime_error("cnhw_to_nchw: Mismatched data types between input and output");
+  }
+
+  DType_t dtype = input->data_type();
+
+  DISPATCH_ANY_DTYPE(dtype, T, return cnhw_to_nchw_t<T>(input, output, n, c, h, w, handle));
 }
 
 }  // namespace ops

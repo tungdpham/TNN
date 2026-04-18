@@ -95,18 +95,16 @@ void run_backward(const T *grad_output, const T *input, const T *gamma, T *grad_
   }
 }
 
-#define INSTANTIATE_LAYER_NORM(T)                                                              \
+#define INSTANTIATE(T)                                                                         \
   template void run_forward<T>(const T *input, T *output, const T *gamma, const T *beta,       \
                                size_t batch_size, size_t channels, T epsilon);                 \
                                                                                                \
   template void run_backward<T>(const T *grad_output, const T *input, const T *gamma,          \
                                 T *grad_input, T *grad_gamma, T *grad_beta, size_t batch_size, \
                                 size_t channels, T epsilon);
-INSTANTIATE_LAYER_NORM(fp16)
-INSTANTIATE_LAYER_NORM(bf16)
-INSTANTIATE_LAYER_NORM(float)
-INSTANTIATE_LAYER_NORM(double)
-#undef INSTANTIATE_LAYER_NORM
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace layer_norm
 }  // namespace cpu

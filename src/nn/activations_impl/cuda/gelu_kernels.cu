@@ -77,5 +77,6 @@ INSTANTIATE(float);
 INSTANTIATE(double);
 
 #undef INSTANTIATE
+
 }  // namespace cuda
 }  // namespace tnn

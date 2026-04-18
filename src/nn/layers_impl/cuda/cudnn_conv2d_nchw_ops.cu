@@ -252,9 +252,10 @@ void run_bgrad(ConvolutionHandle* handle, const void* gradient_data, void* bias_
                              size_t output_h, size_t output_w, cudaStream_t stream);
 INSTANTIATE_CUDNN_CONV2D(fp16)
 INSTANTIATE_CUDNN_CONV2D(bf16)
+INSTANTIATE_CUDNN_CONV2D(int)
 INSTANTIATE_CUDNN_CONV2D(float)
 INSTANTIATE_CUDNN_CONV2D(double)
-#undef INSTANTIATE_CUDNN_CONV2D
+#undef INSTANTIATE
 
 }  // namespace cudnn_conv2d
 }  // namespace cuda

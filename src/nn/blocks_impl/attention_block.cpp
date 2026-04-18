@@ -301,87 +301,8 @@ LayerConfig AttentionBlock::get_config() const {
   config.type = this->type();
   config.set("embed_dim", embed_dim_);
   config.set("num_heads", num_heads_);
+  config.set("is_causal", is_causal_);
   return config;
-}
-
-size_t AttentionBlock::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-  const auto &shape = input_shapes[0];
-  size_t batch_size = shape[0], seq_len = shape[1];
-  size_t dtype_size = get_dtype_size(io_dtype_);
-
-  // Outer forward buffers: q, k, v, attn_out  (4 * [B, L, E])
-  size_t outer_bytes = 4 * batch_size * seq_len * embed_dim_ * dtype_size;
-  // Inner buffers in compute_attention_forward:
-  //   q_heads, k_heads, v_heads: 3 * [B, H, L, D]
-  //   scores: [B*H, L, L]
-  //   attn_heads: [B, H, L, D]
-  size_t inner_qkv_heads = 3 * batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_scores = batch_size * num_heads_ * seq_len * seq_len * dtype_size;
-  size_t inner_attn_heads = batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_bytes = inner_qkv_heads + inner_scores + inner_attn_heads;
-  return outer_bytes + inner_bytes;
-}
-
-size_t AttentionBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  const auto &shape = input_shapes[0];
-  size_t batch_size = shape[0], seq_len = shape[1];
-  size_t dtype_size = get_dtype_size(io_dtype_);
-
-  // Outer forward buffers: q, k, v, attn_out  (4 * [B, L, E])
-  size_t outer_bytes = 4 * batch_size * seq_len * embed_dim_ * dtype_size;
-
-  // Inner buffers in compute_attention_forward:
-  //   q_heads, k_heads, v_heads: 3 * [B, H, L, D]
-  //   scores: [B*H, L, L]
-  //   attn_heads: [B, H, L, D]
-  size_t inner_qkv_heads = 3 * batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_scores = batch_size * num_heads_ * seq_len * seq_len * dtype_size;
-  size_t inner_attn_heads = batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_bytes = inner_qkv_heads + inner_scores + inner_attn_heads;
-
-  // Sub-layer (dense proj) workspace — max of q/k/v/out proj workspace
-  size_t proj_input_shape_bytes = 0;
-  Vec<size_t> proj_input = {batch_size, seq_len, embed_dim_};
-  if (q_proj_) {
-    proj_input_shape_bytes = q_proj_->fwd_workspace({{proj_input}});
-  }
-
-  size_t total = outer_bytes + inner_bytes + proj_input_shape_bytes;
-  return (total + 255) & ~static_cast<size_t>(255);
-}
-
-size_t AttentionBlock::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  return fwd_workspace(input_shapes);
-}
-
-size_t AttentionBlock::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  const auto &shape = input_shapes[0];
-  size_t batch_size = shape[0], seq_len = shape[1];
-  size_t dtype_size = get_dtype_size(io_dtype_);
-
-  // Outer backward buffers: dq, dk, dv (3 * [B, L, E])
-  size_t outer_bytes = 3 * batch_size * seq_len * embed_dim_ * dtype_size;
-
-  // Inner buffers in compute_attention_backward:
-  //   q_heads, k_heads, v_heads: 3 * [B, H, L, D]
-  //   scores: [B*H, L, L]
-  //   dattn: [B*H, L, L]
-  //   dq_heads, dk_heads: 2 * [B, H, L, D]
-  size_t inner_qkv_heads = 3 * batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_scores = batch_size * num_heads_ * seq_len * seq_len * dtype_size;
-  size_t inner_dattn = batch_size * num_heads_ * seq_len * seq_len * dtype_size;
-  size_t inner_dqdk_heads = 2 * batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_bytes = inner_qkv_heads + inner_scores + inner_dattn + inner_dqdk_heads;
-
-  // Sub-layer (dense proj) workspace — max of q/k/v/out proj workspace
-  size_t proj_input_shape_bytes = 0;
-  Vec<size_t> proj_input = {batch_size, seq_len, embed_dim_};
-  if (out_proj_) {
-    proj_input_shape_bytes = out_proj_->bwd_workspace({{proj_input}});
-  }
-
-  size_t total = outer_bytes + inner_bytes + proj_input_shape_bytes;
-  return (total + 255) & ~static_cast<size_t>(255);
 }
 
 std::unique_ptr<AttentionBlock> AttentionBlock::create_from_config(const LayerConfig &config) {

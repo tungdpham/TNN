@@ -33,6 +33,16 @@ inline cudnnDataType_t get_cudnn_data_type<bf16>() {
   return CUDNN_DATA_BFLOAT16;
 }
 
+template <>
+inline cudnnDataType_t get_cudnn_data_type<int>() {
+  return CUDNN_DATA_INT32;
+}
+
+template <>
+inline cudnnDataType_t get_cudnn_data_type<size_t>() {
+  return CUDNN_DATA_INT64;
+}
+
 template <typename T>
 void softmax_forward(cudnnHandle_t handle, const T* input, T* output, size_t rows, size_t cols,
                      cudaStream_t stream) {
@@ -65,16 +75,14 @@ void softmax_backward(cudnnHandle_t handle, const T* output, const T* grad_outpu
   cudnnDestroyTensorDescriptor(desc);
 }
 
-#define INSTANTIATE_SOFTMAX(T)                                                                   \
+#define INSTANTIATE(T)                                                                           \
   template void softmax_forward<T>(cudnnHandle_t handle, const T* input, T* output, size_t rows, \
                                    size_t cols, cudaStream_t stream);                            \
   template void softmax_backward<T>(cudnnHandle_t handle, const T* output, const T* grad_output, \
                                     T* grad_input, size_t rows, size_t cols, cudaStream_t stream);
-INSTANTIATE_SOFTMAX(fp16);
-INSTANTIATE_SOFTMAX(bf16);
-INSTANTIATE_SOFTMAX(float);
-INSTANTIATE_SOFTMAX(double);
-#undef INSTANTIATE_SOFTMAX
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace cuda
 }  // namespace tnn

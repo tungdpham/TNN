@@ -102,7 +102,7 @@ void run_backward(const T* gradient_data, T* grad_input_data, size_t batch_size,
       gradient_data, grad_input_data, batch_size, channels, output_h, output_w, mask_indices);
 }
 
-#define INSTANTIATE_MAXPOOL(T)                                                                    \
+#define INSTANTIATE(T)                                                                            \
   template void run_forward<T>(const T* input_data, T* output_data, size_t batch_size,            \
                                size_t channels, size_t input_h, size_t input_w, size_t output_h,  \
                                size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,    \
@@ -113,11 +113,9 @@ void run_backward(const T* gradient_data, T* grad_input_data, size_t batch_size,
                                 size_t channels, size_t output_h, size_t output_w,                \
                                 const size_t* mask_indices, cudaStream_t stream);
 
-INSTANTIATE_MAXPOOL(fp16)
-INSTANTIATE_MAXPOOL(bf16)
-INSTANTIATE_MAXPOOL(float)
-INSTANTIATE_MAXPOOL(double)
-#undef INSTANTIATE_MAXPOOL
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace maxpool_nchw
 }  // namespace cuda

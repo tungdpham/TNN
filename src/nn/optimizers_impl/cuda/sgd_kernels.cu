@@ -54,17 +54,17 @@ void update_sgd_momentum(T* params_data, const T* grads_data, T* velocity_data, 
       params_data, grads_data, velocity_data, size, learning_rate, momentum);
 }
 
-#define INSTANTIATE_SGD_KERNELS(T)                                                             \
+#define INSTANTIATE(T)                                                                         \
   template void update_sgd<T>(T * params_data, const T* grads_data, const size_t size,         \
                               const float learning_rate, cudaStream_t stream);                 \
   template void update_sgd_momentum<T>(T * params_data, const T* grads_data, T* velocity_data, \
                                        const size_t size, const float learning_rate,           \
                                        const float momentum, cudaStream_t stream);
-INSTANTIATE_SGD_KERNELS(fp16)
-INSTANTIATE_SGD_KERNELS(bf16)
-INSTANTIATE_SGD_KERNELS(float)
-INSTANTIATE_SGD_KERNELS(double)
-#undef INSTANTIATE_SGD_KERNELS
+INSTANTIATE(fp16)
+INSTANTIATE(bf16)
+INSTANTIATE(float)
+INSTANTIATE(double)
+#undef INSTANTIATE
 
 }  // namespace sgd
 }  // namespace cuda

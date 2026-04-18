@@ -43,14 +43,11 @@ void gelu_gradient(const T *input, const T *grad_output, T *grad_input, size_t s
   }
 }
 
-#define INSTANTIATE_GELU(T)                                      \
+#define INSTANTIATE(T)                                           \
   template void gelu<T>(const T *input, T *output, size_t size); \
   template void gelu_gradient<T>(const T *input, const T *grad_output, T *grad_input, size_t size);
-INSTANTIATE_GELU(fp16)
-INSTANTIATE_GELU(bf16)
-INSTANTIATE_GELU(float)
-INSTANTIATE_GELU(double)
-#undef INSTANTIATE_GELU
+#include "macros/floating_type_instantiation.hpp"
+#undef INSTANTIATE
 
 }  // namespace cpu
 }  // namespace tnn

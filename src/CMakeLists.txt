@@ -14,6 +14,17 @@ if(ENABLE_CUDA)
     target_link_libraries(tnn_type PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
+# Macros module
+file(GLOB_RECURSE TNN_MACROS_SOURCES 
+    "macros/*.cpp"
+)
+add_library(tnn_macros STATIC ${TNN_MACROS_SOURCES})
+target_include_directories(tnn_macros PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(tnn_macros PUBLIC tnn_type)
+
 # CUDA module
 if(ENABLE_CUDA)
     file(GLOB_RECURSE TNN_CUDA_SOURCES 

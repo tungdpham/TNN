@@ -14,7 +14,7 @@ namespace cpu {
 namespace accuracy {
 
 template <typename T>
-float compute_class_accuracy(const T *predictions, const T *targets, const size_t batch_size,
+float compute_class_accuracy(const T* predictions, const T* targets, const size_t batch_size,
                              const size_t num_classes) {
   int total_correct = 0;
 
@@ -46,7 +46,7 @@ float compute_class_accuracy(const T *predictions, const T *targets, const size_
 }
 
 template <typename T>
-int compute_class_corrects(const T *predictions, const T *targets, const size_t batch_size,
+int compute_class_corrects(const T* predictions, const int* targets, const size_t batch_size,
                            const size_t num_classes, float threshold) {
   int total_correct = 0;
 
@@ -61,15 +61,9 @@ int compute_class_corrects(const T *predictions, const T *targets, const size_t 
       }
     }
 
-    int true_class = -1;
-    for (size_t j = 0; j < num_classes; ++j) {
-      if (static_cast<double>(targets[i * num_classes + j]) > static_cast<double>(threshold)) {
-        true_class = static_cast<int>(j);
-        break;
-      }
-    }
+    int true_class = targets[i];
 
-    if (pred_class == true_class && true_class != -1) {
+    if (pred_class == true_class) {
       total_correct++;
     }
   }
@@ -77,21 +71,15 @@ int compute_class_corrects(const T *predictions, const T *targets, const size_t 
   return total_correct;
 }
 
-template float compute_class_accuracy<float>(const float *, const float *, const size_t,
-                                             const size_t);
-template float compute_class_accuracy<double>(const double *, const double *, const size_t,
-                                              const size_t);
-template float compute_class_accuracy<fp16>(const fp16 *, const fp16 *, const size_t, const size_t);
-template float compute_class_accuracy<bf16>(const bf16 *, const bf16 *, const size_t, const size_t);
+#define INSTANTIATE(T)                                                                         \
+  template float compute_class_accuracy<T>(const T* predictions, const T* targets,             \
+                                           const size_t batch_size, const size_t num_classes); \
+  template int compute_class_corrects<T>(const T* predictions, const int* targets,             \
+                                         const size_t batch_size, const size_t num_classes,    \
+                                         float threshold);
+#include "macros/floating_type_instantiation.hpp"
 
-template int compute_class_corrects<float>(const float *, const float *, const size_t, const size_t,
-                                           float);
-template int compute_class_corrects<double>(const double *, const double *, const size_t,
-                                            const size_t, float);
-template int compute_class_corrects<fp16>(const fp16 *, const fp16 *, const size_t, const size_t,
-                                          float);
-template int compute_class_corrects<bf16>(const bf16 *, const bf16 *, const size_t, const size_t,
-                                          float);
+#undef INSTANTIATE
 
 }  // namespace accuracy
 }  // namespace cpu

@@ -72,17 +72,6 @@ public:
   bool is_training() const;
 
   virtual Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const = 0;
-  // amount of cached bytes for forward pass (e.g., for input activations needed in backward)
-  virtual size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const = 0;
-  // peak workspace that this layer needs to materialize in order to produce output in forward pass
-  // (e.g., can be workspace + output bytes)
-  virtual size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const = 0;
-  // similar to fwd workspace but for inference (e.g., can be smaller if formula is less demanding)
-  virtual size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const = 0;
-  // peak workspace that this layer needs to materialize in order to produce input gradients in
-  // backward pass
-  // (e.g., can be workspace + input bytes)
-  virtual size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const = 0;
   std::string name() const { return name_; }
   void save_state(std::ofstream &file);
   virtual Vec<ParamDescriptor> param_descriptors() { return {}; }

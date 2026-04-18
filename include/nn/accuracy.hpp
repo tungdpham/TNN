@@ -14,13 +14,13 @@ template <typename T>
 inline int compute_class_corrects_impl(const ConstTensor &predictions, const ConstTensor &targets,
                                        size_t batch_size, size_t num_classes, float threshold) {
   if (predictions->device_type() == DeviceType::CPU) {
-    return cpu::accuracy::compute_class_corrects(predictions->data_as<T>(), targets->data_as<T>(),
+    return cpu::accuracy::compute_class_corrects(predictions->data_as<T>(), targets->data_as<int>(),
                                                  batch_size, num_classes, threshold);
   }
 #ifdef USE_CUDA
   else {
-    return cuda::accuracy::compute_class_corrects(predictions->data_as<T>(), targets->data_as<T>(),
-                                                  batch_size, num_classes, threshold);
+    return cuda::accuracy::compute_class_corrects(
+        predictions->data_as<T>(), targets->data_as<int>(), batch_size, num_classes, threshold);
   }
 #endif
   throw std::runtime_error("Unsupported device type for compute_class_corrects.");

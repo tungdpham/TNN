@@ -45,7 +45,11 @@ Vec<Tensor> Layer::forward(const Vec<ConstTensor> &inputs, size_t mb_id) {
     else
       current_inputs.push_back(input->to_device(this->device()));
   }
-  return forward_impl(current_inputs, mb_id);
+  Vec<Tensor> outputs = forward_impl(current_inputs, mb_id);
+#ifndef NDEBUG
+  this->device().getFlow(flow_handle_)->synchronize();
+#endif
+  return outputs;
 }
 
 Vec<Tensor> Layer::backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
@@ -62,6 +66,9 @@ Vec<Tensor> Layer::backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id) 
   }
   auto grad_inputs = backward_impl(current_grad_outputs, mb_id);
   clear_cache(mb_id);
+#ifndef NDEBUG
+  this->device().getFlow(flow_handle_)->synchronize();
+#endif
   return grad_inputs;
 }
 

@@ -63,7 +63,7 @@ void add_bias(T *output_data, const T *bias_data, const size_t batch_size, const
   });
 }
 
-#define INSTANTIATE_CONV2D(T)                                                                    \
+#define INSTANTIATE(T)                                                                           \
   template void run_forward<T>(const T *col_data, const T *weight_data, T *output_data,          \
                                const size_t output_size, const size_t kernel_size,               \
                                const size_t out_channels);                                       \
@@ -83,11 +83,10 @@ void add_bias(T *output_data, const T *bias_data, const size_t batch_size, const
   template void add_bias<T>(T * output_data, const T *bias_data, const size_t batch_size,        \
                             const size_t output_h, const size_t output_w,                        \
                             const size_t out_channels);
-INSTANTIATE_CONV2D(fp16)
-INSTANTIATE_CONV2D(bf16)
-INSTANTIATE_CONV2D(float)
-INSTANTIATE_CONV2D(double)
-#undef INSTANTIATE_CONV2D
+
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace conv2d_nchw
 }  // namespace cpu

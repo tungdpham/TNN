@@ -16,7 +16,7 @@ namespace accuracy {
 
 template <typename T>
 __global__ void compute_class_corrects_kernel(const T* __restrict__ predictions,
-                                              const T* __restrict__ targets,
+                                              const int* __restrict__ targets,
                                               int* __restrict__ global_correct_count,
                                               const size_t batch_size, const size_t num_classes,
                                               float threshold) {
@@ -34,15 +34,9 @@ __global__ void compute_class_corrects_kernel(const T* __restrict__ predictions,
       }
     }
 
-    int true_class = -1;
-    for (size_t j = 0; j < num_classes; ++j) {
-      if (static_cast<float>(targets[idx * num_classes + j]) > threshold) {
-        true_class = (int)j;
-        break;
-      }
-    }
+    int true_class = targets[idx];
 
-    if (pred_class == true_class && true_class != -1) {
+    if (pred_class == true_class) {
       local_hit = 1;
     }
   }
@@ -72,7 +66,7 @@ __global__ void compute_class_corrects_kernel(const T* __restrict__ predictions,
 }
 
 template <typename T>
-int compute_class_corrects(const T* predictions, const T* targets, const size_t batch_size,
+int compute_class_corrects(const T* predictions, const int* targets, const size_t batch_size,
                            const size_t num_classes, float threshold, cudaStream_t stream) {
   int* d_correct_count;
   cudaMalloc(&d_correct_count, sizeof(int));
@@ -94,15 +88,13 @@ int compute_class_corrects(const T* predictions, const T* targets, const size_t 
   return h_correct_count;
 }
 
-#define INSTANTIATE_COMPUTE_CLASS_CORRECTS(T)                                               \
-  template int compute_class_corrects<T>(const T* predictions, const T* targets,            \
+#define INSTANTIATE(T)                                                                      \
+  template int compute_class_corrects<T>(const T* predictions, const int* targets,          \
                                          const size_t batch_size, const size_t num_classes, \
                                          float threshold, cudaStream_t stream);
-INSTANTIATE_COMPUTE_CLASS_CORRECTS(bf16)
-INSTANTIATE_COMPUTE_CLASS_CORRECTS(fp16)
-INSTANTIATE_COMPUTE_CLASS_CORRECTS(float)
-INSTANTIATE_COMPUTE_CLASS_CORRECTS(double)
-#undef INSTANTIATE_COMPUTE_CLASS_CORRECTS
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace accuracy
 }  // namespace cuda

@@ -101,18 +101,16 @@ void slice_backward(const T* grad_output, T* grad_input, const Vec<size_t>& inpu
       grad_output, grad_input, outer_size, inner_size, axis_size, start, length, total_elements);
 }
 
-#define INSTANTIATE_SLICE(T)                                                                     \
+#define INSTANTIATE(T)                                                                           \
   template void slice_forward<T>(const T* input, T* output, const Vec<size_t>& input_shape,      \
                                  size_t axis, size_t start, size_t length, cudaStream_t stream); \
                                                                                                  \
   template void slice_backward<T>(const T* grad_output, T* grad_input,                           \
                                   const Vec<size_t>& input_shape, size_t axis, size_t start,     \
                                   size_t length, cudaStream_t stream);
-INSTANTIATE_SLICE(fp16)
-INSTANTIATE_SLICE(bf16)
-INSTANTIATE_SLICE(float)
-INSTANTIATE_SLICE(double)
-#undef INSTANTIATE_SLICE
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace slice
 }  // namespace cuda

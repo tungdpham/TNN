@@ -15,27 +15,27 @@ namespace tnn {
 namespace cuda {
 namespace loss {
 
-// CrossEntropy Loss
+// CrossEntropy Loss (from probabilities)
 template <typename T>
-void compute_crossentropy_loss(const T *predictions, const T *targets, float &loss,
-                               const size_t batch_size, const size_t num_classes, T epsilon,
-                               cudaStream_t stream);
+void compute_crossentropy_loss_probs(const T *predictions, const int *labels, float &loss,
+                                     const size_t batch_size, const size_t num_classes, T epsilon,
+                                     cudaStream_t stream);
 
 template <typename T>
-void compute_crossentropy_gradient(const T *predictions, const T *targets, T *grad_output,
-                                   const size_t batch_size, const size_t num_classes, T epsilon,
-                                   cudaStream_t stream);
+void compute_crossentropy_gradient_probs(const T *predictions, const int *labels, T *grad_output,
+                                         const size_t batch_size, const size_t num_classes,
+                                         T epsilon, cudaStream_t stream);
 
-// LogSoftmax CrossEntropy Loss
+// CrossEntropy Loss (from logits)
 template <typename T>
-void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, float &loss,
+void compute_crossentropy_loss_logits(const T *logits, const int *labels, float &loss,
+                                      const size_t batch_size, const size_t num_classes,
+                                      cudaStream_t stream = 0);
+
+template <typename T>
+void compute_crossentropy_gradient_logits(const T *logits, const int *labels, T *grad_output,
                                           const size_t batch_size, const size_t num_classes,
                                           cudaStream_t stream = 0);
-
-template <typename T>
-void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets, T *grad_output,
-                                              const size_t batch_size, const size_t num_classes,
-                                              cudaStream_t stream = 0);
 
 // MSE Loss
 template <typename T>

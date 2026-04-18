@@ -89,18 +89,6 @@ public:
     return config;
   }
 
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override {
-    return 0;  // no caching needed
-  }
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    return 0;  // no workspace needed
-  }
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    return 0;  // no workspace needed
-  }
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    return 0;  // no workspace needed
-  }
   static std::unique_ptr<MBroadcastLayer> create_from_config(const LayerConfig &config) {
     return std::make_unique<MBroadcastLayer>(config.get<size_t>("m"), config.name);
   }

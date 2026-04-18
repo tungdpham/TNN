@@ -48,10 +48,6 @@ public:
     config.type = TYPE_NAME;
     return config;
   }
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
   static std::unique_ptr<IdentityLayer> create_from_config(const LayerConfig &config) {
     return std::make_unique<IdentityLayer>(config.name);
   }

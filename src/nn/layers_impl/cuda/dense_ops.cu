@@ -116,7 +116,7 @@ void add_bias(IO_T* output_data, const Param_T* bias_data, const size_t batch_si
       output_data, bias_data, batch_size, output_features);
 }
 
-#define INSTANTIATE_DENSE_OPS(IO_T, Param_T, Compute_T)                                    \
+#define INSTANTIATE_3(IO_T, Param_T, Compute_T)                                            \
   template void run_forward<IO_T, Param_T, Compute_T>(                                     \
       const IO_T* input_data, const Param_T* weight_data, IO_T* output_data,               \
       const size_t batch_size, const size_t input_features, const size_t output_features,  \
@@ -136,30 +136,25 @@ void add_bias(IO_T* output_data, const Param_T* bias_data, const size_t batch_si
       IO_T * output_data, const Param_T* bias_data, const size_t batch_size,               \
       const size_t output_features, cudaStream_t stream);
 
-#define INSTANTIATE_DENSE_OPS_COMPUTE(IO_T, Param_T, Compute_T) \
-  INSTANTIATE_DENSE_OPS(IO_T, Param_T, Compute_T)
+#define INSTANTIATE_2(IO_T, Param_T)   \
+  INSTANTIATE_3(IO_T, Param_T, fp16)   \
+  INSTANTIATE_3(IO_T, Param_T, bf16)   \
+  INSTANTIATE_3(IO_T, Param_T, float)  \
+  INSTANTIATE_3(IO_T, Param_T, double) \
+  INSTANTIATE_3(IO_T, Param_T, int)
 
-#define INSTANTIATE_DENSE_OPS_PARAM(IO_T, Param_T)    \
-  INSTANTIATE_DENSE_OPS_COMPUTE(IO_T, Param_T, fp16)  \
-  INSTANTIATE_DENSE_OPS_COMPUTE(IO_T, Param_T, bf16)  \
-  INSTANTIATE_DENSE_OPS_COMPUTE(IO_T, Param_T, float) \
-  INSTANTIATE_DENSE_OPS_COMPUTE(IO_T, Param_T, double)
+#define INSTANTIATE(IO_T)     \
+  INSTANTIATE_2(IO_T, fp16)   \
+  INSTANTIATE_2(IO_T, bf16)   \
+  INSTANTIATE_2(IO_T, float)  \
+  INSTANTIATE_2(IO_T, double) \
+  INSTANTIATE_2(IO_T, int)
 
-#define INSTANTIATE_DENSE_OPS_IO(IO_T)     \
-  INSTANTIATE_DENSE_OPS_PARAM(IO_T, fp16)  \
-  INSTANTIATE_DENSE_OPS_PARAM(IO_T, bf16)  \
-  INSTANTIATE_DENSE_OPS_PARAM(IO_T, float) \
-  INSTANTIATE_DENSE_OPS_PARAM(IO_T, double)
+#include "macros/floating_type_instantiation.hpp"
 
-INSTANTIATE_DENSE_OPS_IO(fp16)
-INSTANTIATE_DENSE_OPS_IO(bf16)
-INSTANTIATE_DENSE_OPS_IO(float)
-INSTANTIATE_DENSE_OPS_IO(double)
-
-#undef INSTANTIATE_DENSE_OPS_IO
-#undef INSTANTIATE_DENSE_OPS_PARAM
-#undef INSTANTIATE_DENSE_OPS_COMPUTE
-#undef INSTANTIATE_DENSE_OPS
+#undef INSTANTIATE
+#undef INSTANTIATE_2
+#undef INSTANTIATE_3
 
 }  // namespace legacy_dense
 }  // namespace cuda

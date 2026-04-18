@@ -347,24 +347,6 @@ void SDPALayer::cudnn_backward(const ConstTensor &q, const ConstTensor &k, const
 }
 #endif
 
-size_t SDPALayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-  return get_shapes_bytes(input_shapes, io_dtype_);
-}
-
-size_t SDPALayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto o_shapes = this->output_shapes(input_shapes);
-  return get_shapes_bytes(o_shapes, io_dtype_);
-}
-
-size_t SDPALayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto o_shapes = this->output_shapes(input_shapes);
-  return get_shapes_bytes(o_shapes, io_dtype_);
-}
-
-size_t SDPALayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  return get_shapes_bytes(input_shapes, io_dtype_);
-}
-
 std::unique_ptr<SDPALayer> SDPALayer::create_from_config(const LayerConfig &config) {
   float attn_scale = 1.0f;
   bool is_causal = false;

@@ -10,6 +10,8 @@
 #include <cmath>
 #include <limits>
 
+#include "type/type.hpp"
+
 namespace tnn {
 namespace cpu {
 namespace sdpa {
@@ -58,7 +60,7 @@ void run_forward(const T *q, const T *k, const T *v, T *output, size_t batch_siz
           for (size_t j = 0; j < seq_len; ++j) {
             size_t score_idx =
                 b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            if (std::isfinite(scores[score_idx])) {
+            if (std::isfinite(static_cast<float>(scores[score_idx]))) {
               max_score = std::max(max_score, scores[score_idx]);
             }
           }
@@ -69,7 +71,9 @@ void run_forward(const T *q, const T *k, const T *v, T *output, size_t batch_siz
             size_t score_idx =
                 b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             T exp_val =
-                std::isfinite(scores[score_idx]) ? std::exp(scores[score_idx] - max_score) : 0;
+                std::isfinite(static_cast<float>(scores[score_idx]))
+                    ? static_cast<T>(std::exp(static_cast<float>(scores[score_idx] - max_score)))
+                    : static_cast<T>(0);
             size_t attn_idx =
                 b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             attn_weights[attn_idx] = exp_val;
@@ -80,7 +84,7 @@ void run_forward(const T *q, const T *k, const T *v, T *output, size_t batch_siz
           for (size_t j = 0; j < seq_len; ++j) {
             size_t attn_idx =
                 b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            attn_weights[attn_idx] /= (sum_exp + 1e-9f);
+            attn_weights[attn_idx] /= (sum_exp + static_cast<T>(1e-9f));
           }
         }
       }
@@ -159,7 +163,7 @@ void run_backward(const T *q, const T *k, const T *v, const T *output, const T *
           for (size_t j = 0; j < seq_len; ++j) {
             size_t score_idx =
                 b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            if (std::isfinite(scores[score_idx])) {
+            if (std::isfinite(static_cast<float>(scores[score_idx]))) {
               max_score = std::max(max_score, scores[score_idx]);
             }
           }
@@ -169,7 +173,9 @@ void run_backward(const T *q, const T *k, const T *v, const T *output, const T *
             size_t score_idx =
                 b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             T exp_val =
-                std::isfinite(scores[score_idx]) ? std::exp(scores[score_idx] - max_score) : 0;
+                std::isfinite(static_cast<float>(scores[score_idx]))
+                    ? static_cast<T>(std::exp(static_cast<float>(scores[score_idx] - max_score)))
+                    : static_cast<T>(0);
             size_t attn_idx =
                 b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
             attn_weights[attn_idx] = exp_val;
@@ -179,7 +185,7 @@ void run_backward(const T *q, const T *k, const T *v, const T *output, const T *
           for (size_t j = 0; j < seq_len; ++j) {
             size_t attn_idx =
                 b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            attn_weights[attn_idx] /= (sum_exp + 1e-9f);
+            attn_weights[attn_idx] /= (sum_exp + static_cast<T>(1e-9f));
           }
         }
       }
@@ -299,18 +305,14 @@ void run_backward(const T *q, const T *k, const T *v, const T *output, const T *
   delete[] grad_scores;
 }
 
-// Explicit instantiations
-template void run_forward<float>(const float *, const float *, const float *, float *, size_t,
-                                 size_t, size_t, size_t, float, bool);
-template void run_forward<double>(const double *, const double *, const double *, double *, size_t,
-                                  size_t, size_t, size_t, float, bool);
+#define INSTANTIATE(T)                                                                           \
+  template void run_forward<T>(const T *, const T *, const T *, T *, size_t, size_t, size_t,     \
+                               size_t, float, bool);                                             \
+  template void run_backward<T>(const T *, const T *, const T *, const T *, const T *, T *, T *, \
+                                T *, size_t, size_t, size_t, size_t, float, bool);
+#include "macros/floating_type_instantiation.hpp"
 
-template void run_backward<float>(const float *, const float *, const float *, const float *,
-                                  const float *, float *, float *, float *, size_t, size_t, size_t,
-                                  size_t, float, bool);
-template void run_backward<double>(const double *, const double *, const double *, const double *,
-                                   const double *, double *, double *, double *, size_t, size_t,
-                                   size_t, size_t, float, bool);
+#undef INSTANTIATE
 
 }  // namespace sdpa
 }  // namespace cpu

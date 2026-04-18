@@ -9,9 +9,7 @@
 
 #include <alloca.h>
 
-#include <algorithm>
 #include <cstddef>
-#include <numeric>
 
 #include "nn/activations.hpp"
 #include "nn/layer.hpp"
@@ -186,113 +184,6 @@ std::unique_ptr<ResidualBlock> ResidualBlock::create_from_config(const LayerConf
   std::string activation = config.get<std::string>("activation", "relu");
   return std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut_path), activation,
                                          config.name);
-}
-
-size_t ResidualBlock::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-  size_t total_cache = 0;
-  total_cache += main_path_->fwd_cache_bytes(input_shapes);
-  if (shortcut_path_) {
-    total_cache += shortcut_path_->fwd_cache_bytes(input_shapes);
-  }
-  return total_cache;
-}
-
-size_t ResidualBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  size_t total_ws = 0;
-
-  auto output_shapes = main_path_->output_shapes(input_shapes);
-  size_t dtype_size = get_dtype_size(io_dtype_);
-  size_t output_bytes = 0;
-  for (const auto &shape : output_shapes) {
-    output_bytes +=
-        std::accumulate(shape.begin(), shape.end(), dtype_size, std::multiplies<size_t>());
-  }
-  total_ws = std::max(
-      total_ws,
-      output_bytes + output_bytes);  // need to keep both main and shortcut outputs for the join
-
-  // Main path workspace
-  total_ws = std::max(total_ws, main_path_->fwd_workspace(input_shapes));
-
-  // Shortcut path workspace
-  if (shortcut_path_) {
-    total_ws = std::max(total_ws, shortcut_path_->fwd_workspace(input_shapes));
-  }
-
-  return total_ws;
-}
-
-size_t ResidualBlock::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  size_t dtype_size = get_dtype_size(io_dtype_);
-
-  auto output_shapes = main_path_->output_shapes(input_shapes);
-  size_t main_output_bytes = 0;
-  for (const auto &shape : output_shapes) {
-    main_output_bytes +=
-        std::accumulate(shape.begin(), shape.end(), dtype_size, std::multiplies<size_t>());
-  }
-
-  size_t shortcut_output_bytes = 0;
-  if (shortcut_path_) {
-    auto shortcut_output_shapes = shortcut_path_->output_shapes(input_shapes);
-    for (const auto &shape : shortcut_output_shapes) {
-      shortcut_output_bytes +=
-          std::accumulate(shape.begin(), shape.end(), dtype_size, std::multiplies<size_t>());
-    }
-  }
-
-  // Compute M_b,i (buffer cycling workspace) for each path
-  size_t main_workspace = main_path_->inf_workspace(input_shapes);
-  size_t shortcut_workspace = 0;
-  if (shortcut_path_) {
-    shortcut_workspace = shortcut_path_->inf_workspace(input_shapes);
-  }
-
-  // Apply Algorithm 2 from paper (MISO joining)
-  // We have 2 sequences with (a_i, b_i) = (M_b,i, O_i)
-  // Sort by (a_i - b_i) descending to find optimal order
-  struct PathInfo {
-    size_t workspace;     // a_i
-    size_t output_bytes;  // b_i
-    size_t priority;      // a_i - b_i
-  };
-
-  PathInfo main_info{main_workspace + main_output_bytes, main_output_bytes, main_workspace};
-  PathInfo shortcut_info{shortcut_workspace + shortcut_output_bytes, shortcut_output_bytes,
-                         shortcut_workspace};
-
-  // Execute in optimal order and compute peak memory
-  size_t k = 0;
-  if (main_info.priority >= shortcut_info.priority) {
-    // Execute main first, then shortcut
-    k = std::max(main_info.workspace, shortcut_info.workspace + main_info.output_bytes);
-  } else {
-    // Execute shortcut first, then main
-    k = std::max(shortcut_info.workspace, main_info.workspace + shortcut_info.output_bytes);
-  }
-
-  // Add space for the join operation (add + optional activation)
-  size_t join_output_bytes = 0;
-  for (const auto &shape : output_shapes) {
-    join_output_bytes +=
-        std::accumulate(shape.begin(), shape.end(), dtype_size, std::multiplies<size_t>());
-  }
-
-  k = std::max(k, main_output_bytes + shortcut_output_bytes + join_output_bytes);
-
-  return k;
-}
-
-size_t ResidualBlock::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  size_t total_ws = 0;
-
-  total_ws = std::max(total_ws, main_path_->bwd_workspace(input_shapes));
-
-  if (shortcut_path_) {
-    total_ws = std::max(total_ws, shortcut_path_->bwd_workspace(input_shapes));
-  }
-
-  return total_ws;
 }
 
 }  // namespace tnn

@@ -160,8 +160,7 @@ private:
     // NHWC format: (Batch, Height, Width, Channels)
     batch_data = make_tensor<T>({actual_batch_size, mnist_constants::IMAGE_HEIGHT,
                                  mnist_constants::IMAGE_WIDTH, mnist_constants::NUM_CHANNELS});
-    batch_labels = make_tensor<T>({actual_batch_size, mnist_constants::NUM_CLASSES});
-    batch_labels->fill(0.0);
+    batch_labels = make_tensor<int>({actual_batch_size});
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
@@ -182,9 +181,7 @@ private:
                            0}) = static_cast<T>(pixel_buf[j]);
       }
 
-      if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
-        batch_labels->at<T>({i, static_cast<size_t>(label)}) = static_cast<T>(1.0);
-      }
+      batch_labels->at<int>({i}) = label;
     }
 
     this->apply_augmentation(batch_data, batch_labels);

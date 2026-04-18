@@ -10,6 +10,7 @@
 
 #include "ops/cpu/kernels.hpp"
 #include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {

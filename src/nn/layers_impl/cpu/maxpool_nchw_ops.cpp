@@ -74,7 +74,7 @@ void run_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
   });
 }
 
-#define INSTANTIATE_MAXPOOL(T)                                                                     \
+#define INSTANTIATE(T)                                                                             \
   template void run_forward<T>(const T *input_data, T *output_data, size_t batch_size,             \
                                size_t channels, size_t input_h, size_t input_w, size_t output_h,   \
                                size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,     \
@@ -83,11 +83,9 @@ void run_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
   template void run_backward<T>(const T *gradient_data, T *grad_input_data, size_t batch_size,     \
                                 size_t channels, size_t output_h, size_t output_w,                 \
                                 const size_t *mask_indices);
-INSTANTIATE_MAXPOOL(fp16)
-INSTANTIATE_MAXPOOL(bf16)
-INSTANTIATE_MAXPOOL(float)
-INSTANTIATE_MAXPOOL(double)
-#undef INSTANTIATE_MAXPOOL
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace maxpool_nchw
 }  // namespace cpu

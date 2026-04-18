@@ -21,18 +21,15 @@ __global__ void run_forward_imp(const T* input, const T* token, T* output, size_
   if (idx >= total_elements) return;
 
   size_t output_seq_len = seq_len + 1;
-  // idx corresponds to flattened output: (N, S+1, E)
-  // idx = n * (S+1)*E + s_out * E + e
+
   size_t e = idx % embed_dim;
   size_t tmp = idx / embed_dim;
   size_t s_out = tmp % output_seq_len;
   size_t n = tmp / output_seq_len;
 
   if (s_out == 0) {
-    // Class token
     output[idx] = token[e];
   } else {
-    // Input data shifted by 1 in sequence dim
     size_t s_in = s_out - 1;
     size_t in_idx = n * seq_len * embed_dim + s_in * embed_dim + e;
     output[idx] = input[in_idx];
@@ -56,14 +53,13 @@ __global__ void run_backward_input_imp(const T* grad_output, T* grad_input, size
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_input_elements) return;
 
-  // idx = flattened input grad: (N, S, E)
   size_t e = idx % embed_dim;
   size_t tmp = idx / embed_dim;
   size_t s_in = tmp % seq_len;
   size_t n = tmp / seq_len;
 
   size_t output_seq_len = seq_len + 1;
-  // Corresponding output grad index: (n, s_in + 1, e)
+
   size_t out_idx = n * output_seq_len * embed_dim + (s_in + 1) * embed_dim + e;
 
   grad_input[idx] = grad_output[out_idx];
@@ -76,15 +72,16 @@ __global__ void run_backward_token_imp(const T* grad_output, T* grad_token, size
   size_t total_items = batch_size * embed_dim;
   if (idx >= total_items) return;
 
-  // We parallelize over (batch, embed_dim) to accumulate token gradients
   size_t e = idx % embed_dim;
   size_t n = idx / embed_dim;
 
   size_t output_seq_len = seq_len + 1;
-  // Token is at s=0
+
   size_t out_idx = n * output_seq_len * embed_dim + 0 * embed_dim + e;
 
-  atomicAdd(&grad_token[e], grad_output[out_idx]);
+  if constexpr (std::is_floating_point<T>::value) {
+    atomicAdd(&grad_token[e], grad_output[out_idx]);
+  }
 }
 
 template <typename T>
@@ -96,25 +93,21 @@ void run_backward(const T* grad_output, T* grad_input, T* grad_token, size_t bat
   run_backward_input_imp<T>
       <<<blocks, threads, 0, stream>>>(grad_output, grad_input, seq_len, embed_dim, total_input);
 
-  // Parallelize over (batch * embed_dim) to accumulate
   size_t total_token_contribs = batch_size * embed_dim;
   blocks = (total_token_contribs + threads - 1) / threads;
   run_backward_token_imp<T>
       <<<blocks, threads, 0, stream>>>(grad_output, grad_token, batch_size, seq_len, embed_dim);
 }
 
-#define INSTANTIATE_CLASS_TOKEN(T)                                                           \
+#define INSTANTIATE(T)                                                                       \
   template void run_forward<T>(const T* input, const T* token, T* output, size_t batch_size, \
                                size_t seq_len, size_t embed_dim, cudaStream_t stream);       \
   template void run_backward<T>(const T* grad_output, T* grad_input, T* grad_token,          \
                                 size_t batch_size, size_t seq_len, size_t embed_dim,         \
                                 cudaStream_t stream);
+#include "macros/floating_type_instantiation.hpp"
 
-INSTANTIATE_CLASS_TOKEN(fp16)
-INSTANTIATE_CLASS_TOKEN(bf16)
-INSTANTIATE_CLASS_TOKEN(float)
-INSTANTIATE_CLASS_TOKEN(double)
-#undef INSTANTIATE_CLASS_TOKEN
+#undef INSTANTIATE
 }  // namespace class_token
 }  // namespace cuda
 }  // namespace tnn

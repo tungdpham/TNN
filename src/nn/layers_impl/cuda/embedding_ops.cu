@@ -59,8 +59,10 @@ __global__ void embedding_backward_kernel(const T* input, const T* grad, T* weig
 
   if (padding_idx < vocab_size && vocab_idx == padding_idx) return;
 
-  T g_val = grad[tid];
-  atomicAdd(&weight_grad[vocab_idx * embed_dim + dim_idx], g_val);
+  if constexpr (std::is_floating_point<T>::value) {
+    T g_val = grad[tid];
+    atomicAdd(&weight_grad[vocab_idx * embed_dim + dim_idx], g_val);
+  }
 }
 
 template <typename T>
@@ -74,17 +76,15 @@ void run_backward(const T* input_data, const T* gradient_data, T* weight_grad_da
       input_data, gradient_data, weight_grad_data, num_indices, vocab_size, embed_dim, padding_idx);
 }
 
-#define INSTANTIATE_EMBEDDING(T)                                                        \
+#define INSTANTIATE(T)                                                                  \
   template void run_forward<T>(const T*, const T*, T*, size_t, size_t, size_t, size_t,  \
                                cudaStream_t);                                           \
                                                                                         \
   template void run_backward<T>(const T*, const T*, T*, size_t, size_t, size_t, size_t, \
                                 cudaStream_t);
-INSTANTIATE_EMBEDDING(fp16)
-INSTANTIATE_EMBEDDING(bf16)
-INSTANTIATE_EMBEDDING(float)
-INSTANTIATE_EMBEDDING(double)
-#undef INSTANTIATE_EMBEDDING
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace embedding
 }  // namespace cuda

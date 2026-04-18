@@ -86,7 +86,7 @@ inline Tensor dtype_cast(const ConstTensor &input, DType_t target_dtype) {
   const dptr &input_data = input->data_ptr();
   size_t input_size = input->size();
   dptr output_data = make_dptr(input->device(), input_size * get_dtype_size(target_dtype));
-  DISPATCH_ON_ANY_DTYPE(
+  DISPATCH_ANY_DTYPE(
       input->data_type(), A_T,
       DISPATCH_DTYPE(target_dtype, B_T, ops::cast<A_T, B_T>(input_data, output_data, input_size)));
   return make_tensor(input->allocator(), target_dtype, input->shape(), std::move(output_data));

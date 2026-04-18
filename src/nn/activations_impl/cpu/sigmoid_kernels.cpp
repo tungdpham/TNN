@@ -21,15 +21,13 @@ void sigmoid_gradient(const T *input, const T *grad_output, T *grad_input, size_
   });
 }
 
-#define INSTANTIATE_SIGMOID(T)                                                           \
+#define INSTANTIATE(T)                                                                   \
   template void sigmoid<T>(const T *input, T *output, size_t size);                      \
   template void sigmoid_gradient<T>(const T *input, const T *grad_output, T *grad_input, \
                                     size_t size);
-INSTANTIATE_SIGMOID(fp16)
-INSTANTIATE_SIGMOID(bf16)
-INSTANTIATE_SIGMOID(float)
-INSTANTIATE_SIGMOID(double)
-#undef INSTANTIATE_SIGMOID
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace cpu
 }  // namespace tnn

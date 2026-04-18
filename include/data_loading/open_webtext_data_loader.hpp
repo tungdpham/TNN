@@ -21,10 +21,7 @@ private:
     }
 
     batch_data = make_tensor<T>({batch_size, context_length_});
-    batch_labels = make_tensor<T>({batch_size, context_length_, vocab_size_});
-
-    T *label_ptr = static_cast<T *>(batch_labels->data());
-    std::fill(label_ptr, label_ptr + batch_labels->size(), static_cast<T>(0));
+    batch_labels = make_tensor<int>({batch_size, context_length_});
 
     for (size_t b = 0; b < batch_size; ++b) {
       size_t start_pos;
@@ -38,10 +35,8 @@ private:
       for (size_t i = 0; i < context_length_; ++i) {
         batch_data->at<T>({b, i}) = static_cast<T>(mapped_data_[start_pos + i]);
         int token_id = static_cast<int>(mapped_data_[start_pos + i + 1]);
-        // Only set label if token is valid and not a padding token
-        if (token_id >= 0 && token_id < (int)vocab_size_ && token_id != padding_token_id_) {
-          batch_labels->at<T>({b, i, (size_t)token_id}) = static_cast<T>(1);
-        }
+        // Store the token_id directly as an integer label
+        batch_labels->at<int>({b, i}) = token_id;
       }
     }
 

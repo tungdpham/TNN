@@ -31,21 +31,6 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   static std::unique_ptr<ActivationLayer> create_from_config(const LayerConfig &config);
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override {
-    return get_shapes_bytes(input_shapes, io_dtype_);
-  }
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    return get_shapes_bytes(input_shapes, io_dtype_);
-  }
-
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 };
 

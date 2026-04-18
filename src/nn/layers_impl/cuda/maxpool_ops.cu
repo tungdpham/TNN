@@ -14,25 +14,22 @@
 namespace tnn {
 namespace cuda {
 namespace maxpool {
-// Forward kernel for NHWC max pooling
+
 template <typename T>
 __global__ void run_forward_kernel(const T* input, T* output, int* mask_indices, size_t batch_size,
                                    size_t height, size_t width, size_t channels, size_t pool_h,
                                    size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,
                                    size_t pad_w, size_t output_h, size_t output_w) {
-  // Calculate output position
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_outputs = batch_size * output_h * output_w * channels;
 
   if (idx >= total_outputs) return;
 
-  // Decode NHWC indices
   size_t c = idx % channels;
   size_t ow = (idx / channels) % output_w;
   size_t oh = (idx / (channels * output_w)) % output_h;
   size_t b = idx / (channels * output_w * output_h);
 
-  // Calculate input window bounds
   int h_start = static_cast<int>(oh * stride_h) - static_cast<int>(pad_h);
   int w_start = static_cast<int>(ow * stride_w) - static_cast<int>(pad_w);
   int h_end = min(h_start + static_cast<int>(pool_h), static_cast<int>(height));
@@ -40,7 +37,6 @@ __global__ void run_forward_kernel(const T* input, T* output, int* mask_indices,
   h_start = max(h_start, 0);
   w_start = max(w_start, 0);
 
-  // Find maximum value
   float max_val = -INFINITY;
   int max_idx = -1;
   for (int h = h_start; h < h_end; ++h) {
@@ -58,12 +54,10 @@ __global__ void run_forward_kernel(const T* input, T* output, int* mask_indices,
   mask_indices[idx] = max_idx;
 }
 
-// Backward kernel for NHWC max pooling
 template <typename T>
 __global__ void run_backward_kernel(const T* grad_output, T* grad_input, const int* mask_indices,
                                     size_t batch_size, size_t channels, size_t output_h,
                                     size_t output_w) {
-  // Calculate output position
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_outputs = batch_size * output_h * output_w * channels;
 
@@ -71,24 +65,7 @@ __global__ void run_backward_kernel(const T* grad_output, T* grad_input, const i
 
   int max_idx = mask_indices[idx];
   if (max_idx >= 0) {
-    atomicAdd(&grad_input[max_idx], grad_output[idx]);
-  }
-}
-
-// Specialization for half precision atomicAdd
-template <>
-__global__ void run_backward_kernel<half>(const half* grad_output, half* grad_input,
-                                          const int* mask_indices, size_t batch_size,
-                                          size_t channels, size_t output_h, size_t output_w) {
-  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-  size_t total_outputs = batch_size * output_h * output_w * channels;
-
-  if (idx >= total_outputs) return;
-
-  int max_idx = mask_indices[idx];
-  if (max_idx >= 0) {
-    atomicAdd(reinterpret_cast<__half*>(&grad_input[max_idx]),
-              *reinterpret_cast<const __half*>(&grad_output[idx]));
+    atomicAdd(&grad_input[max_idx], static_cast<T>(grad_output[idx]));
   }
 }
 
@@ -120,7 +97,7 @@ void run_backward(const T* grad_output, T* grad_input, const int* mask_indices, 
   CUDA_CHECK(cudaGetLastError());
 }
 
-#define INSTANTIATE_MAXPOOL_FUNCS(T)                                                            \
+#define INSTANTIATE(T)                                                                          \
   template void run_forward<T>(const T* input, T* output, int* mask_indices, size_t batch_size, \
                                size_t height, size_t width, size_t channels, size_t pool_h,     \
                                size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,   \
@@ -128,11 +105,9 @@ void run_backward(const T* grad_output, T* grad_input, const int* mask_indices, 
   template void run_backward<T>(const T* grad_output, T* grad_input, const int* mask_indices,   \
                                 size_t batch_size, size_t channels, size_t output_h,            \
                                 size_t output_w);
-INSTANTIATE_MAXPOOL_FUNCS(fp16)
-INSTANTIATE_MAXPOOL_FUNCS(bf16)
-INSTANTIATE_MAXPOOL_FUNCS(float)
-INSTANTIATE_MAXPOOL_FUNCS(double)
-#undef INSTANTIATE_MAXPOOL_FUNCS
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace maxpool
 }  // namespace cuda

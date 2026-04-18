@@ -183,7 +183,7 @@ void run_backward(const T *grad_output, const float *norm_input, const float *in
   });
 }
 
-#define INSTANTIATE_BATCHNORM(T)                                                                 \
+#define INSTANTIATE(T)                                                                           \
   template void run_inference<T>(                                                                \
       const T *input_data, const float *running_mean_data, const float *running_var_data,        \
       const float *gamma_data, const float *beta_data, T *output_data, size_t batch_size,        \
@@ -197,11 +197,10 @@ void run_backward(const T *grad_output, const float *norm_input, const float *in
   template void run_backward<T>(                                                                 \
       const T *grad_output, const float *norm_input, const float *inv_std, const float *gamma,   \
       float *d_gamma, float *d_beta, T *grad_input, size_t N, size_t C, size_t S, bool affine);
-INSTANTIATE_BATCHNORM(fp16)
-INSTANTIATE_BATCHNORM(bf16)
-INSTANTIATE_BATCHNORM(float)
-INSTANTIATE_BATCHNORM(double)
-#undef INSTANTIATE_BATCHNORM
+
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace batchnorm_nchw
 }  // namespace cpu

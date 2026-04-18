@@ -56,15 +56,13 @@ void run_backward(const T *input_data, const T *gradient_data, T *weight_grad_da
   }
 }
 
-#define INSTANTIATE_EMBEDDING(T)                                                           \
+#define INSTANTIATE(T)                                                                     \
   template void run_forward<T>(const T *, const T *, T *, size_t, size_t, size_t, size_t); \
                                                                                            \
   template void run_backward<T>(const T *, const T *, T *, size_t, size_t, size_t, size_t);
-INSTANTIATE_EMBEDDING(fp16)
-INSTANTIATE_EMBEDDING(bf16)
-INSTANTIATE_EMBEDDING(float)
-INSTANTIATE_EMBEDDING(double)
-#undef INSTANTIATE_EMBEDDING
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace embedding
 }  // namespace cpu

@@ -105,7 +105,7 @@ public:
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
     if (data.get<void>() != nullptr) {
-      DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data, data_, data_size_));
+      DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data, data_, data_size_));
     }
   }
 
@@ -132,7 +132,7 @@ public:
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
     if (data.get<void>() != nullptr) {
-      DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data, data_, data_size_));
+      DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data, data_, data_size_));
     }
   }
 
@@ -263,13 +263,13 @@ public:
     if (device_type() == DeviceType::CPU && target_device.device_type() == DeviceType::GPU) {
       Vec<size_t> shape_vec(shape_);
       Tensor gpu_tensor = std::make_shared<TensorImpl>(allocator, dtype_, shape_vec);
-      DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, gpu_tensor->data_, data_size_));
+      DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, gpu_tensor->data_, data_size_));
       return gpu_tensor;
     }
     if (device_type() == DeviceType::GPU && target_device.device_type() == DeviceType::CPU) {
       Vec<size_t> shape_vec(shape_);
       Tensor cpu_tensor = std::make_shared<TensorImpl>(allocator, dtype_, shape_vec);
-      DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_));
+      DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_));
       return cpu_tensor;
     }
     throw std::runtime_error("Unsupported device type for to_device()");
@@ -282,7 +282,7 @@ public:
     auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
     Vec<size_t> shape_vec(shape_);
     Tensor cpu_tensor = std::make_shared<TensorImpl>(allocator, dtype_, shape_vec);
-    DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_));
     return cpu_tensor;
   }
 
@@ -322,8 +322,8 @@ public:
 
   std::unique_ptr<Task> fill(double value, flowHandle_t handle = defaultFlowHandle) {
     std::unique_ptr<Task> result;
-    DISPATCH_DTYPE(dtype_, T,
-                   result = ops::set_scalar<T>(data_, static_cast<T>(value), data_size_, handle));
+    DISPATCH_ANY_DTYPE(
+        dtype_, T, result = ops::set_scalar<T>(data_, static_cast<T>(value), data_size_, handle));
     return result;
   }
 
@@ -335,7 +335,7 @@ public:
     if (dtype_ != other->dtype_) {
       throw std::runtime_error("DType mismatch in TensorImpl addition");
     }
-    DISPATCH_DTYPE(dtype_, T, ops::add<T>(data_, other->data_, data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::add<T>(data_, other->data_, data_, data_size_));
   }
 
   void sub(const ConstTensor &other) {
@@ -345,7 +345,7 @@ public:
     if (dtype_ != other->dtype_) {
       throw std::runtime_error("DType mismatch in TensorImpl subtraction");
     }
-    DISPATCH_DTYPE(dtype_, T, ops::sub<T>(data_, other->data_, data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::sub<T>(data_, other->data_, data_, data_size_));
   }
 
   void mul(const ConstTensor &other) {
@@ -355,7 +355,7 @@ public:
     if (dtype_ != other->dtype_) {
       throw std::runtime_error("DType mismatch in TensorImpl multiplication");
     }
-    DISPATCH_DTYPE(dtype_, T, ops::mul<T>(data_, other->data_, data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::mul<T>(data_, other->data_, data_, data_size_));
   }
 
   void div(const ConstTensor &other) {
@@ -365,64 +365,68 @@ public:
     if (dtype_ != other->dtype_) {
       throw std::runtime_error("DType mismatch in TensorImpl division");
     }
-    DISPATCH_DTYPE(dtype_, T, ops::div<T>(data_, other->data_, data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::div<T>(data_, other->data_, data_, data_size_));
   }
 
   void add_scalar(double scalar) {
-    DISPATCH_DTYPE(dtype_, T, ops::add_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T,
+                       ops::add_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
   }
 
   void sub_scalar(double scalar) {
-    DISPATCH_DTYPE(dtype_, T, ops::sub_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T,
+                       ops::sub_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
   }
 
   void mul_scalar(double scalar) {
-    DISPATCH_DTYPE(dtype_, T, ops::mul_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T,
+                       ops::mul_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
   }
 
   void div_scalar(double scalar) {
     if (scalar == 0.0) {
       throw std::invalid_argument("Division by zero");
     }
-    DISPATCH_DTYPE(dtype_, T, ops::div_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T,
+                       ops::div_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
   }
 
   void fill_random_uniform(double range) {
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
         reinterpret_cast<uintptr_t>(data_.get<void>()));
-    DISPATCH_DTYPE(dtype_, T,
-                   ops::fill_random_uniform(data_, data_size_, T(0), static_cast<T>(range), seed));
+    DISPATCH_ANY_DTYPE(
+        dtype_, T, ops::fill_random_uniform(data_, data_size_, T(0), static_cast<T>(range), seed));
   }
 
   void fill_random_uniform(double min_val, double max_val) {
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
         reinterpret_cast<uintptr_t>(data_.get<void>()));
-    DISPATCH_DTYPE(dtype_, T,
-                   ops::fill_random_uniform(data_, data_size_, static_cast<T>(min_val),
-                                            static_cast<T>(max_val), seed));
+    DISPATCH_ANY_DTYPE(dtype_, T,
+                       ops::fill_random_uniform(data_, data_size_, static_cast<T>(min_val),
+                                                static_cast<T>(max_val), seed));
   }
 
   void fill_random_uniform(double min_val, double max_val, unsigned long long seed) {
-    DISPATCH_DTYPE(dtype_, T,
-                   ops::fill_random_uniform(data_, data_size_, static_cast<T>(min_val),
-                                            static_cast<T>(max_val), seed));
+    DISPATCH_ANY_DTYPE(dtype_, T,
+                       ops::fill_random_uniform(data_, data_size_, static_cast<T>(min_val),
+                                                static_cast<T>(max_val), seed));
   }
 
   void fill_random_normal(double mean, double stddev) {
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
         reinterpret_cast<uintptr_t>(data_.get<void>()));
-    DISPATCH_DTYPE(dtype_, T,
-                   ops::fill_random_normal(data_, data_size_, static_cast<T>(mean),
-                                           static_cast<T>(stddev), seed));
+    DISPATCH_ANY_DTYPE(dtype_, T,
+                       ops::fill_random_normal(data_, data_size_, static_cast<T>(mean),
+                                               static_cast<T>(stddev), seed));
   }
 
   void fill_random_normal(double mean, double stddev, unsigned long long seed) {
-    DISPATCH_DTYPE(dtype_, T,
-                   ops::fill_random_normal(data_, data_size_, static_cast<T>(mean),
-                                           static_cast<T>(stddev), seed));
+    DISPATCH_ANY_DTYPE(dtype_, T,
+                       ops::fill_random_normal(data_, data_size_, static_cast<T>(mean),
+                                               static_cast<T>(stddev), seed));
   }
 
   /**
@@ -433,7 +437,7 @@ public:
     if (dtype_ != target->dtype_) {
       throw std::runtime_error("DType mismatch in TensorImpl copy");
     }
-    DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, target->data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, target->data_, data_size_));
   }
 
   // unsafe version of copy_to that allows copying between different const ness
@@ -496,14 +500,14 @@ public:
     size_t dest_offset = dest_batch_idx * batch_stride;
     size_t dtype_size = get_dtype_size(dtype_);
 
-    DISPATCH_DTYPE(dtype_, T,
-                   ops::copy<T>(other.data_ + src_offset * dtype_size,
-                                data_ + dest_offset * dtype_size, batch_stride));
+    DISPATCH_ANY_DTYPE(dtype_, T,
+                       ops::copy<T>(other.data_ + src_offset * dtype_size,
+                                    data_ + dest_offset * dtype_size, batch_stride));
   }
 
   double min() const {
     double result = 0.0;
-    DISPATCH_DTYPE(dtype_, T, {
+    DISPATCH_ANY_DTYPE(dtype_, T, {
       auto cpu_tensor = to_device(getHost());
       T min_val = cpu_tensor->data_.template get<T>()[0];
       for (size_t i = 1; i < cpu_tensor->data_size_; ++i) {
@@ -518,7 +522,7 @@ public:
 
   double max() const {
     double result = 0.0;
-    DISPATCH_DTYPE(dtype_, T, {
+    DISPATCH_ANY_DTYPE(dtype_, T, {
       auto cpu_tensor = to_device(getHost());
       T max_val = cpu_tensor->data_as<T>()[0];
       for (size_t i = 1; i < cpu_tensor->data_size_; ++i) {
@@ -533,7 +537,7 @@ public:
 
   double mean() const {
     double result = 0.0;
-    DISPATCH_DTYPE(dtype_, T, {
+    DISPATCH_ANY_DTYPE(dtype_, T, {
       T sum = ops::sum<T>(data_, data_size_);
       result = static_cast<double>(sum / static_cast<T>((double)data_size_));
     });
@@ -542,7 +546,7 @@ public:
 
   double variance() const {
     double result = 0.0;
-    DISPATCH_DTYPE(dtype_, T, {
+    DISPATCH_ANY_DTYPE(dtype_, T, {
       T m = static_cast<T>(mean());
       T sum_sq_diff = ops::sum_squared_diff<T>(data_, m, data_size_);
       result = static_cast<double>(sum_sq_diff / static_cast<T>((double)data_size_));
@@ -554,7 +558,7 @@ public:
     Tensor cpu_tensor = to_device(getHost());
     size_t total_elements = cpu_tensor->size();
     std::cout << "TensorImpl data (shape " << cpu_tensor->shape_str() << "):\n";
-    DISPATCH_DTYPE(dtype_, T, {
+    DISPATCH_ANY_DTYPE(dtype_, T, {
       T *data = cpu_tensor->data_as<T>();
       for (size_t i = 0; i < total_elements; ++i) {
         std::cout << static_cast<float>(data[i]) << " ";
@@ -569,7 +573,7 @@ public:
     n = std::min(n, total_elements);
     std::cout << "TensorImpl head (first " << n << " elements of shape " << cpu_tensor->shape_str()
               << "):\n";
-    DISPATCH_DTYPE(dtype_, T, {
+    DISPATCH_ANY_DTYPE(dtype_, T, {
       T *data = cpu_tensor->data_as<T>();
       for (size_t i = 0; i < n; ++i) {
         std::cout << static_cast<float>(data[i]) << " ";
@@ -590,7 +594,7 @@ public:
     out.write(reinterpret_cast<const char *>(&dims), sizeof(size_t));
     out.write(reinterpret_cast<const char *>(shape_.data()), shape_.size() * sizeof(size_t));
 
-    DISPATCH_DTYPE(dtype_, T, {
+    DISPATCH_ANY_DTYPE(dtype_, T, {
       if (device_type() == DeviceType::CPU) {
         out.write(reinterpret_cast<const char *>(data_.get<T>()), data_size_ * sizeof(T));
       } else {

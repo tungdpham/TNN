@@ -191,17 +191,14 @@ void run_backward(const T *grad_output, Vec<T *> &grad_inputs, const Vec<const T
   }
 }
 
-#define INSTANTIATE_NARY_OPS(T)                                                                   \
+#define INSTANTIATE(T)                                                                            \
   template void run_forward<T>(const Vec<const T *> &, T *, const Vec<size_t> &, const NAryOp &); \
   template void run_backward<T>(const T *, Vec<T *> &, const Vec<const T *> &,                    \
                                 const Vec<size_t> &, const NAryOp &);
 
-INSTANTIATE_NARY_OPS(fp16)
-INSTANTIATE_NARY_OPS(bf16)
-INSTANTIATE_NARY_OPS(float)
-INSTANTIATE_NARY_OPS(double)
+#include "macros/floating_type_instantiation.hpp"
 
-#undef INSTANTIATE_NARY_OPS
+#undef INSTANTIATE
 
 }  // namespace nary
 }  // namespace cpu

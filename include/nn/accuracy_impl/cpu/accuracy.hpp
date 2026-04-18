@@ -19,7 +19,7 @@ float compute_class_accuracy(const T *predictions, const T *targets, const size_
 
 // Compute class corrects
 template <typename T>
-int compute_class_corrects(const T *predictions, const T *targets, const size_t batch_size,
+int compute_class_corrects(const T *predictions, const int *targets, const size_t batch_size,
                            const size_t num_classes, float threshold = 0.5f);
 
 }  // namespace accuracy

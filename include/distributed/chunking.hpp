@@ -7,7 +7,6 @@
 #include <iostream>
 #include <mutex>
 #include <unordered_map>
-#include <vector>
 
 #include "device/dptr.hpp"
 #include "device/iallocator.hpp"

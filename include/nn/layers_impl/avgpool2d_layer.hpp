@@ -49,23 +49,6 @@ public:
   AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
                  size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "avgpool2d");
 
-  // no caching needed
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
-  // workspace needed to materialize output
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  // workspace needed for inference (can be different from forward pass if we can reuse some
-  // buffers)
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  // workspace needed for backward pass (e.g., can be workspace + input gradient bytes)
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    return get_shapes_bytes(input_shapes, io_dtype_);
-  }
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;

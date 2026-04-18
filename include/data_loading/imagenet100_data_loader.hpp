@@ -87,8 +87,7 @@ private:
     batch_data =
         make_tensor<T>({actual_batch_size, imagenet100_constants::IMAGE_HEIGHT,
                         imagenet100_constants::IMAGE_WIDTH, imagenet100_constants::NUM_CHANNELS});
-    batch_labels = make_tensor<T>({actual_batch_size, imagenet100_constants::NUM_CLASSES, 1, 1});
-    batch_labels->fill(0.0);
+    batch_labels = make_tensor<int>({actual_batch_size});
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
@@ -110,9 +109,7 @@ private:
         }
       }
 
-      if (class_index >= 0 && class_index < static_cast<int>(imagenet100_constants::NUM_CLASSES)) {
-        batch_labels->at<T>({i, static_cast<size_t>(class_index), 0, 0}) = static_cast<T>(1.0);
-      }
+      batch_labels->at<int>({i}) = class_index;
     });
 
     this->apply_augmentation(batch_data, batch_labels);

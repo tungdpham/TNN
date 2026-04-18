@@ -132,14 +132,12 @@ private:
     const size_t height = cifar10_constants::IMAGE_HEIGHT;
     const size_t width = cifar10_constants::IMAGE_WIDTH;
     const size_t channels = cifar10_constants::NUM_CHANNELS;
-    const size_t num_classes = cifar10_constants::NUM_CLASSES;
 
     batch_data = make_tensor<T>({actual_batch_size, height, width, channels});
-    batch_labels = make_tensor<T>({actual_batch_size, num_classes, 1, 1});
-    batch_labels->fill(0.0);
+    batch_labels = make_tensor<int>({actual_batch_size});
 
     T *data_ptr = batch_data->data_as<T>();
-    T *labels_ptr = batch_labels->data_as<T>();
+    int *labels_ptr = batch_labels->data_as<int>();
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
@@ -163,9 +161,7 @@ private:
         }
       }
 
-      if (label >= 0 && label < static_cast<int>(num_classes)) {
-        labels_ptr[i * num_classes + label] = static_cast<T>(1.0);
-      }
+      labels_ptr[i] = label;
     });
 
     this->apply_augmentation(batch_data, batch_labels);

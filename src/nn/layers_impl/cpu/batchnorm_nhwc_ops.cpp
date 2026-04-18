@@ -167,7 +167,7 @@ void run_backward(const T *grad_output, const T *input, const float *mean, const
   });
 }
 
-#define INSTANTIATE_BATCHNORM_NHWC(T)                                                            \
+#define INSTANTIATE(T)                                                                           \
   template void run_inference<T>(                                                                \
       const T *input, const float *running_mean, const float *running_var, const float *gamma,   \
       const float *beta, T *output, size_t N, size_t C, size_t S, float epsilon, bool affine);   \
@@ -182,11 +182,9 @@ void run_backward(const T *grad_output, const T *input, const float *mean, const
                                 float *d_beta, T *grad_input, const bool *relu_mask, size_t N,   \
                                 size_t C, size_t S, bool affine, bool use_relu);
 
-INSTANTIATE_BATCHNORM_NHWC(fp16)
-INSTANTIATE_BATCHNORM_NHWC(bf16)
-INSTANTIATE_BATCHNORM_NHWC(float)
-INSTANTIATE_BATCHNORM_NHWC(double)
-#undef INSTANTIATE_BATCHNORM_NHWC
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace batchnorm_nhwc
 }  // namespace cpu

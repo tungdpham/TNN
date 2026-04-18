@@ -127,7 +127,7 @@ void add_bias(T* output_data, const T* bias_data, const size_t batch_size, const
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
-#define INSTANTIATE_CONV2D(T)                                                                    \
+#define INSTANTIATE(T)                                                                           \
   template void run_forward<T>(const T* col_data, const T* weight_data, T* output_data,          \
                                const size_t output_size, const size_t kernel_size,               \
                                const size_t out_channels, cudaStream_t stream);                  \
@@ -147,12 +147,9 @@ void add_bias(T* output_data, const T* bias_data, const size_t batch_size, const
   template void add_bias<T>(T * output_data, const T* bias_data, const size_t batch_size,        \
                             const size_t output_h, const size_t output_w,                        \
                             const size_t out_channels, cudaStream_t stream);
+#include "macros/floating_type_instantiation.hpp"
 
-INSTANTIATE_CONV2D(fp16)
-INSTANTIATE_CONV2D(bf16)
-INSTANTIATE_CONV2D(float)
-INSTANTIATE_CONV2D(double)
-#undef INSTANTIATE_CONV2D
+#undef INSTANTIATE
 
 }  // namespace conv2d_nchw
 }  // namespace cuda

@@ -33,14 +33,12 @@ void apply_causal_mask(T *scores, size_t batch_count, size_t L, T neg_inf) {
   }
 }
 
-#define INSTANTIATE_APPLY_CAUSAL_MASK(T)                                                \
+#define INSTANTIATE(T)                                                                  \
   template void fill_causal_mask<T>(T * mask, size_t batch_count, size_t L, T neg_inf); \
   template void apply_causal_mask<T>(T * scores, size_t batch_count, size_t L, T neg_inf);
-INSTANTIATE_APPLY_CAUSAL_MASK(fp16)
-INSTANTIATE_APPLY_CAUSAL_MASK(bf16)
-INSTANTIATE_APPLY_CAUSAL_MASK(float)
-INSTANTIATE_APPLY_CAUSAL_MASK(double)
-#undef INSTANTIATE_APPLY_CAUSAL_MASK
+
+#include "macros/floating_type_instantiation.hpp"
+#undef INSTANTIATE
 
 }  // namespace cpu
 }  // namespace tnn

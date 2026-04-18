@@ -166,35 +166,6 @@ LayerConfig NAryOpLayer::get_config() const {
   return config;
 }
 
-size_t NAryOpLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-  return get_shapes_bytes(input_shapes, io_dtype_);
-}
-
-size_t NAryOpLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto output_shapes = this->output_shapes(input_shapes);
-  size_t output_bytes = get_shapes_bytes(output_shapes, io_dtype_);
-#ifdef USE_CUDA
-  if (get_engine_type() == EngineType::CUDA) {
-    return cuda::nary::nary_forward_workspace_bytes(input_shapes.size()) + output_bytes;
-  }
-#endif
-  return output_bytes;
-}
-
-size_t NAryOpLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  return fwd_workspace(input_shapes);
-}
-
-size_t NAryOpLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  size_t input_bytes = get_shapes_bytes(input_shapes, io_dtype_);
-#ifdef USE_CUDA
-  if (get_engine_type() == EngineType::CUDA) {
-    return cuda::nary::nary_backward_workspace_bytes(input_shapes.size()) + input_bytes;
-  }
-#endif
-  return input_bytes;
-}
-
 std::unique_ptr<AddLayer> AddLayer::create_from_config(const LayerConfig &config) {
   return std::make_unique<AddLayer>(config.name);
 }

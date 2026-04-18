@@ -8,8 +8,6 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <vector>
-
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
 #include "device/task.hpp"
@@ -66,7 +64,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyLossBasic) {
   const float epsilon = 1e-7f;
 
   Vec<float> predictions(batch_size * num_classes);
-  Vec<float> targets(batch_size * num_classes, 0.0f);
+  Vec<int> labels(batch_size);
 
   for (size_t i = 0; i < batch_size; ++i) {
     float sum = 0.0f;
@@ -79,26 +77,26 @@ TEST_F(CUDALossOpsTest, CrossEntropyLossBasic) {
       predictions[i * num_classes + j] /= sum;
     }
 
-    size_t target_class = i % num_classes;
-    targets[i * num_classes + target_class] = 1.0f;
+    labels[i] = static_cast<int>(i % num_classes);
   }
 
   float cpu_loss, gpu_loss;
 
-  auto loss_task = create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss<float>,
-                                   predictions.data(), targets.data(), cpu_loss, batch_size,
-                                   num_classes, epsilon);
+  auto loss_task = create_cpu_task(
+      defaultFlowHandle, cpu::loss::compute_crossentropy_loss_probs<float>, predictions.data(),
+      labels.data(), cpu_loss, batch_size, num_classes, epsilon);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
-  dptr gpu_targets = make_dptr_t<float>(getGPU(), targets.size());
+  dptr gpu_labels = make_dptr_t<int>(getGPU(), labels.size());
 
   getGPU().copyToDevice(gpu_predictions.get<float>(), predictions.data(),
                         predictions.size() * sizeof(float));
-  getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
+  getGPU().copyToDevice(gpu_labels.get<int>(), labels.data(), labels.size() * sizeof(int));
 
-  auto gpu_loss_task = create_cuda_task(
-      defaultFlowHandle, cuda::loss::compute_crossentropy_loss<float>, gpu_predictions.get<float>(),
-      gpu_targets.get<float>(), gpu_loss, batch_size, num_classes, epsilon);
+  auto gpu_loss_task =
+      create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss_probs<float>,
+                       gpu_predictions.get<float>(), gpu_labels.get<int>(), gpu_loss, batch_size,
+                       num_classes, epsilon);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-4f);
 }
@@ -109,7 +107,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyGradientBasic) {
   float epsilon = 1e-7f;
 
   Vec<float> predictions(batch_size * num_classes);
-  Vec<float> targets(batch_size * num_classes, 0.0f);
+  Vec<int> labels(batch_size);
 
   for (size_t i = 0; i < batch_size; ++i) {
     float sum = 0.0f;
@@ -122,27 +120,26 @@ TEST_F(CUDALossOpsTest, CrossEntropyGradientBasic) {
       predictions[i * num_classes + j] /= sum;
     }
 
-    size_t target_class = i % num_classes;
-    targets[i * num_classes + target_class] = 1.0f;
+    labels[i] = static_cast<int>(i % num_classes);
   }
 
   Vec<float> cpu_gradient(batch_size * num_classes);
 
-  create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_gradient<float>,
-                  predictions.data(), targets.data(), cpu_gradient.data(), batch_size, num_classes,
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_gradient_probs<float>,
+                  predictions.data(), labels.data(), cpu_gradient.data(), batch_size, num_classes,
                   epsilon);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
-  dptr gpu_targets = make_dptr_t<float>(getGPU(), targets.size());
+  dptr gpu_labels = make_dptr_t<int>(getGPU(), labels.size());
   dptr gpu_gradient = make_dptr_t<float>(getGPU(), batch_size * num_classes);
 
   getGPU().copyToDevice(gpu_predictions.get<float>(), predictions.data(),
                         predictions.size() * sizeof(float));
-  getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
+  getGPU().copyToDevice(gpu_labels.get<int>(), labels.data(), labels.size() * sizeof(int));
 
-  create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_gradient<float>,
-                   gpu_predictions.get<float>(), gpu_targets.get<float>(),
-                   gpu_gradient.get<float>(), batch_size, num_classes, epsilon);
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_gradient_probs<float>,
+                   gpu_predictions.get<float>(), gpu_labels.get<int>(), gpu_gradient.get<float>(),
+                   batch_size, num_classes, epsilon);
 
   Vec<float> gpu_gradient_cpu(batch_size * num_classes);
   getGPU().copyToHost(gpu_gradient_cpu.data(), gpu_gradient.get<float>(),
@@ -157,7 +154,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyLargeBatch) {
   const float epsilon = 1e-7f;
 
   Vec<float> predictions(batch_size * num_classes);
-  Vec<float> targets(batch_size * num_classes, 0.0f);
+  Vec<int> labels(batch_size);
 
   for (size_t i = 0; i < batch_size; ++i) {
     float sum = 0.0f;
@@ -170,24 +167,23 @@ TEST_F(CUDALossOpsTest, CrossEntropyLargeBatch) {
       predictions[i * num_classes + j] /= sum;
     }
 
-    size_t target_class = i % num_classes;
-    targets[i * num_classes + target_class] = 1.0f;
+    labels[i] = static_cast<int>(i % num_classes);
   }
 
   float cpu_loss, gpu_loss;
 
-  create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss<float>,
-                  predictions.data(), targets.data(), cpu_loss, batch_size, num_classes, epsilon);
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss_probs<float>,
+                  predictions.data(), labels.data(), cpu_loss, batch_size, num_classes, epsilon);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
-  dptr gpu_targets = make_dptr_t<float>(getGPU(), targets.size());
+  dptr gpu_labels = make_dptr_t<int>(getGPU(), labels.size());
 
   getGPU().copyToDevice(gpu_predictions.get<float>(), predictions.data(),
                         predictions.size() * sizeof(float));
-  getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
+  getGPU().copyToDevice(gpu_labels.get<int>(), labels.data(), labels.size() * sizeof(int));
 
-  create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss<float>,
-                   gpu_predictions.get<float>(), gpu_targets.get<float>(), gpu_loss, batch_size,
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss_probs<float>,
+                   gpu_predictions.get<float>(), gpu_labels.get<int>(), gpu_loss, batch_size,
                    num_classes, epsilon);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-3f);

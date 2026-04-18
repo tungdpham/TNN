@@ -35,11 +35,9 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
   while (train_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
     // Split batch into micro-batches
     Vec<Tensor> micro_batch_inputs;
-    DISPATCH_DTYPE(batch_data->data_type(), T,
-                   ops::split<T>(batch_data, micro_batch_inputs, config.num_microbatches));
+    ops::split(batch_data, micro_batch_inputs, config.num_microbatches);
     Vec<Tensor> micro_batch_labels;
-    DISPATCH_DTYPE(batch_labels->data_type(), T,
-                   ops::split<T>(batch_labels, micro_batch_labels, config.num_microbatches));
+    ops::split(batch_labels, micro_batch_labels, config.num_microbatches);
 
     auto process_start = std::chrono::high_resolution_clock::now();
     // Perform forward, compute loss, and backward asynchronously.
