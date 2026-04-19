@@ -9,14 +9,16 @@
 #include <chrono>
 #include <ctime>
 #include <filesystem>
-#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 
 #include "logging/logger.hpp"
 
 namespace tnn {
+
+struct LogMode;  // Forward declaration
 
 inline std::string csv_timestamp() {
   auto now = std::chrono::system_clock::now();
@@ -32,59 +34,18 @@ struct CsvLogger {
   Logger batch_logger;
   Logger val_logger;
   Logger epoch_logger;
+  std::vector<std::string> batch_metrics;
+  std::vector<std::string> val_metrics;
+  std::vector<std::string> epoch_metrics;
 
-  CsvLogger(const std::string &model_name, const std::string &log_dir)
-      : batch_logger(model_name + "_batch", ""),
-        val_logger(model_name + "_val", ""),
-        epoch_logger(model_name + "_epoch", "") {
-    std::filesystem::create_directories(log_dir);
-    std::string ts = csv_timestamp();
+  CsvLogger(const std::string &model_name, const std::string &log_dir,
+            const LogMode *log_mode = nullptr);
 
-    std::string batch_path = log_dir + "/" + model_name + "_batch_" + ts + ".csv";
-    std::string val_path = log_dir + "/" + model_name + "_val_" + ts + ".csv";
-    std::string epoch_path = log_dir + "/" + model_name + "_epoch_" + ts + ".csv";
+  void log_batch(int epoch, int step, const std::unordered_map<std::string, double> &metrics);
 
-    batch_logger.set_log_file(batch_path);
-    batch_logger.set_pattern("%v");
-    batch_logger.info("epoch,step,loss,accuracy_pct,time_ms");
-    batch_logger.flush();
+  void log_val_batch(int epoch, int step, const std::unordered_map<std::string, double> &metrics);
 
-    val_logger.set_log_file(val_path);
-    val_logger.set_pattern("%v");
-    val_logger.info("epoch,step,loss,accuracy_pct");
-    val_logger.flush();
-
-    epoch_logger.set_log_file(epoch_path);
-    epoch_logger.set_pattern("%v");
-    epoch_logger.info("epoch,train_loss,train_accuracy_pct,val_loss,val_accuracy_pct");
-    epoch_logger.flush();
-  }
-
-  void log_batch(int epoch, int step, float loss, double accuracy_pct, long time_ms) {
-    std::ostringstream row;
-    row << epoch << "," << step << "," << std::fixed << std::setprecision(6) << loss << ","
-        << std::setprecision(4) << accuracy_pct << "," << time_ms;
-    batch_logger.info(row.str());
-    batch_logger.flush();
-  }
-
-  void log_val_batch(int epoch, int step, float loss, double accuracy_pct) {
-    std::ostringstream row;
-    row << epoch << "," << step << "," << std::fixed << std::setprecision(6) << loss << ","
-        << std::setprecision(4) << accuracy_pct;
-    val_logger.info(row.str());
-    val_logger.flush();
-  }
-
-  void log_epoch(int epoch, double train_loss, double train_acc_pct, double val_loss,
-                 double val_acc_pct) {
-    std::ostringstream row;
-    row << epoch << "," << std::fixed << std::setprecision(6) << train_loss << ","
-        << std::setprecision(4) << train_acc_pct << "," << std::setprecision(6) << val_loss << ","
-        << std::setprecision(4) << val_acc_pct;
-    epoch_logger.info(row.str());
-    epoch_logger.flush();
-  }
+  void log_epoch(int epoch, const std::unordered_map<std::string, double> &metrics);
 
   void flush() {
     batch_logger.flush();

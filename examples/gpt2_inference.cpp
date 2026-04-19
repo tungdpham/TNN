@@ -30,7 +30,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  string device_str = Env::get<string>("DEVICE_TYPE", "CPU");
+  string device_str = "CPU";
+  Env::get("DEVICE_TYPE", device_str);
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   cout << "Using device: " << (device_type == DeviceType::GPU ? "GPU" : "CPU") << endl;
 

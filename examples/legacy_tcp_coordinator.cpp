@@ -31,18 +31,23 @@ int main() {
   train_config.print_config();
 
   // Prioritize loading existing model, else create from available ones
-  std::string model_name = Env::get<std::string>("MODEL_NAME", "cifar10_resnet9");
-  std::string model_path = Env::get<std::string>("MODEL_PATH", "");
+  std::string model_name = "cifar10_resnet9";
+  Env::get("MODEL_NAME", model_name);
+  std::string model_path = "";
+  Env::get("MODEL_PATH", model_path);
 
-  std::string device_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
+  std::string device_str = "CPU";
+  Env::get("DEVICE_TYPE", device_str);
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   const auto &device = DeviceManager::getInstance().getDevice(device_type);
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
-  string dataset_name = Env::get<std::string>("DATASET_NAME", "");
+  string dataset_name = "";
+  Env::get("DATASET_NAME", dataset_name);
   if (dataset_name.empty()) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");
   }
-  string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
+  string dataset_path = "data";
+  Env::get("DATASET_PATH", dataset_path);
   auto [train_loader, val_loader] = legacy::DataLoaderFactory::create(dataset_name, dataset_path);
   if (!train_loader || !val_loader) {
     cerr << "Failed to create data loaders for model: " << model_name << endl;
@@ -59,21 +64,31 @@ int main() {
   auto scheduler = SchedulerFactory::create_step_lr(
       optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.6f);
 
-  Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
-                                                Env::get<int>("COORDINATOR_PORT", 9000));
+  std::string coordinator_host = "localhost";
+  int coordinator_port = 9000;
+  Env::get("COORDINATOR_HOST", coordinator_host);
+  Env::get("COORDINATOR_PORT", coordinator_port);
+  Endpoint coordinator_endpoint = Endpoint::tcp(coordinator_host, coordinator_port);
 
-  Endpoint local_worker_endpoint =
-      Endpoint::tcp(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
-                    Env::get<int>("LOCAL_WORKER_PORT", 8000));
+  std::string local_worker_host = "localhost";
+  int local_worker_port = 8000;
+  Env::get("LOCAL_WORKER_HOST", local_worker_host);
+  Env::get("LOCAL_WORKER_PORT", local_worker_port);
+  Endpoint local_worker_endpoint = Endpoint::tcp(local_worker_host, local_worker_port);
+
   int local_worker_position = 0;  // default to first
-  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSITION", "first");
+  std::string position_str = "first";
+  Env::get("LOCAL_WORKER_POSITION", position_str);
   if (position_str == "last") {
     local_worker_position = 1;
   }
 
+  std::string worker1_host = "localhost";
+  int worker1_port = 8001;
+  Env::get("WORKER1_HOST", worker1_host);
+  Env::get("WORKER1_PORT", worker1_port);
   vector<Endpoint> endpoints = {
-      Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
-                    Env::get<int>("WORKER1_PORT", 8001)),
+      Endpoint::tcp(worker1_host, worker1_port),
 
   };
 

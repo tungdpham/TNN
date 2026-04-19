@@ -53,19 +53,31 @@ int main() {
   auto scheduler = SchedulerFactory::create_step_lr(
       optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.6f);
 
-  Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
-                                                Env::get<int>("COORDINATOR_PORT", 9000));
-  Endpoint local_worker_endpoint =
-      Endpoint::tcp(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
-                    Env::get<int>("LOCAL_WORKER_PORT", 8000));
+  std::string coordinator_host = "localhost";
+  int coordinator_port = 9000;
+  Env::get("COORDINATOR_HOST", coordinator_host);
+  Env::get("COORDINATOR_PORT", coordinator_port);
+  Endpoint coordinator_endpoint = Endpoint::tcp(coordinator_host, coordinator_port);
+
+  std::string local_worker_host = "localhost";
+  int local_worker_port = 8000;
+  Env::get("LOCAL_WORKER_HOST", local_worker_host);
+  Env::get("LOCAL_WORKER_PORT", local_worker_port);
+  Endpoint local_worker_endpoint = Endpoint::tcp(local_worker_host, local_worker_port);
+
   int local_worker_position = 0;  // default to first
-  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSITION", "first");
+  std::string position_str = "first";
+  Env::get("LOCAL_WORKER_POSITION", position_str);
   if (position_str == "last") {
     local_worker_position = 1;
   }
+
+  std::string worker1_host = "localhost";
+  int worker1_port = 8001;
+  Env::get("WORKER1_HOST", worker1_host);
+  Env::get("WORKER1_PORT", worker1_port);
   vector<Endpoint> endpoints = {
-      Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
-                    Env::get<int>("WORKER1_PORT", 8001)),
+      Endpoint::tcp(worker1_host, worker1_port),
   };
 
   if (local_worker_position) {

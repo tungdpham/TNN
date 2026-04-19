@@ -7,6 +7,7 @@
 #pragma once
 
 #include <memory>
+#include <unordered_map>
 
 #include "coordinator.hpp"
 #include "nn/csv_logger.hpp"
@@ -61,7 +62,17 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
       long time_ms = process_duration.count() / 1000;  // us -> ms
       double acc_pct =
           total_samples > 0 ? static_cast<double>(total_corrects) / total_samples * 100.0 : 0.0;
-      logger.log_batch(epoch, static_cast<int>(batch_index + 1), loss, acc_pct, time_ms);
+
+      std::unordered_map<std::string, double> metrics;
+      if (config.log_mode.log_loss) {
+        metrics["loss"] = loss;
+      }
+      if (config.log_mode.log_accuracy) {
+        metrics["accuracy_pct"] = acc_pct;
+      }
+      metrics["time_ms"] = time_ms;
+
+      logger.log_batch(epoch, static_cast<int>(batch_index + 1), metrics);
     }
 
     if ((batch_index + 1) % config.progress_print_interval == 0) {
@@ -121,7 +132,7 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
                         TrainingConfig config = TrainingConfig()) {
   coordinator.start_profiling();
   ThreadWrapper thread_wrapper({config.num_threads});
-  CsvLogger logger(config.model_name, config.log_dir);
+  CsvLogger logger(config.model_name, config.log_dir, &config.log_mode);
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
@@ -132,7 +143,16 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
       auto [val_loss, val_acc] =
           validate_semi_async_epoch(coordinator, val_loader, criterion, config);
 
-      logger.log_epoch(epoch + 1, train_loss, train_acc, val_loss, val_acc);
+      std::unordered_map<std::string, double> metrics;
+      if (config.log_mode.log_loss) {
+        metrics["train_loss"] = train_loss;
+        metrics["val_loss"] = val_loss;
+      }
+      if (config.log_mode.log_accuracy) {
+        metrics["train_accuracy_pct"] = train_acc;
+        metrics["val_accuracy_pct"] = val_acc;
+      }
+      logger.log_epoch(epoch + 1, metrics);
     }
 
     coordinator.fetch_profiling();

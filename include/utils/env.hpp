@@ -81,11 +81,12 @@ public:
     return true;
   }
 
-  template <typename T = std::string>
-  T get(const std::string &env_var, const T &default_value) {
+  template <typename T>
+  bool get(const std::string &env_var, T &output) {
     auto it = env_vars_.find(env_var);
     if (it != env_vars_.end()) {
-      return from_str<T>(it->second);
+      output = from_str<T>(it->second);
+      return true;
     }
 
 #ifdef _WIN32
@@ -95,22 +96,25 @@ public:
     if (_dupenv_s(&env_value, &len, env_var.c_str()) == 0 && env_value != nullptr) {
       std::string result(env_value);
       free(env_value);
-      return from_str<T>(result);
+      output = from_str<T>(result);
+      return true;
     }
-    return default_value;
+    return false;
 #else
     const char *env_value = std::getenv(env_var.c_str());
     if (env_value) {
-      return from_str<T>(std::string(env_value));
+      output = from_str<T>(std::string(env_value));
+      return true;
     }
-    return default_value;
+    return false;
 #endif
 #else
     const char *env_value = std::getenv(env_var.c_str());
     if (env_value) {
-      return from_str<T>(std::string(env_value));
+      output = from_str<T>(std::string(env_value));
+      return true;
     }
-    return default_value;
+    return false;
 #endif
   }
 
@@ -125,9 +129,9 @@ public:
     return instance;
   }
 
-  template <typename T = std::string>
-  static T get(const std::string &env_var, const T &default_value) {
-    return instance().get<T>(env_var, default_value);
+  template <typename T>
+  static bool get(const std::string &env_var, T &default_value) {
+    return instance().get(env_var, default_value);
   }
 };
 }  // namespace tnn

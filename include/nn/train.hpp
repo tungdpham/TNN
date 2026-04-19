@@ -43,6 +43,19 @@ constexpr size_t DEFAULT_LR_DECAY_INTERVAL = 5;  // in epochs
 constexpr int DEFAULT_PRINT_INTERVAL = 100;
 constexpr int64_t DEFAULT_NUM_THREADS = 8;  // Typical number of P-Cores on laptop CPUs
 
+struct LogMode {
+  bool log_loss = true;
+  bool log_accuracy = true;
+  bool log_precision = false;
+  bool log_recall = false;
+  bool log_f1_score = false;
+  bool log_perplexity = false;
+  bool log_top_k_accuracy = false;
+  bool log_mae = false;
+  bool log_mse = false;
+  bool log_rmse = false;
+};
+
 struct TrainingConfig {
   // Trainer params
   int epochs = 10;
@@ -65,6 +78,7 @@ struct TrainingConfig {
   DType_t param_dtype = DType_t::FP32;
   DType_t compute_dtype = DType_t::FP32;
   std::string log_dir = "logs";  // directory for CSV metric logs
+  LogMode log_mode;              // what metrics to log
 
   // Distributed params
   size_t num_microbatches = 2;

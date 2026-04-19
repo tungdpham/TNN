@@ -1,6 +1,7 @@
 # Examples
 create_executable(hardware_info_example.cpp LIBS tnn_nn)
 create_executable(device_manager_example.cpp LIBS tnn_nn)
+create_executable(metrics_example.cpp LIBS tnn_nn)
 
 # Network executables
 create_executable(tcp_worker.cpp LIBS tnn_lib)

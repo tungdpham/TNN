@@ -7,12 +7,12 @@
 #include "device/device_manager.hpp"
 #include "device/device_type.hpp"
 #include "device/pool_allocator.hpp"
-#include "nn/accuracy.hpp"
 #include "nn/example_models.hpp"
 #include "nn/graph_builder.hpp"
 #include "nn/graph_executor.hpp"
 #include "nn/io_node.hpp"
 #include "nn/layers.hpp"
+#include "nn/metrics.hpp"
 #include "nn/reducer.hpp"
 #include "nn/train.hpp"
 

@@ -112,22 +112,33 @@ int main(int argc, char *argv[]) {
   auto scheduler = SchedulerFactory::create_step_lr(
       optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.6f);
 
-  std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
-  int port = Env::get<int>("COORDINATOR_PORT", 9000);
+  std::string host = "localhost";
+  Env::get("COORDINATOR_HOST", host);
+  int port = 9000;
+  Env::get("COORDINATOR_PORT", port);
 
   Endpoint coordinator_endpoint = Endpoint::roce(host, port, cfg.device_name, cfg.gid_index);
+
+  std::string local_worker_host = "localhost";
+  int local_worker_port = 8000;
+  Env::get("LOCAL_WORKER_HOST", local_worker_host);
+  Env::get("LOCAL_WORKER_PORT", local_worker_port);
   Endpoint local_worker_endpoint =
-      Endpoint::roce(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
-                     Env::get<int>("LOCAL_WORKER_PORT", 8000), cfg.device_name, cfg.gid_index);
+      Endpoint::roce(local_worker_host, local_worker_port, cfg.device_name, cfg.gid_index);
+
   int local_worker_position = 0;  // default to first
-  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSITION", "first");
+  std::string position_str = "first";
+  Env::get("LOCAL_WORKER_POSITION", position_str);
   if (position_str == "last") {
     local_worker_position = 1;
   }
 
+  std::string worker1_host = "10.10.0.2";
+  int worker1_port = 8001;
+  Env::get("WORKER1_HOST", worker1_host);
+  Env::get("WORKER1_PORT", worker1_port);
   Vec<Endpoint> endpoints = {
-      Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
-                     Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
+      Endpoint::roce(worker1_host, worker1_port, "rocep131s0f0", -1),
   };
 
   if (local_worker_position) {

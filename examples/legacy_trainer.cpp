@@ -20,20 +20,25 @@ signed main() {
   train_config.print_config();
 
   // Prioritize loading existing model, else create from available ones
-  std::string model_name = Env::get<std::string>("MODEL_NAME", "cifar10_resnet9");
-  std::string model_path = Env::get<std::string>("MODEL_PATH", "");
+  std::string model_name = "cifar10_resnet9";
+  Env::get("MODEL_NAME", model_name);
+  std::string model_path = "";
+  Env::get("MODEL_PATH", model_path);
 
-  std::string device_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
+  std::string device_str = "CPU";
+  Env::get("DEVICE_TYPE", device_str);
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   const auto &device = DeviceManager::getInstance().getDevice(device_type);
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
   GraphBuilder builder;
 
-  string dataset_name = Env::get<std::string>("DATASET_NAME", "");
+  string dataset_name = "";
+  Env::get("DATASET_NAME", dataset_name);
   if (dataset_name.empty()) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");
   }
-  string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
+  string dataset_path = "data";
+  Env::get("DATASET_PATH", dataset_path);
   auto [train_loader, val_loader] = legacy::DataLoaderFactory::create(dataset_name, dataset_path);
   if (!train_loader || !val_loader) {
     cerr << "Failed to create data loaders for model: " << model_name << endl;
@@ -44,7 +49,8 @@ signed main() {
 
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
-  float lr_initial = Env::get("LR_INITIAL", 0.001f);
+  float lr_initial = 0.001f;
+  Env::get("LR_INITIAL", lr_initial);
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
   auto scheduler = SchedulerFactory::create_step_lr(
