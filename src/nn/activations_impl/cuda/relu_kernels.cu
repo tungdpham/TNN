@@ -1,8 +1,6 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
-#include <cmath>
-
 #include "nn/activations_impl/cuda/relu_kernels.hpp"
 #include "type/cuda/vectorized_types.hpp"
 #include "type/type.hpp"

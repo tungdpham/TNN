@@ -1,2 +1,2 @@
 # Include Diretory
-This directory include Convolutional Neural Networks implementation in C++ that supported distributed training/computing.
+This directory include Neural Networks implementation in C++ that supports distributed training/computing.
