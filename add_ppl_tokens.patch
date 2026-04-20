@@ -1,0 +1,39 @@
+diff --git a/include/distributed/train.hpp b/include/distributed/train.hpp
+--- a/include/distributed/train.hpp
++++ b/include/distributed/train.hpp
+@@
+ #include <chrono>
++#include <cmath>
++#include <iomanip>
+ #include <iostream>
+
+@@
+         auto process_duration =
+             std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
+
++        double ppl = std::exp(static_cast<double>(loss));
++
++        size_t tokens = batch_labels->numel();
++
++        double elapsed_sec = static_cast<double>(process_duration.count()) / 1e6;
++        double tokens_per_sec =
++            (elapsed_sec > 0.0) ? static_cast<double>(tokens) / elapsed_sec : 0.0;
+
+@@
+-            std::cout << "Batch " << (batch_index + 1)
+-                      << " Loss: " << loss
+-                      << ", Cummulative Accuracy: "
+-                      << (static_cast<double>(total_corrects) / total_samples * 100.0f)
+-                      << "%"
+-                      << ", Processing Time: " << process_duration.count() << " us"
+-                      << std::endl;
++            std::cout << "Batch " << (batch_index + 1)
++                      << " Loss: " << std::fixed << std::setprecision(5) << loss
++                      << ", PPL: " << std::setprecision(2) << ppl
++                      << ", Cummulative Accuracy: "
++                      << (static_cast<double>(total_corrects) / total_samples * 100.0f)
++                      << "%"
++                      << ", Tokens/s: " << std::setprecision(2) << tokens_per_sec
++                      << ", Processing Time: "
++                      << process_duration.count() << " us"
++                      << std::endl;

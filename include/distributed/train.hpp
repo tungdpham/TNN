@@ -15,6 +15,8 @@
 #include "tensor/tensor_ops.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "type/type.hpp"
+#include <cmath>
+#include <iomanip>
 
 namespace tnn {
 
@@ -47,10 +49,20 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
     auto process_end = std::chrono::high_resolution_clock::now();
     auto process_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
+        double ppl = std::exp(static_cast<double>(loss));
+
+    size_t tokens = 1;
+    for (size_t i = 0; i < batch_labels->dims(); ++i) {
+      tokens *= static_cast<size_t>(batch_labels->shape()[i]);
+    }
+
+    double elapsed_sec = static_cast<double>(process_duration.count()) / 1e6;
+    double tokens_per_sec =
+        (elapsed_sec > 0.0) ? static_cast<double>(tokens) / elapsed_sec : 0.0;
 
     total_loss += loss;
     total_corrects += corrects;
-    total_samples += batch_labels->dimension(0);
+    total_samples += tokens;
     accumulation_steps++;
     if (accumulation_steps == config.gradient_accumulation_steps) {
       coordinator.update_parameters();
@@ -76,8 +88,12 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
     }
 
     if ((batch_index + 1) % config.progress_print_interval == 0) {
-      std::cout << "Batch " << (batch_index + 1) << " Loss: " << loss << ", Cummulative Accuracy: "
+            std::cout << "Batch " << (batch_index + 1)
+                << " Loss: " << std::fixed << std::setprecision(5) << loss
+                << ", PPL: " << std::setprecision(2) << ppl
+                << ", Cummulative Accuracy: "
                 << (static_cast<double>(total_corrects) / total_samples * 100.0f) << "%"
+                << ", Tokens/s: " << std::setprecision(2) << tokens_per_sec
                 << ", Processing Time: " << process_duration.count() << " us" << std::endl;
       if (config.profiler_type != ProfilerType::NONE) {
         coordinator.print_profiling();

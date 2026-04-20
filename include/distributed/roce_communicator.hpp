@@ -57,7 +57,7 @@ private:
 
 public:
   struct Config {
-    uint64_t master_slab_size = 256 * 1024 * 1024;
+    uint64_t master_slab_size = 1024ULL * 1024 * 1024;   // 1 GB
     uint32_t num_io_threads = 4;
   };
 

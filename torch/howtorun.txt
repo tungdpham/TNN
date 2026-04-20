@@ -1,0 +1,6 @@
+BATCH_SIZE=512  torch/run_pipeline_node0.sh cifar10_resnet9
+BATCH_SIZE=512  torch/run_pipeline_node1.sh cifar10_resnet9
+
+network and GPU monitoring:
+python3 torch/monitor_net_gpu.py   --iface enp131s0f0np0   --rdma-dev mlx5_0   --rdma-port 1   --gpu 0   --interval 0.2   --csv logs/monitor_gpu_net_log_bs512.csv
+python3 torch/plot_net_gpu.py   --csv logs/monitor_gpu_net_log_bs512.csv   --out logs/monitor_gpu_net_plot_bs512.png

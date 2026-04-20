@@ -1,0 +1,17 @@
+model_name=gpt2_small
+data_dir=data/open-web-text-1pct
+train_tokens=90399744
+block_size=1024
+batch_size=6
+grad_accum=1
+max_steps=1000
+warmup_steps=50
+avg_step_time=0.18031567
+std_step_time=0.00074691
+throughput_seq_per_sec=33.27497883
+throughput_tok_per_sec=34073.57831889
+steps_per_epoch=14713.50000000
+estimated_epoch_time_sec=2653.07456569
+eval_loss=7.09403584
+eval_ppl=1204.76021602
+eval_token_acc=0.03762370
