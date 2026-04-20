@@ -609,24 +609,63 @@ def main():
                 for step, (x,y) in enumerate(train_loader):
                     t0 = time.time()
                     x = x.to(device, non_blocking=True); y = y.to(device, non_blocking=True)
+                    batch_sz = x.size(0)
+                    num_microbatches = max(1, batch_sz // args.micro_bs)
+                    effective_micro_bs = batch_sz // num_microbatches
+                    
                     optimizer.zero_grad(set_to_none=True)
-                    a = model(x)
-                    send_ctrl(device, CMD_TRAIN, x.size(0))
-                    dist.send(a.detach().contiguous(), dst=1)
-                    dist.send(y.contiguous(), dst=1)
-                    grad_a = torch.empty_like(a); dist.recv(grad_a, src=1)
-                    a.backward(grad_a); optimizer.step()
+                    
+                    # Send control message once with total batch size and num microbatches
+                    send_ctrl(device, CMD_TRAIN, batch_sz)
+                    dist.send(torch.tensor([num_microbatches], dtype=torch.int64, device=device), dst=1)
+                    
+                    # Pipeline: Forward pass for all microbatches
+                    activations = []
+                    send_reqs = []
+                    for mb_idx in range(num_microbatches):
+                        start_idx = mb_idx * effective_micro_bs
+                        end_idx = (mb_idx + 1) * effective_micro_bs if mb_idx < num_microbatches - 1 else batch_sz
+                        x_mb = x[start_idx:end_idx]
+                        y_mb = y[start_idx:end_idx]
+                        
+                        a_mb = model(x_mb)
+                        activations.append(a_mb)
+                        
+                        # Non-blocking sends
+                        send_reqs.append(dist.isend(a_mb.detach().contiguous(), dst=1))
+                        send_reqs.append(dist.isend(y_mb.contiguous(), dst=1))
+                    
+                    # Wait for all sends to complete
+                    for req in send_reqs:
+                        req.wait()
+                    
+                    # Pipeline: Backward pass for all microbatches
+                    recv_reqs = []
+                    grad_buffers = []
+                    for mb_idx in range(num_microbatches):
+                        grad_a_mb = torch.empty_like(activations[mb_idx])
+                        recv_reqs.append(dist.irecv(grad_a_mb, src=1))
+                        grad_buffers.append(grad_a_mb)
+                    
+                    # Backward as gradients arrive
+                    for mb_idx in range(num_microbatches):
+                        recv_reqs[mb_idx].wait()
+                        activations[mb_idx].backward(grad_buffers[mb_idx])
+                    
+                    optimizer.step()
+                    
+                    # Receive accumulated stats for entire batch
                     loss_sum_b, correct_b, total_b = recv_stats(device)
                     train_loss_sum += loss_sum_b; train_correct += int(correct_b); train_total += int(total_b)
                     avg_loss = train_loss_sum / max(train_total, 1); acc = 100.0 * train_correct / max(train_total, 1)
                     net = net_counter.sample()
-                    net_csv.write(dict(timestamp=t0, rank=rank, phase="train_batch", epoch=epoch+1, step=step, batch_size=int(x.size(0)), **net))
-                    metrics_csv.write(dict(timestamp=t0, phase="train_batch", epoch=epoch+1, step=step, batch_size=int(x.size(0)), lr=float(optimizer.param_groups[0]["lr"]), loss_sum=float(train_loss_sum), samples=int(train_total), avg_loss=float(avg_loss), correct=int(train_correct), accuracy_percent=float(acc), epoch_time_sec=float(time.time()-epoch_start)))
+                    net_csv.write(dict(timestamp=t0, rank=rank, phase="train_batch", epoch=epoch+1, step=step, batch_size=int(batch_sz), **net))
+                    metrics_csv.write(dict(timestamp=t0, phase="train_batch", epoch=epoch+1, step=step, batch_size=int(batch_sz), lr=float(optimizer.param_groups[0]["lr"]), loss_sum=float(train_loss_sum), samples=int(train_total), avg_loss=float(avg_loss), correct=int(train_correct), accuracy_percent=float(acc), epoch_time_sec=float(time.time()-epoch_start)))
                     if step % args.print_freq == 0:
                         if cfg.get("is_gpt2", False):
-                            print(f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} | train_loss={avg_loss:.4f} | net_tx={net['tx_MBps']:.2f}MB/s net_rx={net['rx_MBps']:.2f}MB/s", flush=True)
+                            print(f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} | train_loss={avg_loss:.4f} | microbatches={num_microbatches} | net_tx={net['tx_MBps']:.2f}MB/s net_rx={net['rx_MBps']:.2f}MB/s", flush=True)
                         else:
-                            print(f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} | train_loss={avg_loss:.4f} | train_acc={acc:.2f}% | net_tx={net['tx_MBps']:.2f}MB/s net_rx={net['rx_MBps']:.2f}MB/s", flush=True)
+                            print(f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} | train_loss={avg_loss:.4f} | train_acc={acc:.2f}% | microbatches={num_microbatches} | net_tx={net['tx_MBps']:.2f}MB/s net_rx={net['rx_MBps']:.2f}MB/s", flush=True)
                 scheduler.step()
                 epoch_time = time.time() - epoch_start
                 model.eval()
@@ -635,13 +674,29 @@ def main():
                     for step, (x,y) in enumerate(test_loader):
                         t0 = time.time()
                         x = x.to(device, non_blocking=True); y = y.to(device, non_blocking=True)
-                        a = model(x)
-                        send_ctrl(device, CMD_EVAL, x.size(0))
-                        dist.send(a.contiguous(), dst=1)
-                        dist.send(y.contiguous(), dst=1)
+                        batch_sz = x.size(0)
+                        num_microbatches = max(1, batch_sz // args.micro_bs)
+                        effective_micro_bs = batch_sz // num_microbatches
+                        
+                        # Send control once
+                        send_ctrl(device, CMD_EVAL, batch_sz)
+                        dist.send(torch.tensor([num_microbatches], dtype=torch.int64, device=device), dst=1)
+                        
+                        # Forward all microbatches
+                        for mb_idx in range(num_microbatches):
+                            start_idx = mb_idx * effective_micro_bs
+                            end_idx = (mb_idx + 1) * effective_micro_bs if mb_idx < num_microbatches - 1 else batch_sz
+                            x_mb = x[start_idx:end_idx]
+                            y_mb = y[start_idx:end_idx]
+                            
+                            a_mb = model(x_mb)
+                            dist.send(a_mb.contiguous(), dst=1)
+                            dist.send(y_mb.contiguous(), dst=1)
+                        
+                        # Receive accumulated stats for entire batch
                         loss_sum_b, correct_b, total_b = recv_stats(device)
                         test_loss_sum += loss_sum_b; test_correct += int(correct_b); test_total += int(total_b)
-                        net_csv.write(dict(timestamp=t0, rank=rank, phase="test_batch", epoch=epoch+1, step=step, batch_size=int(x.size(0)), **net_counter.sample()))
+                        net_csv.write(dict(timestamp=t0, rank=rank, phase="test_batch", epoch=epoch+1, step=step, batch_size=int(batch_sz), **net_counter.sample()))
                 train_loss = train_loss_sum / max(train_total, 1); train_acc = 100.0 * train_correct / max(train_total, 1)
                 test_loss = test_loss_sum / max(test_total, 1); test_acc = 100.0 * test_correct / max(test_total, 1)
                 metrics_csv.write(dict(timestamp=time.time(), phase="epoch_summary", epoch=epoch+1, step=-1, batch_size=cfg["batch_size"], lr=float(optimizer.param_groups[0]["lr"]), loss_sum=float(test_loss_sum), samples=int(test_total), avg_loss=float(test_loss), correct=int(test_correct), accuracy_percent=float(test_acc), epoch_time_sec=float(epoch_time)))
@@ -655,51 +710,105 @@ def main():
             is_gpt2 = cfg.get("is_gpt2", False)
             tr_step = 0; ev_step = 0
             while True:
-                cmd, bsz = recv_ctrl(device)
+                cmd, batch_sz = recv_ctrl(device)
                 if cmd == CMD_STOP:
                     print("[Rank 1] Received STOP.", flush=True); break
+                
+                # Receive number of microbatches
+                num_mbs_tensor = torch.empty(1, dtype=torch.int64, device=device)
+                dist.recv(num_mbs_tensor, src=0)
+                num_mbs = int(num_mbs_tensor.item())
+                
+                # Calculate microbatch size
+                effective_micro_bs = batch_sz // num_mbs
+                
                 t0 = time.time()
-                act = torch.empty((bsz, *cfg["act_tail"]), dtype=torch.float32, device=device)
-                if is_gpt2:
-                    y = torch.empty((bsz, cfg["act_tail"][0]), dtype=torch.int64, device=device)
-                else:
-                    y = torch.empty((bsz,), dtype=torch.int64, device=device)
-                dist.recv(act, src=0); dist.recv(y, src=0)
+                batch_loss_sum = 0.0
+                batch_correct = 0
+                batch_total = 0
+                
                 if cmd == CMD_TRAIN:
-                    model.train(); optimizer.zero_grad(set_to_none=True)
-                    act.requires_grad_(True)
-                    logits = model(act)
-                    if is_gpt2:
-                        shift_logits = logits[:, :-1, :].contiguous()
-                        shift_labels = y[:, 1:].contiguous()
-                        loss = F.cross_entropy(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-                        correct = (shift_logits.argmax(dim=-1) == shift_labels).sum().item()
-                        total = shift_labels.numel()
-                    else:
-                        loss = F.cross_entropy(logits, y)
-                        correct = (logits.argmax(dim=1) == y).sum().item()
-                        total = bsz
-                    loss.backward(); optimizer.step()
-                    dist.send(act.grad.contiguous(), dst=0)
-                    send_stats(device, loss.item()*total, float(correct), float(total))
-                    net_csv.write(dict(timestamp=t0, rank=rank, phase="train_batch", epoch=-1, step=tr_step, batch_size=int(bsz), **net_counter.sample()))
-                    tr_step += 1
-                elif cmd == CMD_EVAL:
-                    model.eval()
-                    with torch.no_grad():
+                    model.train()
+                    # Process all microbatches
+                    for mb_idx in range(num_mbs):
+                        mb_size = effective_micro_bs if mb_idx < num_mbs - 1 else (batch_sz - mb_idx * effective_micro_bs)
+                        
+                        # Receive microbatch
+                        act = torch.empty((mb_size, *cfg["act_tail"]), dtype=torch.float32, device=device)
+                        if is_gpt2:
+                            y = torch.empty((mb_size, cfg["act_tail"][0]), dtype=torch.int64, device=device)
+                        else:
+                            y = torch.empty((mb_size,), dtype=torch.int64, device=device)
+                        dist.recv(act, src=0)
+                        dist.recv(y, src=0)
+                        
+                        act.requires_grad_(True)
                         logits = model(act)
                         if is_gpt2:
                             shift_logits = logits[:, :-1, :].contiguous()
                             shift_labels = y[:, 1:].contiguous()
-                            loss_sum = F.cross_entropy(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1), reduction="sum").item()
+                            loss = F.cross_entropy(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
                             correct = (shift_logits.argmax(dim=-1) == shift_labels).sum().item()
                             total = shift_labels.numel()
                         else:
-                            loss_sum = F.cross_entropy(logits, y, reduction="sum").item()
+                            loss = F.cross_entropy(logits, y)
                             correct = (logits.argmax(dim=1) == y).sum().item()
-                            total = bsz
-                    send_stats(device, loss_sum, float(correct), float(total))
-                    net_csv.write(dict(timestamp=t0, rank=rank, phase="test_batch", epoch=-1, step=ev_step, batch_size=int(bsz), **net_counter.sample()))
+                            total = mb_size
+                        loss.backward()
+                        
+                        # Send gradient back
+                        dist.send(act.grad.contiguous(), dst=0)
+                        
+                        # Accumulate stats
+                        batch_loss_sum += loss.item() * total
+                        batch_correct += correct
+                        batch_total += total
+                        
+                        # Update weights per microbatch
+                        optimizer.step()
+                        optimizer.zero_grad(set_to_none=True)
+                    
+                    # Send accumulated stats for entire batch
+                    send_stats(device, batch_loss_sum, float(batch_correct), float(batch_total))
+                    net_csv.write(dict(timestamp=t0, rank=rank, phase="train_batch", epoch=-1, step=tr_step, batch_size=int(batch_sz), **net_counter.sample()))
+                    tr_step += 1
+                    
+                elif cmd == CMD_EVAL:
+                    model.eval()
+                    with torch.no_grad():
+                        # Process all microbatches
+                        for mb_idx in range(num_mbs):
+                            mb_size = effective_micro_bs if mb_idx < num_mbs - 1 else (batch_sz - mb_idx * effective_micro_bs)
+                            
+                            # Receive microbatch
+                            act = torch.empty((mb_size, *cfg["act_tail"]), dtype=torch.float32, device=device)
+                            if is_gpt2:
+                                y = torch.empty((mb_size, cfg["act_tail"][0]), dtype=torch.int64, device=device)
+                            else:
+                                y = torch.empty((mb_size,), dtype=torch.int64, device=device)
+                            dist.recv(act, src=0)
+                            dist.recv(y, src=0)
+                            
+                            logits = model(act)
+                            if is_gpt2:
+                                shift_logits = logits[:, :-1, :].contiguous()
+                                shift_labels = y[:, 1:].contiguous()
+                                loss_sum = F.cross_entropy(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1), reduction="sum").item()
+                                correct = (shift_logits.argmax(dim=-1) == shift_labels).sum().item()
+                                total = shift_labels.numel()
+                            else:
+                                loss_sum = F.cross_entropy(logits, y, reduction="sum").item()
+                                correct = (logits.argmax(dim=1) == y).sum().item()
+                                total = mb_size
+                            
+                            # Accumulate stats
+                            batch_loss_sum += loss_sum
+                            batch_correct += correct
+                            batch_total += total
+                        
+                    # Send accumulated stats for entire batch
+                    send_stats(device, batch_loss_sum, float(batch_correct), float(batch_total))
+                    net_csv.write(dict(timestamp=t0, rank=rank, phase="test_batch", epoch=-1, step=ev_step, batch_size=int(batch_sz), **net_counter.sample()))
                     ev_step += 1
                 else:
                     raise RuntimeError(f"Unknown cmd {cmd}")
