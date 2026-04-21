@@ -1,0 +1,5 @@
+# DeepSpeed Hostfile
+# Format: hostname slots=num_gpus
+# Adjust hostnames to match your actual node names/IPs
+mpec@10.10.0.1 slots=1
+mpeclab@10.10.0.2 slots=1
