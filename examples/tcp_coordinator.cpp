@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <vector>
 
 #include "data_loading/data_loader_factory.hpp"
@@ -97,8 +98,18 @@ int main() {
   auto worker = std::make_unique<TCPWorker>(local_worker_endpoint,
                                             train_config.device_type == DeviceType::GPU);
 
+  // Parse partition split ratio from environment variable
+  std::string split_ratio_str = "2,1";
+  Env::get("PARTITION_SPLIT_RATIO", split_ratio_str);
+  std::vector<size_t> split_ratios;
+  std::stringstream ss(split_ratio_str);
+  std::string token;
+  while (std::getline(ss, token, ',')) {
+    split_ratios.push_back(static_cast<size_t>(std::stoi(token)));
+  }
+
   unique_ptr<Partitioner> partitioner =
-      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
+      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig(split_ratios));
 
   CoordinatorConfig config{
       ParallelMode_t::PIPELINE, std::move(graph),  std::move(optimizer), std::move(scheduler),

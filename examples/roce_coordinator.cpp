@@ -3,6 +3,7 @@
 #include <getopt.h>
 
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 #include "data_loading/data_loader_factory.hpp"
@@ -146,8 +147,18 @@ int main(int argc, char *argv[]) {
   auto local_worker =
       std::make_unique<RoCEWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
 
-  // initialize a partitioner with weights 2:1
-  auto partitioner = std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
+  // Parse partition split ratio from environment variable
+  std::string split_ratio_str = "2,1";
+  Env::get("PARTITION_SPLIT_RATIO", split_ratio_str);
+  std::vector<size_t> split_ratios;
+  std::stringstream ss(split_ratio_str);
+  std::string token;
+  while (std::getline(ss, token, ',')) {
+    split_ratios.push_back(static_cast<size_t>(std::stoi(token)));
+  }
+
+  auto partitioner =
+      std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig(split_ratios));
 
   CoordinatorConfig config{
       ParallelMode_t::PIPELINE, std::move(graph),        std::move(optimizer), std::move(scheduler),
