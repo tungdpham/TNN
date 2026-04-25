@@ -143,14 +143,25 @@ Tensor FlashAttentionBlock::cudnn_forward(const ConstTensor &input, size_t mb_id
     set_immutable_cache(mb_id, "input", input);
   }
 
-  Tensor q = q_proj_->forward({input}, mb_id)[0];
-  Tensor k = k_proj_->forward({input}, mb_id)[0];
-  Tensor v = v_proj_->forward({input}, mb_id)[0];
+  Tensor attn_out = this->get_cache_tensor({batch_size, seq_len, embed_dim_}, io_dtype_);
+  set_mutable_cache(mb_id, "attn_out", attn_out);
+  // Allocate stats tensor (b, h, s, 1) in float
+  Tensor stats_tensor = this->get_cache_tensor({batch_size, num_heads_, seq_len, 1}, DType_t::FP32);
+  set_mutable_cache(mb_id, "stats_tensor", stats_tensor);
+
+  allocator_->flip();  // ensure workspace is on opposite side of output for algorithm 1
+
+  Tensor attn_heads =
+      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
 
   // since cudnn SDPA only support FP16/FP16 IO, we need to convert here
   Tensor q_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
   Tensor k_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
   Tensor v_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+
+  Tensor q = q_proj_->forward({input}, mb_id)[0];
+  Tensor k = k_proj_->forward({input}, mb_id)[0];
+  Tensor v = v_proj_->forward({input}, mb_id)[0];
 
   DISPATCH_DTYPE(io_dtype_, T, {
     create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, fp16>, q->data_as<T>(),
@@ -163,32 +174,22 @@ Tensor FlashAttentionBlock::cudnn_forward(const ConstTensor &input, size_t mb_id
 
   q = k = v = nullptr;  // free up memory
 
-  Tensor attn_heads =
-      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
-  set_mutable_cache(mb_id, "attn_heads", attn_heads);
-
   {
     size_t workspace_size = stats.fwd_workspace_size;
     Tensor workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
-
-    // Allocate stats tensor (b, h, s, 1) in float
-    Tensor stats_tensor =
-        this->get_cache_tensor({batch_size, num_heads_, seq_len, 1}, DType_t::FP32);
-    set_mutable_cache(mb_id, "stats_tensor", stats_tensor);
 
     DISPATCH_ON_3_DTYPES_TO_METHOD(flash_attention_forward_task, fe_handle, stats, q_heads, k_heads,
                                    v_heads, attn_heads, stats_tensor, workspace, defaultFlowHandle);
   }
 
-  Tensor attn_out = this->get_cache_tensor({batch_size, seq_len, embed_dim_}, io_dtype_);
-  set_mutable_cache(mb_id, "attn_out", attn_out);
+  q_heads = k_heads = v_heads = nullptr;  // free up memory
 
   DISPATCH_DTYPE(io_dtype_, T, {
     create_cuda_task(defaultFlowHandle, cuda::permute_heads<fp16, T>, attn_heads->data_as<fp16>(),
                      attn_out->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
   });
 
-  attn_heads = nullptr;  // free up memory
+  allocator_->flip();  // flip back so attn_out is on opposite side as input for algorithm 1
 
   Tensor output = out_proj_->forward({attn_out}, mb_id)[0];
   return output;
@@ -209,6 +210,14 @@ Tensor FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, size_
   const Tensor &attn_out = this->get_mutable_cache(mb_id, "attn_out");
   const Tensor &stats_tensor = this->get_mutable_cache(mb_id, "stats_tensor");
 
+  Tensor grad_input = this->get_output_tensor({batch_size, seq_len, embed_dim_});
+
+  allocator_->flip();
+
+  Tensor grad_q = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor grad_k = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor grad_v = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
+
   Tensor grad_attn_heads =
       this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
 
@@ -221,6 +230,13 @@ Tensor FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, size_
                        head_dim_);
     });
   }
+
+  Tensor grad_q_heads =
+      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+  Tensor grad_k_heads =
+      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+  Tensor grad_v_heads =
+      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
 
   // Get forward pass tensors in FP16 head layout
   Tensor q_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
@@ -248,17 +264,9 @@ Tensor FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, size_
     });
   }
 
-  // Allocate grad_output tensors for Q, K, V heads
-  Tensor grad_q_heads =
-      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
-  Tensor grad_k_heads =
-      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
-  Tensor grad_v_heads =
-      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
-
   {
     size_t workspace_size = stats.bwd_workspace_size;
-    Tensor workspace = this->get_workspace({workspace_size}, io_dtype_);
+    Tensor workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
 
     // Run backward pass
     DISPATCH_ON_3_DTYPES_TO_METHOD(flash_attention_backward_task, fe_handle, stats, q_heads,
@@ -267,10 +275,9 @@ Tensor FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, size_
                                    defaultFlowHandle);
   }
 
+  q_heads = k_heads = v_heads = attn_heads = grad_attn_heads = nullptr;  // free up memory
+
   // Convert gradients back from head layout
-  Tensor grad_q = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
-  Tensor grad_k = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
-  Tensor grad_v = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
 
   DISPATCH_DTYPE(io_dtype_, T, {
     create_cuda_task(defaultFlowHandle, cuda::permute_heads<fp16, T>, grad_q_heads->data_as<fp16>(),
@@ -283,13 +290,16 @@ Tensor FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, size_
 
   grad_q_heads = grad_k_heads = grad_v_heads = nullptr;  // free up memory
 
+  allocator_->flip();
+
   // Backprop through separate Q, K, V projections
   Tensor grad_q_in = q_proj_->backward({grad_q}, mb_id)[0];
   Tensor grad_k_in = k_proj_->backward({grad_k}, mb_id)[0];
   Tensor grad_v_in = v_proj_->backward({grad_v}, mb_id)[0];
 
+  grad_q = grad_k = grad_v = nullptr;  // free up memory
+
   // Sum the gradients
-  Tensor grad_input = this->get_output_tensor({batch_size, seq_len, embed_dim_});
   size_t size = grad_q_in->size();
 
   DISPATCH_IO_DTYPE(ops::add, grad_q_in->data_ptr(), grad_k_in->data_ptr(), grad_input->data_ptr(),

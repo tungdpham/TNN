@@ -192,6 +192,10 @@ std::unique_ptr<Task> LayerNormLayer::cudnn_run_backward(
 }
 
 Tensor LayerNormLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
+  if (this->is_training_) {
+    set_immutable_cache(mb_id, "input", input);
+  }
+
   const auto &shape = input->shape();
   size_t last_dim = shape.back();
   size_t channels = last_dim;
@@ -201,6 +205,11 @@ Tensor LayerNormLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
   }
 
   build_graph(shape);
+
+  Tensor batch_mean = this->get_cache_tensor({batch_size}, compute_dtype_);
+  Tensor batch_invar = this->get_cache_tensor({batch_size}, compute_dtype_);
+  set_mutable_cache(mb_id, "batch_mean", batch_mean);
+  set_mutable_cache(mb_id, "batch_invar", batch_invar);
 
   Tensor output = get_output_tensor(shape);
 
@@ -213,15 +222,6 @@ Tensor LayerNormLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
 
   size_t workspace_size = current_stats.fwd_workspace_size;
   Tensor cudnn_workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
-
-  Tensor batch_mean = this->get_cache_tensor({batch_size}, compute_dtype_);
-  Tensor batch_invar = this->get_cache_tensor({batch_size}, compute_dtype_);
-  set_mutable_cache(mb_id, "batch_mean", batch_mean);
-  set_mutable_cache(mb_id, "batch_invar", batch_invar);
-
-  if (this->is_training_) {
-    set_immutable_cache(mb_id, "input", input);
-  }
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_run_forward, fe_handle, current_stats, input, output, gamma_,
                                  beta_, batch_mean, batch_invar, cudnn_workspace, batch_size,

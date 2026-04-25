@@ -98,9 +98,6 @@ Tensor DenseLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
                                 " features in grad_output" + ".");
   }
 
-  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
-  Tensor grad_input = get_output_tensor(input->shape());
-
 #ifdef USE_CUDNN
   if (get_engine_type() == EngineType::CUDA) {
     return cudnn_backward(grad_output, mb_id);
