@@ -193,12 +193,36 @@ class ImageNet100Dataset(Dataset):
         if self.transform: img = self.transform(img)
         return img, label
 
-class _GPT2SyntheticDataset(Dataset):
-    def __init__(self, seq_len): self.seq_len = seq_len
-    def __len__(self): return 1000
+class OpenWebTextDataset(Dataset):
+    """
+    Streams tokenised OpenWebText from a flat uint16 binary file produced by
+    python/openwebtext.py.
+
+    Every item is a (input, target) pair of length SEQ_LEN where
+    target = input shifted one position to the right (standard CLM).
+    
+    Uses memory-mapped file access to avoid loading the entire dataset into RAM.
+    """
+    def __init__(self, path: str, seq_len: int):
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Data file not found: {path}")
+        self.seq_len = seq_len
+        # Keep as memmap - do NOT convert to torch tensor to avoid loading into memory
+        self.data = np.memmap(path, dtype=np.uint16, mode="r")
+        # number of full windows of size seq_len+1
+        self.n = (len(self.data) - 1) // seq_len
+
+    def __len__(self):
+        return self.n
+
     def __getitem__(self, idx):
-        x = torch.randint(0, 50257, (self.seq_len,))
-        return x, x
+        start = idx * self.seq_len
+        # Only load the specific chunk needed, then convert to torch tensor
+        chunk = self.data[start : start + self.seq_len + 1].astype(np.int64)
+        chunk = torch.from_numpy(chunk)
+        x = chunk[:-1]   # [SEQ_LEN]
+        y = chunk[1:]    # [SEQ_LEN]
+        return x, y
 
 class _BasicResidualBlock(nn.Module):
     def __init__(self, channels):
@@ -305,13 +329,14 @@ def _make_model_configs(seq_len):
     cifar100_root = os.getenv("CIFAR100_BIN_ROOT", "data/cifar-100-binary")
     tiny_root = os.getenv("TINY_IMAGENET_ROOT", "data/tiny-imagenet-200")
     imgnet100_root = os.getenv("IMAGENET100_ROOT", "data/imagenet-100")
+    openwebtext_path = os.getenv("OPENWEBTEXT_PATH", "data/open-web-text/train.bin")
 
     return {
         "gpt2": {
             "layers": [LayerSpec(_GPT2Embedding), *[LayerSpec(_GPTBlock) for _ in range(12)], 
                        LayerSpec(nn.LayerNorm, 768), LayerSpec(nn.Linear, 768, 50257, bias=False)],
             "loss_fn": gpt2_loss_fn,
-            "train_set": lambda: _GPT2SyntheticDataset(seq_len),
+            "train_set": lambda: OpenWebTextDataset(openwebtext_path, seq_len),
             "lr": 1e-4, "batch_size": 16, "num_workers": 0
         },
         "resnet9_cifar10": {
@@ -372,6 +397,7 @@ def main():
     parser.add_argument("--seq-len", type=int, default=512)
     parser.add_argument("--log-dir", type=str, default="logs")
     parser.add_argument("--print-freq", type=int, default=10)
+    parser.add_argument("--max-steps", type=int, default=-1, help="Maximum number of training steps (-1 for unlimited)")
     parser.add_argument("--local_rank", type=int, default=-1)
     parser = deepspeed.add_config_arguments(parser)
     args = parser.parse_args()
@@ -407,25 +433,34 @@ def main():
     accum_steps = engine.gradient_accumulation_steps()
     steps_per_epoch = len(train_loader) // accum_steps
 
+    global_step = 0
     for epoch in range(10):
         epoch_start = time.time()
         engine.train()
         train_iter = iter(train_loader)
         
         for step in range(steps_per_epoch):
+            if 0 <= args.max_steps <= global_step:
+                break
+                
             t0 = time.time()
             loss = engine.train_batch(data_iter=train_iter)
 
             stats = net_counter.sample()
-            net_csv.write(dict(timestamp=t0, rank=rank, epoch=epoch+1, step=step, **stats))
+            net_csv.write(dict(timestamp=t0, rank=rank, epoch=epoch+1, step=global_step, **stats))
 
             if engine.is_last_stage() and step % args.print_freq == 0:
-                print(f"[Rank {rank}] Epoch {epoch+1} Step {step}/{steps_per_epoch} | Loss: {loss.item():.4f} | Net: {stats['tx_MBps']:.1f}MB/s", flush=True)
+                print(f"[Rank {rank}] Epoch {epoch+1} Step {global_step}/{steps_per_epoch} | Loss: {loss.item():.4f} | Net: {stats['tx_MBps']:.1f}MB/s", flush=True)
+            
+            global_step += 1
 
         epoch_time = time.time() - epoch_start
         epoch_csv.write(dict(timestamp=epoch_start, rank=rank, epoch=epoch+1, epoch_time_sec=epoch_time))
         if rank == 0:
             print(f"[Rank {rank}] Epoch {epoch+1} completed in {epoch_time:.2f}s", flush=True)
+        
+        if 0 <= args.max_steps <= global_step:
+            break
 
     net_csv.close()
     epoch_csv.close()

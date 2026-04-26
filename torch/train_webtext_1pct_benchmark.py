@@ -10,10 +10,6 @@ from transformers import GPT2Config, GPT2LMHeadModel
 
 
 def detect_dtype(device: torch.device):
-    if device.type == "cuda":
-        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
-            return torch.bfloat16
-        return torch.float16
     return torch.float32
 
 
@@ -99,7 +95,7 @@ def build_model(model_name: str, block_size: int, vocab_size: int = 50257):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", type=str, default="data/open-web-text-1pct")
+    parser.add_argument("--data-dir", type=str, default="data/open-web-text")
     parser.add_argument("--model-name", type=str, default="gpt2_small", choices=list(MODEL_SPECS.keys()))
     parser.add_argument("--block-size", type=int, default=1024)
     parser.add_argument("--batch-size", type=int, default=6)

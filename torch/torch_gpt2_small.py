@@ -87,17 +87,16 @@ class CausalSelfAttention(nn.Module):
             return t.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
 
         q, k, v = reshape(q), reshape(k), reshape(v)
+        
+        with torch.nn.attention.sdpa_kernel(torch.nn.attention.SDPBackend.MATH):
+            out = F.scaled_dot_product_attention(
+                q, k, v, 
+                attn_mask=None, 
+                dropout_p=0.0, 
+                is_causal=True
+            )
+        out = self.attn_drop(out)
 
-        # Scaled dot-product attention with causal mask
-        scale = 1.0 / math.sqrt(self.head_dim)
-        att = (q @ k.transpose(-2, -1)) * scale           # (B, H, T, T)
-        # causal mask: upper triangle = -inf
-        mask = torch.triu(torch.ones(T, T, device=x.device, dtype=torch.bool), diagonal=1)
-        att = att.masked_fill(mask, float("-inf"))
-        att = F.softmax(att, dim=-1)
-        att = self.attn_drop(att)
-
-        out = att @ v                                      # (B, H, T, head_dim)
         out = out.transpose(1, 2).contiguous().view(B, T, C)
         out = self.resid_drop(self.proj(out))
         return out
