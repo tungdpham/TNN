@@ -310,7 +310,7 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
   ThreadWrapper thread_wrapper({config.num_threads});
 
   double best_val_accuracy = 0.0;
-  CsvLogger logger(graph.name(), config.log_dir, &config.log_mode);
+  CsvLogger logger("tnn_" + graph.name(), config.log_dir, &config.log_mode);
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
@@ -389,7 +389,7 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
   GraphExecutor executor(graph, ws_allocator);
 
   int grad_accum_counter = 0;
-  CsvLogger logger(graph.name(), config.log_dir, &config.log_mode);
+  CsvLogger logger("tnn_" + graph.name(), config.log_dir, &config.log_mode);
 
   train_loader->reset();
   auto start_time = chrono::high_resolution_clock::now();

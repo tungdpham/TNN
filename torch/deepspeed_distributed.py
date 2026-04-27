@@ -427,8 +427,8 @@ def main():
     log_dir = ensure_dir(args.log_dir)
     nic = os.getenv("NCCL_SOCKET_IFNAME") or "eth0"
     net_counter = NetCounter(nic)
-    net_csv = CsvAppender(log_dir / f"{args.model}_rank{rank}_net.csv", ["timestamp","rank","epoch","step","tx_MBps","rx_MBps"])
-    epoch_csv = CsvAppender(log_dir / f"{args.model}_rank{rank}_epoch.csv", ["timestamp","rank","epoch","epoch_time_sec"])
+    net_csv = CsvAppender(log_dir / f"deepspeed_{args.model}_rank{rank}_net.csv", ["timestamp","rank","epoch","step","tx_MBps","rx_MBps"])
+    epoch_csv = CsvAppender(log_dir / f"deepspeed_{args.model}_rank{rank}_epoch.csv", ["timestamp","rank","epoch","epoch_time_sec"])
 
     accum_steps = engine.gradient_accumulation_steps()
     steps_per_epoch = len(train_loader) // accum_steps

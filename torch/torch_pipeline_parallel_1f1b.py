@@ -572,10 +572,10 @@ def main():
     log_dir = ensure_dir(args.log_dir)
     nic = os.getenv("NET_LOG_IFNAME") or os.getenv("NCCL_SOCKET_IFNAME") or os.getenv("GLOO_SOCKET_IFNAME")
     net_counter = NetCounter(nic)
-    net_csv = CsvAppender(log_dir / f"{args.model}_rank{rank}_net.csv", ["timestamp", "rank", "phase", "epoch", "step", "batch_size", "ifname", "dt_sec", "tx_bytes_delta", "rx_bytes_delta", "tx_MBps", "rx_MBps", "counter_ok"])
+    net_csv = CsvAppender(log_dir / f"torch_{args.model}_rank{rank}_net.csv", ["timestamp", "rank", "phase", "epoch", "step", "batch_size", "ifname", "dt_sec", "tx_bytes_delta", "rx_bytes_delta", "tx_MBps", "rx_MBps", "counter_ok"])
     metrics_csv = None
     if rank == 0:
-        metrics_csv = CsvAppender(log_dir / f"{args.model}_rank0_metrics.csv", ["timestamp", "phase", "epoch", "step", "batch_size", "micro_bs", "lr", "loss_sum", "samples", "avg_loss", "correct", "accuracy_percent", "epoch_time_sec"])
+        metrics_csv = CsvAppender(log_dir / f"torch_{args.model}_rank0_metrics.csv", ["timestamp", "phase", "epoch", "step", "batch_size", "micro_bs", "lr", "loss_sum", "samples", "avg_loss", "correct", "accuracy_percent", "epoch_time_sec"])
 
     print(
         f"[Init] rank={rank} model={args.model} params={count_params(model):,} micro_bs={args.micro_bs}",

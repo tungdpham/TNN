@@ -51,17 +51,14 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
         std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
     double ppl = std::exp(static_cast<double>(loss));
 
-    size_t tokens = 1;
+    size_t class_samples = 1;
     for (size_t i = 0; i < batch_labels->dims(); ++i) {
-      tokens *= static_cast<size_t>(batch_labels->shape()[i]);
+      class_samples *= static_cast<size_t>(batch_labels->shape()[i]);
     }
-
-    double elapsed_sec = static_cast<double>(process_duration.count()) / 1e6;
-    double tokens_per_sec = (elapsed_sec > 0.0) ? static_cast<double>(tokens) / elapsed_sec : 0.0;
 
     total_loss += loss;
     total_corrects += corrects;
-    total_samples += tokens;
+    total_samples += class_samples;
     accumulation_steps++;
     if (accumulation_steps == config.gradient_accumulation_steps) {
       coordinator.update_parameters();
@@ -90,7 +87,6 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
       std::cout << "Batch " << (batch_index + 1) << " Loss: " << std::fixed << std::setprecision(5)
                 << loss << ", PPL: " << std::setprecision(2) << ppl << ", Cummulative Accuracy: "
                 << (static_cast<double>(total_corrects) / total_samples * 100.0f) << "%"
-                << ", Tokens/s: " << std::setprecision(2) << tokens_per_sec
                 << ", Processing Time: " << process_duration.count() << " us" << std::endl;
       if (config.profiler_type != ProfilerType::NONE) {
         coordinator.print_profiling();
@@ -174,13 +170,10 @@ inline void train_semi_async_step(Coordinator &coordinator,
         std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
     double ppl = std::exp(static_cast<double>(loss));
 
-    size_t tokens = 1;
+    size_t class_samples = 1;
     for (size_t i = 0; i < batch_labels->dims(); ++i) {
-      tokens *= static_cast<size_t>(batch_labels->shape()[i]);
+      class_samples *= static_cast<size_t>(batch_labels->shape()[i]);
     }
-
-    double elapsed_sec = static_cast<double>(process_duration.count()) / 1e6;
-    double tokens_per_sec = (elapsed_sec > 0.0) ? static_cast<double>(tokens) / elapsed_sec : 0.0;
 
     accumulation_steps++;
     if (accumulation_steps == config.gradient_accumulation_steps) {
@@ -191,7 +184,8 @@ inline void train_semi_async_step(Coordinator &coordinator,
     // Log batch metrics to CSV.
     {
       long time_ms = process_duration.count() / 1000;  // us -> ms
-      double acc_pct = tokens > 0 ? static_cast<double>(corrects) / tokens * 100.0 : 0.0;
+      double acc_pct =
+          class_samples > 0 ? static_cast<double>(corrects) / class_samples * 100.0 : 0.0;
 
       std::unordered_map<std::string, double> metrics;
       if (config.log_mode.log_loss) {
@@ -209,8 +203,7 @@ inline void train_semi_async_step(Coordinator &coordinator,
       std::cout << "Step " << (step + 1) << " Loss: " << std::fixed << std::setprecision(5) << loss
                 << ", PPL: " << std::setprecision(2) << ppl
                 << ", Accuracy: " << std::setprecision(2)
-                << (static_cast<double>(corrects) / tokens * 100.0f) << "%"
-                << ", Tokens/s: " << std::setprecision(2) << tokens_per_sec
+                << (static_cast<double>(corrects) / class_samples * 100.0f) << "%"
                 << ", Processing Time: " << process_duration.count() << " us" << std::endl;
       if (config.profiler_type != ProfilerType::NONE) {
         coordinator.print_profiling();
@@ -233,7 +226,7 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
                         TrainingConfig config = TrainingConfig()) {
   coordinator.start_profiling();
   ThreadWrapper thread_wrapper({config.num_threads});
-  CsvLogger logger(config.model_name, config.log_dir, &config.log_mode);
+  CsvLogger logger("tnn_" + config.model_name, config.log_dir, &config.log_mode);
 
   bool is_val = config.max_steps == -1;
 

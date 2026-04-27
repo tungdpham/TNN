@@ -23,7 +23,6 @@
 #include "job.hpp"
 #include "message.hpp"
 #include "nn/blocks_impl/sequential.hpp"
-#include "nn/csv_logger.hpp"
 #include "nn/graph.hpp"
 #include "nn/graph_builder.hpp"
 #include "nn/layers.hpp"
@@ -117,11 +116,6 @@ public:
     this->scheduler_ =
         SchedulerFactory::create_from_config(config.scheduler_config, this->optimizer_.get());
 
-    // initialize per-worker compute logger
-    compute_logger_ = nullptr;  // delete old one
-    std::string worker_name = model_config.name.empty() ? "worker" : model_config.name;
-    compute_logger_ = std::make_unique<WorkerCsvLogger>(worker_name, "logs");
-
     // setup connections
     coordinator_endpoint_ = config.coordinator_endpoint;
     next_stage_endpoint_ = config.next_stage_endpoint;
@@ -154,13 +148,6 @@ protected:
         auto forward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
-        long forward_ms =
-            std::chrono::duration_cast<std::chrono::milliseconds>(forward_end - forward_start)
-                .count();
-        if (compute_logger_) {
-          size_t used_mb = graph_ ? graph_->device().getUsedMemory() / (1024UL * 1024UL) : 0;
-          compute_logger_->log(forward_step_++, "forward", forward_ms, used_mb);
-        }
         Job output(outputs[0], forward_job.mb_id);
         message = Message(CommandType::FORWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), next_stage_endpoint_);
@@ -172,13 +159,6 @@ protected:
         auto backward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
-        long backward_ms =
-            std::chrono::duration_cast<std::chrono::milliseconds>(backward_end - backward_start)
-                .count();
-        if (compute_logger_) {
-          size_t used_mb = graph_ ? graph_->device().getUsedMemory() / (1024UL * 1024UL) : 0;
-          compute_logger_->log(backward_step_++, "backward", backward_ms, used_mb);
-        }
         if (prev_stage_endpoint_ == Endpoint::empty()) {
           // only send backward complete if there is no previous stage
           Message complete_msg(CommandType::BACKWARD_COMPLETE);
@@ -275,7 +255,6 @@ protected:
         break;
       }
       case CommandType::PRINT_LOGS: {
-        if (compute_logger_) compute_logger_->flush();
         Message response(CommandType::LOGS_PRINTED);
         communicator_->send_message(std::move(response), coordinator_endpoint_);
         break;
@@ -337,7 +316,6 @@ protected:
   std::unique_ptr<Optimizer> optimizer_;
   std::unique_ptr<Scheduler> scheduler_;
   std::unique_ptr<Communicator> communicator_;
-  std::unique_ptr<WorkerCsvLogger> compute_logger_;
 
   std::string id_;
   int forward_step_ = 0;
