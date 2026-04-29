@@ -230,7 +230,7 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
       batch_metrics["f1_score"] = compute_f1_score(predictions, device_labels);
     }
     if (config.log_mode.log_perplexity) {
-      batch_metrics["perplexity"] = compute_perplexity(predictions, device_labels);
+      batch_metrics["perplexity"] = std::exp(static_cast<double>(loss));
     }
     if (config.log_mode.log_top_k_accuracy) {
       batch_metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_labels, 5);
@@ -426,7 +426,7 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
         batch_metrics["f1_score"] = compute_f1_score(predictions, device_labels);
       }
       if (config.log_mode.log_perplexity) {
-        batch_metrics["perplexity"] = compute_perplexity(predictions, device_labels);
+        batch_metrics["perplexity"] = std::exp(static_cast<double>(loss));
       }
       if (config.log_mode.log_top_k_accuracy) {
         batch_metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_labels, 5);
@@ -591,7 +591,7 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
         metrics["f1_score"] = compute_f1_score(predictions, device_batch_labels);
       }
       if (config.log_mode.log_perplexity) {
-        metrics["perplexity"] = compute_perplexity(predictions, device_batch_labels);
+        metrics["perplexity"] = std::exp(static_cast<double>(loss));
       }
       if (config.log_mode.log_top_k_accuracy) {
         metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_batch_labels, 5);

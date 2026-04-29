@@ -139,6 +139,7 @@ inline void train_semi_async_step(Coordinator &coordinator,
                                   std::unique_ptr<BaseDataLoader> &train_loader,
                                   const std::unique_ptr<Loss> &criterion,
                                   const TrainingConfig &config, CsvLogger &logger) {
+  train_loader->shuffle();
   train_loader->reset();
 
   Tensor batch_data, batch_labels;
