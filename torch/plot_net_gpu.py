@@ -5,94 +5,136 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def pick_cols(df, candidates):
-    for c in candidates:
-        if c in df.columns:
-            return c
-    return None
+GROUPS = {
+    "roce": ["roce_rx_Gbps", "roce_tx_Gbps"],
+    "gpu": ["gpu_util_percent"],
+    "tcp": ["net_rx_Gbps", "net_tx_Gbps"],
+    "mem": ["gpu_mem_used_mb", "gpu_mem_total_mb"],
+}
+
+
+def parse_groups(groups_arg):
+    groups = []
+    for g in groups_arg.split(","):
+        g = g.strip()
+        if g:
+            groups.append(g)
+    return groups
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot network/RDMA + GPU metrics from CSV.")
+    parser = argparse.ArgumentParser(description="Plot grouped monitor metrics.")
     parser.add_argument("--csv", required=True)
-    parser.add_argument("--out", default="logs/monitor_plot.png")
+    parser.add_argument("--out", default="logs/monitor_grouped.png")
     parser.add_argument("--time-col", default="elapsed_sec")
+    parser.add_argument("--groups", default="roce,gpu,tcp,mem",
+                        help="Groups to plot: roce,gpu,tcp,mem")
+    parser.add_argument("--start", type=float, default=0.0)
+    parser.add_argument("--duration", type=float, default=None)
+    parser.add_argument("--end", type=float, default=None)
+    parser.add_argument("--title", default="Network / RoCE / GPU Monitor")
     args = parser.parse_args()
 
     if not os.path.exists(args.csv):
         raise FileNotFoundError(args.csv)
 
     df = pd.read_csv(args.csv)
+
     if df.empty:
-        raise ValueError("CSV empty")
+        raise ValueError("CSV is empty")
 
     if args.time_col not in df.columns:
         raise ValueError(f"Missing time column: {args.time_col}")
 
+    start = args.start
+    if args.end is not None:
+        end = args.end
+    elif args.duration is not None:
+        end = start + args.duration
+    else:
+        end = df[args.time_col].max()
+
+    df = df[(df[args.time_col] >= start) & (df[args.time_col] <= end)]
+
+    if df.empty:
+        raise ValueError(f"No data in selected range: start={start}, end={end}")
+
+    selected_groups = parse_groups(args.groups)
+
+    plot_groups = []
+    for group in selected_groups:
+        if group not in GROUPS:
+            print(f"[WARN] Unknown group skipped: {group}")
+            continue
+
+        cols = [c for c in GROUPS[group] if c in df.columns]
+        if not cols:
+            print(f"[WARN] Group skipped because columns not found: {group}")
+            continue
+
+        plot_groups.append((group, cols))
+
+    if not plot_groups:
+        print("[ERROR] No valid groups to plot.")
+        print("[INFO] Available columns:")
+        for c in df.columns:
+            print(f"  - {c}")
+        return
+
+    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+
     x = df[args.time_col]
+    n = len(plot_groups)
 
-    # detect columns
-    net_rx = pick_cols(df, ["net_rx_Gbps", "rx_Gbps"])
-    net_tx = pick_cols(df, ["net_tx_Gbps", "tx_Gbps"])
-    roce_rx = pick_cols(df, ["roce_rx_Gbps"])
-    roce_tx = pick_cols(df, ["roce_tx_Gbps"])
+    fig, axes = plt.subplots(
+        n,
+        1,
+        figsize=(14, max(3.2 * n, 6)),
+        sharex=True,
+    )
 
-    gpu_util = pick_cols(df, ["gpu_util_percent"])
-    gpu_mem = pick_cols(df, ["gpu_mem_used_mb"])
+    if n == 1:
+        axes = [axes]
 
-    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+    fig.suptitle(f"{args.title} | {start:.2f}s → {end:.2f}s")
 
-    # ---- Network / RDMA ----
-    ax = axes[0]
+    for ax, (group, cols) in zip(axes, plot_groups):
+        for col in cols:
+            ax.plot(x, df[col], linewidth=2, label=col)
 
-    if net_rx:
-        ax.plot(x, df[net_rx], label="NET RX (Gbps)")
-    if net_tx:
-        ax.plot(x, df[net_tx], label="NET TX (Gbps)")
-    if roce_rx:
-        ax.plot(x, df[roce_rx], linestyle="--", label="ROCE RX (Gbps)")
-    if roce_tx:
-        ax.plot(x, df[roce_tx], linestyle="--", label="ROCE TX (Gbps)")
+        if group == "roce":
+            ax.set_title("RoCE Throughput")
+            ax.set_ylabel("Gbps")
+        elif group == "tcp":
+            ax.set_title("TCP / Netdev Throughput")
+            ax.set_ylabel("Gbps")
+        elif group == "gpu":
+            ax.set_title("GPU Utilization")
+            ax.set_ylabel("Percent (%)")
+        elif group == "mem":
+            ax.set_title("GPU Memory Usage")
+            ax.set_ylabel("MB")
+        else:
+            ax.set_title(group)
+            ax.set_ylabel("Value")
 
-    ax.set_title("Network / RDMA Throughput")
-    ax.set_ylabel("Gbps")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc="best")
 
-    # ---- GPU util ----
-    ax = axes[1]
-    if gpu_util:
-        ax.plot(x, df[gpu_util], label="GPU Util (%)")
-
-    if "gpu_mem_util_percent" in df.columns:
-        ax.plot(x, df["gpu_mem_util_percent"], label="GPU Mem Util (%)")
-
-    ax.set_title("GPU Utilization")
-    ax.set_ylabel("%")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
-
-    # ---- GPU memory ----
-    ax = axes[2]
-    if gpu_mem:
-        ax.plot(x, df[gpu_mem], label="GPU Mem Used (MB)")
-
-    if "gpu_mem_total_mb" in df.columns:
-        ax.plot(x, df["gpu_mem_total_mb"], label="GPU Mem Total (MB)")
-
-    ax.set_title("GPU Memory")
-    ax.set_ylabel("MB")
-    ax.set_xlabel("Time (s)")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
+    axes[-1].set_xlabel("Time (seconds)")
 
     plt.tight_layout()
-    plt.savefig(args.out, dpi=160)
+    plt.savefig(args.out, dpi=160, bbox_inches="tight")
+
     print(f"[OK] Saved plot: {args.out}")
+    print("[OK] Plotted groups:")
+    for group, cols in plot_groups:
+        print(f"  - {group}: {cols}")
+    print(f"[OK] Time range: {start:.2f}s -> {end:.2f}s")
 
     try:
         plt.show()
-    except:
+    except Exception:
         pass
 
 

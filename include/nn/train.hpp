@@ -38,7 +38,7 @@ inline void tbb_cleanup();
 
 constexpr int DEFAULT_EPOCH = 10;
 constexpr size_t DEFAULT_BATCH_SIZE = 32;
-constexpr float DEFAULT_LR_DECAY_FACTOR = 0.9f;
+constexpr float DEFAULT_LR_DECAY_FACTOR = 0.1f;
 constexpr size_t DEFAULT_LR_DECAY_INTERVAL = 5;  // in epochs
 constexpr int DEFAULT_PRINT_INTERVAL = 100;
 constexpr int64_t DEFAULT_NUM_THREADS = 8;  // Typical number of P-Cores on laptop CPUs
