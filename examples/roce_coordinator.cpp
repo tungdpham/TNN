@@ -110,8 +110,10 @@ int main(int argc, char *argv[]) {
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
-  auto scheduler = SchedulerFactory::create_step_lr(
-      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.6f);
+  size_t step_size = train_config.max_steps > 0
+                         ? train_config.max_steps / 10
+                         : 5 * train_loader->size() / train_config.batch_size;
+  auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), step_size, 0.1f);
   std::string host = "localhost";
   Env::get("COORDINATOR_HOST", host);
   int port = 9000;
