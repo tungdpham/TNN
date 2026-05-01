@@ -110,10 +110,28 @@ int main(int argc, char *argv[]) {
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
-  size_t step_size = train_config.max_steps > 0
-                         ? train_config.max_steps / 10
-                         : 5 * train_loader->size() / train_config.batch_size;
-  auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), step_size, 0.1f);
+  int step_lr_epochs = 5;
+  float step_lr_gamma = 0.1f;
+  int step_lr_steps = 0;
+  Env::get("STEP_LR_EPOCHS", step_lr_epochs);
+  Env::get("STEP_LR_GAMMA", step_lr_gamma);
+  Env::get("STEP_LR_STEPS", step_lr_steps);
+
+  size_t step_size = 0;
+  if (step_lr_steps > 0) {
+    step_size = static_cast<size_t>(step_lr_steps);
+  } else if (train_config.max_steps > 0) {
+    step_size = std::max<size_t>(1, static_cast<size_t>(train_config.max_steps) / 10);
+  } else {
+    step_size = static_cast<size_t>(step_lr_epochs) * train_loader->size() /
+                train_config.batch_size;
+  }
+
+  std::cout << "[LR Scheduler] StepLR step_size=" << step_size
+            << " steps, step_lr_epochs=" << step_lr_epochs
+            << ", gamma=" << step_lr_gamma << std::endl;
+
+  auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
   std::string host = "localhost";
   Env::get("COORDINATOR_HOST", host);
   int port = 9000;

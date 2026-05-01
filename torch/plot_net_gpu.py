@@ -27,11 +27,17 @@ def main():
     parser.add_argument("--csv", required=True)
     parser.add_argument("--out", default="logs/monitor_grouped.png")
     parser.add_argument("--time-col", default="elapsed_sec")
-    parser.add_argument("--groups", default="roce,gpu,tcp,mem",
-                        help="Groups to plot: roce,gpu,tcp,mem")
-    parser.add_argument("--start", type=float, default=0.0)
-    parser.add_argument("--duration", type=float, default=None)
-    parser.add_argument("--end", type=float, default=None)
+    parser.add_argument(
+        "--groups",
+        default="roce,gpu,tcp,mem",
+        help="Groups to plot: roce,gpu,tcp,mem",
+    )
+    parser.add_argument("--start", type=float, default=0.0,
+                        help="Start time in original CSV seconds")
+    parser.add_argument("--duration", type=float, default=None,
+                        help="Duration to plot in seconds")
+    parser.add_argument("--end", type=float, default=None,
+                        help="End time in original CSV seconds")
     parser.add_argument("--title", default="Network / RoCE / GPU Monitor")
     args = parser.parse_args()
 
@@ -47,6 +53,7 @@ def main():
         raise ValueError(f"Missing time column: {args.time_col}")
 
     start = args.start
+
     if args.end is not None:
         end = args.end
     elif args.duration is not None:
@@ -54,10 +61,13 @@ def main():
     else:
         end = df[args.time_col].max()
 
-    df = df[(df[args.time_col] >= start) & (df[args.time_col] <= end)]
+    df = df[(df[args.time_col] >= start) & (df[args.time_col] <= end)].copy()
 
     if df.empty:
         raise ValueError(f"No data in selected range: start={start}, end={end}")
+
+    # Reset selected time window to x = 0
+    x = df[args.time_col] - start
 
     selected_groups = parse_groups(args.groups)
 
@@ -83,7 +93,6 @@ def main():
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
 
-    x = df[args.time_col]
     n = len(plot_groups)
 
     fig, axes = plt.subplots(
@@ -96,7 +105,9 @@ def main():
     if n == 1:
         axes = [axes]
 
-    fig.suptitle(f"{args.title} | {start:.2f}s → {end:.2f}s")
+    fig.suptitle(
+        f"{args.title} | original {start:.2f}s → {end:.2f}s | plotted as 0 → {end - start:.2f}s"
+    )
 
     for ax, (group, cols) in zip(axes, plot_groups):
         for col in cols:
@@ -111,6 +122,7 @@ def main():
         elif group == "gpu":
             ax.set_title("GPU Utilization")
             ax.set_ylabel("Percent (%)")
+            ax.set_ylim(0, 105)
         elif group == "mem":
             ax.set_title("GPU Memory Usage")
             ax.set_ylabel("MB")
@@ -121,7 +133,7 @@ def main():
         ax.grid(True, alpha=0.3)
         ax.legend(loc="best")
 
-    axes[-1].set_xlabel("Time (seconds)")
+    axes[-1].set_xlabel("Time since selected start (seconds)")
 
     plt.tight_layout()
     plt.savefig(args.out, dpi=160, bbox_inches="tight")
@@ -130,7 +142,8 @@ def main():
     print("[OK] Plotted groups:")
     for group, cols in plot_groups:
         print(f"  - {group}: {cols}")
-    print(f"[OK] Time range: {start:.2f}s -> {end:.2f}s")
+    print(f"[OK] Original time range: {start:.2f}s -> {end:.2f}s")
+    print(f"[OK] X-axis range: 0.00s -> {end - start:.2f}s")
 
     try:
         plt.show()

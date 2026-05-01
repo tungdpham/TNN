@@ -103,7 +103,7 @@ public:
     GraphBuilder builder;
     auto &node = builder.add_layer(Sequential::create_from_config(model_config));
     this->model_ = &node;
-    this->model_->set_seed(123456);
+    // this->model_->set_seed(123456);
     this->graph_ = std::make_unique<Graph>(builder.compile(allocator));
 
     auto parsed_config = this->model_->get_config();

@@ -12,10 +12,10 @@ def main():
 
     df = pd.read_csv(args.csv)
 
-    for col in ["epoch", "train_loss", "val_loss", "val_accuracy_pct"]:
+    for col in ["epoch", "train_loss", "val_loss", "val_accuracy_percent"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    df = df.dropna(subset=["epoch", "train_loss", "val_loss", "val_accuracy_pct"])
+    df = df.dropna(subset=["epoch", "train_loss", "val_loss", "val_accuracy_percent"])
     df = df.sort_values("epoch")
 
     plt.rcParams.update({
@@ -34,7 +34,6 @@ def main():
     })
 
     figsize = (7.1, 4.8) if args.double_column else (3.5, 4.4)
-
     fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=True)
 
     axes[0].plot(df["epoch"], df["train_loss"], marker="o", label="Training Loss")
@@ -42,16 +41,14 @@ def main():
     axes[0].set_ylabel("Loss")
     axes[0].set_xlim(0, 20)
     axes[0].set_ylim(0, 4)
-    axes[0].set_yticks([0, 1, 2, 3, 4])
     axes[0].grid(True, linestyle="--", alpha=0.45)
     axes[0].legend(frameon=True)
 
-    axes[1].plot(df["epoch"], df["val_accuracy_pct"], marker="o", label="Validation Accuracy")
+    axes[1].plot(df["epoch"], df["val_accuracy_percent"], marker="o", label="Validation Accuracy")
     axes[1].set_xlabel("Epoch")
     axes[1].set_ylabel("Accuracy (%)")
     axes[1].set_xlim(0, 20)
     axes[1].set_ylim(0, 70)
-    axes[1].set_yticks([0, 10, 20, 30, 40, 50, 60, 70])
     axes[1].grid(True, linestyle="--", alpha=0.45)
     axes[1].legend(frameon=True)
 

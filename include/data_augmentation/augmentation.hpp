@@ -41,6 +41,7 @@ protected:
 #include "normalization.hpp"
 #include "random_crop.hpp"
 #include "rotation.hpp"
+#include "saturation.hpp"
 #include "vertical_flip.hpp"
 
 namespace tnn {
@@ -132,13 +133,19 @@ public:
     return *this;
   }
 
+  AugmentationBuilder &saturation(float probability = 0.5f, float range = 0.1f) {
+    strategy_.add_augmentation(std::make_unique<SaturationAugmentation>(probability, range));
+    return *this;
+  }
+
   AugmentationBuilder &gaussian_noise(float probability = 0.3f, float std_dev = 0.05f) {
     strategy_.add_augmentation(std::make_unique<GaussianNoiseAugmentation>(probability, std_dev));
     return *this;
   }
 
   AugmentationBuilder &random_crop(float probability = 0.5f, int padding = 4) {
-    strategy_.add_augmentation(std::make_unique<RandomCropAugmentation>(probability, padding));
+    // DISABLED by patch: RandomCropAugmentation
+// strategy_.add_augmentation(std::make_unique<RandomCropAugmentation>(probability, padding));
     return *this;
   }
 

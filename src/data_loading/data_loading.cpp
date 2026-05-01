@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 
+#include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar100_data_loader.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/data_loader_factory.hpp"
@@ -75,10 +76,25 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
     auto val = std::make_unique<ImageNet100DataLoader>(io_dtype_);
 
     if (train->load_data(dataset_path, true)) {
+      train->set_augmentation(AugmentationBuilder()
+                                  .horizontal_flip(0.5f)
+                                  .brightness(0.8f, 0.10f)
+                                  .contrast(0.8f, 0.10f)
+                                  .normalize({0.485f, 0.456f, 0.406f},
+                                             {0.229f, 0.224f, 0.225f})
+                                  .build());
+      std::cout << "[Augmentation] ImageNet100 train: RandomResizedCrop(224), "
+                << "HorizontalFlip(0.5), Brightness/Contrast(0.1), Normalize" << std::endl;
       pair.train = std::move(train);
     }
 
     if (val->load_data(dataset_path, false)) {
+      val->set_augmentation(AugmentationBuilder()
+                                .normalize({0.485f, 0.456f, 0.406f},
+                                           {0.229f, 0.224f, 0.225f})
+                                .build());
+      std::cout << "[Augmentation] ImageNet100 val: Resize(256), CenterCrop(224), Normalize"
+                << std::endl;
       pair.val = std::move(val);
     }
   } else if (dataset_type == "open_webtext") {

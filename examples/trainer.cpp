@@ -9,6 +9,7 @@
 #include "nn/graph_builder.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
+#include "utils/env.hpp"
 
 using namespace std;
 using namespace tnn;
@@ -67,8 +68,24 @@ signed main(int argc, char *argv[]) {
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 10e-4f, 3e-4f, false);
-  auto scheduler = SchedulerFactory::create_step_lr(
-      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
+  int step_lr_epochs = 5;
+  float step_lr_gamma = 0.1f;
+  int step_lr_steps = 0;
+  Env::get("STEP_LR_EPOCHS", step_lr_epochs);
+  Env::get("STEP_LR_GAMMA", step_lr_gamma);
+  Env::get("STEP_LR_STEPS", step_lr_steps);
+
+  size_t step_size = step_lr_steps > 0
+                         ? static_cast<size_t>(step_lr_steps)
+                         : static_cast<size_t>(step_lr_epochs) * train_loader->size() /
+                               train_config.batch_size;
+
+  std::cout << "[LR Scheduler] StepLR step_size=" << step_size
+            << " steps, step_lr_epochs=" << step_lr_epochs
+            << ", gamma=" << step_lr_gamma << std::endl;
+
+  auto scheduler =
+      SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
 
   try {
     train_model(graph, train_loader, val_loader, optimizer, criterion, scheduler, train_config);
