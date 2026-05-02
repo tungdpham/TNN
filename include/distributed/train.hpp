@@ -46,9 +46,7 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
     // Perform forward, compute loss, and backward asynchronously.
     auto [loss, corrects] =
         coordinator.async_train_batch(micro_batch_inputs, micro_batch_labels, criterion);
-    auto process_end = std::chrono::high_resolution_clock::now();
-    auto process_duration =
-        std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
+
     double ppl = std::exp(static_cast<double>(loss));
 
     size_t class_samples = 1;
@@ -64,6 +62,10 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
       coordinator.update_parameters();
       accumulation_steps = 0;
     }
+
+    auto process_end = std::chrono::high_resolution_clock::now();
+    auto process_duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
 
     // Log batch metrics to CSV.
     {
@@ -88,12 +90,6 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
                 << loss << ", PPL: " << std::setprecision(2) << ppl << ", Cummulative Accuracy: "
                 << (static_cast<double>(total_corrects) / total_samples * 100.0f) << "%"
                 << ", Processing Time: " << process_duration.count() << " us" << std::endl;
-      if (config.profiler_type != ProfilerType::NONE) {
-        coordinator.print_profiling();
-      }
-    }
-    if (config.profiler_type != ProfilerType::NONE) {
-      coordinator.clear_profiling();
     }
     ++batch_index;
   }
