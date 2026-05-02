@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <random>
+#include <utility>
+#include <vector>
 
 #include "augmentation.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -42,10 +45,17 @@ private:
 
     T *ptr = data->data_as<T>();
 
+    // Pre-compute per-batch random decisions sequentially to avoid data races
+    std::vector<std::pair<bool, float>> decisions(batch_size);
     for (size_t b = 0; b < batch_size; ++b) {
-      if (prob_dist(this->rng_) >= probability_) continue;
+      bool apply = prob_dist(this->rng_) < probability_;
+      decisions[b] = {apply, apply ? factor_dist(this->rng_) : 1.0f};
+    }
 
-      const float factor = factor_dist(this->rng_);
+    parallel_for<size_t>(0, batch_size, [&](size_t b) {
+      if (!decisions[b].first) return;
+
+      const float factor = decisions[b].second;
 
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
@@ -61,7 +71,7 @@ private:
           ptr[idx + 2] = static_cast<T>(std::clamp(gray + (bval - gray) * factor, 0.0f, 1.0f));
         }
       }
-    }
+    });
   }
 };
 

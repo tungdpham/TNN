@@ -1,8 +1,11 @@
 #pragma once
 
 #include <random>
+#include <tuple>
+#include <vector>
 
 #include "augmentation.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -43,13 +46,22 @@ private:
 
     std::uniform_int_distribution<int> crop_dist(0, 2 * padding_);
 
+    // Pre-compute per-batch random decisions sequentially to avoid data races
+    std::vector<std::tuple<bool, int, int>> decisions(batch_size);
     for (size_t b = 0; b < batch_size; ++b) {
       if (prob_dist(this->rng_) < probability_) {
-        int start_x = crop_dist(this->rng_);
-        int start_y = crop_dist(this->rng_);
-        apply_crop<T>(data, b, height, width, channels, start_x, start_y);
+        decisions[b] = {true, crop_dist(this->rng_), crop_dist(this->rng_)};
+      } else {
+        decisions[b] = {false, 0, 0};
       }
     }
+
+    parallel_for<size_t>(0, batch_size, [&](size_t b) {
+      if (std::get<0>(decisions[b])) {
+        apply_crop<T>(data, b, height, width, channels, std::get<1>(decisions[b]),
+                      std::get<2>(decisions[b]));
+      }
+    });
   }
 
   template <typename T>

@@ -2,9 +2,12 @@
 
 #include <cmath>
 #include <random>
+#include <utility>
+#include <vector>
 
 #include "augmentation.hpp"
 #include "tensor/tensor.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -44,12 +47,18 @@ private:
     const size_t width = shape[2];
     const size_t channels = shape[3];
 
+    // Pre-compute per-batch random decisions sequentially to avoid data races
+    std::vector<std::pair<bool, float>> decisions(batch_size);
     for (size_t b = 0; b < batch_size; ++b) {
-      if (prob_dist(this->rng_) < probability_) {
-        float angle_degrees = angle_dist(this->rng_);
-        rotate_image<T>(data, b, height, width, channels, angle_degrees);
-      }
+      bool apply = prob_dist(this->rng_) < probability_;
+      decisions[b] = {apply, apply ? angle_dist(this->rng_) : 0.0f};
     }
+
+    parallel_for<size_t>(0, batch_size, [&](size_t b) {
+      if (decisions[b].first) {
+        rotate_image<T>(data, b, height, width, channels, decisions[b].second);
+      }
+    });
   }
 
   template <typename T>
