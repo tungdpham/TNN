@@ -70,6 +70,9 @@ private:
   Tensor cudnn_backward(const ConstTensor &grad_output, size_t mb_id);
 
   mutable std::unordered_map<size_t, cuda::cudnn_layer_norm::feHandle_t *> fe_handle_cache;
+
+  Tensor dscale_scratch_;
+  Tensor dbias_scratch_;
 #endif
   mutable std::unordered_map<size_t, LayerNormStats> stats_cache;
 

@@ -166,9 +166,6 @@ inline void train_semi_async_step(Coordinator &coordinator,
     // Perform forward, compute loss, and backward asynchronously.
     auto [loss, corrects] =
         coordinator.async_train_batch(micro_batch_inputs, micro_batch_labels, criterion);
-    auto process_end = std::chrono::high_resolution_clock::now();
-    auto process_duration =
-        std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
     double ppl = std::exp(static_cast<double>(loss));
 
     size_t class_samples = 1;
@@ -181,6 +178,10 @@ inline void train_semi_async_step(Coordinator &coordinator,
       coordinator.update_parameters();
       accumulation_steps = 0;
     }
+
+    auto process_end = std::chrono::high_resolution_clock::now();
+    auto process_duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
 
     // Log batch metrics to CSV.
     {
@@ -206,12 +207,6 @@ inline void train_semi_async_step(Coordinator &coordinator,
                 << ", Accuracy: " << std::setprecision(2)
                 << (static_cast<double>(corrects) / class_samples * 100.0f) << "%"
                 << ", Processing Time: " << process_duration.count() << " us" << std::endl;
-      if (config.profiler_type != ProfilerType::NONE) {
-        coordinator.print_profiling();
-      }
-    }
-    if (config.profiler_type != ProfilerType::NONE) {
-      coordinator.clear_profiling();
     }
   }
 

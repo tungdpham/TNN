@@ -8,6 +8,7 @@
 
 #include <cstddef>
 
+#include "device/pool_allocator.hpp"
 #include "device/task.hpp"
 #include "nn/layer.hpp"
 #include "nn/layers_impl/common/batchnorm.hpp"
@@ -17,6 +18,7 @@
 #ifdef USE_CUDNN
 #include "device/cuda/cuda_context.hpp"
 #include "nn/layers_impl/cuda/cudnn_batchnorm_ops.hpp"
+#include "ops/cuda/kernels.hpp"
 #endif
 #ifdef USE_DNNL
 #include "nn/layers_impl/cpu/dnnl_batchnorm_ops.hpp"
@@ -68,6 +70,14 @@ void BatchNormLayer::init_impl() {
 
   dummy_mean_gradients_->fill(0.0f);
   dummy_var_gradients_->fill(0.0f);
+
+#ifdef USE_CUDNN
+  if (get_engine_type() == EngineType::CUDA) {
+    auto &allocator = PoolAllocator::instance(device(), this->flow_handle_);
+    dscale_scratch_ = make_tensor(allocator, DType_t::FP32, {num_features_});
+    dbias_scratch_ = make_tensor(allocator, DType_t::FP32, {num_features_});
+  }
+#endif
 }
 
 /**
@@ -282,8 +292,16 @@ Tensor BatchNormLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_
   Tensor workspace = this->get_workspace({current_stats.bwd_workspace_size}, DType_t::BYTE);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, fe_handle, current_stats, grad_output, relu_mask,
-                                 input, grad_input, gamma_, gamma_gradients_, beta_gradients_,
+                                 input, grad_input, gamma_, dscale_scratch_, dbias_scratch_,
                                  batch_mean, batch_invar, workspace, this->flow_handle_);
+
+  // Accumulate dscale and dbias scratch into the persistent gradients
+  create_cuda_task(this->flow_handle_, ops::cuda::cuda_axpy<float>, 1.0f,
+                   dscale_scratch_->data_as<float>(), gamma_gradients_->data_as<float>(),
+                   num_features_);
+  create_cuda_task(this->flow_handle_, ops::cuda::cuda_axpy<float>, 1.0f,
+                   dbias_scratch_->data_as<float>(), beta_gradients_->data_as<float>(),
+                   num_features_);
 
   batch_mean = nullptr;
   batch_invar = nullptr;

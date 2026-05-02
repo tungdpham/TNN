@@ -58,17 +58,11 @@ int main() {
   Env::get("STEP_LR_GAMMA", step_lr_gamma);
   Env::get("STEP_LR_STEPS", step_lr_steps);
 
-  size_t step_size = step_lr_steps > 0
-                         ? static_cast<size_t>(step_lr_steps)
-                         : static_cast<size_t>(step_lr_epochs) * train_loader->size() /
-                               train_config.batch_size;
+  size_t step_size = step_lr_steps > 0 ? static_cast<size_t>(step_lr_steps)
+                                       : static_cast<size_t>(step_lr_epochs) *
+                                             train_loader->size() / train_config.batch_size;
 
-  std::cout << "[LR Scheduler] StepLR step_size=" << step_size
-            << " steps, step_lr_epochs=" << step_lr_epochs
-            << ", gamma=" << step_lr_gamma << std::endl;
-
-  auto scheduler =
-      SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
+  auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
 
   std::string coordinator_host = "localhost";
   int coordinator_port = 9000;

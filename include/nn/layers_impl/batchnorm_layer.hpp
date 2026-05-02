@@ -59,6 +59,10 @@ private:
   void build_graph(const Vec<size_t> &input_shape) const;
 
   mutable std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
+
+  Tensor dscale_scratch_;
+  Tensor dbias_scratch_;
+
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> forward_training_task(
       cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const ConstTensor &input,

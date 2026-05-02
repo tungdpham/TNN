@@ -29,7 +29,6 @@
 #include "nn/op_node.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
-#include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
 #include "tensor/tensor.hpp"
@@ -142,23 +141,15 @@ protected:
   virtual void process_message(Message &&message) {
     switch (message.header().command_type) {
       case CommandType::FORWARD_JOB: {
-        auto forward_start = std::chrono::system_clock::now();
         const Job &forward_job = message.get<Job>();
         auto outputs = this->model_->forward({forward_job.data}, forward_job.mb_id);
-        auto forward_end = std::chrono::system_clock::now();
-        GlobalProfiler::add_event(
-            {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
         Job output(outputs[0], forward_job.mb_id);
         message = Message(CommandType::FORWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), next_stage_endpoint_);
       } break;
       case CommandType::BACKWARD_JOB: {
-        auto backward_start = std::chrono::system_clock::now();
         const Job &backward_job = message.get<Job>();
         auto outputs = this->model_->backward({backward_job.data}, backward_job.mb_id);
-        auto backward_end = std::chrono::system_clock::now();
-        GlobalProfiler::add_event(
-            {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
         if (prev_stage_endpoint_ == Endpoint::empty()) {
           // only send backward complete if there is no previous stage
           Message complete_msg(CommandType::BACKWARD_COMPLETE);
@@ -170,16 +161,12 @@ protected:
         communicator_->send_message(std::move(message), prev_stage_endpoint_);
       } break;
       case CommandType::UPDATE_PARAMETERS: {
-        auto update_start = std::chrono::system_clock::now();
         // implicitly clear grads
         this->optimizer_->update();
         this->optimizer_->zero_grads();
         if (scheduler_) {
           this->scheduler_->step();
         }
-        auto update_end = std::chrono::system_clock::now();
-        GlobalProfiler::add_event(
-            {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
         Message response(CommandType::PARAMETERS_UPDATED, std::monostate{});
         communicator_->send_message(std::move(response), coordinator_endpoint_);
       } break;

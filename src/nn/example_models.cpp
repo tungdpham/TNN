@@ -12,19 +12,8 @@
 #include "nn/blocks_impl/sequential.hpp"
 #include "nn/layers.hpp"
 #include "type/type.hpp"
-#include "utils/env.hpp"
-#include <iostream>
 
 namespace tnn {
-
-
-
-static float resnet50_bn_momentum() {
-  float momentum = 0.1f;
-  Env::get("RESNET50_BN_MOMENTUM", momentum);
-  std::cout << "[ResNet50] BN momentum=" << momentum << std::endl;
-  return momentum;
-}
 
 // Static member definitions
 std::unordered_map<std::string, std::function<Sequential(DType_t)>> ExampleModels::creators_;

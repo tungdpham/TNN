@@ -123,13 +123,9 @@ int main(int argc, char *argv[]) {
   } else if (train_config.max_steps > 0) {
     step_size = std::max<size_t>(1, static_cast<size_t>(train_config.max_steps) / 10);
   } else {
-    step_size = static_cast<size_t>(step_lr_epochs) * train_loader->size() /
-                train_config.batch_size;
+    step_size =
+        static_cast<size_t>(step_lr_epochs) * train_loader->size() / train_config.batch_size;
   }
-
-  std::cout << "[LR Scheduler] StepLR step_size=" << step_size
-            << " steps, step_lr_epochs=" << step_lr_epochs
-            << ", gamma=" << step_lr_gamma << std::endl;
 
   auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
   std::string host = "localhost";

@@ -35,6 +35,7 @@ struct feHandle_t {
   std::shared_ptr<fe::graph::Graph> wgrad_graph;
   std::shared_ptr<fe::graph::Tensor_attributes> wgrad_x;
   std::shared_ptr<fe::graph::Tensor_attributes> wgrad_dy;
+  std::shared_ptr<fe::graph::Tensor_attributes> wgrad_dw_existing;
   std::shared_ptr<fe::graph::Tensor_attributes> wgrad_dw;
 
   std::shared_ptr<fe::graph::Graph> bgrad_graph;
@@ -240,7 +241,17 @@ static void build_wgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
           .set_stride({static_cast<int64_t>(stats.stride_h), static_cast<int64_t>(stats.stride_w)})
           .set_dilation({1, 1});
 
-  auto DW = graph->conv_wgrad(DY, X, wgrad_options);
+  auto DW_computed = graph->conv_wgrad(DY, X, wgrad_options);
+  DW_computed->set_dim({k, c, r, s}).set_stride({r * s * c, 1, s * c, c}).set_data_type(io_type);
+
+  auto DW_existing = graph->tensor(fe::graph::Tensor_attributes()
+                                       .set_name("DW_existing")
+                                       .set_dim({k, c, r, s})
+                                       .set_stride({r * s * c, 1, s * c, c})
+                                       .set_data_type(io_type));
+
+  auto add_options = fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::ADD);
+  auto DW = graph->pointwise(DW_computed, DW_existing, add_options);
   DW->set_output(true)
       .set_dim({k, c, r, s})
       .set_stride({r * s * c, 1, s * c, c})
@@ -259,6 +270,7 @@ static void build_wgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
   handle->wgrad_graph = graph;
   handle->wgrad_x = X;
   handle->wgrad_dy = DY;
+  handle->wgrad_dw_existing = DW_existing;
   handle->wgrad_dw = DW;
   stats.wgrad_workspace_size =
       (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
@@ -392,6 +404,7 @@ void run_wgrad_and_bgrad(feHandle_t* handle, const ConvolutionStats& stats, cons
   std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
       {handle->wgrad_x, const_cast<void*>(input_data)},
       {handle->wgrad_dy, const_cast<void*>(gradient_data)},
+      {handle->wgrad_dw_existing, weight_grad_data},
       {handle->wgrad_dw, weight_grad_data}};
 
   auto status = handle->wgrad_graph->execute(handle->cudnn_handle, variant_pack, workspace_data);

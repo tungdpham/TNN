@@ -25,11 +25,11 @@ public:
         op_nodes_(std::move(op_nodes)),
         io_nodes_(std::move(io_nodes)),
         edges_(std::move(edges)) {
+    auto ws_allocator = DELAllocatorV2::instance(ctx_.device(), defaultFlowHandle);
     for (auto& op_pair : op_nodes_) {
       OpNode& op_node = op_pair.second;
+      op_node.layer()->set_allocator(*ws_allocator);
       op_node.init();
-      auto allocator = DELAllocatorV2::instance(device(), defaultFlowHandle);
-      op_node.layer()->set_allocator(*allocator);
     }
   }
 
