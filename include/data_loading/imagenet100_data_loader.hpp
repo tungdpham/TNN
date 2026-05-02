@@ -7,16 +7,17 @@
 #pragma once
 
 #include <algorithm>
-#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <numeric>
-#include <random>
 #include <string>
 
 #include "data_loading/image_data_loader.hpp"
+#include "device/device_manager.hpp"
+#include "device/device_type.hpp"
+#include "device/pool_allocator.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 
@@ -73,7 +74,6 @@ private:
   Vec<size_t> access_order_;
 
   DType_t dtype_ = DType_t::FP32;
-  bool is_train_ = true;
 
   Vec<std::string> class_ids_;                           // WordNet IDs (wnids)
   std::map<std::string, int> class_id_to_index_;         // Map wnid to class index
@@ -96,9 +96,11 @@ private:
       const size_t sample_idx = access_order_[this->current_index_ + i];
       const auto &[path, class_index] = sample_list_[sample_idx];
 
-      // Temporary CHW buffer for image data
-      float chw_buf[imagenet100_constants::IMAGE_SIZE];
-      if (!load_jpeg_image(path, chw_buf, is_train_)) return;
+      auto &pool = PoolAllocator::instance(DeviceManager::getInstance().getDevice(DeviceType::CPU),
+                                           defaultFlowHandle);
+      auto chw_dptr = pool.allocate(imagenet100_constants::IMAGE_SIZE * sizeof(float));
+      float *chw_buf = chw_dptr.get<float>();
+      if (!load_jpeg_image(path, chw_buf)) return;
 
       // Convert from CHW float to NHWC tensor
       for (size_t c = 0; c < imagenet100_constants::NUM_CHANNELS; ++c) {
@@ -167,13 +169,9 @@ private:
   }
 
   /**
-   * Load a JPEG image and convert it to CHW float data in [0, 1].
-   * Train: torchvision-like RandomResizedCrop(224, scale=(0.08, 1.0), ratio=(3/4, 4/3)).
-   * Val: torchvision-like Resize(256) + CenterCrop(224).
+   * Load a JPEG image, resize to target dimensions, and convert to normalized float data
    */
-  bool load_jpeg_image(const std::string &image_path,
-                       float *image_data_ptr,
-                       bool is_train) {
+  bool load_jpeg_image(const std::string &image_path, float *image_data_ptr) {
     int width, height, channels;
     unsigned char *img = stbi_load(image_path.c_str(), &width, &height, &channels, 3);
 
@@ -182,136 +180,47 @@ private:
       return false;
     }
 
-    constexpr int OUT_H = static_cast<int>(imagenet100_constants::IMAGE_HEIGHT);
-    constexpr int OUT_W = static_cast<int>(imagenet100_constants::IMAGE_WIDTH);
+    // Resize if needed
+    bool needs_resize = (width != static_cast<int>(imagenet100_constants::IMAGE_WIDTH) ||
+                         height != static_cast<int>(imagenet100_constants::IMAGE_HEIGHT));
 
-    unsigned char *final_img = new unsigned char[OUT_H * OUT_W * 3];
-
-    if (is_train) {
-      // Torch-like RandomResizedCrop(224, scale=(0.08, 1.0), ratio=(3/4, 4/3)).
-      static thread_local std::mt19937 rng(std::random_device{}());
-      std::uniform_real_distribution<float> scale_dist(0.08f, 1.0f);
-      std::uniform_real_distribution<float> ratio_dist(std::log(3.0f / 4.0f),
-                                                       std::log(4.0f / 3.0f));
-
-      int crop_x = 0;
-      int crop_y = 0;
-      int crop_w = width;
-      int crop_h = height;
-
-      const int area = width * height;
-      bool found = false;
-
-      for (int attempt = 0; attempt < 10; ++attempt) {
-        const float target_area = scale_dist(rng) * static_cast<float>(area);
-        const float aspect = std::exp(ratio_dist(rng));
-
-        const int w = static_cast<int>(std::round(std::sqrt(target_area * aspect)));
-        const int h = static_cast<int>(std::round(std::sqrt(target_area / aspect)));
-
-        if (w > 0 && h > 0 && w <= width && h <= height) {
-          std::uniform_int_distribution<int> x_dist(0, width - w);
-          std::uniform_int_distribution<int> y_dist(0, height - h);
-          crop_x = x_dist(rng);
-          crop_y = y_dist(rng);
-          crop_w = w;
-          crop_h = h;
-          found = true;
-          break;
-        }
-      }
-
-      if (!found) {
-        // Torch fallback: center crop with valid aspect-ratio bounds.
-        const float in_ratio = static_cast<float>(width) / static_cast<float>(height);
-        if (in_ratio < 3.0f / 4.0f) {
-          crop_w = width;
-          crop_h = static_cast<int>(std::round(crop_w / (3.0f / 4.0f)));
-        } else if (in_ratio > 4.0f / 3.0f) {
-          crop_h = height;
-          crop_w = static_cast<int>(std::round(crop_h * (4.0f / 3.0f)));
-        } else {
-          crop_w = width;
-          crop_h = height;
-        }
-        crop_w = std::min(crop_w, width);
-        crop_h = std::min(crop_h, height);
-        crop_x = std::max(0, (width - crop_w) / 2);
-        crop_y = std::max(0, (height - crop_h) / 2);
-      }
-
-      const unsigned char *crop_ptr = img + (crop_y * width + crop_x) * 3;
-      unsigned char *result = stbir_resize_uint8_linear(
-          crop_ptr, crop_w, crop_h, width * 3,
-          final_img, OUT_W, OUT_H, 0, 3);
-
+    dptr resize_dptr;
+    if (needs_resize) {
+      constexpr size_t resize_buf_bytes =
+          imagenet100_constants::IMAGE_HEIGHT * imagenet100_constants::IMAGE_WIDTH * 3;
+      auto &pool = PoolAllocator::instance(DeviceManager::getInstance().getDevice(DeviceType::CPU),
+                                           defaultFlowHandle);
+      resize_dptr = pool.allocate(resize_buf_bytes);
+      unsigned char *resize_buf = resize_dptr.get<unsigned char>();
+      unsigned char *result = stbir_resize_uint8_linear(img, width, height, 0, resize_buf,
+                                                        imagenet100_constants::IMAGE_WIDTH,
+                                                        imagenet100_constants::IMAGE_HEIGHT, 0, 3);
+      stbi_image_free(img);
       if (!result) {
-        std::cerr << "Error random-resized-cropping image: " << image_path << std::endl;
-        delete[] final_img;
-        stbi_image_free(img);
+        std::cerr << "Error resizing image: " << image_path << std::endl;
         return false;
       }
-    } else {
-      // Torch-like validation: Resize(256) preserving aspect ratio, then CenterCrop(224).
-      constexpr int RESIZE_SHORT_SIDE = 256;
-      int resized_w = 0;
-      int resized_h = 0;
-
-      if (width < height) {
-        resized_w = RESIZE_SHORT_SIDE;
-        resized_h = static_cast<int>(std::round(
-            static_cast<float>(height) * RESIZE_SHORT_SIDE / static_cast<float>(width)));
-      } else {
-        resized_h = RESIZE_SHORT_SIDE;
-        resized_w = static_cast<int>(std::round(
-            static_cast<float>(width) * RESIZE_SHORT_SIDE / static_cast<float>(height)));
-      }
-
-      resized_w = std::max(resized_w, OUT_W);
-      resized_h = std::max(resized_h, OUT_H);
-
-      unsigned char *resized_img = new unsigned char[resized_h * resized_w * 3];
-      unsigned char *result = stbir_resize_uint8_linear(
-          img, width, height, 0,
-          resized_img, resized_w, resized_h, 0, 3);
-
-      if (!result) {
-        std::cerr << "Error resizing validation image: " << image_path << std::endl;
-        delete[] resized_img;
-        delete[] final_img;
-        stbi_image_free(img);
-        return false;
-      }
-
-      const int crop_x = std::max(0, (resized_w - OUT_W) / 2);
-      const int crop_y = std::max(0, (resized_h - OUT_H) / 2);
-
-      for (int y = 0; y < OUT_H; ++y) {
-        const unsigned char *src_row = resized_img + ((crop_y + y) * resized_w + crop_x) * 3;
-        unsigned char *dst_row = final_img + y * OUT_W * 3;
-        std::copy(src_row, src_row + OUT_W * 3, dst_row);
-      }
-
-      delete[] resized_img;
+      img = resize_buf;
     }
 
-    stbi_image_free(img);
-
-    // Convert from HWC [0,255] to CHW [0,1].
+    // Convert from HWC (Height, Width, Channels) to CHW (Channels, Height, Width) format
+    // and normalize to [0, 1]
     for (size_t c = 0; c < imagenet100_constants::NUM_CHANNELS; ++c) {
       for (size_t h = 0; h < imagenet100_constants::IMAGE_HEIGHT; ++h) {
         for (size_t w = 0; w < imagenet100_constants::IMAGE_WIDTH; ++w) {
-          const size_t src_idx = (h * imagenet100_constants::IMAGE_WIDTH + w) * 3 + c;
-          const size_t dst_idx =
+          size_t src_idx = (h * imagenet100_constants::IMAGE_WIDTH + w) * 3 + c;
+          size_t dst_idx =
               c * imagenet100_constants::IMAGE_HEIGHT * imagenet100_constants::IMAGE_WIDTH +
               h * imagenet100_constants::IMAGE_WIDTH + w;
-          image_data_ptr[dst_idx] =
-              final_img[src_idx] / imagenet100_constants::NORMALIZATION_FACTOR;
+          image_data_ptr[dst_idx] = img[src_idx] / imagenet100_constants::NORMALIZATION_FACTOR;
         }
       }
     }
 
-    delete[] final_img;
+    if (!needs_resize) {
+      stbi_image_free(img);
+    }
+    // resize_dptr goes out of scope here and is automatically reclaimed to the pool
     return true;
   }
 
@@ -402,7 +311,6 @@ public:
    * @param is_train If true, index training data; if false, index validation data
    */
   bool load_data(const std::string &source, bool is_train = true) {
-    is_train_ = is_train;
     sample_list_.clear();
 
     if (!load_class_labels(source)) return false;

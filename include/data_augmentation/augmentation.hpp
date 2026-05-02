@@ -144,8 +144,7 @@ public:
   }
 
   AugmentationBuilder &random_crop(float probability = 0.5f, int padding = 4) {
-    // DISABLED by patch: RandomCropAugmentation
-// strategy_.add_augmentation(std::make_unique<RandomCropAugmentation>(probability, padding));
+    strategy_.add_augmentation(std::make_unique<RandomCropAugmentation>(probability, padding));
     return *this;
   }
 

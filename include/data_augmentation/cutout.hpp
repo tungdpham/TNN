@@ -1,8 +1,11 @@
 #pragma once
 
 #include <random>
+#include <tuple>
+#include <vector>
 
 #include "augmentation.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -41,23 +44,32 @@ private:
     const size_t width = shape[2];
     const size_t channels = shape[3];
 
+    std::uniform_int_distribution<size_t> x_dist(0, width - cutout_size_);
+    std::uniform_int_distribution<size_t> y_dist(0, height - cutout_size_);
+
+    // Pre-compute per-batch random decisions sequentially to avoid data races
+    std::vector<std::tuple<bool, size_t, size_t>> decisions(batch_size);
     for (size_t b = 0; b < batch_size; ++b) {
       if (prob_dist(this->rng_) < probability_) {
-        std::uniform_int_distribution<size_t> x_dist(0, width - cutout_size_);
-        std::uniform_int_distribution<size_t> y_dist(0, height - cutout_size_);
+        decisions[b] = {true, x_dist(this->rng_), y_dist(this->rng_)};
+      } else {
+        decisions[b] = {false, 0, 0};
+      }
+    }
 
-        size_t x = x_dist(this->rng_);
-        size_t y = y_dist(this->rng_);
-
+    parallel_for<size_t>(0, batch_size, [&](size_t b) {
+      if (std::get<0>(decisions[b])) {
+        const size_t x = std::get<1>(decisions[b]);
+        const size_t y = std::get<2>(decisions[b]);
         for (size_t h = y; h < y + cutout_size_ && h < height; ++h) {
           for (size_t w = x; w < x + cutout_size_ && w < width; ++w) {
             for (size_t c = 0; c < channels; ++c) {
-              data->at<T>({b, h, w, c}) = static_cast<float>(0);
+              data->at<T>({b, h, w, c}) = static_cast<T>(0);
             }
           }
         }
       }
-    }
+    });
   }
 };
 
