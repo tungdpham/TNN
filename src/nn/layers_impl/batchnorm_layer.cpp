@@ -8,7 +8,6 @@
 
 #include <cstddef>
 
-#include "device/pool_allocator.hpp"
 #include "device/task.hpp"
 #include "nn/layer.hpp"
 #include "nn/layers_impl/common/batchnorm.hpp"
@@ -70,14 +69,6 @@ void BatchNormLayer::init_impl() {
 
   dummy_mean_gradients_->fill(0.0f);
   dummy_var_gradients_->fill(0.0f);
-
-#ifdef USE_CUDNN
-  if (get_engine_type() == EngineType::CUDA) {
-    auto &allocator = PoolAllocator::instance(device(), this->flow_handle_);
-    dscale_scratch_ = make_tensor(allocator, DType_t::FP32, {num_features_});
-    dbias_scratch_ = make_tensor(allocator, DType_t::FP32, {num_features_});
-  }
-#endif
 }
 
 /**
@@ -290,17 +281,19 @@ Tensor BatchNormLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_
   Tensor grad_input = get_output_tensor(grad_output->shape());
 
   Tensor workspace = this->get_workspace({current_stats.bwd_workspace_size}, DType_t::BYTE);
+  Tensor dscale_scratch = this->get_workspace({num_features_}, DType_t::FP32);
+  Tensor dbias_scratch = this->get_workspace({num_features_}, DType_t::FP32);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, fe_handle, current_stats, grad_output, relu_mask,
-                                 input, grad_input, gamma_, dscale_scratch_, dbias_scratch_,
+                                 input, grad_input, gamma_, dscale_scratch, dbias_scratch,
                                  batch_mean, batch_invar, workspace, this->flow_handle_);
 
   // Accumulate dscale and dbias scratch into the persistent gradients
   create_cuda_task(this->flow_handle_, ops::cuda::cuda_axpy<float>, 1.0f,
-                   dscale_scratch_->data_as<float>(), gamma_gradients_->data_as<float>(),
+                   dscale_scratch->data_as<float>(), gamma_gradients_->data_as<float>(),
                    num_features_);
   create_cuda_task(this->flow_handle_, ops::cuda::cuda_axpy<float>, 1.0f,
-                   dbias_scratch_->data_as<float>(), beta_gradients_->data_as<float>(),
+                   dbias_scratch->data_as<float>(), beta_gradients_->data_as<float>(),
                    num_features_);
 
   batch_mean = nullptr;

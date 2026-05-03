@@ -18,6 +18,7 @@
 #include <string>
 
 #include "data_loading/image_data_loader.hpp"
+#include "device/iallocator.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 
@@ -61,7 +62,7 @@ private:
   Vec<std::pair<size_t, size_t>> sample_map_;
   // Access order — shuffled in-place; current_index_ indexes into this
   Vec<size_t> access_order_;
-
+  IAllocator &allocator_;
   DType_t dtype_ = DType_t::FP32;
 
   Vec<std::string> class_names_ = {"airplane", "automobile", "bird",  "cat",  "deer",
@@ -133,8 +134,8 @@ private:
     const size_t width = cifar10_constants::IMAGE_WIDTH;
     const size_t channels = cifar10_constants::NUM_CHANNELS;
 
-    batch_data = make_tensor<T>({actual_batch_size, height, width, channels});
-    batch_labels = make_tensor<int>({actual_batch_size});
+    batch_data = make_tensor<T>(allocator_, {actual_batch_size, height, width, channels});
+    batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
 
     T *data_ptr = batch_data->data_as<T>();
     int *labels_ptr = batch_labels->data_as<int>();
@@ -172,6 +173,7 @@ private:
 public:
   explicit CIFAR10DataLoader(DType_t dtype = DType_t::FP32)
       : ImageDataLoader(),
+        allocator_(PoolAllocator::instance(getHost(), defaultFlowHandle)),
         dtype_(dtype) {}
 
   virtual ~CIFAR10DataLoader() { cleanup_maps(); }

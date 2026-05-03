@@ -60,8 +60,8 @@ private:
   Vec<std::pair<size_t, size_t>> sample_map_;
   // Access order — shuffled in-place; current_index_ indexes into this
   Vec<size_t> access_order_;
-
   bool use_coarse_labels_;
+  IAllocator &allocator_;
   DType_t dtype_ = DType_t::FP32;
 
   Vec<std::string> fine_class_names_ = {
@@ -208,6 +208,7 @@ public:
   explicit CIFAR100DataLoader(bool use_coarse_labels = false, DType_t dtype = DType_t::FP32)
       : ImageDataLoader(),
         use_coarse_labels_(use_coarse_labels),
+        allocator_(PoolAllocator::instance(getHost(), defaultFlowHandle)),
         dtype_(dtype) {}
 
   virtual ~CIFAR100DataLoader() { cleanup_maps(); }

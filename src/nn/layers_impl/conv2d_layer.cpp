@@ -8,6 +8,7 @@
 
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/conv2d_nhwc_ops.hpp"
+#include "ops/cuda/kernels.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
 #ifdef USE_DNNL
@@ -201,25 +202,28 @@ Tensor Conv2DLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
 
   Tensor grad_input = get_output_tensor(input->shape());
 
+  size_t batch_size = grad_output->dimension(0);
+  size_t input_h = input->dimension(1);
+  size_t input_w = input->dimension(2);
+  size_t output_h = grad_output->dimension(1);
+  size_t output_w = grad_output->dimension(2);
+
   if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
       create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::run_dgrad<T>, grad_output->data_as<T>(),
                       weights_->data_as<T>(), grad_input->data_as<T>(), grad_output->dimension(0),
-                      grad_output->dimension(1), grad_output->dimension(2), in_channels_,
-                      out_channels_, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_,
-                      grad_output->dimension(1), grad_output->dimension(2));
+                      input_h, input_w, in_channels_, out_channels_, kernel_h_, kernel_w_,
+                      stride_h_, stride_w_, pad_h_, pad_w_, output_h, output_w);
 
       create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::run_wgrad<T>, input->data_as<T>(),
-                      grad_output->data_as<T>(), weight_gradients_->data_as<T>(),
-                      grad_output->dimension(0), input->dimension(1), input->dimension(2),
-                      in_channels_, out_channels_, kernel_h_, kernel_w_, stride_h_, stride_w_,
-                      pad_h_, pad_w_, grad_output->dimension(1), grad_output->dimension(2));
+                      grad_output->data_as<T>(), weight_gradients_->data_as<T>(), batch_size,
+                      input_h, input_w, in_channels_, out_channels_, kernel_h_, kernel_w_,
+                      stride_h_, stride_w_, pad_h_, pad_w_, output_h, output_w);
 
       if (use_bias_) {
         create_cpu_task(this->flow_handle_, cpu::conv2d_nhwc::run_bgrad<T>,
-                        grad_output->data_as<T>(), bias_gradients_->data_as<T>(),
-                        grad_output->dimension(0), grad_output->dimension(1),
-                        grad_output->dimension(2), out_channels_);
+                        grad_output->data_as<T>(), bias_gradients_->data_as<T>(), batch_size,
+                        output_h, output_w, out_channels_);
       }
     });
   } else {
@@ -355,11 +359,24 @@ Tensor Conv2DLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_id)
                 current_stats.bgrad_workspace_size});
 
   Tensor cudnn_workspace = this->get_workspace({max_workspace_size}, DType_t::BYTE);
+  Tensor temp_weight_gradients = this->get_workspace(weights_->shape());
+  Tensor temp_bias_gradients = use_bias_ ? this->get_workspace(bias_->shape()) : Tensor();
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_backward_weights_and_bias_task, fe_handle, current_stats,
-                                 input, grad_output, weight_gradients_, bias_gradients_,
+                                 input, grad_output, temp_weight_gradients, temp_bias_gradients,
                                  cudnn_workspace, batch_size, input_h, input_w, output_h, output_w,
                                  this->flow_handle_);
+
+  DISPATCH_DTYPE(param_dtype_, T, {
+    create_cuda_task(this->flow_handle_, ops::cuda::cuda_axpy<T>, 1.0f,
+                     temp_weight_gradients->data_as<T>(), weight_gradients_->data_as<T>(),
+                     weights_->size());
+    if (use_bias_) {
+      create_cuda_task(this->flow_handle_, ops::cuda::cuda_axpy<T>, 1.0f,
+                       temp_bias_gradients->data_as<T>(), bias_gradients_->data_as<T>(),
+                       bias_->size());
+    }
+  });
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_backward_data_task, fe_handle, current_stats, grad_output,
                                  weights_, grad_input, cudnn_workspace, batch_size, input_h,

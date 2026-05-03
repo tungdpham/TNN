@@ -58,7 +58,7 @@ private:
   Vec<std::pair<std::string, int>> sample_list_;
   // Access order — shuffled in-place; current_index_ indexes into this
   Vec<size_t> access_order_;
-
+  IAllocator &allocator_;
   DType_t dtype_ = DType_t::FP32;
 
   Vec<std::string> class_ids_;                           // WordNet IDs (wnids)
@@ -73,10 +73,10 @@ private:
         std::min(batch_size, access_order_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data = make_tensor<T>({actual_batch_size, tiny_imagenet_constants::IMAGE_HEIGHT,
-                                 tiny_imagenet_constants::IMAGE_WIDTH,
-                                 tiny_imagenet_constants::NUM_CHANNELS});
-    batch_labels = make_tensor<int>({actual_batch_size});
+    batch_data = make_tensor<T>(
+        allocator_, {actual_batch_size, tiny_imagenet_constants::IMAGE_HEIGHT,
+                     tiny_imagenet_constants::IMAGE_WIDTH, tiny_imagenet_constants::NUM_CHANNELS});
+    batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
@@ -280,6 +280,7 @@ private:
 public:
   explicit TinyImageNetDataLoader(DType_t dtype = DType_t::FP32)
       : ImageDataLoader(),
+        allocator_(PoolAllocator::instance(getHost(), defaultFlowHandle)),
         dtype_(dtype) {
     sample_list_.reserve(100000);
   }

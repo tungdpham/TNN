@@ -288,7 +288,7 @@ public:
 
   Tensor clone() const { return std::make_shared<TensorImpl>(*allocator_, dtype_, shape_, data_); }
 
-  TensorImpl span(Vec<size_t> start_offset, Vec<size_t> span_sizes) const {
+  Tensor span(Vec<size_t> start_offset, Vec<size_t> span_sizes) const {
     if (start_offset.size() != shape_.size() || span_sizes.size() != shape_.size()) {
       throw std::invalid_argument("Span offsets and sizes must match TensorImpl dimensions");
     }
@@ -317,7 +317,29 @@ public:
     }
     size_t dtype_size = get_dtype_size(dtype_);
     dptr span_data = data_.span(offset * dtype_size, span_size * dtype_size);
-    return TensorImpl(allocator_, dtype_, span_sizes, std::move(span_data));
+    return std::make_shared<TensorImpl>(allocator_, dtype_, span_sizes, std::move(span_data));
+  }
+
+  Vec<Tensor> split(size_t axis, size_t num_splits) const {
+    if (axis >= shape_.size()) {
+      throw std::out_of_range("Split axis exceeds TensorImpl dimensions");
+    }
+    if (shape_[axis] % num_splits != 0) {
+      throw std::invalid_argument("TensorImpl dimension must be divisible by num_splits");
+    }
+
+    size_t split_size = shape_[axis] / num_splits;
+    Vec<size_t> split_shape = shape_;
+    split_shape[axis] = split_size;
+
+    Vec<Tensor> splits;
+    splits.reserve(num_splits);
+    for (size_t i = 0; i < num_splits; ++i) {
+      Vec<size_t> start_offset(shape_.size(), 0);
+      start_offset[axis] = i * split_size;
+      splits.push_back(span(start_offset, split_shape));
+    }
+    return splits;
   }
 
   std::unique_ptr<Task> fill(double value, flowHandle_t handle = defaultFlowHandle) {

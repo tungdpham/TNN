@@ -4,12 +4,14 @@
 #include <unistd.h>
 
 #include "data_loader.hpp"
+#include "device/iallocator.hpp"
 #include "tokenizer/tokenizer.hpp"
 
 namespace tnn {
 
 class OpenWebTextDataLoader : public BaseDataLoader {
 private:
+  IAllocator &allocator_;
   DType_t dtype_ = DType_t::FP32;
   size_t context_length_;
   int padding_token_id_ = -1;  // -1 means no padding token (default behavior)
@@ -20,8 +22,8 @@ private:
       return false;
     }
 
-    batch_data = make_tensor<T>({batch_size, context_length_});
-    batch_labels = make_tensor<int>({batch_size, context_length_});
+    batch_data = make_tensor<T>(allocator_, {batch_size, context_length_});
+    batch_labels = make_tensor<int>(allocator_, {batch_size, context_length_});
 
     for (size_t b = 0; b < batch_size; ++b) {
       size_t start_pos;
@@ -46,7 +48,8 @@ private:
 public:
   OpenWebTextDataLoader(size_t context_length, DType_t dtype = DType_t::FP32,
                         int padding_token_id = -1)
-      : dtype_(dtype),
+      : allocator_(PoolAllocator::instance(getHost(), defaultFlowHandle)),
+        dtype_(dtype),
         context_length_(context_length),
         padding_token_id_(padding_token_id) {}
 

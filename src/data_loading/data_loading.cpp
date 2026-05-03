@@ -77,24 +77,20 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
 
     if (train->load_data(dataset_path, true)) {
       train->set_augmentation(AugmentationBuilder()
+                                  .random_resized_crop(224, 224)
                                   .horizontal_flip(0.5f)
                                   .brightness(0.8f, 0.10f)
                                   .contrast(0.8f, 0.10f)
-                                  .normalize({0.485f, 0.456f, 0.406f},
-                                             {0.229f, 0.224f, 0.225f})
+                                  .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                                   .build());
-      std::cout << "[Augmentation] ImageNet100 train: RandomResizedCrop(224), "
-                << "HorizontalFlip(0.5), Brightness/Contrast(0.1), Normalize" << std::endl;
       pair.train = std::move(train);
     }
 
     if (val->load_data(dataset_path, false)) {
       val->set_augmentation(AugmentationBuilder()
-                                .normalize({0.485f, 0.456f, 0.406f},
-                                           {0.229f, 0.224f, 0.225f})
+                                .resize_center_crop(256, 224, 224)
+                                .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                                 .build());
-      std::cout << "[Augmentation] ImageNet100 val: Resize(256), CenterCrop(224), Normalize"
-                << std::endl;
       pair.val = std::move(val);
     }
   } else if (dataset_type == "open_webtext") {

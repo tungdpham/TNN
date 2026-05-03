@@ -17,6 +17,7 @@
 #include <string>
 
 #include "data_loading/image_data_loader.hpp"
+#include "device/iallocator.hpp"
 #include "tensor/tensor.hpp"
 
 namespace mnist_constants {
@@ -47,7 +48,7 @@ private:
   Vec<size_t> line_offsets_;
   // Access order — shuffled in-place; current_index_ indexes into this
   Vec<size_t> access_order_;
-
+  IAllocator &allocator_;
   DType_t dtype_ = DType_t::FP32;
 
   void cleanup_map() {
@@ -158,9 +159,10 @@ private:
         std::min(batch_size, access_order_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data = make_tensor<T>({actual_batch_size, mnist_constants::IMAGE_HEIGHT,
-                                 mnist_constants::IMAGE_WIDTH, mnist_constants::NUM_CHANNELS});
-    batch_labels = make_tensor<int>({actual_batch_size});
+    batch_data =
+        make_tensor<T>(allocator_, {actual_batch_size, mnist_constants::IMAGE_HEIGHT,
+                                    mnist_constants::IMAGE_WIDTH, mnist_constants::NUM_CHANNELS});
+    batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
@@ -192,6 +194,7 @@ private:
 public:
   explicit MNISTDataLoader(DType_t dtype = DType_t::FP32)
       : ImageDataLoader(),
+        allocator_(PoolAllocator::instance(getHost(), defaultFlowHandle)),
         dtype_(dtype) {}
 
   virtual ~MNISTDataLoader() { cleanup_map(); }

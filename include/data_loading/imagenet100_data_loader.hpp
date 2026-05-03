@@ -15,9 +15,6 @@
 #include <string>
 
 #include "data_loading/image_data_loader.hpp"
-#include "device/device_manager.hpp"
-#include "device/device_type.hpp"
-#include "device/pool_allocator.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 
@@ -72,6 +69,7 @@ private:
   Vec<std::pair<std::string, int>> sample_list_;
   // Access order — shuffled in-place; current_index_ indexes into this
   Vec<size_t> access_order_;
+  IAllocator &allocator_;
 
   DType_t dtype_ = DType_t::FP32;
 
@@ -87,18 +85,16 @@ private:
         std::min(batch_size, access_order_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data =
-        make_tensor<T>({actual_batch_size, imagenet100_constants::IMAGE_HEIGHT,
-                        imagenet100_constants::IMAGE_WIDTH, imagenet100_constants::NUM_CHANNELS});
-    batch_labels = make_tensor<int>({actual_batch_size});
+    batch_data = make_tensor<T>(
+        allocator_, {actual_batch_size, imagenet100_constants::IMAGE_HEIGHT,
+                     imagenet100_constants::IMAGE_WIDTH, imagenet100_constants::NUM_CHANNELS});
+    batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
       const auto &[path, class_index] = sample_list_[sample_idx];
 
-      auto &pool = PoolAllocator::instance(DeviceManager::getInstance().getDevice(DeviceType::CPU),
-                                           defaultFlowHandle);
-      auto chw_dptr = pool.allocate(imagenet100_constants::IMAGE_SIZE * sizeof(float));
+      dptr chw_dptr = allocator_.allocate(imagenet100_constants::IMAGE_SIZE * sizeof(float));
       float *chw_buf = chw_dptr.get<float>();
       if (!load_jpeg_image(path, chw_buf)) return;
 
@@ -188,9 +184,7 @@ private:
     if (needs_resize) {
       constexpr size_t resize_buf_bytes =
           imagenet100_constants::IMAGE_HEIGHT * imagenet100_constants::IMAGE_WIDTH * 3;
-      auto &pool = PoolAllocator::instance(DeviceManager::getInstance().getDevice(DeviceType::CPU),
-                                           defaultFlowHandle);
-      resize_dptr = pool.allocate(resize_buf_bytes);
+      resize_dptr = allocator_.allocate(resize_buf_bytes);
       unsigned char *resize_buf = resize_dptr.get<unsigned char>();
       unsigned char *result = stbir_resize_uint8_linear(img, width, height, 0, resize_buf,
                                                         imagenet100_constants::IMAGE_WIDTH,
@@ -298,6 +292,7 @@ private:
 public:
   explicit ImageNet100DataLoader(DType_t dtype = DType_t::FP32)
       : ImageDataLoader(),
+        allocator_(PoolAllocator::instance(getHost(), defaultFlowHandle)),
         dtype_(dtype) {
     sample_list_.reserve(150000);  // ImageNet-100 has ~130k training images
   }
