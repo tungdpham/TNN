@@ -25,6 +25,8 @@
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
+// TNN_FLASH_ATTN_BF16_PATCH: local cuDNN SDPA IO/workspace uses BF16 instead of FP16.
+
 namespace tnn {
 
 // Constructor
@@ -93,7 +95,7 @@ void FlashAttentionBlock::build_graph(const Vec<size_t> &input_shape) const {
 
     auto cudnn_handle = CUDAContext::getCudnnHandle();
 
-    cudnnDataType_t io_dtype = cuda::cudnn::to_cudnn_datatype(DType_t::FP16);
+    cudnnDataType_t io_dtype = cuda::cudnn::to_cudnn_datatype(DType_t::BF16);
     cudnnDataType_t compute_dtype = cuda::cudnn::to_cudnn_datatype(DType_t::FP32);
 
     fe_handle_cache[shape_key] = cuda::cudnn_flash_attention::initialize_fe_handle(
@@ -152,24 +154,24 @@ Tensor FlashAttentionBlock::cudnn_forward(const ConstTensor &input, size_t mb_id
   allocator_->flip();  // ensure workspace is on opposite side of output for algorithm 1
 
   Tensor attn_heads =
-      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
   // since cudnn SDPA only support FP16/FP16 IO, we need to convert here
-  Tensor q_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
-  Tensor k_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
-  Tensor v_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+  Tensor q_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
+  Tensor k_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
+  Tensor v_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
   Tensor q = q_proj_->forward({input}, mb_id)[0];
   Tensor k = k_proj_->forward({input}, mb_id)[0];
   Tensor v = v_proj_->forward({input}, mb_id)[0];
 
   DISPATCH_DTYPE(io_dtype_, T, {
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, fp16>, q->data_as<T>(),
-                     q_heads->data_as<fp16>(), batch_size, seq_len, num_heads_, head_dim_);
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, fp16>, k->data_as<T>(),
-                     k_heads->data_as<fp16>(), batch_size, seq_len, num_heads_, head_dim_);
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, fp16>, v->data_as<T>(),
-                     v_heads->data_as<fp16>(), batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, q->data_as<T>(),
+                     q_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, k->data_as<T>(),
+                     k_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, v->data_as<T>(),
+                     v_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
   });
 
   q = k = v = nullptr;  // free up memory
@@ -185,7 +187,7 @@ Tensor FlashAttentionBlock::cudnn_forward(const ConstTensor &input, size_t mb_id
   q_heads = k_heads = v_heads = nullptr;  // free up memory
 
   DISPATCH_DTYPE(io_dtype_, T, {
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<fp16, T>, attn_heads->data_as<fp16>(),
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, attn_heads->data_as<bf16>(),
                      attn_out->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
   });
 
@@ -219,32 +221,32 @@ Tensor FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, size_
   Tensor grad_v = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
 
   Tensor grad_attn_heads =
-      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
   {  // Backprop through out_proj
     Tensor grad_attn_out = out_proj_->backward({grad_output}, mb_id)[0];
     // Convert to head layout and FP16
     DISPATCH_DTYPE(io_dtype_, T, {
-      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, fp16>, grad_attn_out->data_as<T>(),
-                       grad_attn_heads->data_as<fp16>(), batch_size, seq_len, num_heads_,
+      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, grad_attn_out->data_as<T>(),
+                       grad_attn_heads->data_as<bf16>(), batch_size, seq_len, num_heads_,
                        head_dim_);
     });
   }
 
   Tensor grad_q_heads =
-      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
   Tensor grad_k_heads =
-      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
   Tensor grad_v_heads =
-      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
   // Get forward pass tensors in FP16 head layout
-  Tensor q_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
-  Tensor k_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
-  Tensor v_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+  Tensor q_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
+  Tensor k_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
+  Tensor v_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
   Tensor attn_heads =
-      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
+      this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
   {
     // Recompute Q, K, V from cached input (trading compute for memory)
@@ -253,14 +255,14 @@ Tensor FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, size_
     Tensor v = v_proj_->forward({input}, mb_id)[0];
 
     DISPATCH_DTYPE(io_dtype_, T, {
-      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, fp16>, q->data_as<T>(),
-                       q_heads->data_as<fp16>(), batch_size, seq_len, num_heads_, head_dim_);
-      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, fp16>, k->data_as<T>(),
-                       k_heads->data_as<fp16>(), batch_size, seq_len, num_heads_, head_dim_);
-      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, fp16>, v->data_as<T>(),
-                       v_heads->data_as<fp16>(), batch_size, seq_len, num_heads_, head_dim_);
-      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, fp16>, attn_out->data_as<T>(),
-                       attn_heads->data_as<fp16>(), batch_size, seq_len, num_heads_, head_dim_);
+      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, q->data_as<T>(),
+                       q_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, k->data_as<T>(),
+                       k_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, v->data_as<T>(),
+                       v_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, attn_out->data_as<T>(),
+                       attn_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
     });
   }
 
@@ -280,11 +282,11 @@ Tensor FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, size_
   // Convert gradients back from head layout
 
   DISPATCH_DTYPE(io_dtype_, T, {
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<fp16, T>, grad_q_heads->data_as<fp16>(),
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, grad_q_heads->data_as<bf16>(),
                      grad_q->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<fp16, T>, grad_k_heads->data_as<fp16>(),
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, grad_k_heads->data_as<bf16>(),
                      grad_k->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<fp16, T>, grad_v_heads->data_as<fp16>(),
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, grad_v_heads->data_as<bf16>(),
                      grad_v->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
   });
 

@@ -8,6 +8,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <cstddef>
 #include <iostream>
 #include <memory>
@@ -268,6 +269,151 @@ public:
     return {total_loss, static_cast<double>(total_corrects)};
   }
 
+
+  /**
+   * @brief Synchronous pipeline train batch.
+   *
+   * Non-overlapped ablation path for TNN_ASYNC_PIPELINE=0.
+   * It processes one microbatch at a time:
+   *   forward -> wait output -> loss/grad -> backward -> wait backward complete.
+   */
+  Result sync_train_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
+                          const std::unique_ptr<Loss> &criterion) {
+    if (microbatch_inputs.size() != microbatch_labels.size()) {
+      throw std::runtime_error("Mismatched number of inputs and labels in sync_train_batch");
+    }
+
+    const size_t num_microbatches = microbatch_inputs.size();
+    float total_loss = 0.0f;
+    int total_corrects = 0;
+
+    for (size_t i = 0; i < num_microbatches; ++i) {
+      forward(std::move(microbatch_inputs[i]), i);
+
+      Message forward_msg;
+      {
+        std::unique_lock<std::mutex> lock(message_notification_mutex_);
+        message_notification_cv_.wait(lock, [this]() {
+          return comm_->message_count(CommandType::FORWARD_JOB) > 0;
+        });
+
+        Vec<Message> forward_msgs =
+            comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+        if (forward_msgs.empty()) {
+          throw std::runtime_error("sync_train_batch woke up without FORWARD_JOB");
+        }
+
+        bool found = false;
+        for (auto &msg : forward_msgs) {
+          if (!msg.has_type<Job>()) {
+            throw std::runtime_error("Unexpected message type in sync_train_batch FORWARD_JOB");
+          }
+          if (msg.get<Job>().mb_id == i && !found) {
+            forward_msg = std::move(msg);
+            found = true;
+          }
+        }
+        if (!found) {
+          throw std::runtime_error("sync_train_batch could not find expected microbatch result");
+        }
+      }
+
+      Job &job = forward_msg.get<Job>();
+      Tensor &predictions = job.data;
+      Tensor &targets = microbatch_labels[i];
+      Tensor device_targets = targets->to_device(predictions->device());
+
+      float loss = 0.0f;
+      criterion->compute_loss(predictions, device_targets, loss);
+      loss *= (1.0f / num_microbatches);
+      total_loss += loss;
+      total_corrects += compute_class_corrects(predictions, device_targets);
+
+      Tensor grad_output =
+          make_tensor(PoolAllocator::instance(predictions->device(), defaultFlowHandle),
+                      predictions->data_type(), predictions->shape());
+      criterion->compute_gradient(predictions, device_targets, grad_output);
+      grad_output->mul_scalar(1.0 / num_microbatches);
+
+      backward(std::move(grad_output), i);
+
+      {
+        std::unique_lock<std::mutex> lock(message_notification_mutex_);
+        message_notification_cv_.wait(lock, [this]() {
+          return comm_->message_count(CommandType::BACKWARD_COMPLETE) > 0;
+        });
+        Vec<Message> done_msgs =
+            comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_COMPLETE);
+        if (done_msgs.empty()) {
+          throw std::runtime_error("sync_train_batch woke up without BACKWARD_COMPLETE");
+        }
+      }
+    }
+
+    return {total_loss, static_cast<double>(total_corrects)};
+  }
+
+  /**
+   * @brief Synchronous pipeline validation batch.
+   *
+   * Non-overlapped validation path for TNN_ASYNC_PIPELINE=0.
+   */
+  Result sync_val_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
+                        const std::unique_ptr<Loss> &criterion) {
+    if (microbatch_inputs.size() != microbatch_labels.size()) {
+      throw std::runtime_error("Mismatched number of inputs and labels in sync_val_batch");
+    }
+
+    const size_t num_microbatches = microbatch_inputs.size();
+    float total_loss = 0.0f;
+    int total_corrects = 0;
+
+    for (size_t i = 0; i < num_microbatches; ++i) {
+      forward(std::move(microbatch_inputs[i]), i);
+
+      Message forward_msg;
+      {
+        std::unique_lock<std::mutex> lock(message_notification_mutex_);
+        message_notification_cv_.wait(lock, [this]() {
+          return comm_->message_count(CommandType::FORWARD_JOB) > 0;
+        });
+
+        Vec<Message> forward_msgs =
+            comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+        if (forward_msgs.empty()) {
+          throw std::runtime_error("sync_val_batch woke up without FORWARD_JOB");
+        }
+
+        bool found = false;
+        for (auto &msg : forward_msgs) {
+          if (!msg.has_type<Job>()) {
+            throw std::runtime_error("Unexpected message type in sync_val_batch FORWARD_JOB");
+          }
+          if (msg.get<Job>().mb_id == i && !found) {
+            forward_msg = std::move(msg);
+            found = true;
+          }
+        }
+        if (!found) {
+          throw std::runtime_error("sync_val_batch could not find expected microbatch result");
+        }
+      }
+
+      Job &job = forward_msg.get<Job>();
+      Tensor &predictions = job.data;
+      Tensor &targets = microbatch_labels[i];
+      Tensor device_targets = targets->to_device(predictions->device());
+
+      float loss = 0.0f;
+      criterion->compute_loss(predictions, device_targets, loss);
+      loss *= (1.0f / num_microbatches);
+      total_loss += loss;
+      total_corrects += compute_class_corrects(predictions, device_targets);
+    }
+
+    return {total_loss, static_cast<double>(total_corrects)};
+  }
+
   /**
    * @brief Requests all stages to print their profiling data.
    */
@@ -487,6 +633,7 @@ protected:
 
   // Training Parameters
   bool should_stop_ = true;
+  size_t coordinator_update_count_ = 0;
 
   // Message synchronization
   mutable std::mutex message_notification_mutex_;

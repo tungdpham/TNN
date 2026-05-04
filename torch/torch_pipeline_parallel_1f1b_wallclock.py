@@ -94,6 +94,19 @@ class NetCounter:
 def count_params(m: nn.Module) -> int:
     return sum(p.numel() for p in m.parameters())
 
+def now_iso() -> str:
+    # Local wall-clock time for easy comparison with terminal/monitoring logs.
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def sync_cuda_if_needed(device: torch.device):
+    """Synchronize CUDA before taking wall-clock timestamps.
+
+    This keeps epoch timing honest for asynchronous CUDA kernels while still
+    measuring the full Python/DataLoader/distributed path around each phase.
+    """
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+
 # =========================
 # Datasets
 # =========================
@@ -466,11 +479,12 @@ class GPT2Stage1(nn.Module):
 # Config
 # =========================
 
-def _make_model_configs(seq_len=512):
+def _make_model_configs(seq_len=512, augmentation=True):
     cifar10_root = os.getenv("CIFAR10_BIN_ROOT", "data/cifar-10-batches-bin")
     imgnet100_root = os.getenv("IMAGENET100_ROOT", "data/imagenet-100")
     gpt_stage0_layers = int(os.getenv("GPT2_STAGE0_LAYERS", "6"))
     gpt_stage1_layers = _GPT2_NUM_LAYERS - gpt_stage0_layers
+    imagenet100_train_transform = _imagenet100_train_transform if augmentation else _imagenet100_test_transform
     return {
         "resnet9_cifar10": {
             "stage0_cls": ResNet9Stage0,
@@ -488,7 +502,7 @@ def _make_model_configs(seq_len=512):
         "resnet50_imagenet100": {
             "stage0_cls": ResNet50ImgNet100Stage0,
             "stage1_cls": ResNet50ImgNet100Stage1,
-            "train_set": lambda: ImageNet100Dataset(imgnet100_root, train=True, transform=_imagenet100_train_transform),
+            "train_set": lambda: ImageNet100Dataset(imgnet100_root, train=True, transform=imagenet100_train_transform),
             "test_set": lambda: ImageNet100Dataset(imgnet100_root, train=False, transform=_imagenet100_test_transform),
             "act_tail": (512, 28, 28),
             "batch_size": int(os.getenv("BATCH_SIZE", "128")),
@@ -691,6 +705,85 @@ def train_batch_rank0_1f1b(model, optimizer, x, y, device, cfg, micro_bs):
     return recv_stats(device)
 
 
+def train_batch_rank0_sync(model, optimizer, x, y, device, cfg, micro_bs):
+    """Rank 0 synchronous pipeline: no 1F1B overlap, blocking send/recv per microbatch."""
+    sizes = compute_micro_sizes(x.size(0), micro_bs)
+    x_mbs = split_by_sizes(x, sizes)
+    y_mbs = split_by_sizes(y, sizes)
+
+    optimizer.zero_grad(set_to_none=True)
+    send_header(device, CMD_TRAIN, sizes)
+
+    for x_mb, y_mb, mbsz in zip(x_mbs, y_mbs, sizes):
+        act = model(x_mb)
+        act_buf = act.detach().contiguous()
+        y_buf = y_mb.contiguous()
+        dist.send(act_buf, dst=1)
+        dist.send(y_buf, dst=1)
+
+        g = torch.empty((mbsz, *cfg["act_tail"]), dtype=torch.float32, device=device)
+        dist.recv(g, src=1)
+        act.backward(g)
+
+    optimizer.step()
+    return recv_stats(device)
+
+
+def train_batch_rank1_sync(model, optimizer, device, cfg, sizes):
+    """Rank 1 synchronous pipeline: blocking recv/compute/backward/send per microbatch."""
+    is_gpt2 = cfg.get("is_gpt2", False)
+    optimizer.zero_grad(set_to_none=True)
+
+    batch_items = 0
+    for s in sizes:
+        batch_items += s * (cfg["act_tail"][0] - 1) if is_gpt2 else s
+
+    stats_loss_sum = 0.0
+    stats_correct = 0.0
+    stats_total = 0.0
+
+    for mbsz in sizes:
+        act = torch.empty((mbsz, *cfg["act_tail"]), dtype=torch.float32, device=device)
+        if is_gpt2:
+            y = torch.empty((mbsz, cfg["act_tail"][0]), dtype=torch.int64, device=device)
+        else:
+            y = torch.empty((mbsz,), dtype=torch.int64, device=device)
+
+        dist.recv(act, src=0)
+        dist.recv(y, src=0)
+
+        act.requires_grad_(True)
+        logits = model(act)
+
+        if is_gpt2:
+            shift_logits = logits[:, :-1, :].contiguous()
+            shift_labels = y[:, 1:].contiguous()
+            loss_sum = F.cross_entropy(
+                shift_logits.view(-1, shift_logits.size(-1)),
+                shift_labels.view(-1),
+                reduction="sum",
+            )
+            correct = (shift_logits.argmax(dim=-1) == shift_labels).sum().item()
+            total = shift_labels.numel()
+        else:
+            loss_sum = F.cross_entropy(logits, y, reduction="sum")
+            correct = (logits.argmax(dim=1) == y).sum().item()
+            total = y.numel()
+
+        loss = loss_sum / max(batch_items, 1)
+        loss.backward()
+
+        grad_buf = act.grad.detach().contiguous()
+        dist.send(grad_buf, dst=0)
+
+        stats_loss_sum += float(loss_sum.item())
+        stats_correct += float(correct)
+        stats_total += float(total)
+
+    optimizer.step()
+    send_stats(device, stats_loss_sum, stats_correct, stats_total)
+
+
 def eval_batch_rank0(model, x, y, device, micro_bs):
     sizes = compute_micro_sizes(x.size(0), micro_bs)
     x_mbs = split_by_sizes(x, sizes)
@@ -833,6 +926,12 @@ def main():
     parser.add_argument("--seq-len", type=int, default=512)
     parser.add_argument("--print-freq", type=int, default=int(os.getenv("PRINT_FREQ", "10")))
     parser.add_argument("--log-dir", type=str, default=os.getenv("LOG_DIR", "logs"))
+    parser.add_argument("--prefetch-data", dest="prefetch_data", action="store_true", default=os.getenv("PREFETCH_DATA", "1") == "1", help="Enable DataLoader worker prefetching")
+    parser.add_argument("--no-prefetch-data", dest="prefetch_data", action="store_false", help="Disable DataLoader worker prefetching: num_workers=0, no worker queue")
+    parser.add_argument("--async-pipeline", dest="async_pipeline", action="store_true", default=os.getenv("ASYNC_PIPELINE", "1") == "1", help="Enable async 1F1B pipeline overlap")
+    parser.add_argument("--no-async-pipeline", dest="async_pipeline", action="store_false", help="Disable async 1F1B overlap; use blocking per-microbatch pipeline")
+    parser.add_argument("--augmentation", dest="augmentation", action="store_true", default=os.getenv("AUGMENTATION", "1") == "1", help="Enable training data augmentation")
+    parser.add_argument("--no-augmentation", dest="augmentation", action="store_false", help="Disable training augmentation; ImageNet100 uses deterministic resize/crop/normalize")
     args = parser.parse_args()
 
     max_steps = int(os.getenv("MAX_STEPS", "-1"))
@@ -849,7 +948,7 @@ def main():
     device = torch.device(f"cuda:{local_rank}")
     torch.cuda.set_device(device)
 
-    cfg = _make_model_configs(args.seq_len)[args.model]
+    cfg = _make_model_configs(args.seq_len, augmentation=args.augmentation)[args.model]
     model = (cfg["stage0_cls"]() if rank == 0 else cfg["stage1_cls"]()).to(device)
     optimizer = optim.Adam(model.parameters(), lr=cfg["lr"], betas=(0.9, 0.999), eps=1e-8, weight_decay=3e-4)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
@@ -858,39 +957,76 @@ def main():
     run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     nic = os.getenv("NET_LOG_IFNAME") or os.getenv("NCCL_SOCKET_IFNAME") or os.getenv("GLOO_SOCKET_IFNAME")
     net_counter = NetCounter(nic)
-    net_csv = CsvAppender(log_dir / f"{args.model}_{run_ts}_rank{rank}_net.csv", ["timestamp", "run_ts", "rank", "phase", "epoch", "step", "batch_size", "ifname", "dt_sec", "tx_bytes_delta", "rx_bytes_delta", "tx_MBps", "rx_MBps", "counter_ok"])
+    net_csv = CsvAppender(log_dir / f"{args.model}_{run_ts}_rank{rank}_net.csv", ["timestamp", "time_iso", "run_ts", "rank", "phase", "epoch", "step", "batch_size", "ifname", "dt_sec", "tx_bytes_delta", "rx_bytes_delta", "tx_MBps", "rx_MBps", "counter_ok"])
     metrics_csv = None
     epoch_csv = None
     if rank == 0:
-        metrics_csv = CsvAppender(log_dir / f"{args.model}_{run_ts}_rank0_metrics.csv", ["timestamp", "run_ts", "phase", "epoch", "step", "batch_size", "micro_bs", "lr", "loss_sum", "samples", "avg_loss", "correct", "accuracy_percent", "epoch_time_sec"])
-        epoch_csv = CsvAppender(log_dir / f"{args.model}_{run_ts}_rank0_epoch_summary.csv", ["timestamp", "run_ts", "epoch", "train_loss", "val_loss", "val_accuracy_percent", "train_accuracy_percent", "epoch_time_sec", "lr", "train_samples", "val_samples"])
+        metrics_csv = CsvAppender(log_dir / f"{args.model}_{run_ts}_rank0_metrics.csv", ["timestamp", "time_iso", "run_ts", "phase", "epoch", "step", "batch_size", "micro_bs", "lr", "loss_sum", "samples", "avg_loss", "correct", "accuracy_percent", "train_time_sec", "val_time_sec", "epoch_total_time_sec", "epoch_time_sec", "data_time", "h2d_time", "compute_comm_time", "batch_total_time", "prefetch_data", "async_pipeline", "augmentation"])
+        epoch_csv = CsvAppender(log_dir / f"{args.model}_{run_ts}_rank0_epoch_summary.csv", ["timestamp", "time_iso", "run_ts", "epoch", "train_loss", "val_loss", "val_accuracy_percent", "train_accuracy_percent", "train_time_sec", "val_time_sec", "epoch_total_time_sec", "epoch_time_sec", "lr", "train_samples", "val_samples"])
 
     print(
-        f"[Init] rank={rank} model={args.model} params={count_params(model):,} micro_bs={args.micro_bs}",
+        f"[Init] rank={rank} model={args.model} params={count_params(model):,} micro_bs={args.micro_bs} prefetch_data={args.prefetch_data} async_pipeline={args.async_pipeline} augmentation={args.augmentation}",
         flush=True,
     )
 
     try:
         if rank == 0:
-            train_loader = DataLoader(cfg["train_set"](), batch_size=cfg["batch_size"], shuffle=True, num_workers=cfg["num_workers"], drop_last=False, pin_memory=True)
-            test_loader = DataLoader(cfg["test_set"](), batch_size=cfg["batch_size"], shuffle=False, num_workers=cfg["num_workers"], drop_last=False, pin_memory=True)
+            train_num_workers = int(cfg["num_workers"]) if args.prefetch_data else 0
+            train_loader_kwargs = dict(
+                batch_size=cfg["batch_size"],
+                shuffle=True,
+                num_workers=train_num_workers,
+                drop_last=False,
+                pin_memory=bool(args.prefetch_data),
+            )
+            test_loader_kwargs = dict(
+                batch_size=cfg["batch_size"],
+                shuffle=False,
+                num_workers=train_num_workers,
+                drop_last=False,
+                pin_memory=bool(args.prefetch_data),
+            )
+            if train_num_workers > 0:
+                train_loader_kwargs.update(prefetch_factor=2, persistent_workers=True)
+                test_loader_kwargs.update(prefetch_factor=2, persistent_workers=True)
+
+            train_loader = DataLoader(cfg["train_set"](), **train_loader_kwargs)
+            test_loader = DataLoader(cfg["test_set"](), **test_loader_kwargs)
 
             for epoch in range(cfg["epochs"]):
                 model.train()
                 train_loss_sum = 0.0
                 train_correct = 0
                 train_total = 0
-                epoch_start = time.time()
+                sync_cuda_if_needed(device)
+                epoch_total_start = time.time()
+                train_start = epoch_total_start
+
+                # end_prev marks the end of the previous iteration.  The time
+                # spent inside DataLoader.__next__() (file I/O + CPU augmentation +
+                # collation + worker handoff) is measured as data_time below.
+                end_prev = time.time()
 
                 for step, (x, y) in enumerate(train_loader):
                     if max_steps > 0 and step >= max_steps:
                         break
 
-                    t0 = time.time()
+                    batch_start = time.time()
+                    data_time = batch_start - end_prev
+
+                    # Host-to-device transfer time.  Synchronize so the number is
+                    # not hidden by CUDA async execution.
+                    h2d_start = time.time()
                     x = x.to(device, non_blocking=True)
                     y = y.to(device, non_blocking=True)
+                    sync_cuda_if_needed(device)
+                    h2d_time = time.time() - h2d_start
 
-                    loss_sum_b, correct_b, total_b = train_batch_rank0_1f1b(
+                    # Stage-0 forward + pipeline send/recv + backward + optimizer
+                    # step as observed on rank 0.
+                    compute_comm_start = time.time()
+                    train_batch_fn = train_batch_rank0_1f1b if args.async_pipeline else train_batch_rank0_sync
+                    loss_sum_b, correct_b, total_b = train_batch_fn(
                         model=model,
                         optimizer=optimizer,
                         x=x,
@@ -899,6 +1035,12 @@ def main():
                         cfg=cfg,
                         micro_bs=args.micro_bs,
                     )
+                    sync_cuda_if_needed(device)
+                    compute_comm_time = time.time() - compute_comm_start
+
+                    batch_total_time = time.time() - batch_start
+                    end_prev = time.time()
+
                     train_loss_sum += loss_sum_b
                     train_correct += int(correct_b)
                     train_total += int(total_b)
@@ -907,38 +1049,53 @@ def main():
                     acc = 100.0 * train_correct / max(train_total, 1)
                     net = net_counter.sample()
 
-                    net_csv.write(dict(timestamp=t0, run_ts=run_ts, rank=rank, phase="train_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), **net))
-                    metrics_csv.write(dict(timestamp=t0, run_ts=run_ts, phase="train_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), micro_bs=args.micro_bs, lr=float(optimizer.param_groups[0]["lr"]), loss_sum=float(train_loss_sum), samples=int(train_total), avg_loss=float(avg_loss), correct=int(train_correct), accuracy_percent=float(acc), epoch_time_sec=float(time.time() - epoch_start)))
+                    net_csv.write(dict(timestamp=batch_start, time_iso=now_iso(), run_ts=run_ts, rank=rank, phase="train_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), **net))
+                    metrics_csv.write(dict(timestamp=batch_start, time_iso=now_iso(), run_ts=run_ts, phase="train_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), micro_bs=args.micro_bs, lr=float(optimizer.param_groups[0]["lr"]), loss_sum=float(train_loss_sum), samples=int(train_total), avg_loss=float(avg_loss), correct=int(train_correct), accuracy_percent=float(acc), train_time_sec=float(time.time() - train_start), val_time_sec=0.0, epoch_total_time_sec=float(time.time() - epoch_total_start), epoch_time_sec=float(time.time() - epoch_total_start), data_time=float(data_time), h2d_time=float(h2d_time), compute_comm_time=float(compute_comm_time), batch_total_time=float(batch_total_time), prefetch_data=int(args.prefetch_data), async_pipeline=int(args.async_pipeline), augmentation=int(args.augmentation)))
 
                     if step % args.print_freq == 0:
-                        elapsed = time.time() - epoch_start
+                        elapsed = time.time() - train_start
                         sec_per_step = elapsed / max(step + 1, 1)
                         eta_sec = (len(train_loader) - (step + 1)) * sec_per_step
                         if cfg.get("is_gpt2", False):
                             print(
-                                f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} "
+                                f"[{now_iso()}] [Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} "
                                 f"| train_loss={avg_loss:.4f} | micro_bs={args.micro_bs} "
                                 f"| net_tx={net['tx_MBps']:.4f}MB/s net_rx={net['rx_MBps']:.4f}MB/s "
+                                f"| data={data_time:.3f}s h2d={h2d_time:.3f}s comp={compute_comm_time:.3f}s total={batch_total_time:.3f}s "
                                 f"| sec/step={sec_per_step:.3f} ETA={eta_sec/3600:.2f}h",
                                 flush=True,
                             )
                         else:
                             print(
-                                f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} "
+                                f"[{now_iso()}] [Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} "
                                 f"| train_loss={avg_loss:.4f} | train_acc={acc:.2f}% | micro_bs={args.micro_bs} "
                                 f"| net_tx={net['tx_MBps']:.4f}MB/s net_rx={net['rx_MBps']:.4f}MB/s "
+                                f"| data={data_time:.3f}s h2d={h2d_time:.3f}s comp={compute_comm_time:.3f}s total={batch_total_time:.3f}s "
                                 f"| sec/step={sec_per_step:.3f} ETA={eta_sec/3600:.2f}h",
                                 flush=True,
                             )
 
+                sync_cuda_if_needed(device)
+                train_time = time.time() - train_start
+
                 scheduler.step()
-                epoch_time = time.time() - epoch_start
 
                 if skip_eval:
-                    print(f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE | time={epoch_time:.2f}s | eval=skipped", flush=True)
+                    sync_cuda_if_needed(device)
+                    val_time = 0.0
+                    epoch_total_time = time.time() - epoch_total_start
+                    epoch_time = epoch_total_time
+                    train_loss = train_loss_sum / max(train_total, 1)
+                    train_acc = 100.0 * train_correct / max(train_total, 1)
+                    metrics_csv.write(dict(timestamp=time.time(), time_iso=now_iso(), run_ts=run_ts, phase="epoch_summary", epoch=epoch + 1, step=-1, batch_size=cfg["batch_size"], micro_bs=args.micro_bs, lr=float(optimizer.param_groups[0]["lr"]), loss_sum=float(train_loss_sum), samples=int(train_total), avg_loss=float(train_loss), correct=int(train_correct), accuracy_percent=float(train_acc), train_time_sec=float(train_time), val_time_sec=float(val_time), epoch_total_time_sec=float(epoch_total_time), epoch_time_sec=float(epoch_total_time)))
+                    epoch_csv.write(dict(timestamp=time.time(), time_iso=now_iso(), run_ts=run_ts, epoch=epoch + 1, train_loss=float(train_loss), val_loss="", val_accuracy_percent="", train_accuracy_percent=float(train_acc), train_time_sec=float(train_time), val_time_sec=float(val_time), epoch_total_time_sec=float(epoch_total_time), epoch_time_sec=float(epoch_total_time), lr=float(optimizer.param_groups[0]["lr"]), train_samples=int(train_total), val_samples=0))
+                    print(f"[{now_iso()}] [Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE | train_time={train_time:.2f}s | val_time={val_time:.2f}s | total_time={epoch_total_time:.2f}s | eval=skipped", flush=True)
                     send_header(device, CMD_STOP, [])
                     print("[Rank 0] Training complete.", flush=True)
                     return
+
+                sync_cuda_if_needed(device)
+                val_start = time.time()
 
                 model.eval()
                 test_loss_sum = 0.0
@@ -955,24 +1112,31 @@ def main():
                         test_loss_sum += loss_sum_b
                         test_correct += int(correct_b)
                         test_total += int(total_b)
-                        net_csv.write(dict(timestamp=t0, run_ts=run_ts, rank=rank, phase="test_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), **net_counter.sample()))
+                        net_csv.write(dict(timestamp=t0, time_iso=now_iso(), run_ts=run_ts, rank=rank, phase="test_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), **net_counter.sample()))
+
+                sync_cuda_if_needed(device)
+                val_time = time.time() - val_start
+                epoch_total_time = time.time() - epoch_total_start
+                epoch_time = epoch_total_time
 
                 train_loss = train_loss_sum / max(train_total, 1)
                 train_acc = 100.0 * train_correct / max(train_total, 1)
                 test_loss = test_loss_sum / max(test_total, 1)
                 test_acc = 100.0 * test_correct / max(test_total, 1)
-                metrics_csv.write(dict(timestamp=time.time(), run_ts=run_ts, phase="epoch_summary", epoch=epoch + 1, step=-1, batch_size=cfg["batch_size"], micro_bs=args.micro_bs, lr=float(optimizer.param_groups[0]["lr"]), loss_sum=float(test_loss_sum), samples=int(test_total), avg_loss=float(test_loss), correct=int(test_correct), accuracy_percent=float(test_acc), epoch_time_sec=float(epoch_time)))
-                epoch_csv.write(dict(timestamp=time.time(), run_ts=run_ts, epoch=epoch + 1, train_loss=float(train_loss), val_loss=float(test_loss), val_accuracy_percent=float(test_acc), train_accuracy_percent=float(train_acc), epoch_time_sec=float(epoch_time), lr=float(optimizer.param_groups[0]["lr"]), train_samples=int(train_total), val_samples=int(test_total)))
+                metrics_csv.write(dict(timestamp=time.time(), time_iso=now_iso(), run_ts=run_ts, phase="epoch_summary", epoch=epoch + 1, step=-1, batch_size=cfg["batch_size"], micro_bs=args.micro_bs, lr=float(optimizer.param_groups[0]["lr"]), loss_sum=float(test_loss_sum), samples=int(test_total), avg_loss=float(test_loss), correct=int(test_correct), accuracy_percent=float(test_acc), train_time_sec=float(train_time), val_time_sec=float(val_time), epoch_total_time_sec=float(epoch_total_time), epoch_time_sec=float(epoch_total_time)))
+                epoch_csv.write(dict(timestamp=time.time(), time_iso=now_iso(), run_ts=run_ts, epoch=epoch + 1, train_loss=float(train_loss), val_loss=float(test_loss), val_accuracy_percent=float(test_acc), train_accuracy_percent=float(train_acc), train_time_sec=float(train_time), val_time_sec=float(val_time), epoch_total_time_sec=float(epoch_total_time), epoch_time_sec=float(epoch_total_time), lr=float(optimizer.param_groups[0]["lr"]), train_samples=int(train_total), val_samples=int(test_total)))
 
                 if cfg.get("is_gpt2", False):
                     print(
-                        f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE | time={epoch_time:.2f}s "
+                        f"[{now_iso()}] [Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE "
+                        f"| train_time={train_time:.2f}s val_time={val_time:.2f}s total_time={epoch_total_time:.2f}s "
                         f"| train_loss={train_loss:.4f} | test_loss={test_loss:.4f}",
                         flush=True,
                     )
                 else:
                     print(
-                        f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE | time={epoch_time:.2f}s "
+                        f"[{now_iso()}] [Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE "
+                        f"| train_time={train_time:.2f}s val_time={val_time:.2f}s total_time={epoch_total_time:.2f}s "
                         f"| train_loss={train_loss:.4f} train_acc={train_acc:.2f}% "
                         f"| test_loss={test_loss:.4f} test_acc={test_acc:.2f}%",
                         flush=True,
@@ -989,7 +1153,10 @@ def main():
                     break
                 if cmd == CMD_TRAIN:
                     model.train()
-                    train_batch_rank1_1f1b(model, optimizer, device, cfg, sizes)
+                    if args.async_pipeline:
+                        train_batch_rank1_1f1b(model, optimizer, device, cfg, sizes)
+                    else:
+                        train_batch_rank1_sync(model, optimizer, device, cfg, sizes)
                 elif cmd == CMD_EVAL:
                     model.eval()
                     eval_batch_rank1(model, device, cfg, sizes)

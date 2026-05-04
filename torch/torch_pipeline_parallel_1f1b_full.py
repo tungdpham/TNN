@@ -5,6 +5,7 @@ import csv
 import math
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -92,6 +93,19 @@ class NetCounter:
 
 def count_params(m: nn.Module) -> int:
     return sum(p.numel() for p in m.parameters())
+
+def now_iso() -> str:
+    # Local wall-clock time for easy comparison with terminal/monitoring logs.
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def sync_cuda_if_needed(device: torch.device):
+    """Synchronize CUDA before taking wall-clock timestamps.
+
+    This keeps epoch timing honest for asynchronous CUDA kernels while still
+    measuring the full Python/DataLoader/distributed path around each phase.
+    """
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
 
 # =========================
 # Datasets
@@ -193,12 +207,21 @@ class ImageNet100Dataset(Dataset):
 
 _IMAGENET_MEAN = [0.485, 0.456, 0.406]
 _IMAGENET_STD  = [0.229, 0.224, 0.225]
+# ImageNet-100 augmentation for training.
+# Validation/test remains deterministic for fair evaluation.
 _imagenet100_train_transform = T.Compose([
-    T.RandomResizedCrop(224), T.RandomHorizontalFlip(),
-    T.ToTensor(), T.Normalize(_IMAGENET_MEAN, _IMAGENET_STD)])
+    T.RandomResizedCrop(224, scale=(0.08, 1.0), ratio=(3.0 / 4.0, 4.0 / 3.0)),
+    T.RandomHorizontalFlip(p=0.5),
+    T.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1),
+    T.ToTensor(),
+    T.Normalize(_IMAGENET_MEAN, _IMAGENET_STD),
+])
 _imagenet100_test_transform = T.Compose([
-    T.Resize(256), T.CenterCrop(224),
-    T.ToTensor(), T.Normalize(_IMAGENET_MEAN, _IMAGENET_STD)])
+    T.Resize(256),
+    T.CenterCrop(224),
+    T.ToTensor(),
+    T.Normalize(_IMAGENET_MEAN, _IMAGENET_STD),
+])
 
 # =========================
 # Models
@@ -279,12 +302,14 @@ class _BottleneckBlock(nn.Module):
                 nn.Conv2d(in_channels, out_channels, 1, stride=stride, bias=False),
                 nn.BatchNorm2d(out_channels, eps=1e-5, momentum=0.1))
     def forward(self, x):
+        # Match TNN bottleneck behavior:
+        # conv1 -> BN+ReLU, conv2 -> BN+ReLU, conv3 -> BN+ReLU, then residual add.
+        # TNN does not apply an extra final ReLU after the residual addition.
         sc = self.shortcut(x) if self.shortcut is not None else x
         out = F.relu(self.bn1(self.conv1(x)), inplace=True)
         out = F.relu(self.bn2(self.conv2(out)), inplace=True)
         out = F.relu(self.bn3(self.conv3(out)), inplace=True)
-        out = out + sc
-        return F.relu(out, inplace=True)
+        return out + sc
 
 class ResNet50TinyStage0(nn.Module):
     def __init__(self):
@@ -427,6 +452,7 @@ class GPT2Stage0(nn.Module):
         super().__init__()
         self.token_emb = nn.Embedding(_GPT2_VOCAB_SIZE, _GPT2_EMBED_DIM)
         self.pos_emb = nn.Parameter(torch.zeros(1, 1024, _GPT2_EMBED_DIM))
+        self.emb_drop = nn.Dropout(0.1)
         self.blocks = nn.Sequential(*[
             _GPTBlock(_GPT2_EMBED_DIM, _GPT2_NUM_HEADS, _GPT2_FFN_DIM)
             for _ in range(num_layers)
@@ -435,6 +461,7 @@ class GPT2Stage0(nn.Module):
     def forward(self, x):
         _, T = x.shape
         h = self.token_emb(x) + self.pos_emb[:, :T, :]
+        h = self.emb_drop(h)
         return self.blocks(h)
 
 class GPT2Stage1(nn.Module):
@@ -445,7 +472,7 @@ class GPT2Stage1(nn.Module):
             for _ in range(num_layers)
         ])
         self.ln_f = nn.LayerNorm(_GPT2_EMBED_DIM)
-        self.head = nn.Linear(_GPT2_EMBED_DIM, _GPT2_VOCAB_SIZE, bias=False)
+        self.head = nn.Linear(_GPT2_EMBED_DIM, _GPT2_VOCAB_SIZE, bias=True)
 
     def forward(self, h):
         return self.head(self.ln_f(self.blocks(h)))
@@ -454,11 +481,12 @@ class GPT2Stage1(nn.Module):
 # Config
 # =========================
 
-def _make_model_configs(seq_len=512):
+def _make_model_configs(seq_len=512, augmentation=True):
     cifar10_root = os.getenv("CIFAR10_BIN_ROOT", "data/cifar-10-batches-bin")
     imgnet100_root = os.getenv("IMAGENET100_ROOT", "data/imagenet-100")
     gpt_stage0_layers = int(os.getenv("GPT2_STAGE0_LAYERS", "6"))
     gpt_stage1_layers = _GPT2_NUM_LAYERS - gpt_stage0_layers
+    imagenet100_train_transform = _imagenet100_train_transform if augmentation else _imagenet100_test_transform
     return {
         "resnet9_cifar10": {
             "stage0_cls": ResNet9Stage0,
@@ -476,12 +504,12 @@ def _make_model_configs(seq_len=512):
         "resnet50_imagenet100": {
             "stage0_cls": ResNet50ImgNet100Stage0,
             "stage1_cls": ResNet50ImgNet100Stage1,
-            "train_set": lambda: ImageNet100Dataset(imgnet100_root, train=True, transform=_imagenet100_train_transform),
+            "train_set": lambda: ImageNet100Dataset(imgnet100_root, train=True, transform=imagenet100_train_transform),
             "test_set": lambda: ImageNet100Dataset(imgnet100_root, train=False, transform=_imagenet100_test_transform),
             "act_tail": (512, 28, 28),
-            "batch_size": int(os.getenv("BATCH_SIZE", "64")),
-            "epochs": int(os.getenv("EPOCHS", "90")),
-            "lr": float(os.getenv("LR_INITIAL", "0.001")),
+            "batch_size": int(os.getenv("BATCH_SIZE", "128")),
+            "epochs": int(os.getenv("EPOCHS", "2")),
+            "lr": float(os.getenv("LR_INITIAL", "0.0001")),
             "num_workers": 4,
             "is_gpt2": False,
         },
@@ -611,61 +639,106 @@ def split_by_sizes(x: torch.Tensor, sizes: List[int]) -> List[torch.Tensor]:
 # =========================
 
 def train_batch_rank0_1f1b(model, optimizer, x, y, device, cfg, micro_bs):
+    """
+    Rank 0 async 1F1B pipeline.
+
+    This uses isend/irecv and overlaps:
+      send activation/label of microbatch i
+      compute forward of microbatch i+1
+      receive gradient of microbatch i
+      backward microbatch i
+    """
     sizes = compute_micro_sizes(x.size(0), micro_bs)
     x_mbs = split_by_sizes(x, sizes)
     y_mbs = split_by_sizes(y, sizes)
 
     optimizer.zero_grad(set_to_none=True)
-
     acts: List[Optional[torch.Tensor]] = [None] * len(sizes)
 
     send_header(device, CMD_TRAIN, sizes)
 
-    # Warmup: forward first microbatch and send it.
-    acts[0] = model(x_mbs[0])
-    dist.send(acts[0].detach().contiguous(), dst=1)
-    dist.send(y_mbs[0].contiguous(), dst=1)
+    def async_send_activation_and_label(act_tensor: torch.Tensor, label_tensor: torch.Tensor):
+        # Buffers used by isend must stay alive until work.wait().
+        act_buf = act_tensor.detach().contiguous()
+        y_buf = label_tensor.contiguous()
+        works = [dist.isend(act_buf, dst=1), dist.isend(y_buf, dst=1)]
+        return works, (act_buf, y_buf)
 
-    # Steady state: forward i, recv grad for i-1, send i, backward i-1
+    # Warmup: forward first microbatch and start sending it asynchronously.
+    acts[0] = model(x_mbs[0])
+    prev_send_works, prev_send_bufs = async_send_activation_and_label(acts[0], y_mbs[0])
+
+    # Steady state.
     for i in range(1, len(sizes)):
+        # Post receive for gradient of previous microbatch before computing next forward.
+        g_prev = torch.empty((sizes[i - 1], *cfg["act_tail"]), dtype=torch.float32, device=device)
+        recv_grad_work = dist.irecv(g_prev, src=1)
+
+        # Overlap rank0 forward(i) with rank1 stage1/backward(i-1).
         acts[i] = model(x_mbs[i])
 
-        g_prev = torch.empty((sizes[i - 1], *cfg["act_tail"]), dtype=torch.float32, device=device)
-        dist.recv(g_prev, src=1)
+        # Make sure previous isend buffers are no longer in use before releasing them.
+        for w in prev_send_works:
+            w.wait()
+        prev_send_bufs = None
 
-        dist.send(acts[i].detach().contiguous(), dst=1)
-        dist.send(y_mbs[i].contiguous(), dst=1)
+        # Start sending current microbatch.
+        cur_send_works, cur_send_bufs = async_send_activation_and_label(acts[i], y_mbs[i])
 
+        # Wait for previous gradient and backward previous microbatch.
+        recv_grad_work.wait()
         acts[i - 1].backward(g_prev)
         acts[i - 1] = None
 
-    # Cooldown: recv grad for final microbatch and backward it.
+        prev_send_works, prev_send_bufs = cur_send_works, cur_send_bufs
+
+    # Cooldown: final send must finish before receiving final gradient.
+    for w in prev_send_works:
+        w.wait()
+    prev_send_bufs = None
+
     g_last = torch.empty((sizes[-1], *cfg["act_tail"]), dtype=torch.float32, device=device)
-    dist.recv(g_last, src=1)
+    recv_last_work = dist.irecv(g_last, src=1)
+    recv_last_work.wait()
     acts[-1].backward(g_last)
     acts[-1] = None
 
     optimizer.step()
     return recv_stats(device)
 
-def eval_batch_rank0(model, x, y, device, micro_bs):
+
+def train_batch_rank0_sync(model, optimizer, x, y, device, cfg, micro_bs):
+    """Rank 0 synchronous pipeline: no 1F1B overlap, blocking send/recv per microbatch."""
     sizes = compute_micro_sizes(x.size(0), micro_bs)
     x_mbs = split_by_sizes(x, sizes)
     y_mbs = split_by_sizes(y, sizes)
-    send_header(device, CMD_EVAL, sizes)
-    for x_mb, y_mb in zip(x_mbs, y_mbs):
-        a = model(x_mb)
-        dist.send(a.contiguous(), dst=1)
-        dist.send(y_mb.contiguous(), dst=1)
+
+    optimizer.zero_grad(set_to_none=True)
+    send_header(device, CMD_TRAIN, sizes)
+
+    for x_mb, y_mb, mbsz in zip(x_mbs, y_mbs, sizes):
+        act = model(x_mb)
+        act_buf = act.detach().contiguous()
+        y_buf = y_mb.contiguous()
+        dist.send(act_buf, dst=1)
+        dist.send(y_buf, dst=1)
+
+        g = torch.empty((mbsz, *cfg["act_tail"]), dtype=torch.float32, device=device)
+        dist.recv(g, src=1)
+        act.backward(g)
+
+    optimizer.step()
     return recv_stats(device)
 
-def train_batch_rank1_1f1b(model, optimizer, device, cfg, sizes):
+
+def train_batch_rank1_sync(model, optimizer, device, cfg, sizes):
+    """Rank 1 synchronous pipeline: blocking recv/compute/backward/send per microbatch."""
     is_gpt2 = cfg.get("is_gpt2", False)
     optimizer.zero_grad(set_to_none=True)
 
     batch_items = 0
     for s in sizes:
-        batch_items += s * (cfg["act_tail"][0] - 1) if is_gpt2 else s
+        batch_items += s * cfg["act_tail"][0] if is_gpt2 else s
 
     stats_loss_sum = 0.0
     stats_correct = 0.0
@@ -685,15 +758,15 @@ def train_batch_rank1_1f1b(model, optimizer, device, cfg, sizes):
         logits = model(act)
 
         if is_gpt2:
-            shift_logits = logits[:, :-1, :].contiguous()
-            shift_labels = y[:, 1:].contiguous()
+            # y is already x shifted by +1 token in OpenWebTextBinDataset,
+            # so train every timestep directly against y. Do NOT shift again here.
             loss_sum = F.cross_entropy(
-                shift_logits.view(-1, shift_logits.size(-1)),
-                shift_labels.view(-1),
+                logits.reshape(-1, logits.size(-1)),
+                y.reshape(-1),
                 reduction="sum",
             )
-            correct = (shift_logits.argmax(dim=-1) == shift_labels).sum().item()
-            total = shift_labels.numel()
+            correct = (logits.argmax(dim=-1) == y).sum().item()
+            total = y.numel()
         else:
             loss_sum = F.cross_entropy(logits, y, reduction="sum")
             correct = (logits.argmax(dim=1) == y).sum().item()
@@ -702,7 +775,8 @@ def train_batch_rank1_1f1b(model, optimizer, device, cfg, sizes):
         loss = loss_sum / max(batch_items, 1)
         loss.backward()
 
-        dist.send(act.grad.contiguous(), dst=0)
+        grad_buf = act.grad.detach().contiguous()
+        dist.send(grad_buf, dst=0)
 
         stats_loss_sum += float(loss_sum.item())
         stats_correct += float(correct)
@@ -710,6 +784,96 @@ def train_batch_rank1_1f1b(model, optimizer, device, cfg, sizes):
 
     optimizer.step()
     send_stats(device, stats_loss_sum, stats_correct, stats_total)
+
+
+def eval_batch_rank0(model, x, y, device, micro_bs):
+    sizes = compute_micro_sizes(x.size(0), micro_bs)
+    x_mbs = split_by_sizes(x, sizes)
+    y_mbs = split_by_sizes(y, sizes)
+    send_header(device, CMD_EVAL, sizes)
+
+    pending = []
+    for x_mb, y_mb in zip(x_mbs, y_mbs):
+        a = model(x_mb).contiguous()
+        y_buf = y_mb.contiguous()
+        pending.append((dist.isend(a, dst=1), a))
+        pending.append((dist.isend(y_buf, dst=1), y_buf))
+
+        # Keep the number of in-flight buffers bounded.
+        if len(pending) >= 4:
+            work, _buf = pending.pop(0)
+            work.wait()
+
+    for work, _buf in pending:
+        work.wait()
+
+    return recv_stats(device)
+
+
+def train_batch_rank1_1f1b(model, optimizer, device, cfg, sizes):
+    is_gpt2 = cfg.get("is_gpt2", False)
+    optimizer.zero_grad(set_to_none=True)
+
+    batch_items = 0
+    for s in sizes:
+        batch_items += s * cfg["act_tail"][0] if is_gpt2 else s
+
+    stats_loss_sum = 0.0
+    stats_correct = 0.0
+    stats_total = 0.0
+    pending_grad_sends = []
+
+    for mbsz in sizes:
+        act = torch.empty((mbsz, *cfg["act_tail"]), dtype=torch.float32, device=device)
+        if is_gpt2:
+            y = torch.empty((mbsz, cfg["act_tail"][0]), dtype=torch.int64, device=device)
+        else:
+            y = torch.empty((mbsz,), dtype=torch.int64, device=device)
+
+        recv_act_work = dist.irecv(act, src=0)
+        recv_y_work = dist.irecv(y, src=0)
+        recv_act_work.wait()
+        recv_y_work.wait()
+
+        act.requires_grad_(True)
+        logits = model(act)
+
+        if is_gpt2:
+            # y is already x shifted by +1 token in OpenWebTextBinDataset,
+            # so train every timestep directly against y. Do NOT shift again here.
+            loss_sum = F.cross_entropy(
+                logits.reshape(-1, logits.size(-1)),
+                y.reshape(-1),
+                reduction="sum",
+            )
+            correct = (logits.argmax(dim=-1) == y).sum().item()
+            total = y.numel()
+        else:
+            loss_sum = F.cross_entropy(logits, y, reduction="sum")
+            correct = (logits.argmax(dim=1) == y).sum().item()
+            total = y.numel()
+
+        loss = loss_sum / max(batch_items, 1)
+        loss.backward()
+
+        grad_buf = act.grad.detach().contiguous()
+        pending_grad_sends.append((dist.isend(grad_buf, dst=0), grad_buf))
+
+        # Avoid too many in-flight gradient sends.
+        if len(pending_grad_sends) >= 2:
+            work, _buf = pending_grad_sends.pop(0)
+            work.wait()
+
+        stats_loss_sum += float(loss_sum.item())
+        stats_correct += float(correct)
+        stats_total += float(total)
+
+    for work, _buf in pending_grad_sends:
+        work.wait()
+
+    optimizer.step()
+    send_stats(device, stats_loss_sum, stats_correct, stats_total)
+
 
 def eval_batch_rank1(model, device, cfg, sizes):
     is_gpt2 = cfg.get("is_gpt2", False)
@@ -725,20 +889,23 @@ def eval_batch_rank1(model, device, cfg, sizes):
             else:
                 y = torch.empty((mbsz,), dtype=torch.int64, device=device)
 
-            dist.recv(act, src=0)
-            dist.recv(y, src=0)
+            recv_act_work = dist.irecv(act, src=0)
+            recv_y_work = dist.irecv(y, src=0)
+            recv_act_work.wait()
+            recv_y_work.wait()
+
             logits = model(act)
 
             if is_gpt2:
-                shift_logits = logits[:, :-1, :].contiguous()
-                shift_labels = y[:, 1:].contiguous()
+                # y is already x shifted by +1 token in OpenWebTextBinDataset,
+                # so evaluate every timestep directly against y. Do NOT shift again here.
                 loss_sum = F.cross_entropy(
-                    shift_logits.view(-1, shift_logits.size(-1)),
-                    shift_labels.view(-1),
+                    logits.reshape(-1, logits.size(-1)),
+                    y.reshape(-1),
                     reduction="sum",
                 ).item()
-                correct = (shift_logits.argmax(dim=-1) == shift_labels).sum().item()
-                total = shift_labels.numel()
+                correct = (logits.argmax(dim=-1) == y).sum().item()
+                total = y.numel()
             else:
                 loss_sum = F.cross_entropy(logits, y, reduction="sum").item()
                 correct = (logits.argmax(dim=1) == y).sum().item()
@@ -758,9 +925,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="resnet9_cifar10", choices=["gpt2", "gpt2_small", "gpt2_small_openwebtext", "resnet9_cifar10", "resnet50_imagenet100"])
     parser.add_argument("--micro-bs", type=int, default=int(os.getenv("MICRO_BS", "64")))
-    parser.add_argument("--seq-len", type=int, default=512)
+    parser.add_argument("--seq-len", type=int, default=int(os.getenv("SEQ_LEN", "512")))
     parser.add_argument("--print-freq", type=int, default=int(os.getenv("PRINT_FREQ", "10")))
     parser.add_argument("--log-dir", type=str, default=os.getenv("LOG_DIR", "logs"))
+    parser.add_argument("--prefetch-data", dest="prefetch_data", action="store_true", default=os.getenv("PREFETCH_DATA", "1") == "1", help="Enable DataLoader worker prefetching")
+    parser.add_argument("--no-prefetch-data", dest="prefetch_data", action="store_false", help="Disable DataLoader worker prefetching: num_workers=0, no worker queue")
+    parser.add_argument("--async-pipeline", dest="async_pipeline", action="store_true", default=os.getenv("ASYNC_PIPELINE", "1") == "1", help="Enable async 1F1B pipeline overlap")
+    parser.add_argument("--no-async-pipeline", dest="async_pipeline", action="store_false", help="Disable async 1F1B overlap; use blocking per-microbatch pipeline")
+    parser.add_argument("--augmentation", dest="augmentation", action="store_true", default=os.getenv("AUGMENTATION", "1") == "1", help="Enable training data augmentation")
+    parser.add_argument("--no-augmentation", dest="augmentation", action="store_false", help="Disable training augmentation; ImageNet100 uses deterministic resize/crop/normalize")
     args = parser.parse_args()
 
     max_steps = int(os.getenv("MAX_STEPS", "-1"))
@@ -777,45 +950,137 @@ def main():
     device = torch.device(f"cuda:{local_rank}")
     torch.cuda.set_device(device)
 
-    cfg = _make_model_configs(args.seq_len)[args.model]
+    cfg = _make_model_configs(args.seq_len, augmentation=args.augmentation)[args.model]
     model = (cfg["stage0_cls"]() if rank == 0 else cfg["stage1_cls"]()).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=cfg["lr"], betas=(0.9, 0.999), eps=1e-8, weight_decay=3e-4)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+
+    adamw = os.getenv("ADAMW", "1") != "0"
+    adam_beta1 = float(os.getenv("ADAM_BETA1", "0.9"))
+    adam_beta2 = float(os.getenv("ADAM_BETA2", "0.95"))
+    adam_eps = float(os.getenv("ADAM_EPS", "1e-8"))
+    weight_decay = float(os.getenv("WEIGHT_DECAY", "0.1"))
+    opt_cls = optim.AdamW if adamw else optim.Adam
+    optimizer = opt_cls(
+        model.parameters(),
+        lr=cfg["lr"],
+        betas=(adam_beta1, adam_beta2),
+        eps=adam_eps,
+        weight_decay=weight_decay,
+    )
+
+    if rank == 0:
+        # Rank0 owns the dataset. Rank1 must not open train.bin just to size the scheduler.
+        train_len_for_sched = len(cfg["train_set"]())
+        steps_per_epoch_for_sched = max(1, math.ceil(train_len_for_sched / cfg["batch_size"]))
+        default_total_steps = max(1, steps_per_epoch_for_sched * cfg["epochs"])
+        if max_steps > 0:
+            default_total_steps = min(default_total_steps, max_steps * cfg["epochs"])
+    else:
+        steps_per_epoch_for_sched = 0
+        default_total_steps = 0
+
+    sched_obj = [[steps_per_epoch_for_sched, default_total_steps]]
+    dist.broadcast_object_list(sched_obj, src=0)
+    steps_per_epoch_for_sched, default_total_steps = sched_obj[0]
+
+    total_steps = int(os.getenv("COSINE_TOTAL_STEPS", str(default_total_steps)))
+    total_steps = max(1, total_steps)
+    warmup_steps = int(os.getenv("WARMUP_STEPS", "2000"))
+    warmup_steps = max(0, min(warmup_steps, max(0, total_steps - 1)))
+    eta_min = float(os.getenv("COSINE_ETA_MIN", "0.0"))
+    scheduler_name = os.getenv("LR_SCHEDULER", "warmup_cosine").lower()
+
+    if scheduler_name in ("warmup_cosine", "cosine"):
+        def lr_lambda(current_step: int):
+            if warmup_steps > 0 and current_step < warmup_steps:
+                return float(current_step + 1) / float(warmup_steps)
+            if total_steps <= warmup_steps:
+                return 1.0
+            progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+            progress = min(max(progress, 0.0), 1.0)
+            min_factor = eta_min / max(float(cfg["lr"]), 1e-30)
+            return min_factor + 0.5 * (1.0 - min_factor) * (1.0 + math.cos(math.pi * progress))
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+    else:
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
 
     log_dir = ensure_dir(args.log_dir)
+    run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     nic = os.getenv("NET_LOG_IFNAME") or os.getenv("NCCL_SOCKET_IFNAME") or os.getenv("GLOO_SOCKET_IFNAME")
     net_counter = NetCounter(nic)
-    net_csv = CsvAppender(log_dir / f"{args.model}_rank{rank}_net.csv", ["timestamp", "rank", "phase", "epoch", "step", "batch_size", "ifname", "dt_sec", "tx_bytes_delta", "rx_bytes_delta", "tx_MBps", "rx_MBps", "counter_ok"])
+    net_csv = CsvAppender(log_dir / f"{args.model}_{run_ts}_rank{rank}_net.csv", ["timestamp", "time_iso", "run_ts", "rank", "phase", "epoch", "step", "batch_size", "ifname", "dt_sec", "tx_bytes_delta", "rx_bytes_delta", "tx_MBps", "rx_MBps", "counter_ok"])
     metrics_csv = None
+    epoch_csv = None
     if rank == 0:
-        metrics_csv = CsvAppender(log_dir / f"{args.model}_rank0_metrics.csv", ["timestamp", "phase", "epoch", "step", "batch_size", "micro_bs", "lr", "loss_sum", "samples", "avg_loss", "correct", "accuracy_percent", "epoch_time_sec"])
+        metrics_csv = CsvAppender(log_dir / f"{args.model}_{run_ts}_rank0_metrics.csv", ["timestamp", "time_iso", "run_ts", "phase", "epoch", "step", "batch_size", "micro_bs", "lr", "batch_loss", "loss_sum", "samples", "avg_loss", "correct", "accuracy_percent", "train_time_sec", "val_time_sec", "epoch_total_time_sec", "epoch_time_sec", "data_time", "h2d_time", "compute_comm_time", "batch_total_time", "prefetch_data", "async_pipeline", "augmentation"])
+        epoch_csv = CsvAppender(log_dir / f"{args.model}_{run_ts}_rank0_epoch_summary.csv", ["timestamp", "time_iso", "run_ts", "epoch", "train_loss", "val_loss", "val_accuracy_percent", "train_accuracy_percent", "train_time_sec", "val_time_sec", "epoch_total_time_sec", "epoch_time_sec", "lr", "train_samples", "val_samples"])
 
     print(
-        f"[Init] rank={rank} model={args.model} params={count_params(model):,} micro_bs={args.micro_bs}",
+        f"[Init] rank={rank} model={args.model} params={count_params(model):,} micro_bs={args.micro_bs} "
+        f"prefetch_data={args.prefetch_data} async_pipeline={args.async_pipeline} augmentation={args.augmentation} "
+        f"optimizer={optimizer.__class__.__name__} lr={cfg['lr']} beta1={adam_beta1} beta2={adam_beta2} "
+        f"eps={adam_eps} weight_decay={weight_decay} scheduler={scheduler_name} "
+        f"warmup_steps={warmup_steps} total_steps={total_steps}",
         flush=True,
     )
 
     try:
         if rank == 0:
-            train_loader = DataLoader(cfg["train_set"](), batch_size=cfg["batch_size"], shuffle=True, num_workers=cfg["num_workers"], drop_last=False, pin_memory=True)
-            test_loader = DataLoader(cfg["test_set"](), batch_size=cfg["batch_size"], shuffle=False, num_workers=cfg["num_workers"], drop_last=False, pin_memory=True)
+            train_num_workers = int(cfg["num_workers"]) if args.prefetch_data else 0
+            train_loader_kwargs = dict(
+                batch_size=cfg["batch_size"],
+                shuffle=True,
+                num_workers=train_num_workers,
+                drop_last=False,
+                pin_memory=bool(args.prefetch_data),
+            )
+            test_loader_kwargs = dict(
+                batch_size=cfg["batch_size"],
+                shuffle=False,
+                num_workers=train_num_workers,
+                drop_last=False,
+                pin_memory=bool(args.prefetch_data),
+            )
+            if train_num_workers > 0:
+                train_loader_kwargs.update(prefetch_factor=2, persistent_workers=True)
+                test_loader_kwargs.update(prefetch_factor=2, persistent_workers=True)
+
+            train_loader = DataLoader(cfg["train_set"](), **train_loader_kwargs)
+            test_loader = DataLoader(cfg["test_set"](), **test_loader_kwargs)
 
             for epoch in range(cfg["epochs"]):
                 model.train()
                 train_loss_sum = 0.0
                 train_correct = 0
                 train_total = 0
-                epoch_start = time.time()
+                sync_cuda_if_needed(device)
+                epoch_total_start = time.time()
+                train_start = epoch_total_start
+
+                # end_prev marks the end of the previous iteration.  The time
+                # spent inside DataLoader.__next__() (file I/O + CPU augmentation +
+                # collation + worker handoff) is measured as data_time below.
+                end_prev = time.time()
 
                 for step, (x, y) in enumerate(train_loader):
                     if max_steps > 0 and step >= max_steps:
                         break
 
-                    t0 = time.time()
+                    batch_start = time.time()
+                    data_time = batch_start - end_prev
+
+                    # Host-to-device transfer time.  Synchronize so the number is
+                    # not hidden by CUDA async execution.
+                    h2d_start = time.time()
                     x = x.to(device, non_blocking=True)
                     y = y.to(device, non_blocking=True)
+                    sync_cuda_if_needed(device)
+                    h2d_time = time.time() - h2d_start
 
-                    loss_sum_b, correct_b, total_b = train_batch_rank0_1f1b(
+                    # Stage-0 forward + pipeline send/recv + backward + optimizer
+                    # step as observed on rank 0.
+                    compute_comm_start = time.time()
+                    train_batch_fn = train_batch_rank0_1f1b if args.async_pipeline else train_batch_rank0_sync
+                    loss_sum_b, correct_b, total_b = train_batch_fn(
                         model=model,
                         optimizer=optimizer,
                         x=x,
@@ -824,46 +1089,67 @@ def main():
                         cfg=cfg,
                         micro_bs=args.micro_bs,
                     )
+                    scheduler.step()
+                    sync_cuda_if_needed(device)
+                    compute_comm_time = time.time() - compute_comm_start
+
+                    batch_total_time = time.time() - batch_start
+                    end_prev = time.time()
+
                     train_loss_sum += loss_sum_b
                     train_correct += int(correct_b)
                     train_total += int(total_b)
 
+                    batch_loss = float(loss_sum_b) / max(float(total_b), 1.0)
                     avg_loss = train_loss_sum / max(train_total, 1)
                     acc = 100.0 * train_correct / max(train_total, 1)
                     net = net_counter.sample()
 
-                    net_csv.write(dict(timestamp=t0, rank=rank, phase="train_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), **net))
-                    metrics_csv.write(dict(timestamp=t0, phase="train_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), micro_bs=args.micro_bs, lr=float(optimizer.param_groups[0]["lr"]), loss_sum=float(train_loss_sum), samples=int(train_total), avg_loss=float(avg_loss), correct=int(train_correct), accuracy_percent=float(acc), epoch_time_sec=float(time.time() - epoch_start)))
+                    net_csv.write(dict(timestamp=batch_start, time_iso=now_iso(), run_ts=run_ts, rank=rank, phase="train_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), **net))
+                    metrics_csv.write(dict(timestamp=batch_start, time_iso=now_iso(), run_ts=run_ts, phase="train_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), micro_bs=args.micro_bs, lr=float(optimizer.param_groups[0]["lr"]), batch_loss=float(batch_loss), loss_sum=float(train_loss_sum), samples=int(train_total), avg_loss=float(avg_loss), correct=int(train_correct), accuracy_percent=float(acc), train_time_sec=float(time.time() - train_start), val_time_sec=0.0, epoch_total_time_sec=float(time.time() - epoch_total_start), epoch_time_sec=float(time.time() - epoch_total_start), data_time=float(data_time), h2d_time=float(h2d_time), compute_comm_time=float(compute_comm_time), batch_total_time=float(batch_total_time), prefetch_data=int(args.prefetch_data), async_pipeline=int(args.async_pipeline), augmentation=int(args.augmentation)))
 
                     if step % args.print_freq == 0:
-                        elapsed = time.time() - epoch_start
+                        elapsed = time.time() - train_start
                         sec_per_step = elapsed / max(step + 1, 1)
                         eta_sec = (len(train_loader) - (step + 1)) * sec_per_step
                         if cfg.get("is_gpt2", False):
                             print(
-                                f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} "
-                                f"| train_loss={avg_loss:.4f} | micro_bs={args.micro_bs} "
+                                f"[{now_iso()}] [Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} "
+                                f"| batch_loss={batch_loss:.4f} train_loss={avg_loss:.4f} | micro_bs={args.micro_bs} "
                                 f"| net_tx={net['tx_MBps']:.4f}MB/s net_rx={net['rx_MBps']:.4f}MB/s "
+                                f"| data={data_time:.3f}s h2d={h2d_time:.3f}s comp={compute_comm_time:.3f}s total={batch_total_time:.3f}s "
                                 f"| sec/step={sec_per_step:.3f} ETA={eta_sec/3600:.2f}h",
                                 flush=True,
                             )
                         else:
                             print(
-                                f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} "
-                                f"| train_loss={avg_loss:.4f} | train_acc={acc:.2f}% | micro_bs={args.micro_bs} "
+                                f"[{now_iso()}] [Rank 0] Epoch {epoch+1}/{cfg['epochs']} Step {step}/{len(train_loader)} "
+                                f"| batch_loss={batch_loss:.4f} train_loss={avg_loss:.4f} | train_acc={acc:.2f}% | micro_bs={args.micro_bs} "
                                 f"| net_tx={net['tx_MBps']:.4f}MB/s net_rx={net['rx_MBps']:.4f}MB/s "
+                                f"| data={data_time:.3f}s h2d={h2d_time:.3f}s comp={compute_comm_time:.3f}s total={batch_total_time:.3f}s "
                                 f"| sec/step={sec_per_step:.3f} ETA={eta_sec/3600:.2f}h",
                                 flush=True,
                             )
 
-                scheduler.step()
-                epoch_time = time.time() - epoch_start
+                sync_cuda_if_needed(device)
+                train_time = time.time() - train_start
 
                 if skip_eval:
-                    print(f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE | time={epoch_time:.2f}s | eval=skipped", flush=True)
+                    sync_cuda_if_needed(device)
+                    val_time = 0.0
+                    epoch_total_time = time.time() - epoch_total_start
+                    epoch_time = epoch_total_time
+                    train_loss = train_loss_sum / max(train_total, 1)
+                    train_acc = 100.0 * train_correct / max(train_total, 1)
+                    metrics_csv.write(dict(timestamp=time.time(), time_iso=now_iso(), run_ts=run_ts, phase="epoch_summary", epoch=epoch + 1, step=-1, batch_size=cfg["batch_size"], micro_bs=args.micro_bs, lr=float(optimizer.param_groups[0]["lr"]), batch_loss=float(train_loss), loss_sum=float(train_loss_sum), samples=int(train_total), avg_loss=float(train_loss), correct=int(train_correct), accuracy_percent=float(train_acc), train_time_sec=float(train_time), val_time_sec=float(val_time), epoch_total_time_sec=float(epoch_total_time), epoch_time_sec=float(epoch_total_time)))
+                    epoch_csv.write(dict(timestamp=time.time(), time_iso=now_iso(), run_ts=run_ts, epoch=epoch + 1, train_loss=float(train_loss), val_loss="", val_accuracy_percent="", train_accuracy_percent=float(train_acc), train_time_sec=float(train_time), val_time_sec=float(val_time), epoch_total_time_sec=float(epoch_total_time), epoch_time_sec=float(epoch_total_time), lr=float(optimizer.param_groups[0]["lr"]), train_samples=int(train_total), val_samples=0))
+                    print(f"[{now_iso()}] [Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE | train_time={train_time:.2f}s | val_time={val_time:.2f}s | total_time={epoch_total_time:.2f}s | eval=skipped", flush=True)
                     send_header(device, CMD_STOP, [])
                     print("[Rank 0] Training complete.", flush=True)
                     return
+
+                sync_cuda_if_needed(device)
+                val_start = time.time()
 
                 model.eval()
                 test_loss_sum = 0.0
@@ -880,23 +1166,31 @@ def main():
                         test_loss_sum += loss_sum_b
                         test_correct += int(correct_b)
                         test_total += int(total_b)
-                        net_csv.write(dict(timestamp=t0, rank=rank, phase="test_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), **net_counter.sample()))
+                        net_csv.write(dict(timestamp=t0, time_iso=now_iso(), run_ts=run_ts, rank=rank, phase="test_batch", epoch=epoch + 1, step=step, batch_size=int(x.size(0)), **net_counter.sample()))
+
+                sync_cuda_if_needed(device)
+                val_time = time.time() - val_start
+                epoch_total_time = time.time() - epoch_total_start
+                epoch_time = epoch_total_time
 
                 train_loss = train_loss_sum / max(train_total, 1)
                 train_acc = 100.0 * train_correct / max(train_total, 1)
                 test_loss = test_loss_sum / max(test_total, 1)
                 test_acc = 100.0 * test_correct / max(test_total, 1)
-                metrics_csv.write(dict(timestamp=time.time(), phase="epoch_summary", epoch=epoch + 1, step=-1, batch_size=cfg["batch_size"], micro_bs=args.micro_bs, lr=float(optimizer.param_groups[0]["lr"]), loss_sum=float(test_loss_sum), samples=int(test_total), avg_loss=float(test_loss), correct=int(test_correct), accuracy_percent=float(test_acc), epoch_time_sec=float(epoch_time)))
+                metrics_csv.write(dict(timestamp=time.time(), time_iso=now_iso(), run_ts=run_ts, phase="epoch_summary", epoch=epoch + 1, step=-1, batch_size=cfg["batch_size"], micro_bs=args.micro_bs, lr=float(optimizer.param_groups[0]["lr"]), batch_loss=float(test_loss), loss_sum=float(test_loss_sum), samples=int(test_total), avg_loss=float(test_loss), correct=int(test_correct), accuracy_percent=float(test_acc), train_time_sec=float(train_time), val_time_sec=float(val_time), epoch_total_time_sec=float(epoch_total_time), epoch_time_sec=float(epoch_total_time)))
+                epoch_csv.write(dict(timestamp=time.time(), time_iso=now_iso(), run_ts=run_ts, epoch=epoch + 1, train_loss=float(train_loss), val_loss=float(test_loss), val_accuracy_percent=float(test_acc), train_accuracy_percent=float(train_acc), train_time_sec=float(train_time), val_time_sec=float(val_time), epoch_total_time_sec=float(epoch_total_time), epoch_time_sec=float(epoch_total_time), lr=float(optimizer.param_groups[0]["lr"]), train_samples=int(train_total), val_samples=int(test_total)))
 
                 if cfg.get("is_gpt2", False):
                     print(
-                        f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE | time={epoch_time:.2f}s "
+                        f"[{now_iso()}] [Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE "
+                        f"| train_time={train_time:.2f}s val_time={val_time:.2f}s total_time={epoch_total_time:.2f}s "
                         f"| train_loss={train_loss:.4f} | test_loss={test_loss:.4f}",
                         flush=True,
                     )
                 else:
                     print(
-                        f"[Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE | time={epoch_time:.2f}s "
+                        f"[{now_iso()}] [Rank 0] Epoch {epoch+1}/{cfg['epochs']} DONE "
+                        f"| train_time={train_time:.2f}s val_time={val_time:.2f}s total_time={epoch_total_time:.2f}s "
                         f"| train_loss={train_loss:.4f} train_acc={train_acc:.2f}% "
                         f"| test_loss={test_loss:.4f} test_acc={test_acc:.2f}%",
                         flush=True,
@@ -913,7 +1207,11 @@ def main():
                     break
                 if cmd == CMD_TRAIN:
                     model.train()
-                    train_batch_rank1_1f1b(model, optimizer, device, cfg, sizes)
+                    if args.async_pipeline:
+                        train_batch_rank1_1f1b(model, optimizer, device, cfg, sizes)
+                    else:
+                        train_batch_rank1_sync(model, optimizer, device, cfg, sizes)
+                    scheduler.step()
                 elif cmd == CMD_EVAL:
                     model.eval()
                     eval_batch_rank1(model, device, cfg, sizes)
@@ -924,6 +1222,8 @@ def main():
         net_csv.close()
         if metrics_csv is not None:
             metrics_csv.close()
+        if epoch_csv is not None:
+            epoch_csv.close()
         if dist.is_initialized():
             try:
                 dist.barrier()

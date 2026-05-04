@@ -15,7 +15,26 @@
 #include "data_loading/tiny_imagenet_data_loader.hpp"
 #include "type/type.hpp"
 
+#include <cstdlib>
+#include <string>
+
 namespace tnn {
+
+namespace {
+bool env_flag_enabled(const char *primary, const char *fallback, bool default_value) {
+  const char *raw = std::getenv(primary);
+  if (!raw && fallback) {
+    raw = std::getenv(fallback);
+  }
+  if (!raw) {
+    return default_value;
+  }
+  std::string v(raw);
+  return v == "1" || v == "true" || v == "TRUE" || v == "yes" || v == "YES" || v == "on" ||
+         v == "ON";
+}
+}  // namespace
+
 DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
                                          const std::string &dataset_path, DType_t io_dtype_) {
   DataLoaderPair pair;
@@ -76,21 +95,41 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
     auto val = std::make_unique<ImageNet100DataLoader>(io_dtype_);
 
     if (train->load_data(dataset_path, true)) {
-      train->set_augmentation(AugmentationBuilder()
-                                  .random_resized_crop(224, 224)
-                                  .horizontal_flip(0.5f)
-                                  .brightness(0.8f, 0.10f)
-                                  .contrast(0.8f, 0.10f)
-                                  .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
-                                  .build());
+      const bool use_aug = env_flag_enabled("TNN_AUGMENTATION", "AUGMENTATION", true);
+      if (use_aug) {
+        train->set_augmentation(AugmentationBuilder()
+                                    // RandomResizedCrop(224) is performed inside
+                                    // ImageNet100DataLoader from the original JPEG.
+                                    .horizontal_flip(0.5f)
+                                    .brightness(1.0f, 0.10f)
+                                    .contrast(1.0f, 0.10f)
+                                    .saturation(1.0f, 0.10f)
+                                    .normalize({0.485f, 0.456f, 0.406f},
+                                               {0.229f, 0.224f, 0.225f})
+                                    .build());
+        std::cout << "[Augmentation] ImageNet100 train: "
+                  << "loader RandomResizedCrop(224) + Flip(0.5) + "
+                  << "ColorJitter(b=0.1,c=0.1,s=0.1) + Normalize" << std::endl;
+      } else {
+        train->set_augmentation(AugmentationBuilder()
+                                    .normalize({0.485f, 0.456f, 0.406f},
+                                               {0.229f, 0.224f, 0.225f})
+                                    .build());
+        std::cout << "[Augmentation] ImageNet100 train: disabled | "
+                  << "Normalize only after loader spatial preprocessing"
+                  << std::endl;
+      }
       pair.train = std::move(train);
     }
 
     if (val->load_data(dataset_path, false)) {
       val->set_augmentation(AugmentationBuilder()
-                                .resize_center_crop(256, 224, 224)
+                                // Resize(256)+CenterCrop(224) is performed inside
+                                // ImageNet100DataLoader from the original JPEG.
                                 .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                                 .build());
+      std::cout << "[Augmentation] ImageNet100 val: "
+                << "loader Resize(256)+CenterCrop(224) + Normalize" << std::endl;
       pair.val = std::move(val);
     }
   } else if (dataset_type == "open_webtext") {
@@ -101,7 +140,7 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
       pair.train = std::move(train);
     }
 
-    if (val->load_data(dataset_path + "/train.bin")) {
+    if (val->load_data(dataset_path + "/val.bin")) {
       pair.val = std::move(val);
     }
   } else {

@@ -6,10 +6,13 @@
  */
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <functional>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -115,6 +118,15 @@ public:
     this->scheduler_ =
         SchedulerFactory::create_from_config(config.scheduler_config, this->optimizer_.get());
 
+    std::cout << "[TNNDBG][worker_config]"
+              << " stage=" << id_
+              << " optimizer=" << this->optimizer_->name()
+              << " params=" << this->optimizer_->debug_num_parameters()
+              << " init_lr=" << std::setprecision(10) << this->optimizer_->get_learning_rate()
+              << " scheduler=" << (this->scheduler_ ? this->scheduler_->name() : std::string("none"))
+              << " sched_step=" << (this->scheduler_ ? this->scheduler_->get_current_step() : 0)
+              << std::endl;
+
     // setup connections
     coordinator_endpoint_ = config.coordinator_endpoint;
     next_stage_endpoint_ = config.next_stage_endpoint;
@@ -161,12 +173,67 @@ protected:
         communicator_->send_message(std::move(message), prev_stage_endpoint_);
       } break;
       case CommandType::UPDATE_PARAMETERS: {
-        // implicitly clear grads
-        this->optimizer_->update();
-        this->optimizer_->zero_grads();
+        update_count_++;
+
+        const char *dbg_env = std::getenv("TNN_DEBUG_LR");
+        const bool debug_lr = dbg_env && std::string(dbg_env) != "0";
+        int debug_interval = 100;
+        if (const char *interval_env = std::getenv("TNN_DEBUG_INTERVAL")) {
+          debug_interval = std::max(1, std::atoi(interval_env));
+        }
+
+        const char *stats_env = std::getenv("TNN_DEBUG_STATS");
+        const bool debug_stats = stats_env && std::string(stats_env) != "0";
+
+        const bool should_print_debug =
+            debug_lr && (update_count_ <= 5 || update_count_ % debug_interval == 0);
+
+        const float lr_before = this->optimizer_->get_learning_rate();
+        const size_t sched_step_before = scheduler_ ? scheduler_->get_current_step() : 0;
+
+        // Match PyTorch-style semantics more closely: compute the LR for this
+        // optimizer update before applying the parameter update. This avoids
+        // the first update using lr=0 when WarmupCosineAnnealing starts from 0.
         if (scheduler_) {
           this->scheduler_->step();
         }
+
+        const float lr_after = this->optimizer_->get_learning_rate();
+        const size_t sched_step_after = scheduler_ ? scheduler_->get_current_step() : 0;
+
+        double grad_abs_mean = 0.0;
+        double param_abs_mean_before = 0.0;
+        if (should_print_debug && debug_stats) {
+          grad_abs_mean = this->optimizer_->debug_abs_mean_grad();
+          param_abs_mean_before = this->optimizer_->debug_abs_mean_param();
+        }
+
+        // implicitly clear grads
+        this->optimizer_->update();
+
+        double param_abs_mean_after = 0.0;
+        if (should_print_debug && debug_stats) {
+          param_abs_mean_after = this->optimizer_->debug_abs_mean_param();
+        }
+
+        this->optimizer_->zero_grads();
+
+        if (should_print_debug) {
+          std::cout << "[TNNDBG][worker_update]"
+                    << " stage=" << id_
+                    << " update=" << update_count_
+                    << " optimizer=" << this->optimizer_->name()
+                    << " scheduler=" << (scheduler_ ? scheduler_->name() : std::string("none"))
+                    << " sched_step=" << sched_step_before << "->" << sched_step_after
+                    << " lr=" << std::setprecision(10) << lr_before << "->" << lr_after;
+          if (debug_stats) {
+            std::cout << " grad_abs_mean=" << std::setprecision(8) << grad_abs_mean
+                      << " param_abs_mean=" << param_abs_mean_before << "->" << param_abs_mean_after
+                      << " param_abs_delta=" << std::abs(param_abs_mean_after - param_abs_mean_before);
+          }
+          std::cout << std::endl;
+        }
+
         Message response(CommandType::PARAMETERS_UPDATED, std::monostate{});
         communicator_->send_message(std::move(response), coordinator_endpoint_);
       } break;
@@ -307,6 +374,7 @@ protected:
   std::string id_;
   int forward_step_ = 0;
   int backward_step_ = 0;
+  size_t update_count_ = 0;
   Endpoint coordinator_endpoint_;
   Endpoint next_stage_endpoint_;
   Endpoint prev_stage_endpoint_;

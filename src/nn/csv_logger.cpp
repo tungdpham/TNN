@@ -8,6 +8,8 @@
 #include "nn/csv_logger.hpp"
 
 #include <sstream>
+#include <iostream>
+#include <cstdlib>
 
 #include "nn/train.hpp"
 
@@ -34,85 +36,48 @@ CsvLogger::CsvLogger(const std::string &model_name, const std::string &log_dir,
   epoch_logger.set_log_file(epoch_path);
   epoch_logger.set_pattern("%v");
 
-  // Build headers based on log_mode
-  batch_metrics = {"epoch", "step"};
-  val_metrics = {"epoch", "step"};
-  epoch_metrics = {"epoch"};
+  // Build deterministic metric order for stable CSV logs.
+  // Dynamic ordering caused column/value mismatches during incremental builds.
 
-  if (log_mode) {
-    if (log_mode->log_loss) {
-      batch_metrics.push_back("loss");
-      val_metrics.push_back("loss");
-      epoch_metrics.push_back("train_loss");
-      epoch_metrics.push_back("val_loss");
-    }
-    if (log_mode->log_accuracy) {
-      batch_metrics.push_back("accuracy_pct");
-      val_metrics.push_back("accuracy_pct");
-      epoch_metrics.push_back("train_accuracy_pct");
-      epoch_metrics.push_back("val_accuracy_pct");
-    }
-    if (log_mode->log_precision) {
-      batch_metrics.push_back("precision");
-      val_metrics.push_back("precision");
-      epoch_metrics.push_back("train_precision");
-      epoch_metrics.push_back("val_precision");
-    }
-    if (log_mode->log_recall) {
-      batch_metrics.push_back("recall");
-      val_metrics.push_back("recall");
-      epoch_metrics.push_back("train_recall");
-      epoch_metrics.push_back("val_recall");
-    }
-    if (log_mode->log_f1_score) {
-      batch_metrics.push_back("f1_score");
-      val_metrics.push_back("f1_score");
-      epoch_metrics.push_back("train_f1_score");
-      epoch_metrics.push_back("val_f1_score");
-    }
-    if (log_mode->log_perplexity) {
-      batch_metrics.push_back("perplexity");
-      val_metrics.push_back("perplexity");
-      epoch_metrics.push_back("train_perplexity");
-      epoch_metrics.push_back("val_perplexity");
-    }
-    if (log_mode->log_top_k_accuracy) {
-      batch_metrics.push_back("top_k_accuracy");
-      val_metrics.push_back("top_k_accuracy");
-      epoch_metrics.push_back("train_top_k_accuracy");
-      epoch_metrics.push_back("val_top_k_accuracy");
-    }
-    if (log_mode->log_mae) {
-      batch_metrics.push_back("mae");
-      val_metrics.push_back("mae");
-      epoch_metrics.push_back("train_mae");
-      epoch_metrics.push_back("val_mae");
-    }
-    if (log_mode->log_mse) {
-      batch_metrics.push_back("mse");
-      val_metrics.push_back("mse");
-      epoch_metrics.push_back("train_mse");
-      epoch_metrics.push_back("val_mse");
-    }
-    if (log_mode->log_rmse) {
-      batch_metrics.push_back("rmse");
-      val_metrics.push_back("rmse");
-      epoch_metrics.push_back("train_rmse");
-      epoch_metrics.push_back("val_rmse");
-    }
-  } else {
-    // Default: log loss and accuracy
-    batch_metrics.push_back("loss");
-    batch_metrics.push_back("accuracy_pct");
-    val_metrics.push_back("loss");
-    val_metrics.push_back("accuracy_pct");
-    epoch_metrics.push_back("train_loss");
-    epoch_metrics.push_back("train_accuracy_pct");
-    epoch_metrics.push_back("val_loss");
-    epoch_metrics.push_back("val_accuracy_pct");
-  }
+  batch_metrics = {
+      "epoch",
+      "step",
+      "loss",
+      "batch_loss",
+      "avg_loss",
+      "avg_perplexity",
+      "accuracy_pct",
+      "perplexity",
+      "time_ms"
+  };
 
-  batch_metrics.push_back("time_ms");
+  val_metrics = {
+      "epoch",
+      "step",
+      "loss",
+      "accuracy_pct",
+      "perplexity"
+  };
+
+  epoch_metrics = {
+      "epoch",
+      "train_loss",
+      "val_loss",
+      "train_accuracy_pct",
+      "val_accuracy_pct",
+      "train_perplexity",
+      "val_perplexity",
+      "train_time_ms",
+      "val_time_ms",
+      "epoch_total_time_ms"
+  };
+
+  // Epoch-level wall-clock timing. These are always present because they are
+  // essential for paper/benchmark tables even when only loss/accuracy logging
+  // is enabled.
+  epoch_metrics.push_back("train_time_ms");
+  epoch_metrics.push_back("val_time_ms");
+  epoch_metrics.push_back("epoch_total_time_ms");
 
   // Write headers
   std::ostringstream batch_header, val_header, epoch_header;
@@ -129,6 +94,12 @@ CsvLogger::CsvLogger(const std::string &model_name, const std::string &log_dir,
     epoch_header << epoch_metrics[i];
   }
 
+  if (const char *dbg = std::getenv("TNN_DEBUG_CSV")) {
+    if (std::string(dbg) != "0") {
+      std::cout << "[CSVDBG][constructor_batch_header] " << batch_header.str() << std::endl;
+    }
+  }
+
   batch_logger.info(batch_header.str());
   val_logger.info(val_header.str());
   epoch_logger.info(epoch_header.str());
@@ -142,6 +113,22 @@ void CsvLogger::log_batch(int epoch, int step,
                           const std::unordered_map<std::string, double> &metrics) {
   std::ostringstream row;
   row << epoch << "," << step;
+
+  if (const char *dbg = std::getenv("TNN_DEBUG_CSV")) {
+    if (std::string(dbg) != "0" && step <= 5) {
+      std::cout << "[CSVDBG][batch_header] step=" << step;
+      for (const auto &h : batch_metrics) {
+        std::cout << " [" << h << "]";
+      }
+      std::cout << std::endl;
+
+      std::cout << "[CSVDBG][metric_keys] step=" << step;
+      for (const auto &kv : metrics) {
+        std::cout << " [" << kv.first << "=" << kv.second << "]";
+      }
+      std::cout << std::endl;
+    }
+  }
 
   for (size_t i = 2; i < batch_metrics.size(); ++i) {
     row << ",";

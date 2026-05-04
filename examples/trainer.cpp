@@ -66,8 +66,23 @@ signed main(int argc, char *argv[]) {
   Graph graph = load_or_create_model(train_config.model_name, train_config.model_path, allocator);
 
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
-  auto optimizer =
-      OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 10e-4f, 3e-4f, false);
+  int adamw = 1;
+  float adam_beta1 = 0.9f;
+  float adam_beta2 = 0.95f;
+  float adam_eps = 1e-8f;
+  float weight_decay = 0.1f;
+  Env::get("ADAMW", adamw);
+  Env::get("ADAM_BETA1", adam_beta1);
+  Env::get("ADAM_BETA2", adam_beta2);
+  Env::get("ADAM_EPS", adam_eps);
+  Env::get("WEIGHT_DECAY", weight_decay);
+
+  auto optimizer = OptimizerFactory::create_adam(train_config.lr_initial, adam_beta1, adam_beta2,
+                                                 adam_eps, weight_decay, adamw != 0);
+
+  std::string lr_scheduler = "warmup_cosine";
+  Env::get("LR_SCHEDULER", lr_scheduler);
+
   int step_lr_epochs = 5;
   float step_lr_gamma = 0.1f;
   int step_lr_steps = 0;
@@ -75,11 +90,47 @@ signed main(int argc, char *argv[]) {
   Env::get("STEP_LR_GAMMA", step_lr_gamma);
   Env::get("STEP_LR_STEPS", step_lr_steps);
 
-  size_t step_size = step_lr_steps > 0 ? static_cast<size_t>(step_lr_steps)
-                                       : static_cast<size_t>(step_lr_epochs) *
-                                             train_loader->size() / train_config.batch_size;
+  size_t steps_per_epoch = train_loader->size() / train_config.batch_size;
+  if (steps_per_epoch == 0) steps_per_epoch = 1;
 
-  auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
+  int cosine_total_steps = 0;
+  Env::get("COSINE_TOTAL_STEPS", cosine_total_steps);
+  size_t total_steps = 0;
+  if (cosine_total_steps > 0) {
+    total_steps = static_cast<size_t>(cosine_total_steps);
+  } else if (train_config.max_steps > 0) {
+    total_steps = static_cast<size_t>(train_config.max_steps);
+  } else {
+    total_steps = steps_per_epoch * static_cast<size_t>(train_config.epochs);
+  }
+  if (total_steps == 0) total_steps = 1;
+
+  int warmup_steps = 2000;
+  float cosine_start_lr = 0.0f;
+  float cosine_eta_min = 0.0f;
+  Env::get("WARMUP_STEPS", warmup_steps);
+  Env::get("COSINE_START_LR", cosine_start_lr);
+  Env::get("COSINE_ETA_MIN", cosine_eta_min);
+  if (warmup_steps < 0) warmup_steps = 0;
+  if (static_cast<size_t>(warmup_steps) >= total_steps) {
+    warmup_steps = total_steps > 1 ? static_cast<int>(total_steps / 10) : 0;
+  }
+
+  size_t step_size = step_lr_steps > 0
+                         ? static_cast<size_t>(step_lr_steps)
+                         : static_cast<size_t>(step_lr_epochs) * steps_per_epoch;
+  if (step_size == 0) step_size = 1;
+
+  auto scheduler =
+      (lr_scheduler == "warmup_cosine" || lr_scheduler == "cosine")
+          ? SchedulerFactory::create_warmup_cosine(optimizer.get(), static_cast<size_t>(warmup_steps),
+                                                   total_steps, cosine_start_lr, cosine_eta_min)
+          : SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
+
+  std::cout << "[Optim] optimizer=" << optimizer->name() << " lr=" << train_config.lr_initial
+            << " beta1=" << adam_beta1 << " beta2=" << adam_beta2 << " eps=" << adam_eps
+            << " weight_decay=" << weight_decay << " scheduler=" << scheduler->name()
+            << " warmup_steps=" << warmup_steps << " total_steps=" << total_steps << std::endl;
 
   try {
     train_model(graph, train_loader, val_loader, optimizer, criterion, scheduler, train_config);

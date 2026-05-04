@@ -454,7 +454,7 @@ Sequential create_gpt2_small(DType_t io_dtype_ = DType_t::FP32) {
     builder.gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, true, "gelu");
   }
 
-  builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
+  builder.layernorm(1e-5f, true, "ln_f").dense(vocab_size, true, "head");
 
   auto layers = builder.build();
   return Sequential(std::move(layers), "gpt2_small");
@@ -478,7 +478,7 @@ Sequential create_flash_gpt2_small(DType_t io_dtype_ = DType_t::FP32) {
     builder.flash_gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, true, "gelu");
   }
 
-  builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
+  builder.layernorm(1e-5f, true, "ln_f").dense(vocab_size, true, "head");
 
   auto layers = builder.build();
   return Sequential(std::move(layers), "flash_gpt2_small");
@@ -502,7 +502,7 @@ Sequential create_gpt2_medium(DType_t io_dtype_ = DType_t::FP32) {
     builder.gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, true, "gelu");
   }
 
-  builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
+  builder.layernorm(1e-5f, true, "ln_f").dense(vocab_size, true, "head");
 
   auto layers = builder.build();
   return Sequential(std::move(layers), "gpt2_medium");
@@ -526,7 +526,7 @@ Sequential create_flash_gpt2_medium(DType_t io_dtype_ = DType_t::FP32) {
     builder.flash_gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, true, "gelu");
   }
 
-  builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
+  builder.layernorm(1e-5f, true, "ln_f").dense(vocab_size, true, "head");
 
   auto layers = builder.build();
   return Sequential(std::move(layers), "flash_gpt2_medium");
@@ -550,7 +550,7 @@ Sequential create_gpt2_large(DType_t io_dtype_ = DType_t::FP32) {
     builder.gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, true, "gelu");
   }
 
-  builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
+  builder.layernorm(1e-5f, true, "ln_f").dense(vocab_size, true, "head");
 
   auto layers = builder.build();
   return Sequential(std::move(layers), "gpt2_large");
@@ -574,7 +574,7 @@ Sequential create_flash_gpt2_large(DType_t io_dtype_ = DType_t::FP32) {
     builder.flash_gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, true, "gelu");
   }
 
-  builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
+  builder.layernorm(1e-5f, true, "ln_f").dense(vocab_size, true, "head");
 
   auto layers = builder.build();
   return Sequential(std::move(layers), "flash_gpt2_large");

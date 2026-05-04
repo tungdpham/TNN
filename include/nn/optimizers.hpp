@@ -6,10 +6,13 @@
  */
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
 #include <cmath>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <type_traits>
 
 #include "common/config.hpp"
 #include "device/task.hpp"
@@ -56,6 +59,68 @@ public:
   virtual std::string name() const = 0;
   virtual OptimizerConfig get_config() const = 0;
   virtual std::unique_ptr<Optimizer> clone() const = 0;
+
+  size_t debug_num_parameters() const { return parameters_.size(); }
+
+  // Expensive debug helper: copies up to max_tensors and max_items_per_tensor to host.
+  // Use only for short diagnostic runs.
+  double debug_abs_mean_grad(size_t max_tensors = 2, size_t max_items_per_tensor = 4096) const {
+    return debug_abs_mean_tensors(gradients_, max_tensors, max_items_per_tensor);
+  }
+
+  double debug_abs_mean_param(size_t max_tensors = 2, size_t max_items_per_tensor = 4096) const {
+    return debug_abs_mean_tensors(parameters_, max_tensors, max_items_per_tensor);
+  }
+
+protected:
+  template <typename T>
+  static double debug_abs_mean_tensor_typed(const Tensor &tensor, size_t max_items_per_tensor) {
+    if (!tensor) return 0.0;
+    Tensor h = tensor->to_host();
+    const size_t n = std::min(h->size(), max_items_per_tensor);
+    if (n == 0) return 0.0;
+    const T *ptr = h->data_as<T>();
+    double sum = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      if constexpr (std::is_same_v<T, bf16> || std::is_same_v<T, fp16>) {
+        sum += std::abs(static_cast<float>(ptr[i]));
+      } else {
+        sum += std::abs(static_cast<double>(ptr[i]));
+      }
+    }
+    return sum / static_cast<double>(n);
+  }
+
+  static double debug_abs_mean_tensors(const Vec<Tensor> &tensors, size_t max_tensors,
+                                       size_t max_items_per_tensor) {
+    const size_t nt = std::min(tensors.size(), max_tensors);
+    if (nt == 0) return 0.0;
+    double sum = 0.0;
+    size_t used = 0;
+    for (size_t i = 0; i < nt; ++i) {
+      if (!tensors[i]) continue;
+      double v = 0.0;
+      switch (tensors[i]->data_type()) {
+        case DType_t::FP16:
+          v = debug_abs_mean_tensor_typed<fp16>(tensors[i], max_items_per_tensor);
+          break;
+        case DType_t::BF16:
+          v = debug_abs_mean_tensor_typed<bf16>(tensors[i], max_items_per_tensor);
+          break;
+        case DType_t::FP32:
+          v = debug_abs_mean_tensor_typed<float>(tensors[i], max_items_per_tensor);
+          break;
+        case DType_t::FP64:
+          v = debug_abs_mean_tensor_typed<double>(tensors[i], max_items_per_tensor);
+          break;
+        default:
+          continue;
+      }
+      sum += v;
+      used++;
+    }
+    return used > 0 ? sum / static_cast<double>(used) : 0.0;
+  }
 
 protected:
   float learning_rate_;

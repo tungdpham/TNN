@@ -10,6 +10,7 @@
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 
+#include <cctype>
 #include <chrono>
 #include <cstddef>
 #include <ctime>
@@ -33,11 +34,24 @@ using namespace std;
 
 namespace tnn {
 
+static std::string normalize_train_mode(std::string mode) {
+  for (char &c : mode) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  }
+  if (mode == "epoch" || mode == "batch" || mode == "auto") {
+    return mode;
+  }
+  std::cerr << "Warning: invalid TRAIN_MODE/TNN_TRAIN_MODE=\"" << mode
+            << "\". Expected epoch, batch, or auto. Falling back to auto." << std::endl;
+  return "auto";
+}
+
 void TrainingConfig::print_config() const {
   cout << "Training Configuration:" << endl;
   cout << "  Epochs: " << epochs << endl;
   cout << "  Batch Size: " << batch_size << endl;
   cout << "  Max Steps: " << max_steps << endl;
+  cout << "  Train Mode: " << train_mode << endl;
   cout << "  Initial Learning Rate: " << lr_initial << endl;
   cout << "  Gradient Accumulation Steps: " << gradient_accumulation_steps << endl;
   cout << "  Progress Print Interval (batches): " << progress_print_interval << endl;
@@ -51,6 +65,10 @@ void TrainingConfig::print_config() const {
   cout << "  Print Layer Memory Usage: " << (print_layer_memory_usage ? "Yes" : "No") << endl;
   cout << "  Number of Microbatches: " << num_microbatches << endl;
   cout << "  Device Type: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
+  cout << "  Data Prefetch: " << (prefetch_data ? "Yes" : "No") << endl;
+  cout << "  Prefetch Depth: " << prefetch_depth << endl;
+  cout << "  Async Pipeline Flag: " << (async_pipeline ? "Yes" : "No") << endl;
+  cout << "  Augmentation: " << (augmentation ? "Yes" : "No") << endl;
 }
 
 void TrainingConfig::load_from_env() {
@@ -58,6 +76,9 @@ void TrainingConfig::load_from_env() {
   Env::get("EPOCHS", epochs);
   Env::get("BATCH_SIZE", batch_size);
   Env::get("MAX_STEPS", max_steps);
+  Env::get("TNN_TRAIN_MODE", train_mode);
+  Env::get("TRAIN_MODE", train_mode);
+  train_mode = normalize_train_mode(train_mode);
   Env::get("LR_INITIAL", lr_initial);
   Env::get("GRADIENT_ACCUMULATION_STEPS", gradient_accumulation_steps);
   Env::get("PROGRESS_PRINT_INTERVAL", progress_print_interval);
@@ -91,6 +112,16 @@ void TrainingConfig::load_from_env() {
   Env::get("COMPUTE_DTYPE", compute_dtype_str);
   compute_dtype = string_to_dtype(compute_dtype_str);
 
+  // Ablation flags. Prefer TNN_* names, but also accept legacy short names.
+  Env::get("TNN_PREFETCH_DATA", prefetch_data);
+  Env::get("PREFETCH_DATA", prefetch_data);
+  Env::get("TNN_PREFETCH_DEPTH", prefetch_depth);
+  Env::get("PREFETCH_DEPTH", prefetch_depth);
+  Env::get("TNN_ASYNC_PIPELINE", async_pipeline);
+  Env::get("ASYNC_PIPELINE", async_pipeline);
+  Env::get("TNN_AUGMENTATION", augmentation);
+  Env::get("AUGMENTATION", augmentation);
+
   // Parse LogMode settings
   Env::get("LOG_LOSS", log_mode.log_loss);
   Env::get("LOG_ACCURACY", log_mode.log_accuracy);
@@ -117,6 +148,7 @@ void TrainingConfig::load_from_json(const string &config_path) {
   epochs = config.value("epochs", epochs);
   batch_size = config.value("batch_size", batch_size);
   max_steps = config.value("max_steps", max_steps);
+  train_mode = normalize_train_mode(config.value("train_mode", train_mode));
   lr_initial = config.value("lr_initial", lr_initial);
   gradient_accumulation_steps =
       config.value("gradient_accumulation_steps", gradient_accumulation_steps);
@@ -147,6 +179,11 @@ void TrainingConfig::load_from_json(const string &config_path) {
   param_dtype = string_to_dtype(param_dtype_str);
   string compute_dtype_str = config.value("compute_dtype", dtype_to_string(compute_dtype));
   compute_dtype = string_to_dtype(compute_dtype_str);
+
+  prefetch_data = config.value("prefetch_data", prefetch_data);
+  prefetch_depth = config.value("prefetch_depth", prefetch_depth);
+  async_pipeline = config.value("async_pipeline", async_pipeline);
+  augmentation = config.value("augmentation", augmentation);
 
   // Parse LogMode settings from JSON
   if (config.contains("log_mode")) {
