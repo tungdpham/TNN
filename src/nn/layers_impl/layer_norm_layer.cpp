@@ -51,14 +51,6 @@ void LayerNormLayer::init_impl() {
 
   gamma_gradients_->fill(0.0f);
   beta_gradients_->fill(0.0f);
-
-#ifdef USE_CUDNN
-  if (get_engine_type() == EngineType::CUDA) {
-    auto &allocator = PoolAllocator::instance(device(), this->flow_handle_);
-    dscale_scratch_ = make_tensor(allocator, DType_t::FP32, {normalized_shape_});
-    dbias_scratch_ = make_tensor(allocator, DType_t::FP32, {normalized_shape_});
-  }
-#endif
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -271,13 +263,15 @@ Tensor LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_
         std::to_string(mb_id));
   }
 
+  Tensor dscale_scratch_ = this->get_workspace({normalized_shape_}, compute_dtype_);
+  Tensor dbias_scratch_ = this->get_workspace({normalized_shape_}, compute_dtype_);
+
   DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_run_backward, fe_handle, current_stats, grad_output, input,
                                  gamma_, grad_input, dscale_scratch_, dbias_scratch_, batch_mean,
                                  batch_invar, cudnn_workspace, batch_size, channels,
                                  this->flow_handle_);
 
-  // Accumulate dscale and dbias scratch into the persistent gradients
-  DISPATCH_DTYPE(io_dtype_, T, {
+  DISPATCH_DTYPE(param_dtype_, T, {
     create_cuda_task(this->flow_handle_, ops::cuda::cuda_axpy<T>, T{1},
                      dscale_scratch_->data_as<T>(), gamma_gradients_->data_as<T>(),
                      normalized_shape_);
