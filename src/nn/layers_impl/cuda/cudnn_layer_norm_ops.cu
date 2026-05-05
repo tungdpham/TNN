@@ -207,8 +207,8 @@ static void build_bwd_graph(feHandle_t* handle, LayerNormStats& stats) {
   auto [DX, DScale, DBias] = graph->layernorm_backward(DY, X, Scale, ln_bwd_options);
 
   DX->set_output(true).set_data_type(io_type);
-  DScale->set_output(true).set_data_type(io_type);
-  DBias->set_output(true).set_data_type(io_type);
+  DScale->set_output(true).set_data_type(compute_type);
+  DBias->set_output(true).set_data_type(compute_type);
 
   ensure_ok(graph->validate(), "layernorm_bwd validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "layernorm_bwd build op graph");
