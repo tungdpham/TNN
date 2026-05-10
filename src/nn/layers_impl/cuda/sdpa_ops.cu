@@ -15,8 +15,6 @@
 namespace tnn {
 namespace cuda {
 
-constexpr int BLOCK_SIZE = 32;
-
 template <typename T>
 __global__ void compute_attention_scores_kernel(const T* q, const T* k, T* scores, size_t seq_len,
                                                 size_t head_dim, float scale, bool is_causal,

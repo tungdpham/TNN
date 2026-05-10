@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstddef>
 #include <iostream>
 #include <memory>
 #include <string>

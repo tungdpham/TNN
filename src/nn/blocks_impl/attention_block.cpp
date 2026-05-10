@@ -171,6 +171,11 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(
     create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, attn_heads->data_as<IO_T>(),
                      output->data_as<IO_T>(), batch_size, num_heads_, L, head_dim_);
 
+    // Safety sync for non-flash O(L^2) attention. These temporaries are local
+    // workspace tensors; do not let DELAllocator reclaim/reuse them until all
+    // queued kernels that consume them have completed.
+    this->device().getFlow(handle)->synchronize();
+
     return nullptr;
   }
 #endif
@@ -285,6 +290,10 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
                      batch_size, num_heads_, L, head_dim_);
     create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, dv_heads->data_as<IO_T>(), dv_ptr,
                      batch_size, num_heads_, L, head_dim_);
+
+    // Safety sync for non-flash O(L^2) attention backward before local
+    // workspace tensors are reclaimed by DELAllocator.
+    this->device().getFlow(handle)->synchronize();
 
     return nullptr;
   }
