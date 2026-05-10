@@ -90,23 +90,23 @@ private:
                      imagenet100_constants::IMAGE_WIDTH, imagenet100_constants::NUM_CHANNELS});
     batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
 
+    T *batch_raw = batch_data->data_as<T>();
+
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
       const auto &[path, class_index] = sample_list_[sample_idx];
 
-      dptr chw_dptr = allocator_.allocate(imagenet100_constants::IMAGE_SIZE * sizeof(float));
-      float *chw_buf = chw_dptr.get<float>();
-      if (!load_jpeg_image(path, chw_buf)) return;
+      T *sample_dst = batch_raw + i * imagenet100_constants::IMAGE_SIZE;
 
-      // Convert from CHW float to NHWC tensor
-      for (size_t c = 0; c < imagenet100_constants::NUM_CHANNELS; ++c) {
-        for (size_t h = 0; h < imagenet100_constants::IMAGE_HEIGHT; ++h) {
-          for (size_t w = 0; w < imagenet100_constants::IMAGE_WIDTH; ++w) {
-            const size_t src_idx =
-                c * imagenet100_constants::IMAGE_HEIGHT * imagenet100_constants::IMAGE_WIDTH +
-                h * imagenet100_constants::IMAGE_WIDTH + w;
-            batch_data->at<T>({i, h, w, c}) = static_cast<T>(chw_buf[src_idx]);
-          }
+      if constexpr (std::is_same_v<T, float>) {
+        // Load directly into the batch tensor's memory — no intermediate buffer
+        if (!load_jpeg_image(path, sample_dst)) return;
+      } else {
+        dptr hwc_dptr = allocator_.allocate(imagenet100_constants::IMAGE_SIZE * sizeof(float));
+        float *hwc_buf = hwc_dptr.get<float>();
+        if (!load_jpeg_image(path, hwc_buf)) return;
+        for (size_t j = 0; j < imagenet100_constants::IMAGE_SIZE; ++j) {
+          sample_dst[j] = static_cast<T>(hwc_buf[j]);
         }
       }
 
@@ -197,16 +197,14 @@ private:
       img = resize_buf;
     }
 
-    // Convert from HWC (Height, Width, Channels) to CHW (Channels, Height, Width) format
-    // and normalize to [0, 1]
-    for (size_t c = 0; c < imagenet100_constants::NUM_CHANNELS; ++c) {
-      for (size_t h = 0; h < imagenet100_constants::IMAGE_HEIGHT; ++h) {
-        for (size_t w = 0; w < imagenet100_constants::IMAGE_WIDTH; ++w) {
-          size_t src_idx = (h * imagenet100_constants::IMAGE_WIDTH + w) * 3 + c;
-          size_t dst_idx =
-              c * imagenet100_constants::IMAGE_HEIGHT * imagenet100_constants::IMAGE_WIDTH +
-              h * imagenet100_constants::IMAGE_WIDTH + w;
-          image_data_ptr[dst_idx] = img[src_idx] / imagenet100_constants::NORMALIZATION_FACTOR;
+    // Normalize HWC uint8 to HWC float [0, 1] — no axis reorder needed
+    for (size_t h = 0; h < imagenet100_constants::IMAGE_HEIGHT; ++h) {
+      for (size_t w = 0; w < imagenet100_constants::IMAGE_WIDTH; ++w) {
+        for (size_t c = 0; c < imagenet100_constants::NUM_CHANNELS; ++c) {
+          size_t idx =
+              (h * imagenet100_constants::IMAGE_WIDTH + w) * imagenet100_constants::NUM_CHANNELS +
+              c;
+          image_data_ptr[idx] = img[idx] / imagenet100_constants::NORMALIZATION_FACTOR;
         }
       }
     }
