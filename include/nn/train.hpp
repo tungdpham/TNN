@@ -61,6 +61,10 @@ struct TrainingConfig {
   int epochs = 10;
   size_t batch_size = 32;
   int64_t max_steps = -1;  // -1 for no limit, otherwise max number of batches per epoch
+  //   "epoch" -> full dataloader epoch, then validation + epoch CSV summary.
+  //   "batch" -> fixed-step training loop for GPT/OpenWebText style runs.
+  //   "auto"  -> old behavior: epoch if max_steps == -1, batch otherwise.
+  std::string train_mode = "auto";
   float lr_initial = 0.001f;
   int gradient_accumulation_steps = 1;
   int progress_print_interval = 100;
@@ -78,7 +82,20 @@ struct TrainingConfig {
   DType_t param_dtype = DType_t::FP32;
   DType_t compute_dtype = DType_t::FP32;
   std::string log_dir = "logs";  // directory for CSV metric logs
-  LogMode log_mode;              // what metrics to log
+
+  // Ablation / experiment flags
+  // TNN_PREFETCH_DATA=1 overlaps get_batch(batch N+1) with compute of batch N.
+  bool prefetch_data = false;
+  size_t prefetch_depth = 2;
+
+  // TNN_ASYNC_PIPELINE is kept in config for experiment logging / runner selection.
+  // The current distributed Coordinator path still uses async_train_batch().
+  bool async_pipeline = true;
+
+  // TNN_AUGMENTATION controls random train augmentation in DataLoaderFactory.
+  bool augmentation = true;
+
+  LogMode log_mode;  // what metrics to log
 
   // Distributed params
   size_t num_microbatches = 2;

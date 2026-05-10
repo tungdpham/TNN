@@ -9,6 +9,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -161,12 +162,14 @@ protected:
         communicator_->send_message(std::move(message), prev_stage_endpoint_);
       } break;
       case CommandType::UPDATE_PARAMETERS: {
-        // implicitly clear grads
-        this->optimizer_->update();
-        this->optimizer_->zero_grads();
+        update_count_++;
+
         if (scheduler_) {
           this->scheduler_->step();
         }
+        this->optimizer_->update();
+        this->optimizer_->zero_grads();
+
         Message response(CommandType::PARAMETERS_UPDATED, std::monostate{});
         communicator_->send_message(std::move(response), coordinator_endpoint_);
       } break;
@@ -307,6 +310,7 @@ protected:
   std::string id_;
   int forward_step_ = 0;
   int backward_step_ = 0;
+  size_t update_count_ = 0;
   Endpoint coordinator_endpoint_;
   Endpoint next_stage_endpoint_;
   Endpoint prev_stage_endpoint_;
