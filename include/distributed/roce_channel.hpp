@@ -58,8 +58,8 @@ public:
     std::memset(&init_attr, 0, sizeof(init_attr));
     init_attr.send_cq = cq.handle();
     init_attr.recv_cq = cq.handle();
-    init_attr.cap.max_send_wr = ROCE_SQ_DEPTH;
-    init_attr.cap.max_recv_wr = ROCE_RQ_DEPTH;
+    init_attr.cap.max_send_wr = ROCE_SQ_DEPTH * 4;
+    init_attr.cap.max_recv_wr = ROCE_RQ_DEPTH * 4;
     init_attr.cap.max_send_sge = 2;
     init_attr.cap.max_recv_sge = 1;
     init_attr.qp_type = IBV_QPT_RC;

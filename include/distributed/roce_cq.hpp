@@ -84,7 +84,7 @@ public:
         // Poll and execute callback for each Work Completion
         ibv_wc wc[16];
         int n;
-        while ((n = ibv_poll_cq(cq_, 16, wc)) > 0) {
+        while ((n = ibv_poll_cq(cq_, 64, wc)) > 0) {
           for (int i = 0; i < n; i++) callback(&wc[i]);
         }
       }
