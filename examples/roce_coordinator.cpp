@@ -221,10 +221,29 @@ int main(int argc, char *argv[]) {
       Endpoint::roce(worker1_host, worker1_port, getenv_str("ROCE_WORKER1_DEVICE", cfg.device_name), getenv_int("ROCE_WORKER1_GID_INDEX", cfg.gid_index)),
   };
 
-  if (worker_position) {
-    endpoints.push_back(local_worker_endpoint);
-  } else {
-    endpoints.insert(endpoints.begin(), local_worker_endpoint);
+  bool enable_roce_local_endpoint = false;
+  Env::get("ROCE_ENABLE_LOCAL_ENDPOINT", enable_roce_local_endpoint);
+
+  std::cout << "[RoCECFG] remote_worker host=" << worker1_host
+            << " port=" << worker1_port
+            << " device=" << getenv_str("ROCE_WORKER1_DEVICE", cfg.device_name)
+            << " gid=" << getenv_int("ROCE_WORKER1_GID_INDEX", cfg.gid_index)
+            << std::endl;
+
+  std::cout << "[RoCECFG] local_endpoint_enabled="
+            << (enable_roce_local_endpoint ? "yes" : "no")
+            << " local_host=" << local_worker_host
+            << " port=" << local_worker_port
+            << " device=" << getenv_str("ROCE_LOCAL_WORKER_DEVICE", cfg.device_name)
+            << " gid=" << getenv_int("ROCE_LOCAL_WORKER_GID_INDEX", cfg.gid_index)
+            << std::endl;
+
+  if (enable_roce_local_endpoint) {
+    if (worker_position) {
+      endpoints.push_back(local_worker_endpoint);
+    } else {
+      endpoints.insert(endpoints.begin(), local_worker_endpoint);
+    }
   }
 
   auto local_worker =

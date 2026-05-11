@@ -552,6 +552,22 @@ public:
   }
 
 private:
+
+  bool same_network_address(const Endpoint &a, const Endpoint &b) const {
+    try {
+      if (a.type() == CommunicationType::IN_PROCESS ||
+          b.type() == CommunicationType::IN_PROCESS ||
+          a.type() == CommunicationType::NONE ||
+          b.type() == CommunicationType::NONE) {
+        return false;
+      }
+      return a.get_parameter<std::string>("host") == b.get_parameter<std::string>("host") &&
+             a.get_parameter<int>("port") == b.get_parameter<int>("port");
+    } catch (...) {
+      return false;
+    }
+  }
+
   void initialize_topology() {
     if (!partitioner_) {
       throw std::runtime_error("Partitioner must be set before initialization");
@@ -583,7 +599,7 @@ private:
         } else {
           config.next_stage_endpoint = coordinator_endpoint_;
           // minor optimization
-          if (worker_endpoints_[i] == local_worker_->endpoint()) {
+          if (same_network_address(worker_endpoints_[i], local_worker_->endpoint())) {
             config.next_stage_endpoint = Endpoint::in_process(comm_.get());
           }
         }
@@ -594,7 +610,7 @@ private:
 
     if (local_worker_) {
       for (auto &endpoint : worker_endpoints_) {
-        if (endpoint == local_worker_->endpoint()) {
+        if (same_network_address(endpoint, local_worker_->endpoint())) {
           endpoint = Endpoint::in_process(local_worker_->get_communicator());
         }
       }
