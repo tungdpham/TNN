@@ -71,6 +71,8 @@ public:
     for (auto buf : recv_buffers) delete buf;
     for (auto p : pending_sends) delete p.second;
     for (auto p : pending_receives) delete p.second;
+    for (auto p : large_recv_free_pool) delete p;
+    large_recv_free_pool.clear();
 
     if (qp) {
       ibv_destroy_qp(qp);
@@ -307,6 +309,13 @@ public:
   std::mutex mutex;
   std::unordered_map<uint64_t, dptr *> pending_sends;
   std::unordered_map<uint32_t, dptr *> pending_receives;
+
+  // Reusable large receive buffers for RDMA payloads.
+  // This reduces per-message ibv allocation/registration overhead.
+  std::vector<dptr *> large_recv_free_pool;
+  static constexpr size_t LARGE_RECV_SLOT_SIZE = 32ULL * 1024ULL * 1024ULL;
+  static constexpr size_t LARGE_RECV_POOL_LIMIT = 32;
+
   int inflight_count = 0;
   bool is_closed = false;
   std::condition_variable inflight_cv;
@@ -332,11 +341,37 @@ private:
     // Pass the completed payload buffer back up to the communicator for deserialization
     if (dest_buf) {
       on_payload_ready(dest_buf);
+      release_recv_payload_buffer(dest_buf);
+    }
+  }
+
+  dptr *acquire_recv_payload_buffer(size_t bytes) {
+    if (bytes <= LARGE_RECV_SLOT_SIZE) {
+      std::lock_guard<std::mutex> lock(mutex);
+      if (!large_recv_free_pool.empty()) {
+        dptr *buf = large_recv_free_pool.back();
+        large_recv_free_pool.pop_back();
+        return buf;
+      }
+    }
+    size_t alloc_size = bytes <= LARGE_RECV_SLOT_SIZE ? LARGE_RECV_SLOT_SIZE : bytes;
+    return new dptr(ibv_allocator_.allocate(alloc_size));
+  }
+
+  void release_recv_payload_buffer(dptr *buf) {
+    if (!buf) return;
+    std::lock_guard<std::mutex> lock(mutex);
+    if (buf->capacity() == LARGE_RECV_SLOT_SIZE &&
+        large_recv_free_pool.size() < LARGE_RECV_POOL_LIMIT &&
+        !is_closed) {
+      large_recv_free_pool.push_back(buf);
+    } else {
+      delete buf;
     }
   }
 
   void process_msg_prepare(const PacketHeader &header) {
-    dptr *dest_buf = new dptr(ibv_allocator_.allocate(header.msg_length));
+    dptr *dest_buf = acquire_recv_payload_buffer(header.msg_length);
     {
       std::lock_guard<std::mutex> lock(mutex);
       pending_receives[header.msg_serial_id & 0xFFFFFFFF] = dest_buf;
