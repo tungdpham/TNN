@@ -1,7 +1,6 @@
 #include <infiniband/verbs.h>
 
 #include <condition_variable>
-#include <array>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -17,26 +16,14 @@ namespace tnn {
 
 constexpr size_t ROCE_BUFFER_SIZE = 1 * 1024 * 1024;
 
-// Experimental fast path:
-// For large payloads, skip per-message MSG_PREPARE/MSG_READY and write directly
-// into pre-registered remote ring slots exchanged during QP setup.
-constexpr size_t ROCE_DIRECT_SLOT_COUNT = 16;
-constexpr size_t ROCE_DIRECT_SLOT_SIZE = 32ULL * 1024ULL * 1024ULL;
-constexpr uint32_t ROCE_DIRECT_IMM_FLAG = 0x80000000u;
-constexpr uint32_t ROCE_DIRECT_IMM_MASK = 0x0000FFFFu;
-
 struct RoCEChannelInfo {
   uint16_t lid;
   uint32_t qpn;
   uint32_t psn;
   union ibv_gid gid;
-  uint64_t direct_slot_addr[ROCE_DIRECT_SLOT_COUNT];
-  uint32_t direct_slot_rkey[ROCE_DIRECT_SLOT_COUNT];
 
   static constexpr size_t size() {
-    return sizeof(Endianness) + sizeof(lid) + sizeof(qpn) + sizeof(psn) + sizeof(gid) +
-           sizeof(uint64_t) * ROCE_DIRECT_SLOT_COUNT +
-           sizeof(uint32_t) * ROCE_DIRECT_SLOT_COUNT;
+    return sizeof(Endianness) + sizeof(lid) + sizeof(qpn) + sizeof(psn) + sizeof(gid);
   }
 };
 
@@ -46,10 +33,6 @@ void archive(Archiver &archiver, const RoCEChannelInfo &info) {
   archiver(info.qpn);
   archiver(info.psn);
   archiver(make_blob(info.gid.raw, 16));
-  for (size_t i = 0; i < ROCE_DIRECT_SLOT_COUNT; ++i) {
-    archiver(info.direct_slot_addr[i]);
-    archiver(info.direct_slot_rkey[i]);
-  }
 }
 
 template <typename Archiver>
@@ -58,10 +41,6 @@ void archive(Archiver &archiver, RoCEChannelInfo &info) {
   archiver(info.qpn);
   archiver(info.psn);
   archiver(make_blob(info.gid.raw, 16));
-  for (size_t i = 0; i < ROCE_DIRECT_SLOT_COUNT; ++i) {
-    archiver(info.direct_slot_addr[i]);
-    archiver(info.direct_slot_rkey[i]);
-  }
 }
 
 struct WriteContext {
@@ -90,8 +69,6 @@ public:
 
   ~RoCEChannel() {
     for (auto buf : recv_buffers) delete buf;
-    for (auto buf : direct_recv_slots_) delete buf;
-    direct_recv_slots_.clear();
     for (auto p : pending_sends) delete p.second;
     for (auto p : pending_receives) delete p.second;
 
@@ -127,37 +104,6 @@ public:
       inflight_count++;
       pending_sends[msg_serial_id] = data_buffer;
     }
-    if (direct_slots_ready_ && data_buffer->capacity() <= ROCE_DIRECT_SLOT_SIZE) {
-      const uint32_t slot = static_cast<uint32_t>(msg_serial_id % ROCE_DIRECT_SLOT_COUNT);
-
-      struct ibv_sge sge;
-      sge.addr = (uint64_t)data_buffer->get();
-      sge.length = data_buffer->capacity();
-      sge.lkey = ibv_allocator_.get_mr_info(*data_buffer).lkey;
-
-      WriteContext *ctx = new WriteContext{msg_serial_id};
-
-      struct ibv_send_wr wr, *bad_wr = nullptr;
-      std::memset(&wr, 0, sizeof(wr));
-      wr.wr_id = (uint64_t)ctx | 1;
-      wr.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
-      wr.sg_list = &sge;
-      wr.num_sge = 1;
-      wr.send_flags = IBV_SEND_SIGNALED;
-      wr.imm_data = htonl(ROCE_DIRECT_IMM_FLAG | slot);
-      wr.wr.rdma.remote_addr = remote_direct_slot_addr_[slot];
-      wr.wr.rdma.rkey = remote_direct_slot_rkey_[slot];
-
-      if (ibv_post_send(qp, &wr, &bad_wr)) {
-        std::cerr << "Failed to post DIRECT RDMA write\n";
-        delete ctx;
-        std::lock_guard<std::mutex> conn_lock(mutex);
-        inflight_count--;
-        pending_sends.erase(msg_serial_id);
-      }
-      return;
-    }
-
     PacketHeader header(PacketType::MSG_PREPARE, 0, data_buffer->capacity(), 0, 1);
     header.msg_serial_id = msg_serial_id;
 
@@ -247,8 +193,7 @@ public:
     }
   }
 
-  RoCEChannelInfo get_local_info() {
-    ensure_direct_recv_slots();
+  RoCEChannelInfo get_local_info() const {
     RoCEChannelInfo info;
     info.qpn = qp->qp_num;
     info.psn = lrand48() & 0xffffff;
@@ -256,22 +201,10 @@ public:
     ibv_query_port(context_, ib_port_, &attr);
     info.lid = attr.lid;
     ibv_query_gid(context_, ib_port_, device_->get_gid_index(), &info.gid);
-
-    for (size_t i = 0; i < ROCE_DIRECT_SLOT_COUNT; ++i) {
-      info.direct_slot_addr[i] = reinterpret_cast<uint64_t>(direct_recv_slots_[i]->get());
-      info.direct_slot_rkey[i] = ibv_allocator_.get_mr_info(*direct_recv_slots_[i]).rkey;
-    }
-
     return info;
   }
 
   void transition_to_rts(const RoCEChannelInfo &peer_info, uint32_t local_psn) {
-    for (size_t i = 0; i < ROCE_DIRECT_SLOT_COUNT; ++i) {
-      remote_direct_slot_addr_[i] = peer_info.direct_slot_addr[i];
-      remote_direct_slot_rkey_[i] = peer_info.direct_slot_rkey[i];
-    }
-    direct_slots_ready_ = true;
-
     int gid_index = device_->get_gid_index();
     struct ibv_qp_attr attr;
     int flags;
@@ -378,36 +311,13 @@ public:
   bool is_closed = false;
   std::condition_variable inflight_cv;
 
-  std::vector<dptr *> direct_recv_slots_;
-  std::array<uint64_t, ROCE_DIRECT_SLOT_COUNT> remote_direct_slot_addr_{};
-  std::array<uint32_t, ROCE_DIRECT_SLOT_COUNT> remote_direct_slot_rkey_{};
-  bool direct_slots_ready_ = false;
-
 private:
-  void ensure_direct_recv_slots() {
-    if (!direct_recv_slots_.empty()) return;
-    direct_recv_slots_.reserve(ROCE_DIRECT_SLOT_COUNT);
-    for (size_t i = 0; i < ROCE_DIRECT_SLOT_COUNT; ++i) {
-      direct_recv_slots_.push_back(new dptr(ibv_allocator_.allocate(ROCE_DIRECT_SLOT_SIZE)));
-    }
-  }
-
   RoCEDevice *device_ = nullptr;
   ibv_context *context_ = nullptr;
   int ib_port_ = 0;
   IbvAllocator &ibv_allocator_;
 
   void process_rdma_imm(uint32_t imm, const std::function<void(dptr *)> &on_payload_ready) {
-    if (imm & ROCE_DIRECT_IMM_FLAG) {
-      uint32_t slot = imm & ROCE_DIRECT_IMM_MASK;
-      if (slot < direct_recv_slots_.size()) {
-        on_payload_ready(direct_recv_slots_[slot]);
-      } else {
-        std::cerr << "Invalid direct RDMA slot: " << slot << std::endl;
-      }
-      return;
-    }
-
     dptr *dest_buf = nullptr;
     {
       std::lock_guard<std::mutex> lock(mutex);
