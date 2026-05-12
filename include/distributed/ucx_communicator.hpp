@@ -134,7 +134,10 @@ public:
       std::lock_guard<std::shared_mutex> lock(channels_mutex_);
       for (auto &kv : channels_) {
         if (kv.second->ep) {
-          ucp_ep_destroy(kv.second->ep);
+          {
+            std::lock_guard<std::mutex> lk(ucx_mutex_);
+            ucp_ep_destroy(kv.second->ep);
+          }
           kv.second->ep = nullptr;
         }
       }
@@ -238,7 +241,10 @@ public:
     std::lock_guard<std::shared_mutex> lock(channels_mutex_);
     auto it = channels_.find(endpoint);
     if (it != channels_.end()) {
-      if (it->second->ep) ucp_ep_destroy(it->second->ep);
+      if (it->second->ep) {
+        std::lock_guard<std::mutex> lk(ucx_mutex_);
+        ucp_ep_destroy(it->second->ep);
+      }
       channels_.erase(it);
     }
     return true;
@@ -278,7 +284,10 @@ private:
 
   void progress_loop() {
     while (is_running_.load(std::memory_order_acquire)) {
-      ucp_worker_progress(worker_);
+      {
+        std::lock_guard<std::mutex> lk(ucx_mutex_);
+        ucp_worker_progress(worker_);
+      }
       std::this_thread::sleep_for(std::chrono::microseconds(50));
     }
   }
@@ -295,6 +304,7 @@ private:
     r->status = UCS_OK;
 
     while (!r->done) {
+      std::lock_guard<std::mutex> lk(ucx_mutex_);
       ucp_worker_progress(worker_);
     }
 
@@ -308,14 +318,22 @@ private:
   }
 
   void send_blocking(std::shared_ptr<UCXChannel> ch, const void *buf, size_t bytes, uint64_t tag) {
-    void *req = ucp_tag_send_nb(ch->ep, const_cast<void *>(buf), bytes, ucp_dt_make_contig(1),
-                                tag, ucx_send_cb);
+    void *req = nullptr;
+    {
+      std::lock_guard<std::mutex> lk(ucx_mutex_);
+      req = ucp_tag_send_nb(ch->ep, const_cast<void *>(buf), bytes, ucp_dt_make_contig(1),
+                            tag, ucx_send_cb);
+    }
     wait_req(req);
   }
 
   void recv_blocking(void *buf, size_t bytes, uint64_t tag) {
-    void *req = ucp_tag_recv_nb(worker_, buf, bytes, ucp_dt_make_contig(1), tag, UINT64_MAX,
-                                ucx_recv_cb);
+    void *req = nullptr;
+    {
+      std::lock_guard<std::mutex> lk(ucx_mutex_);
+      req = ucp_tag_recv_nb(worker_, buf, bytes, ucp_dt_make_contig(1), tag, UINT64_MAX,
+                            ucx_recv_cb);
+    }
     wait_req(req);
   }
 
@@ -353,8 +371,11 @@ private:
                                                         const Endpoint &peer_endpoint) {
     ucp_address_t *local_addr = nullptr;
     size_t local_len = 0;
-    if (ucp_worker_get_address(worker_, &local_addr, &local_len) != UCS_OK) {
-      throw std::runtime_error("ucp_worker_get_address failed");
+    {
+      std::lock_guard<std::mutex> lk(ucx_mutex_);
+      if (ucp_worker_get_address(worker_, &local_addr, &local_len) != UCS_OK) {
+        throw std::runtime_error("ucp_worker_get_address failed");
+      }
     }
 
     uint64_t my_len = local_len;
@@ -366,14 +387,21 @@ private:
     std::vector<char> peer_addr(peer_len);
     recv_raw(sock, peer_addr.data(), peer_len);
 
-    ucp_worker_release_address(worker_, local_addr);
+    {
+      std::lock_guard<std::mutex> lk(ucx_mutex_);
+      ucp_worker_release_address(worker_, local_addr);
+    }
 
     ucp_ep_params_t ep_params{};
     ep_params.field_mask = UCP_EP_PARAM_FIELD_REMOTE_ADDRESS;
     ep_params.address = reinterpret_cast<ucp_address_t *>(peer_addr.data());
 
     ucp_ep_h ep = nullptr;
-    ucs_status_t st = ucp_ep_create(worker_, &ep_params, &ep);
+    ucs_status_t st;
+    {
+      std::lock_guard<std::mutex> lk(ucx_mutex_);
+      st = ucp_ep_create(worker_, &ep_params, &ep);
+    }
     if (st != UCS_OK) {
       throw std::runtime_error(std::string("ucp_ep_create failed: ") + ucs_status_string(st));
     }
@@ -450,6 +478,7 @@ private:
 
   ucp_context_h context_ = nullptr;
   ucp_worker_h worker_ = nullptr;
+  std::mutex ucx_mutex_;
 
   asio::ip::tcp::acceptor acceptor_;
   std::atomic<bool> is_running_{false};
