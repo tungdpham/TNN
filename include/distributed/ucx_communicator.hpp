@@ -291,7 +291,8 @@ private:
   }
 
   static uint64_t make_tag(uint64_t tag_base, uint64_t seq, uint64_t part) {
-    return tag_base | ((seq & 0x00FFFFFFFFFFFFFFULL) << 1) | (part & 1ULL);
+    (void)tag_base;
+    return ((seq & 0x00FFFFFFFFFFFFFFULL) << 1) | (part & 1ULL);
   }
 
   void progress_loop() {
