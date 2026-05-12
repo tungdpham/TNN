@@ -42,8 +42,6 @@ void print_usage(const char *program_name) {
   cout << "Options:" << endl;
   cout << "  --host <address>       Hostname or IP to bind to (required)" << endl;
   cout << "  --port <number>        TCP port for initial connection (required)" << endl;
-  cout << "  --device <name>        IB device name (e.g., mlx5_0) (required)" << endl;
-  cout << "  --gid-index <index>    GID index for RoCE (required)" << endl;
   cout << "  -h, --help             Show this help message" << endl;
 }
 
@@ -78,14 +76,6 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
     }
   }
 
-  if (cfg.device_name.empty()) {
-    cerr << "Missing required argument: --device" << endl;
-    print_usage(argv[0]);
-    return false;
-  }
-  if (cfg.gid_index < 0) {
-    cout << "Since gid-index is not specified, auto-selecting GID index." << endl;
-  }
 
   return true;
 }
