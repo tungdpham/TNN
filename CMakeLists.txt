@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.18)
 
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(UCX REQUIRED ucx)
+include_directories(${UCX_INCLUDE_DIRS})
+link_libraries(${UCX_LIBRARIES})
+
 project(TNN LANGUAGES CXX)
 
 # Add cmake modules directory

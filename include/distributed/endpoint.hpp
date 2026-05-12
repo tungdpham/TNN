@@ -16,7 +16,7 @@ namespace tnn {
 
 class Communicator;
 
-enum class CommunicationType { IN_PROCESS, TCP, ROCE, NONE };
+enum class CommunicationType { IN_PROCESS, TCP, ROCE, UCX, NONE };
 
 struct Endpoint {
 private:
@@ -86,6 +86,9 @@ public:
         return get_parameter<std::string>("host") + ":" +
                std::to_string(get_parameter<int>("port"));
       case CommunicationType::ROCE:
+        return get_parameter<std::string>("host") + ":" +
+               std::to_string(get_parameter<int>("port"));
+      case CommunicationType::UCX:
         return get_parameter<std::string>("host") + ":" +
                std::to_string(get_parameter<int>("port"));
       case CommunicationType::NONE:
@@ -161,6 +164,13 @@ public:
     endpoint.set_parameter("port", port);
     endpoint.set_parameter("device_name", device_name);
     endpoint.set_parameter("gid_index", gid_index);
+    return endpoint;
+  }
+
+  static Endpoint ucx(const std::string &host, int port) {
+    Endpoint endpoint(CommunicationType::UCX);
+    endpoint.set_parameter("host", host);
+    endpoint.set_parameter("port", port);
     return endpoint;
   }
 
