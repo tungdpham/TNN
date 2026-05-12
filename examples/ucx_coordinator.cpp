@@ -237,8 +237,11 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  auto local_worker =
-      std::make_unique<UCXWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
+  std::unique_ptr<Worker> local_worker = nullptr;
+  if (enable_ucx_local_endpoint) {
+    local_worker =
+        std::make_unique<UCXWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
+  }
 
   // Parse partition split ratio from environment variable
   std::string split_ratio_str = "2,1";
