@@ -38,9 +38,7 @@ public:
             PoolAllocator::instance(getHost(), defaultFlowHandle),
             tnn::UCXCommunicator::Config{});
 
-    communicator->start_server();
 
-    communicator->start_server();
 
     this->communicator_ = std::move(communicator);
   }
