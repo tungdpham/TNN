@@ -510,11 +510,6 @@ public:
     return std::make_unique<CrossEntropyLoss>(use_logits, epsilon);
   }
 
-  // Deprecated: use create_crossentropy with use_logits=true instead
-  static std::unique_ptr<Loss> create_logsoftmax_crossentropy() {
-    return std::make_unique<CrossEntropyLoss>(true);
-  }
-
   static std::unique_ptr<Loss> create_mse() { return std::make_unique<MSELoss>(); }
 
   static std::unique_ptr<Loss> create_mae() { return std::make_unique<MAELoss>(); }

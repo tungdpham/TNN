@@ -14,7 +14,9 @@
 
 namespace tnn {
 
-constexpr size_t ROCE_BUFFER_SIZE = 1 * 1024 * 1024;
+constexpr size_t ROCE_BUFFER_SIZE = 2 * 1024 * 1024;
+constexpr int ROCE_SQ_DEPTH = 32;
+constexpr int ROCE_RQ_DEPTH = 32;
 
 struct RoCEChannelInfo {
   uint16_t lid;

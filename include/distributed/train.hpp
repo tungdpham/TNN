@@ -21,8 +21,8 @@
 
 namespace tnn {
 
-inline bool get_next_train_batch(BaseDataLoader &loader, BatchPrefetcher *prefetcher,
-                                 size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
+inline bool get_next_batch(BaseDataLoader &loader, BatchPrefetcher *prefetcher, size_t batch_size,
+                           Tensor &batch_data, Tensor &batch_labels) {
   if (prefetcher) {
     return prefetcher->next(batch_data, batch_labels);
   }
@@ -47,6 +47,9 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
   std::cout << "Async Pipeline: "
             << (config.async_pipeline ? "1 (async overlap)" : "0 (sync/no overlap)") << std::endl;
 
+  std::cout << "Printing lr on all workers..." << std::endl;
+  coordinator.print_lr();
+
   std::unique_ptr<BatchPrefetcher> prefetcher;
   if (config.prefetch_data) {
     prefetcher =
@@ -55,11 +58,12 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
     std::cout << "Data prefetching enabled. Depth:" << config.prefetch_depth << std::endl;
   }
 
-  while (get_next_train_batch(*train_loader, prefetcher.get(), config.batch_size, batch_data,
-                              batch_labels)) {
-    // Split batch into micro-batches
-    Vec<Tensor> micro_batch_inputs = batch_data->split(0, config.num_microbatches);
-    Vec<Tensor> micro_batch_labels = batch_labels->split(0, config.num_microbatches);
+  while (get_next_batch(*train_loader, prefetcher.get(), config.batch_size, batch_data,
+                        batch_labels)) {
+    Vec<Tensor> micro_batch_inputs;
+    ops::split(batch_data, micro_batch_inputs, config.num_microbatches);
+    Vec<Tensor> micro_batch_labels;
+    ops::split(batch_labels, micro_batch_labels, config.num_microbatches);
 
     auto process_start = std::chrono::high_resolution_clock::now();
     // Select pipeline schedule. Async overlaps microbatches; sync disables overlap.
@@ -142,7 +146,8 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
 inline Result validate_semi_async_epoch(Coordinator &coordinator,
                                         std::unique_ptr<BaseDataLoader> &val_loader,
                                         const std::unique_ptr<Loss> &criterion,
-                                        const TrainingConfig &config) {
+                                        const TrainingConfig &config, CsvLogger &logger,
+                                        int epoch) {
   val_loader->reset();
 
   Tensor batch_data, batch_labels;
@@ -162,6 +167,22 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
     total_val_loss += val_loss;
     total_val_correct += val_correct;
     ++val_batches;
+
+    // Log per-batch validation metrics
+    {
+      std::unordered_map<std::string, double> metrics;
+      if (config.log_mode.log_loss) {
+        metrics["loss"] = static_cast<double>(val_loss);
+      }
+      if (config.log_mode.log_accuracy) {
+        double batch_acc_pct = val_correct / static_cast<double>(config.batch_size) * 100.0;
+        metrics["accuracy_pct"] = batch_acc_pct;
+      }
+      if (config.log_mode.log_perplexity) {
+        metrics["perplexity"] = std::exp(static_cast<double>(val_loss));
+      }
+      logger.log_val_batch(epoch, val_batches, metrics);
+    }
   }
 
   std::cout << "Validation completed." << std::endl;
@@ -201,19 +222,17 @@ inline void train_semi_async_step(Coordinator &coordinator,
   start_prefetcher();
 
   for (int step = 0; step < config.max_steps; ++step) {
-    if (!get_next_train_batch(*train_loader, prefetcher.get(), config.batch_size, batch_data,
-                              batch_labels)) {
+    if (!get_next_batch(*train_loader, prefetcher.get(), config.batch_size, batch_data,
+                        batch_labels)) {
       if (prefetcher) {
         prefetcher->stop();
       }
       train_loader->shuffle();
       train_loader->reset();
       start_prefetcher();
-      get_next_train_batch(*train_loader, prefetcher.get(), config.batch_size, batch_data,
-                           batch_labels);
+      get_next_batch(*train_loader, prefetcher.get(), config.batch_size, batch_data, batch_labels);
     }
 
-    // Split batch into micro-batches
     Vec<Tensor> micro_batch_inputs;
     ops::split(batch_data, micro_batch_inputs, config.num_microbatches);
     Vec<Tensor> micro_batch_labels;
@@ -303,7 +322,6 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
 
   thread_wrapper.execute([&]() -> void {
     if (use_epoch_mode) {
-      // Full epoch mode: train through the whole loader, then validation and epoch CSV summary.
       for (int epoch = 0; epoch < config.epochs; ++epoch) {
         std::cout << "Epoch " << (epoch + 1) << "/" << config.epochs << " ===" << std::endl;
 
@@ -315,8 +333,8 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
         auto train_end = std::chrono::high_resolution_clock::now();
 
         auto val_start = std::chrono::high_resolution_clock::now();
-        auto [val_loss, val_acc] =
-            validate_semi_async_epoch(coordinator, val_loader, criterion, config);
+        auto [val_loss, val_acc] = validate_semi_async_epoch(coordinator, val_loader, criterion,
+                                                             config, logger, epoch + 1);
         auto val_end = std::chrono::high_resolution_clock::now();
 
         auto epoch_total_end = std::chrono::high_resolution_clock::now();
@@ -350,7 +368,6 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
         logger.log_epoch(epoch + 1, metrics);
       }
     } else {
-      // Fixed-step/batch mode: no validation/epoch summary; useful for GPT/OpenWebText runs.
       TrainingConfig batch_config = config;
       if (batch_config.max_steps <= 0) {
         batch_config.max_steps = static_cast<int64_t>(train_loader->size());

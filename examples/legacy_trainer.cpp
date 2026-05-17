@@ -51,7 +51,7 @@ signed main() {
 
   float lr_initial = 0.001f;
   Env::get("LR_INITIAL", lr_initial);
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto criterion = LossFactory::create_crossentropy();
   auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
   auto scheduler = SchedulerFactory::create_step_lr(
       optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);

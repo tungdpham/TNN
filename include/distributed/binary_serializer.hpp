@@ -61,13 +61,6 @@ public:
     serialize(writer, message.data());
   }
 
-  void deserialize(Reader &reader, PacketHeader &header) {
-    reader(header.PROTOCOL_VERSION, header.endianess);
-    reader.set_endianess(header.endianess);
-    reader(header.type, header.packet_length, header.msg_length, header.msg_serial_id,
-           header.packet_offset, header.total_packets, header.compression_type);
-  }
-
   void deserialize(Reader &reader, MessageHeader &header) { reader(header); }
 
   void deserialize(Reader &reader, Tensor &tensor) {

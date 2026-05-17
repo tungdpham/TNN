@@ -45,6 +45,8 @@ enum CommandType : uint16_t {
   STATUS_RESPONSE,
   PARAMETERS_UPDATED,
   HEALTH_CHECK,
+  PRINT_LR,
+  LR_PRINTED,
 
   // error handling
   ERROR_REPORT,

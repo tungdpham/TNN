@@ -48,7 +48,7 @@ int main() {
   }
   train_loader->set_seed(123456);
 
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto criterion = LossFactory::create_crossentropy();
   int adamw = 1;
   float adam_beta1 = 0.9f;
   float adam_beta2 = 0.95f;
@@ -65,7 +65,6 @@ int main() {
                                                  adam_eps, weight_decay, adamw != 0);
 
   std::string lr_scheduler = "warmup_cosine";
-  Env::get("LR_SCHEDULER", lr_scheduler);
   Env::get("SCHEDULER_TYPE", lr_scheduler);
 
   int step_lr_epochs = 5;
@@ -78,28 +77,21 @@ int main() {
   size_t steps_per_epoch = train_loader->size() / train_config.batch_size;
   if (steps_per_epoch == 0) steps_per_epoch = 1;
 
-  int cosine_total_steps = 0;
-  Env::get("COSINE_TOTAL_STEPS", cosine_total_steps);
   size_t total_steps = 0;
-  if (cosine_total_steps > 0) {
-    total_steps = static_cast<size_t>(cosine_total_steps);
-  } else if (train_config.max_steps > 0) {
+  if (train_config.max_steps > 0) {
     total_steps = static_cast<size_t>(train_config.max_steps);
   } else {
     total_steps = steps_per_epoch * static_cast<size_t>(train_config.epochs);
   }
   if (total_steps == 0) total_steps = 1;
 
-  int warmup_steps = 2000;
+  int warmup_steps = total_steps / 10;
   float cosine_start_lr = 0.0f;
   float cosine_eta_min = 0.0f;
   Env::get("WARMUP_STEPS", warmup_steps);
   Env::get("COSINE_START_LR", cosine_start_lr);
   Env::get("COSINE_ETA_MIN", cosine_eta_min);
   if (warmup_steps < 0) warmup_steps = 0;
-  if (static_cast<size_t>(warmup_steps) >= total_steps) {
-    warmup_steps = total_steps > 1 ? static_cast<int>(total_steps / 10) : 0;
-  }
 
   size_t step_size = step_lr_steps > 0 ? static_cast<size_t>(step_lr_steps)
                                        : static_cast<size_t>(step_lr_epochs) * steps_per_epoch;
@@ -112,12 +104,13 @@ int main() {
                                                    cosine_start_lr, cosine_eta_min)
           : SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
 
-  optimizer->set_learning_rate(train_config.lr_initial);
-
-  std::cout << "Optimizer: " << optimizer->name() << ", lr:" << train_config.lr_initial
-            << ", beta1:" << adam_beta1 << ", beta2:" << adam_beta2 << ", eps:" << adam_eps
-            << ", weight_decay:" << weight_decay << ", scheduler:" << scheduler->name()
-            << ", warmup_steps:" << warmup_steps << ", total_steps:" << total_steps << std::endl;
+  std::cout << fmt::format(
+                   "Optimizer: {}, lr:{}, beta1:{}, beta2:{}, eps:{}, "
+                   "weight_decay:{}, "
+                   "scheduler:{}, warmup_steps:{}, total_steps:{}",
+                   optimizer->name(), train_config.lr_initial, adam_beta1, adam_beta2, adam_eps,
+                   weight_decay, scheduler->name(), warmup_steps, total_steps)
+            << std::endl;
 
   std::string coordinator_host = "localhost";
   int coordinator_port = 9000;

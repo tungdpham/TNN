@@ -91,26 +91,38 @@ private:
     batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
 
     T *batch_raw = batch_data->data_as<T>();
+    int *labels_raw = batch_labels->data_as<int>();
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
       const auto &[path, class_index] = sample_list_[sample_idx];
 
       T *sample_dst = batch_raw + i * imagenet100_constants::IMAGE_SIZE;
+      bool success = false;
 
       if constexpr (std::is_same_v<T, float>) {
         // Load directly into the batch tensor's memory — no intermediate buffer
-        if (!load_jpeg_image(path, sample_dst)) return;
+        success = load_jpeg_image(path, sample_dst);
       } else {
         dptr hwc_dptr = allocator_.allocate(imagenet100_constants::IMAGE_SIZE * sizeof(float));
         float *hwc_buf = hwc_dptr.get<float>();
-        if (!load_jpeg_image(path, hwc_buf)) return;
-        for (size_t j = 0; j < imagenet100_constants::IMAGE_SIZE; ++j) {
-          sample_dst[j] = static_cast<T>(hwc_buf[j]);
+        if (load_jpeg_image(path, hwc_buf)) {
+          for (size_t j = 0; j < imagenet100_constants::IMAGE_SIZE; ++j) {
+            sample_dst[j] = static_cast<T>(hwc_buf[j]);
+          }
+          success = true;
         }
       }
 
-      batch_labels->at<int>({i}) = class_index;
+      if (success) {
+        labels_raw[i] = class_index;
+      } else {
+        // Zero out failed sample and mark with sentinel label
+        for (size_t j = 0; j < imagenet100_constants::IMAGE_SIZE; ++j) {
+          sample_dst[j] = T(0);
+        }
+        labels_raw[i] = -1;  // Sentinel value for failed load
+      }
     });
 
     this->apply_augmentation(batch_data, batch_labels);

@@ -3,7 +3,8 @@
 #include <chrono>
 #include <iostream>
 #include <numeric>
-#include <vector>
+
+#include "type/type.hpp"
 
 namespace tnn {
 

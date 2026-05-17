@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto criterion = LossFactory::create_crossentropy();
   int adamw = 1;
   float adam_beta1 = 0.9f;
   float adam_beta2 = 0.95f;

@@ -15,6 +15,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <variant>
 
 #include "communicator.hpp"
 #include "device/device_manager.hpp"
@@ -33,6 +34,7 @@
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
 #include "tensor/tensor.hpp"
+#include "tensor/tensor_utils.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
@@ -106,9 +108,6 @@ public:
     // this->model_->set_seed(123456);
     this->graph_ = std::make_unique<Graph>(builder.compile(allocator));
 
-    auto parsed_config = this->model_->get_config();
-    std::cout << parsed_config.to_json().dump(4) << std::endl;
-
     OptimizerConfig optimizer_config = config.optimizer_config;
     this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
     this->optimizer_->attach(this->graph_->context());
@@ -169,6 +168,7 @@ protected:
         }
         this->optimizer_->update();
         this->optimizer_->zero_grads();
+        this->graph_->device().getFlow(defaultFlowHandle)->synchronize();
 
         Message response(CommandType::PARAMETERS_UPDATED, std::monostate{});
         communicator_->send_message(std::move(response), coordinator_endpoint_);
@@ -183,6 +183,17 @@ protected:
         break;
       case CommandType::STATUS_REQUEST: {
         throw std::runtime_error("Not implemented yet");
+        break;
+      }
+      case CommandType::PRINT_LR: {
+        if (scheduler_) {
+          float lr = scheduler_->get_lr();
+          std::cout << "Stage " << id_ << " current learning rate: " << lr << std::endl;
+          Message response(CommandType::LR_PRINTED, std::monostate{});
+          communicator_->send_message(std::move(response), coordinator_endpoint_);
+        } else {
+          std::cout << "Warning: No scheduler available to get learning rate" << std::endl;
+        }
         break;
       }
       case CommandType::ERROR_REPORT:

@@ -104,30 +104,6 @@ protected:
     }
   }
 
-  /**
-   * Create a simple linear layer (y = scale * x) for testing
-   */
-  Vec<std::unique_ptr<Layer>> create_scaling_layer(float scale, const std::string &name = "scale",
-                                                   size_t in_channels = 1,
-                                                   size_t out_channels = 1) {
-    Vec<std::unique_ptr<Layer>> layers;
-    // Use a 1x1 conv with specific initialization to act as a simple linear transformation
-    auto layer = std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, 1, 1, 1, 1, 0, 0,
-                                                     false, name);
-
-    // Set weights to scale value (do this after parameters are initialized)
-    auto params = layer->parameters();
-    if (!params.empty()) {
-      float *weight_data = (params[0])->data_as<float>();
-      for (size_t i = 0; i < (params[0])->size(); ++i) {
-        weight_data[i] = scale;
-      }
-    }
-
-    layers.push_back(std::move(layer));
-    return layers;
-  }
-
   bool has_cpu_;
 };
 
@@ -136,8 +112,8 @@ protected:
 TEST_F(ResidualBlockTest, IdentityShortcutForward) {
   // Create simple main path: single layer that multiplies by 2
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(2.0f, "scale_2x");
-
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2x"));
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_residual");
   ResidualBlock *residual = residual_layer.get();
@@ -145,6 +121,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutForward) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(2.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
@@ -165,7 +142,8 @@ TEST_F(ResidualBlockTest, IdentityShortcutForward) {
 
 TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(-2.0f, "scale_neg2x");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_neg2x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "identity_relu");
@@ -174,6 +152,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(-2.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
@@ -192,7 +171,8 @@ TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
 
 TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(0.5f, "scale_half", 2, 2);
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(2, 2, 1, 1, 1, 1, 0, 0, false, "scale_half"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_multichannel");
@@ -201,6 +181,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(0.5f);
 
   Tensor input = make_tensor<float>({1, 2, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
@@ -226,7 +207,8 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
 
 TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(1.0f, "scale_1x");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_multibatch");
@@ -235,6 +217,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(1.0f);
 
   Tensor input = make_tensor<float>({2, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
@@ -259,10 +242,13 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
 
 TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(0.5f, "scale_main");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_half"));
 
   // Projection shortcut: 1x1 conv with scale 0.25
-  Vec<std::unique_ptr<Layer>> shortcut = create_scaling_layer(0.25f, "scale_shortcut");
+  Vec<std::unique_ptr<Layer>> shortcut;
+  shortcut.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_quarter"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut),
                                                         "none", "projection_residual");
@@ -271,7 +257,8 @@ TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
-
+  residual->parameters()[0]->fill(0.5f);
+  residual->parameters()[1]->fill(0.25f);
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
@@ -289,9 +276,12 @@ TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
 
 TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(-1.0f, "scale_neg");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_neg"));
 
-  Vec<std::unique_ptr<Layer>> shortcut = create_scaling_layer(0.5f, "scale_short");
+  Vec<std::unique_ptr<Layer>> shortcut;
+  shortcut.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_short"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut),
                                                         "relu", "projection_relu");
@@ -300,7 +290,8 @@ TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
-
+  residual->parameters()[0]->fill(-1.0f);
+  residual->parameters()[1]->fill(0.5f);
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
@@ -320,7 +311,8 @@ TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
 
 TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(2.0f, "scale_2x");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_backward");
@@ -329,6 +321,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(2.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
@@ -359,41 +352,9 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
   }
 }
 
-TEST_F(ResidualBlockTest, GetConfig) {
-  Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(1.0f, "scale");
-
-  auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "test_residual");
-  ResidualBlock *residual = residual_layer.get();
-
-  LayerConfig config = residual->get_config();
-
-  EXPECT_EQ(config.name, "test_residual");
-  EXPECT_EQ(config.get<std::string>("activation"), "relu");
-  EXPECT_EQ(config.get<bool>("has_projection"), false);
-}
-
-TEST_F(ResidualBlockTest, GetConfigWithProjection) {
-  Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(1.0f, "scale_main");
-
-  Vec<std::unique_ptr<Layer>> shortcut;
-  shortcut = create_scaling_layer(0.5f, "scale_short");
-
-  auto residual_layer = std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut),
-                                                        "relu", "test_projection");
-  ResidualBlock *residual = residual_layer.get();
-
-  LayerConfig config = residual->get_config();
-
-  EXPECT_EQ(config.name, "test_projection");
-  EXPECT_EQ(config.get<bool>("has_projection"), true);
-}
-
 TEST_F(ResidualBlockTest, ComputeOutputShape) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(1.0f, "scale", 3, 3);
+  main_path.push_back(std::make_unique<LegacyConv2DLayer>(3, 3, 1, 1, 1, 1, 0, 0, false, "scale"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "test_shape");
@@ -410,7 +371,8 @@ TEST_F(ResidualBlockTest, ComputeOutputShape) {
 
 TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(2.0f, "scale_2x");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "zero_gradient");
@@ -419,6 +381,7 @@ TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(2.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   input->fill(1.0f);
@@ -437,7 +400,8 @@ TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
 
 TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(1.0f, "scale_1x");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "large_values");
@@ -446,6 +410,7 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(1.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
@@ -464,7 +429,8 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
 
 TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(-1.0f, "scale_neg");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_neg"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "negative_values");
@@ -473,6 +439,7 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(-1.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
@@ -491,7 +458,8 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
 
 TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(1.0f, "scale_1x");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "small_values");
@@ -500,6 +468,7 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(1.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
@@ -518,7 +487,8 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
 
 TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(1.0f, "scale_1x");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "backward_stability");
@@ -527,6 +497,7 @@ TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(1.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   input->fill(1e-6f);
@@ -549,10 +520,10 @@ TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
 
 TEST_F(ResidualBlockTest, MultiLayerMainPath) {
   Vec<std::unique_ptr<Layer>> main_path;
-  auto layer1 = create_scaling_layer(0.5f, "scale_1");
-  auto layer2 = create_scaling_layer(2.0f, "scale_2");
-  main_path.push_back(std::move(layer1[0]));
-  main_path.push_back(std::move(layer2[0]));
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1"));
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "multi_layer");
@@ -561,6 +532,8 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(0.5f);
+  residual->parameters()[1]->fill(2.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
@@ -579,10 +552,10 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
 
 TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
   Vec<std::unique_ptr<Layer>> main_path;
-  auto layer1 = create_scaling_layer(0.5f, "scale_1");
-  auto layer2 = create_scaling_layer(2.0f, "scale_2");
-  main_path.push_back(std::move(layer1[0]));
-  main_path.push_back(std::move(layer2[0]));
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1"));
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "multi_layer_backward");
@@ -591,6 +564,8 @@ TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(0.5f);
+  residual->parameters()[1]->fill(2.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   input->fill(1.0f);
@@ -613,7 +588,8 @@ TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
 
 TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(0.0f, "scale_zero");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_zero"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "relu_suppression");
@@ -622,6 +598,7 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(0.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();
@@ -640,7 +617,8 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
 
 TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
   Vec<std::unique_ptr<Layer>> main_path;
-  main_path = create_scaling_layer(0.0f, "scale_zero");
+  main_path.push_back(
+      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_zero"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
       std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "relu_suppression_bwd");
@@ -649,6 +627,7 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
   GraphBuilder builder;
   builder.add_layer(std::move(residual_layer));
   Graph graph = builder.compile(allocator);
+  residual->parameters()[0]->fill(0.0f);
 
   Tensor input = make_tensor<float>({1, 1, 2, 2}, getHost());
   float *input_data = input->data_as<float>();

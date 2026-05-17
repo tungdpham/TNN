@@ -339,20 +339,26 @@ public:
       : Scheduler(optimizer),
         warmup_steps_(warmup_steps),
         start_lr_(start_lr) {
-    // Start at start_lr
-    this->set_lr(start_lr_);
+    if (warmup_steps_ > 0) {
+      this->set_lr(start_lr_ + (this->base_lr_ - start_lr_) / static_cast<float>(warmup_steps_));
+    }
   }
 
   void step() override {
     this->current_step_++;
-    if (this->current_step_ <= warmup_steps_) {
-      float progress = static_cast<float>(this->current_step_) / warmup_steps_;
+    if (this->current_step_ < warmup_steps_) {
+      float progress =
+          static_cast<float>(this->current_step_ + 1) / static_cast<float>(warmup_steps_);
       float new_lr = start_lr_ + progress * (this->base_lr_ - start_lr_);
       this->set_lr(new_lr);
+    } else if (this->current_step_ == warmup_steps_ - 1 || warmup_steps_ == 0) {
+      this->set_lr(this->base_lr_);
     }
   }
 
-  bool is_warmup_complete() const { return this->current_step_ >= warmup_steps_; }
+  bool is_warmup_complete() const {
+    return warmup_steps_ == 0 || this->current_step_ >= warmup_steps_ - 1;
+  }
 
   std::string name() const override { return "LinearWarmup"; }
 
@@ -387,15 +393,18 @@ public:
         total_steps_(total_steps),
         start_lr_(start_lr),
         eta_min_(eta_min) {
-    this->set_lr(start_lr_);
+    if (warmup_steps_ > 0) {
+      this->set_lr(start_lr_ + (this->base_lr_ - start_lr_) / static_cast<float>(warmup_steps_));
+    }
   }
 
   void step() override {
     this->current_step_++;
 
-    if (this->current_step_ <= warmup_steps_) {
-      // Warmup phase
-      float progress = static_cast<float>(this->current_step_) / warmup_steps_;
+    if (this->current_step_ < warmup_steps_) {
+      // Warmup phase: use (step+1)/warmup_steps so warmup completes after
+      float progress =
+          static_cast<float>(this->current_step_ + 1) / static_cast<float>(warmup_steps_);
       float new_lr = start_lr_ + progress * (this->base_lr_ - start_lr_);
       this->set_lr(new_lr);
     } else {

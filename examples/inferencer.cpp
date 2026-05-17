@@ -36,7 +36,7 @@ signed main() {
 
   Graph graph = load_or_create_model(train_config.model_name, train_config.model_path, allocator);
 
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto criterion = LossFactory::create_crossentropy();
 
   try {
     auto res = validate_model(graph, val_loader, criterion, train_config);

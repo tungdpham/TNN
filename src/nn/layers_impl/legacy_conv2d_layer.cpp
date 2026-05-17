@@ -193,11 +193,7 @@ Tensor LegacyConv2DLayer::def_backward(const ConstTensor &grad_output, size_t mb
   Tensor grad_input = get_output_tensor(input_shape);
   grad_input->fill(0);  // col2im accumulates, so we need to zero first
 
-  auto it_col_buffer = micro_batch_col_buffers_.find(mb_id);
-  if (it_col_buffer == micro_batch_col_buffers_.end()) {
-    throw std::runtime_error("No cached col buffer found for micro-batch ID: " +
-                             std::to_string(mb_id));
-  }
+  ConstTensor col_buffer = this->get_mutable_cache(mb_id, "col_buffer");
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
@@ -210,9 +206,8 @@ Tensor LegacyConv2DLayer::def_backward(const ConstTensor &grad_output, size_t mb
   ops::nchw_to_cnhw(grad_output, temp_gradient_buffer, batch_size, out_channels_, output_h,
                     output_w, this->flow_handle_);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(run_wgrad, it_col_buffer->second, temp_gradient_buffer,
-                                 weight_gradients_, output_size, kernel_size, out_channels_,
-                                 this->flow_handle_);
+  DISPATCH_ON_3_DTYPES_TO_METHOD(run_wgrad, col_buffer, temp_gradient_buffer, weight_gradients_,
+                                 output_size, kernel_size, out_channels_, this->flow_handle_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_dgrad, temp_gradient_buffer, weights_,
                                  temp_col_grad_matrix_buffer, output_size, kernel_size,

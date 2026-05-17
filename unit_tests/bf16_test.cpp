@@ -81,7 +81,7 @@ TEST_F(BF16Test, Dense) {
     target_bf16->at<bf16>({i, i % output_dim}) = bf16(1.0f);
   }
 
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto criterion = LossFactory::create_crossentropy();
 
   auto gradient_fp32 = make_tensor(DType_t::FP32, {batch_size, output_dim});
   auto gradient_bf16 = make_tensor(DType_t::BF16, {batch_size, output_dim});
@@ -180,7 +180,7 @@ TEST_F(BF16Test, Attention) {
     target_bf16->at<bf16>({i, i % 16, i / 16}) = bf16(1.0f);
   }
 
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto criterion = LossFactory::create_crossentropy();
 
   auto gradient_fp32 = make_tensor(DType_t::FP32, {batch_size, seq_len, embed_dim});
   auto gradient_bf16 = make_tensor(DType_t::BF16, {batch_size, seq_len, embed_dim});

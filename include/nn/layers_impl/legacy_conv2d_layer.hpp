@@ -45,7 +45,6 @@ private:
 #endif
 
   std::unordered_map<size_t, Vec<size_t>> micro_batch_input_shapes_;
-  std::unordered_map<size_t, Tensor> micro_batch_col_buffers_;
 
 #ifdef USE_CUDNN
   void build_graph(const Vec<size_t> &input_shape) const;

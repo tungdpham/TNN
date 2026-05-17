@@ -130,8 +130,8 @@ public:
   }
 
   template <typename T>
-  static bool get(const std::string &env_var, T &default_value) {
-    return instance().get(env_var, default_value);
+  static bool get(const std::string &key, T &var) {
+    return instance().get(key, var);
   }
 };
 }  // namespace tnn

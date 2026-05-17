@@ -8,8 +8,8 @@
 
 #include <chrono>
 #include <condition_variable>
-#include <cstdlib>
 #include <cstddef>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -132,9 +132,21 @@ public:
       Message update_msg(CommandType::UPDATE_PARAMETERS, std::monostate{});
       comm_->send_message(std::move(update_msg), worker_endpoint);
     }
+    scheduler_->step();
     bool success = join(CommandType::PARAMETERS_UPDATED, worker_endpoints_.size(), 60);
     if (!success) {
       std::cerr << "Warning: Timeout waiting for parameter update confirmations from all stages\n";
+    }
+  }
+
+  void print_lr() {
+    for (const auto &worker_endpoint : worker_endpoints_) {
+      Message lr_msg(CommandType::PRINT_LR, std::monostate{});
+      comm_->send_message(std::move(lr_msg), worker_endpoint);
+    }
+    bool success = join(CommandType::LR_PRINTED, worker_endpoints_.size(), 30);
+    if (!success) {
+      std::cerr << "Warning: Not all stages confirmed LR print within timeout.\n";
     }
   }
 
@@ -198,9 +210,10 @@ public:
           total_corrects += compute_class_corrects(predictions, device_targets);
 
           total_loss += loss;
+          PoolAllocator &allocator =
+              PoolAllocator::instance(predictions->device(), defaultFlowHandle);
           Tensor grad_output =
-              make_tensor(PoolAllocator::instance(predictions->device(), defaultFlowHandle),
-                          predictions->data_type(), predictions->shape());
+              make_tensor(allocator, predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, device_targets, grad_output);
           grad_output->mul_scalar(1.0 / num_microbatches);
           backward(std::move(grad_output), job.mb_id);
@@ -269,7 +282,6 @@ public:
     return {total_loss, static_cast<double>(total_corrects)};
   }
 
-
   /**
    * @brief Synchronous pipeline train batch.
    *
@@ -293,12 +305,10 @@ public:
       Message forward_msg;
       {
         std::unique_lock<std::mutex> lock(message_notification_mutex_);
-        message_notification_cv_.wait(lock, [this]() {
-          return comm_->message_count(CommandType::FORWARD_JOB) > 0;
-        });
+        message_notification_cv_.wait(
+            lock, [this]() { return comm_->message_count(CommandType::FORWARD_JOB) > 0; });
 
-        Vec<Message> forward_msgs =
-            comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+        Vec<Message> forward_msgs = comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
         if (forward_msgs.empty()) {
           throw std::runtime_error("sync_train_batch woke up without FORWARD_JOB");
         }
@@ -329,9 +339,8 @@ public:
       total_loss += loss;
       total_corrects += compute_class_corrects(predictions, device_targets);
 
-      Tensor grad_output =
-          make_tensor(PoolAllocator::instance(predictions->device(), defaultFlowHandle),
-                      predictions->data_type(), predictions->shape());
+      PoolAllocator &allocator = PoolAllocator::instance(predictions->device(), defaultFlowHandle);
+      Tensor grad_output = make_tensor(allocator, predictions->data_type(), predictions->shape());
       criterion->compute_gradient(predictions, device_targets, grad_output);
       grad_output->mul_scalar(1.0 / num_microbatches);
 
@@ -339,9 +348,8 @@ public:
 
       {
         std::unique_lock<std::mutex> lock(message_notification_mutex_);
-        message_notification_cv_.wait(lock, [this]() {
-          return comm_->message_count(CommandType::BACKWARD_COMPLETE) > 0;
-        });
+        message_notification_cv_.wait(
+            lock, [this]() { return comm_->message_count(CommandType::BACKWARD_COMPLETE) > 0; });
         Vec<Message> done_msgs =
             comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_COMPLETE);
         if (done_msgs.empty()) {
@@ -374,12 +382,10 @@ public:
       Message forward_msg;
       {
         std::unique_lock<std::mutex> lock(message_notification_mutex_);
-        message_notification_cv_.wait(lock, [this]() {
-          return comm_->message_count(CommandType::FORWARD_JOB) > 0;
-        });
+        message_notification_cv_.wait(
+            lock, [this]() { return comm_->message_count(CommandType::FORWARD_JOB) > 0; });
 
-        Vec<Message> forward_msgs =
-            comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+        Vec<Message> forward_msgs = comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
         if (forward_msgs.empty()) {
           throw std::runtime_error("sync_val_batch woke up without FORWARD_JOB");
         }

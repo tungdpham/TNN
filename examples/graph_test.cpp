@@ -85,7 +85,7 @@ signed main(int argc, char* argv[]) {
   train_loader->set_seed(123456);
 
   Tensor input, label;
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto criterion = LossFactory::create_crossentropy();
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 10e-4f, 3e-4f, false);
 

@@ -50,7 +50,7 @@ public:
                 << buffer_.capacity() << std::endl;
     }
     const dptr src(const_cast<T*>(data), sizeof(T) * count, device);
-    ops::cd_copy<T>(src, buffer_ + offset_, count, defaultFlowHandle);
+    ops::cd_copy<unsigned char>(src, buffer_ + offset_, sizeof(T) * count, defaultFlowHandle);
     offset_ += sizeof(T) * count;
   }
 
@@ -73,7 +73,7 @@ public:
   template <typename T>
   void archive_impl(T* data, size_t count, const Device& device) {
     dptr dst(data, sizeof(T) * count, device);
-    ops::cd_copy<T>(buffer_ + offset_, dst, count, defaultFlowHandle);
+    ops::cd_copy<unsigned char>(buffer_ + offset_, dst, sizeof(T) * count, defaultFlowHandle);
     if (endianness_ != device.get_endianness()) {
       ops::bswap<T>(dst, dst, count, defaultFlowHandle);
     }

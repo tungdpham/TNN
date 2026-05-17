@@ -96,7 +96,7 @@ signed main() {
   std::cout << "Max diff: " << max_diff << std::endl;
 
   // test backward
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto criterion = LossFactory::create_crossentropy();
   Tensor target = make_tensor<float>({128, OUTPUT_FEATURES}, getGPU());
   target->fill_random_normal(0.5f, 0.2f);
   Tensor grad = make_tensor<float>({128, OUTPUT_FEATURES}, getGPU());

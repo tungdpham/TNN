@@ -15,7 +15,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 #include "common/blob.hpp"
 #include "device/device.hpp"
@@ -293,19 +292,23 @@ public:
       throw std::invalid_argument("Span offsets and sizes must match TensorImpl dimensions");
     }
 
-    bool found_partial = false;
     for (size_t i = 0; i < shape_.size(); ++i) {
       if (start_offset[i] + span_sizes[i] > shape_[i]) {
         throw std::out_of_range("Span exceeds TensorImpl dimensions");
       }
-      bool is_partial = (start_offset[i] != 0) || (span_sizes[i] != shape_[i]);
-      if (found_partial && is_partial) {
-        throw std::invalid_argument(
-            "Non-contiguous span: after a partial dimension, all subsequent dimensions "
-            "must be complete (start_offset=0, span_size=shape[i])");
-      }
-      if (is_partial) {
-        found_partial = true;
+    }
+
+    for (size_t i = 0; i < shape_.size(); ++i) {
+      if (span_sizes[i] > 1) {
+        for (size_t j = i + 1; j < shape_.size(); ++j) {
+          if (span_sizes[j] != shape_[j]) {
+            throw std::invalid_argument(
+                "Non-contiguous span: dimension " + std::to_string(i) +
+                " has span_size > 1, so all subsequent dimensions must be fully "
+                "spanned (span_size == shape[j])");
+          }
+        }
+        break;
       }
     }
 
@@ -320,23 +323,27 @@ public:
     return std::make_shared<TensorImpl>(allocator_, dtype_, span_sizes, std::move(span_data));
   }
 
-  Vec<Tensor> split(size_t axis, size_t num_splits) const {
-    if (axis >= shape_.size()) {
-      throw std::out_of_range("Split axis exceeds TensorImpl dimensions");
+  Vec<Tensor> split(size_t num_splits) const {
+    if (num_splits == 0) {
+      throw std::invalid_argument("num_splits must be greater than 0");
     }
-    if (shape_[axis] % num_splits != 0) {
-      throw std::invalid_argument("TensorImpl dimension must be divisible by num_splits");
+    if (num_splits > shape_[0]) {
+      throw std::invalid_argument("num_splits exceeds the size of dimension 0");
     }
-
-    size_t split_size = shape_[axis] / num_splits;
+    if (shape_[0] % num_splits != 0) {
+      throw std::invalid_argument("Dimension 0 (size " + std::to_string(shape_[0]) +
+                                  ") is not evenly divisible by num_splits (" +
+                                  std::to_string(num_splits) + ")");
+    }
+    size_t split_size = shape_[0] / num_splits;
     Vec<size_t> split_shape = shape_;
-    split_shape[axis] = split_size;
+    split_shape[0] = split_size;
 
     Vec<Tensor> splits;
     splits.reserve(num_splits);
     for (size_t i = 0; i < num_splits; ++i) {
       Vec<size_t> start_offset(shape_.size(), 0);
-      start_offset[axis] = i * split_size;
+      start_offset[0] = i * split_size;
       splits.push_back(span(start_offset, split_shape));
     }
     return splits;
@@ -561,7 +568,7 @@ public:
     double result = 0.0;
     DISPATCH_ANY_DTYPE(dtype_, T, {
       T sum = ops::sum<T>(data_, data_size_);
-      result = static_cast<double>(sum / static_cast<T>((double)data_size_));
+      result = static_cast<double>((double)sum / (double)data_size_);
     });
     return result;
   }
@@ -571,7 +578,7 @@ public:
     DISPATCH_ANY_DTYPE(dtype_, T, {
       T m = static_cast<T>(mean());
       T sum_sq_diff = ops::sum_squared_diff<T>(data_, m, data_size_);
-      result = static_cast<double>(sum_sq_diff / static_cast<T>((double)data_size_));
+      result = static_cast<double>((double)sum_sq_diff / (double)data_size_);
     });
     return result;
   }

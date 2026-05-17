@@ -20,6 +20,7 @@
 #include <iostream>
 #include <memory>
 
+#include "data_loading/batch_prefetcher.hpp"
 #include "device/del_allocator_v2.hpp"
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
@@ -224,8 +225,23 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
   int num_batches = 0;
   int grad_accum_counter = 0;
 
+  std::unique_ptr<BatchPrefetcher> prefetcher;
+  if (config.prefetch_data) {
+    prefetcher =
+        std::make_unique<BatchPrefetcher>(*train_loader, config.batch_size, config.prefetch_depth);
+    prefetcher->start();
+    cout << "Data prefetching enabled. Depth: " << config.prefetch_depth << endl;
+  }
+
+  auto get_next = [&](Tensor &data, Tensor &labels) -> bool {
+    if (prefetcher) {
+      return prefetcher->next(data, labels);
+    }
+    return train_loader->get_batch(config.batch_size, data, labels);
+  };
+
   cout << "Training batches: " << train_loader->size() << endl;
-  while (train_loader->get_batch(config.batch_size, batch_data, batch_labels) &&
+  while (get_next(batch_data, batch_labels) &&
          (config.max_steps == -1 || num_batches < config.max_steps)) {
     auto batch_start = chrono::high_resolution_clock::now();
     ++num_batches;
@@ -431,10 +447,39 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
   train_loader->reset();
   auto start_time = chrono::high_resolution_clock::now();
 
+  std::unique_ptr<BatchPrefetcher> prefetcher;
+  auto start_prefetcher = [&]() {
+    prefetcher.reset();
+    if (config.prefetch_data) {
+      prefetcher = std::make_unique<BatchPrefetcher>(*train_loader, config.batch_size,
+                                                     config.prefetch_depth);
+      prefetcher->start();
+    }
+  };
+  start_prefetcher();
+  if (config.prefetch_data) {
+    cout << "Data prefetching enabled. Depth: " << config.prefetch_depth << endl;
+  }
+
+  auto get_next = [&](Tensor &data, Tensor &labels) -> bool {
+    if (prefetcher) {
+      return prefetcher->next(data, labels);
+    }
+    return train_loader->get_batch(config.batch_size, data, labels);
+  };
+
   thread_wrapper.execute([&]() -> void {
     for (int steps = 0; steps < config.max_steps; ++steps) {
-      if (!train_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
-        break;
+      if (!get_next(batch_data, batch_labels)) {
+        if (prefetcher) {
+          prefetcher->stop();
+        }
+        train_loader->shuffle();
+        train_loader->reset();
+        start_prefetcher();
+        if (!get_next(batch_data, batch_labels)) {
+          break;
+        }
       }
       auto batch_start = chrono::high_resolution_clock::now();
       Tensor predictions;

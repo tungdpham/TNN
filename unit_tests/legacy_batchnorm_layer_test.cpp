@@ -478,7 +478,7 @@ TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithAffine) {
 
   Vec<Tensor> params = layer->parameters();
 
-  EXPECT_EQ(params.size(), 2);
+  EXPECT_EQ(params.size(), 4);
 }
 
 TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithoutAffine) {
@@ -492,7 +492,7 @@ TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithoutAffine) {
 
   Vec<Tensor> params = layer->parameters();
 
-  EXPECT_EQ(params.size(), 2);
+  EXPECT_EQ(params.size(), 4);
 }
 
 TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithAffine) {
@@ -520,7 +520,7 @@ TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithoutAffine) {
 
   Vec<Tensor> grads = layer->gradients();
 
-  EXPECT_EQ(grads.size(), 2);
+  EXPECT_EQ(grads.size(), 4);
 }
 
 TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallBatch) {

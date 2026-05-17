@@ -159,7 +159,6 @@ LayerConfig ResidualBlock::get_config() const {
   } else {
     config.set("shortcut_path", nlohmann::json::object());
   }
-
   return config;
 }
 
