@@ -39,12 +39,13 @@ CsvLogger::CsvLogger(const std::string &model_name, const std::string &log_dir,
   // Build deterministic metric order for stable CSV logs.
   // Dynamic ordering caused column/value mismatches during incremental builds.
 
-  batch_metrics = {"epoch",          "step",         "loss",       "batch_loss", "avg_loss",
-                   "avg_perplexity", "accuracy_pct", "perplexity", "time_ms"};
+  batch_metrics = {"epoch",    "step",           "timestamp_ms", "loss",       "batch_loss",
+                   "avg_loss", "avg_perplexity", "accuracy_pct", "perplexity", "time_ms"};
 
-  val_metrics = {"epoch", "step", "loss", "accuracy_pct", "perplexity"};
+  val_metrics = {"epoch", "step", "timestamp_ms", "loss", "accuracy_pct", "perplexity"};
 
   epoch_metrics = {"epoch",
+                   "timestamp_ms",
                    "train_loss",
                    "val_loss",
                    "train_accuracy_pct",
@@ -54,10 +55,6 @@ CsvLogger::CsvLogger(const std::string &model_name, const std::string &log_dir,
                    "train_time_ms",
                    "val_time_ms",
                    "epoch_total_time_ms"};
-
-  epoch_metrics.push_back("train_time_ms");
-  epoch_metrics.push_back("val_time_ms");
-  epoch_metrics.push_back("epoch_total_time_ms");
 
   // Write headers
   std::ostringstream batch_header, val_header, epoch_header;
@@ -92,7 +89,7 @@ CsvLogger::CsvLogger(const std::string &model_name, const std::string &log_dir,
 void CsvLogger::log_batch(int epoch, int step,
                           const std::unordered_map<std::string, double> &metrics) {
   std::ostringstream row;
-  row << epoch << "," << step;
+  row << epoch << "," << step << "," << get_timestamp_ms();
 
   if (const char *dbg = std::getenv("TNN_DEBUG_CSV")) {
     if (std::string(dbg) != "0" && step <= 5) {
@@ -110,7 +107,7 @@ void CsvLogger::log_batch(int epoch, int step,
     }
   }
 
-  for (size_t i = 2; i < batch_metrics.size(); ++i) {
+  for (size_t i = 3; i < batch_metrics.size(); ++i) {
     row << ",";
     auto it = metrics.find(batch_metrics[i]);
     if (it != metrics.end()) {
@@ -127,9 +124,9 @@ void CsvLogger::log_batch(int epoch, int step,
 void CsvLogger::log_val_batch(int epoch, int step,
                               const std::unordered_map<std::string, double> &metrics) {
   std::ostringstream row;
-  row << epoch << "," << step;
+  row << epoch << "," << step << "," << get_timestamp_ms();
 
-  for (size_t i = 2; i < val_metrics.size(); ++i) {
+  for (size_t i = 3; i < val_metrics.size(); ++i) {
     row << ",";
     auto it = metrics.find(val_metrics[i]);
     if (it != metrics.end()) {
@@ -145,9 +142,9 @@ void CsvLogger::log_val_batch(int epoch, int step,
 
 void CsvLogger::log_epoch(int epoch, const std::unordered_map<std::string, double> &metrics) {
   std::ostringstream row;
-  row << epoch;
+  row << epoch << "," << get_timestamp_ms();
 
-  for (size_t i = 1; i < epoch_metrics.size(); ++i) {
+  for (size_t i = 2; i < epoch_metrics.size(); ++i) {
     row << ",";
     auto it = metrics.find(epoch_metrics[i]);
     if (it != metrics.end()) {

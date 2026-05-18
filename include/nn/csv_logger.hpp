@@ -30,6 +30,12 @@ inline std::string csv_timestamp() {
   return ts;
 }
 
+inline long long get_timestamp_ms() {
+  auto now = std::chrono::system_clock::now();
+  auto duration = now.time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+}
+
 struct CsvLogger {
   Logger batch_logger;
   Logger val_logger;
