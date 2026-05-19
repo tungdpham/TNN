@@ -44,14 +44,21 @@ protected:
   size_t data_size_;
   dptr data_;
   Vec<size_t> shape_;
+  Vec<size_t> strides_;  // Precomputed strides for each dimension
 
-  inline size_t compute_stride(size_t index) const {
+  inline void compute_strides() {
+    strides_.resize(shape_.size());
+    if (shape_.empty()) {
+      return;
+    }
     size_t stride = 1;
-    for (size_t i = index + 1; i < shape_.size(); ++i) {
+    for (int i = static_cast<int>(shape_.size()) - 1; i >= 0; --i) {
+      strides_[i] = stride;
       stride *= shape_[i];
     }
-    return stride;
   }
+
+  inline size_t compute_stride(size_t index) const { return strides_[index]; }
 
   inline size_t compute_index(std::initializer_list<size_t> indices) const {
     assert(indices.size() == shape_.size());
@@ -77,6 +84,7 @@ public:
     for (size_t i = 0; i < shape_.size(); ++i) {
       shape_[i] = 0;
     }
+    compute_strides();
     data_ = allocate_data(0);
   }
 
@@ -89,6 +97,7 @@ public:
     }
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
+    compute_strides();
     data_ = allocate_data(data_size_);
   }
 
@@ -102,6 +111,7 @@ public:
     }
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
+    compute_strides();
     data_ = allocate_data(data_size_);
     if (data.get<void>() != nullptr) {
       DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data, data_, data_size_));
@@ -117,6 +127,7 @@ public:
     }
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
+    compute_strides();
     data_ = allocate_data(data_size_);
   }
 
@@ -129,6 +140,7 @@ public:
     }
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
+    compute_strides();
     data_ = allocate_data(data_size_);
     if (data.get<void>() != nullptr) {
       DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data, data_, data_size_));
@@ -145,6 +157,7 @@ public:
     }
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
+    compute_strides();
   }
 
   ~TensorImpl() = default;
@@ -154,14 +167,16 @@ public:
         allocator_(other.allocator_),
         data_size_(other.data_size_),
         data_(other.data_),
-        shape_(other.shape_) {}
+        shape_(other.shape_),
+        strides_(other.strides_) {}
 
   TensorImpl(TensorImpl &&other) noexcept
       : dtype_(other.dtype_),
         allocator_(other.allocator_),
         data_size_(other.data_size_),
         data_(std::move(other.data_)),
-        shape_(std::move(other.shape_)) {
+        shape_(std::move(other.shape_)),
+        strides_(std::move(other.strides_)) {
     other.data_size_ = 0;
   }
 
@@ -199,6 +214,7 @@ public:
       dtype_ = other.dtype_;
       allocator_ = other.allocator_;
       shape_ = other.shape_;
+      strides_ = other.strides_;
       data_size_ = other.data_size_;
       data_ = other.data_;
     }
@@ -210,6 +226,7 @@ public:
       dtype_ = other.dtype_;
       allocator_ = other.allocator_;
       shape_ = std::move(other.shape_);
+      strides_ = std::move(other.strides_);
       data_ = std::move(other.data_);
       data_size_ = other.data_size_;
       other.data_size_ = 0;
@@ -477,6 +494,7 @@ public:
     data_ = source->data_;
     data_size_ = source->data_size_;
     shape_ = source->shape_;
+    strides_ = source->strides_;
   }
 
   void resize(const Vec<size_t> &new_shape) {
@@ -491,6 +509,7 @@ public:
       data_size_ = new_size;
     }
     shape_ = new_shape;
+    compute_strides();
   }
 
   /**
@@ -506,6 +525,7 @@ public:
     }
     data_size_ = new_size;
     shape_ = new_shape;
+    compute_strides();
   }
 
   void copy_batch(TensorImpl &other, size_t src_batch_idx, size_t dest_batch_idx) {

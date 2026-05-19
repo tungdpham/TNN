@@ -39,7 +39,7 @@ public:
     this->name_ = "Normalization";
   }
 
-  void apply(const Tensor &data, const Tensor &labels) override {
+  void apply(Tensor &data, Tensor &labels) override {
     DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -59,7 +59,7 @@ public:
 
 private:
   template <typename T>
-  void apply_impl(const Tensor &data, const Tensor &labels) {
+  void apply_impl(Tensor &data, Tensor &labels) {
     const auto shape = data->shape();
     if (shape.size() != 4) return;
 

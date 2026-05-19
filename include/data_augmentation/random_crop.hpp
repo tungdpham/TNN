@@ -20,7 +20,7 @@ public:
     this->name_ = "RandomCrop";
   }
 
-  void apply(const Tensor &data, const Tensor &labels) override {
+  void apply(Tensor &data, Tensor &labels) override {
     DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -33,7 +33,7 @@ private:
   int padding_;
 
   template <typename T>
-  void apply_impl(const Tensor &data, const Tensor &labels) {
+  void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
 
     const auto shape = data->shape();
@@ -68,7 +68,7 @@ private:
   void apply_crop(const Tensor &data, size_t batch_idx, size_t height, size_t width,
                   size_t channels, int start_x, int start_y) {
     const size_t padded_size = width + 2 * padding_;
-    Tensor padded = make_tensor<T>(Vec<size_t>{1, padded_size, padded_size, channels});
+    Tensor padded = make_tensor<T>({1, padded_size, padded_size, channels});
 
     padded->fill(0.0);
 

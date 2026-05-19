@@ -12,6 +12,7 @@
 #include <iostream>
 #include <map>
 #include <numeric>
+#include <random>
 #include <string>
 
 #include "data_loading/image_data_loader.hpp"
@@ -72,6 +73,7 @@ private:
   IAllocator &allocator_;
 
   DType_t dtype_ = DType_t::FP32;
+  bool is_train_mode_ = true;
 
   Vec<std::string> class_ids_;                           // WordNet IDs (wnids)
   std::map<std::string, int> class_id_to_index_;         // Map wnid to class index
@@ -92,22 +94,23 @@ private:
 
     T *batch_raw = batch_data->data_as<T>();
     int *labels_raw = batch_labels->data_as<int>();
+    const size_t image_size = imagenet100_constants::IMAGE_SIZE;
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
       const auto &[path, class_index] = sample_list_[sample_idx];
 
-      T *sample_dst = batch_raw + i * imagenet100_constants::IMAGE_SIZE;
+      T *sample_dst = batch_raw + i * image_size;
       bool success = false;
 
       if constexpr (std::is_same_v<T, float>) {
-        // Load directly into the batch tensor's memory — no intermediate buffer
+        // Load directly into the batch tensor's memory (HWC format)
         success = load_jpeg_image(path, sample_dst);
       } else {
-        dptr hwc_dptr = allocator_.allocate(imagenet100_constants::IMAGE_SIZE * sizeof(float));
+        dptr hwc_dptr = allocator_.allocate(image_size * sizeof(float));
         float *hwc_buf = hwc_dptr.get<float>();
         if (load_jpeg_image(path, hwc_buf)) {
-          for (size_t j = 0; j < imagenet100_constants::IMAGE_SIZE; ++j) {
+          for (size_t j = 0; j < image_size; ++j) {
             sample_dst[j] = static_cast<T>(hwc_buf[j]);
           }
           success = true;
@@ -118,7 +121,7 @@ private:
         labels_raw[i] = class_index;
       } else {
         // Zero out failed sample and mark with sentinel label
-        for (size_t j = 0; j < imagenet100_constants::IMAGE_SIZE; ++j) {
+        for (size_t j = 0; j < image_size; ++j) {
           sample_dst[j] = T(0);
         }
         labels_raw[i] = -1;  // Sentinel value for failed load
@@ -176,8 +179,65 @@ private:
     }
   }
 
+  struct CropBox {
+    int x;
+    int y;
+    int w;
+    int h;
+  };
+
+  CropBox sample_random_resized_crop(int img_w, int img_h) const {
+    thread_local std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<float> scale_dist(0.08f, 1.0f);
+    std::uniform_real_distribution<float> ratio_dist(std::log(3.0f / 4.0f), std::log(4.0f / 3.0f));
+
+    const int area = img_w * img_h;
+    for (int attempt = 0; attempt < 10; ++attempt) {
+      const float target_area = scale_dist(rng) * static_cast<float>(area);
+      const float aspect = std::exp(ratio_dist(rng));
+      const int crop_w = static_cast<int>(std::round(std::sqrt(target_area * aspect)));
+      const int crop_h = static_cast<int>(std::round(std::sqrt(target_area / aspect)));
+
+      if (crop_w > 0 && crop_h > 0 && crop_w <= img_w && crop_h <= img_h) {
+        std::uniform_int_distribution<int> x_dist(0, img_w - crop_w);
+        std::uniform_int_distribution<int> y_dist(0, img_h - crop_h);
+        return {x_dist(rng), y_dist(rng), crop_w, crop_h};
+      }
+    }
+
+    const float in_ratio = static_cast<float>(img_w) / static_cast<float>(img_h);
+    int crop_w = img_w;
+    int crop_h = img_h;
+    if (in_ratio < 3.0f / 4.0f) {
+      crop_w = img_w;
+      crop_h = static_cast<int>(std::round(crop_w / (3.0f / 4.0f)));
+    } else if (in_ratio > 4.0f / 3.0f) {
+      crop_h = img_h;
+      crop_w = static_cast<int>(std::round(crop_h * (4.0f / 3.0f)));
+    }
+
+    crop_w = std::min(crop_w, img_w);
+    crop_h = std::min(crop_h, img_h);
+    return {std::max(0, (img_w - crop_w) / 2), std::max(0, (img_h - crop_h) / 2), crop_w, crop_h};
+  }
+
+  static void hwc_uint8_to_hwc_float_224(const unsigned char *img_224_hwc, float *image_data_ptr) {
+    // Direct HWC uint8 -> HWC float normalization, no layout change
+    for (size_t i = 0; i < imagenet100_constants::IMAGE_SIZE; ++i) {
+      image_data_ptr[i] = img_224_hwc[i] / imagenet100_constants::NORMALIZATION_FACTOR;
+    }
+  }
+
   /**
-   * Load a JPEG image, resize to target dimensions, and convert to normalized float data
+   * Load a JPEG image and apply torchvision-like spatial preprocessing.
+   *
+   * Train:
+   *   RandomResizedCrop(224) from the original decoded JPEG.
+   *
+   * Val:
+   *   Resize(short_side=256) preserving aspect ratio, then CenterCrop(224).
+   *
+   * The returned float buffer is HWC, [0,1], 224x224.
    */
   bool load_jpeg_image(const std::string &image_path, float *image_data_ptr) {
     int width, height, channels;
@@ -188,43 +248,67 @@ private:
       return false;
     }
 
-    // Resize if needed
-    bool needs_resize = (width != static_cast<int>(imagenet100_constants::IMAGE_WIDTH) ||
-                         height != static_cast<int>(imagenet100_constants::IMAGE_HEIGHT));
+    constexpr int out_h = static_cast<int>(imagenet100_constants::IMAGE_HEIGHT);
+    constexpr int out_w = static_cast<int>(imagenet100_constants::IMAGE_WIDTH);
+    constexpr int resize_short_side = 256;
 
-    dptr resize_dptr;
-    if (needs_resize) {
-      constexpr size_t resize_buf_bytes =
-          imagenet100_constants::IMAGE_HEIGHT * imagenet100_constants::IMAGE_WIDTH * 3;
-      resize_dptr = allocator_.allocate(resize_buf_bytes);
-      unsigned char *resize_buf = resize_dptr.get<unsigned char>();
-      unsigned char *result = stbir_resize_uint8_linear(img, width, height, 0, resize_buf,
-                                                        imagenet100_constants::IMAGE_WIDTH,
-                                                        imagenet100_constants::IMAGE_HEIGHT, 0, 3);
+    dptr crop_resize_dptr = allocator_.allocate(out_h * out_w * 3);
+    unsigned char *out224 = crop_resize_dptr.get<unsigned char>();
+
+    if (is_train_mode_) {
+      const CropBox crop = sample_random_resized_crop(width, height);
+      const unsigned char *crop_src = img + (crop.y * width + crop.x) * 3;
+      unsigned char *result = stbir_resize_uint8_linear(crop_src, crop.w, crop.h, width * 3, out224,
+                                                        out_w, out_h, 0, 3);
       stbi_image_free(img);
+
       if (!result) {
-        std::cerr << "Error resizing image: " << image_path << std::endl;
+        std::cerr << "Error RandomResizedCrop resizing image: " << image_path << std::endl;
         return false;
       }
-      img = resize_buf;
+
+      hwc_uint8_to_hwc_float_224(out224, image_data_ptr);
+      return true;
     }
 
-    // Normalize HWC uint8 to HWC float [0, 1] — no axis reorder needed
-    for (size_t h = 0; h < imagenet100_constants::IMAGE_HEIGHT; ++h) {
-      for (size_t w = 0; w < imagenet100_constants::IMAGE_WIDTH; ++w) {
-        for (size_t c = 0; c < imagenet100_constants::NUM_CHANNELS; ++c) {
-          size_t idx =
-              (h * imagenet100_constants::IMAGE_WIDTH + w) * imagenet100_constants::NUM_CHANNELS +
-              c;
-          image_data_ptr[idx] = img[idx] / imagenet100_constants::NORMALIZATION_FACTOR;
-        }
-      }
+    int resized_w;
+    int resized_h;
+    if (height <= width) {
+      resized_h = resize_short_side;
+      resized_w = static_cast<int>(
+          std::round(static_cast<float>(width) * resize_short_side / static_cast<float>(height)));
+    } else {
+      resized_w = resize_short_side;
+      resized_h = static_cast<int>(
+          std::round(static_cast<float>(height) * resize_short_side / static_cast<float>(width)));
     }
 
-    if (!needs_resize) {
-      stbi_image_free(img);
+    resized_w = std::max(resized_w, out_w);
+    resized_h = std::max(resized_h, out_h);
+
+    dptr resized_dptr =
+        allocator_.allocate(static_cast<size_t>(resized_h) * static_cast<size_t>(resized_w) * 3);
+    unsigned char *resized = resized_dptr.get<unsigned char>();
+
+    unsigned char *resize_result =
+        stbir_resize_uint8_linear(img, width, height, 0, resized, resized_w, resized_h, 0, 3);
+    stbi_image_free(img);
+
+    if (!resize_result) {
+      std::cerr << "Error validation Resize(256) image: " << image_path << std::endl;
+      return false;
     }
-    // resize_dptr goes out of scope here and is automatically reclaimed to the pool
+
+    const int crop_x = std::max(0, (resized_w - out_w) / 2);
+    const int crop_y = std::max(0, (resized_h - out_h) / 2);
+
+    for (int h = 0; h < out_h; ++h) {
+      const unsigned char *src_row = resized + ((crop_y + h) * resized_w + crop_x) * 3;
+      unsigned char *dst_row = out224 + h * out_w * 3;
+      std::copy(src_row, src_row + out_w * 3, dst_row);
+    }
+
+    hwc_uint8_to_hwc_float_224(out224, image_data_ptr);
     return true;
   }
 
@@ -317,6 +401,7 @@ public:
    */
   bool load_data(const std::string &source, bool is_train = true) {
     sample_list_.clear();
+    is_train_mode_ = is_train;
 
     if (!load_class_labels(source)) return false;
 
