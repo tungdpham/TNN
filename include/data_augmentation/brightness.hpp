@@ -18,7 +18,7 @@ public:
     this->name_ = "Brightness";
   }
 
-  void apply(const Tensor &data, const Tensor &labels) override {
+  void apply(Tensor &data, Tensor &labels) override {
     DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -31,7 +31,7 @@ private:
   float brightness_range_;
 
   template <typename T>
-  void apply_impl(const Tensor &data, const Tensor &labels) {
+  void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
     std::uniform_real_distribution<float> brightness_dist(-brightness_range_, brightness_range_);
 

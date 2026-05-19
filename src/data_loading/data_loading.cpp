@@ -97,15 +97,18 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
     if (train->load_data(dataset_path, true)) {
       const bool use_aug = env_flag_enabled("TNN_AUGMENTATION", "AUGMENTATION", true);
       if (use_aug) {
-        train->set_augmentation(AugmentationBuilder()
-                                    .horizontal_flip(0.5f)
-                                    .brightness(1.0f, 0.10f)
-                                    .contrast(1.0f, 0.10f)
-                                    .saturation(1.0f, 0.10f)
-                                    .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
-                                    .build());
+        train->set_augmentation(
+            AugmentationBuilder()
+                // .random_resized_crop(224, 224, 0.08f, 1.0f, 3.0f / 4.0f, 4.0f / 3.0f)
+                .horizontal_flip(0.5f)
+                .brightness(0.5f, 0.10f)
+                .contrast(0.5f, 0.10f)
+                .saturation(0.5f, 0.10f)
+                .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                .build());
       } else {
         train->set_augmentation(AugmentationBuilder()
+                                    // .resize_center_crop(256, 224, 224)
                                     .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                                     .build());
       }
@@ -114,6 +117,7 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
 
     if (val->load_data(dataset_path, false)) {
       val->set_augmentation(AugmentationBuilder()
+                                .resize_center_crop(256, 224, 224)
                                 .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                                 .build());
       pair.val = std::move(val);

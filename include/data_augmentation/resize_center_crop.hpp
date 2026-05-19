@@ -5,6 +5,8 @@
 #include <vector>
 
 #include "augmentation.hpp"
+#include "device/flow.hpp"
+#include "device/pool_allocator.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 
@@ -37,7 +39,7 @@ public:
     this->name_ = "ResizeCenterCrop";
   }
 
-  void apply(const Tensor &data, const Tensor &labels) override {
+  void apply(Tensor &data, Tensor &labels) override {
     DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -91,46 +93,7 @@ private:
   }
 
   template <typename T>
-  void process_image(const Tensor &data, size_t b, size_t in_h, size_t in_w, size_t channels) {
-    // --- Step 1: compute resize dimensions ---
-    size_t resized_h, resized_w;
-    if (in_h <= in_w) {
-      resized_h = static_cast<size_t>(resize_short_side_);
-      resized_w = static_cast<size_t>(
-          std::round(static_cast<float>(in_w) * resize_short_side_ / static_cast<float>(in_h)));
-    } else {
-      resized_w = static_cast<size_t>(resize_short_side_);
-      resized_h = static_cast<size_t>(
-          std::round(static_cast<float>(in_h) * resize_short_side_ / static_cast<float>(in_w)));
-    }
-    // Guarantee the resized image is at least as large as the crop.
-    resized_w = std::max(resized_w, crop_w_);
-    resized_h = std::max(resized_h, crop_h_);
-
-    // Extract source slice into a temporary {1, in_h, in_w, C} tensor.
-    Tensor src_buf = make_tensor(data->data_type(), {1, in_h, in_w, channels}, data->device());
-    for (size_t h = 0; h < in_h; ++h)
-      for (size_t w = 0; w < in_w; ++w)
-        for (size_t c = 0; c < channels; ++c)
-          src_buf->at<T>({0, h, w, c}) = data->at<T>({b, h, w, c});
-
-    // --- Step 2: bilinear resize ---
-    Tensor resized_buf =
-        make_tensor(data->data_type(), {1, resized_h, resized_w, channels}, data->device());
-    bilinear_resize<T>(src_buf, in_h, in_w, resized_buf, resized_h, resized_w, channels);
-
-    // --- Step 3: centre-crop ---
-    const size_t cx = std::max<size_t>(0, (resized_w - crop_w_) / 2);
-    const size_t cy = std::max<size_t>(0, (resized_h - crop_h_) / 2);
-
-    for (size_t h = 0; h < crop_h_; ++h)
-      for (size_t w = 0; w < crop_w_; ++w)
-        for (size_t c = 0; c < channels; ++c)
-          data->at<T>({b, h, w, c}) = resized_buf->at<T>({0, cy + h, cx + w, c});
-  }
-
-  template <typename T>
-  void apply_impl(const Tensor &data, const Tensor & /*labels*/) {
+  void apply_impl(Tensor &data, Tensor & /*labels*/) {
     const auto shape = data->shape();
     if (shape.size() != 4) return;
 
@@ -139,8 +102,44 @@ private:
     const size_t in_w = shape[2];
     const size_t channels = shape[3];
 
-    parallel_for<size_t>(0, batch_size,
-                         [&](size_t b) { process_image<T>(data, b, in_h, in_w, channels); });
+    PoolAllocator &allocator = PoolAllocator::instance(data->device(), defaultFlowHandle);
+    Tensor output =
+        make_tensor(allocator, data->data_type(), {batch_size, crop_h_, crop_w_, channels});
+
+    parallel_for<size_t>(0, batch_size, [&](size_t b) {
+      size_t resized_h, resized_w;
+      if (in_h <= in_w) {
+        resized_h = static_cast<size_t>(resize_short_side_);
+        resized_w = static_cast<size_t>(
+            std::round(static_cast<float>(in_w) * resize_short_side_ / static_cast<float>(in_h)));
+      } else {
+        resized_w = static_cast<size_t>(resize_short_side_);
+        resized_h = static_cast<size_t>(
+            std::round(static_cast<float>(in_h) * resize_short_side_ / static_cast<float>(in_w)));
+      }
+      resized_w = std::max(resized_w, crop_w_);
+      resized_h = std::max(resized_h, crop_h_);
+
+      Tensor src_buf = make_tensor(allocator, data->data_type(), {1, in_h, in_w, channels});
+      for (size_t h = 0; h < in_h; ++h)
+        for (size_t w = 0; w < in_w; ++w)
+          for (size_t c = 0; c < channels; ++c)
+            src_buf->at<T>({0, h, w, c}) = data->at<T>({b, h, w, c});
+
+      Tensor resized_buf =
+          make_tensor(allocator, data->data_type(), {1, resized_h, resized_w, channels});
+      bilinear_resize<T>(src_buf, in_h, in_w, resized_buf, resized_h, resized_w, channels);
+
+      const size_t cx = std::max<size_t>(0, (resized_w - crop_w_) / 2);
+      const size_t cy = std::max<size_t>(0, (resized_h - crop_h_) / 2);
+
+      for (size_t h = 0; h < crop_h_; ++h)
+        for (size_t w = 0; w < crop_w_; ++w)
+          for (size_t c = 0; c < channels; ++c)
+            output->at<T>({b, h, w, c}) = resized_buf->at<T>({0, cy + h, cx + w, c});
+    });
+
+    data = std::move(output);
   }
 };
 

@@ -5,6 +5,8 @@
 #include <vector>
 
 #include "augmentation.hpp"
+#include "device/flow.hpp"
+#include "device/pool_allocator.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 
@@ -40,7 +42,7 @@ public:
     this->name_ = "RandomResizedCrop";
   }
 
-  void apply(const Tensor &data, const Tensor &labels) override {
+  void apply(Tensor &data, Tensor &labels) override {
     DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -152,7 +154,7 @@ private:
   }
 
   template <typename T>
-  void apply_impl(const Tensor &data, const Tensor & /*labels*/) {
+  void apply_impl(Tensor &data, Tensor & /*labels*/) {
     const auto shape = data->shape();
     if (shape.size() != 4) return;
 
@@ -161,26 +163,29 @@ private:
     const size_t in_w = shape[2];
     const size_t channels = shape[3];
 
-    // Sample crop params sequentially (rng_ is not thread-safe).
     std::vector<CropParams> params(batch_size);
     for (size_t b = 0; b < batch_size; ++b) {
       params[b] = sample_crop(static_cast<int>(in_w), static_cast<int>(in_h));
     }
 
-    // Allocate one scratch buffer per thread via the batch loop.
+    PoolAllocator &allocator = PoolAllocator::instance(data->device(), defaultFlowHandle);
+    Tensor output =
+        make_tensor(allocator, data->data_type(), {batch_size, out_h_, out_w_, channels});
+
     parallel_for<size_t>(0, batch_size, [&](size_t b) {
-      Tensor buf = make_tensor(data->data_type(), {1, out_h_, out_w_, channels}, data->device());
+      Tensor buf = make_tensor(allocator, data->data_type(), {1, out_h_, out_w_, channels});
       bilinear_resize_crop<T>(data, b, params[b], buf);
 
-      // Write result back into data at the correct batch slot.
       for (size_t h = 0; h < out_h_; ++h) {
         for (size_t w = 0; w < out_w_; ++w) {
           for (size_t c = 0; c < channels; ++c) {
-            data->at<T>({b, h, w, c}) = buf->at<T>({0, h, w, c});
+            output->at<T>({b, h, w, c}) = buf->at<T>({0, h, w, c});
           }
         }
       }
     });
+
+    data = std::move(output);
   }
 };
 

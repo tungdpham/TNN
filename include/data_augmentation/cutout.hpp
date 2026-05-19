@@ -20,7 +20,7 @@ public:
     this->name_ = "Cutout";
   }
 
-  void apply(const Tensor &data, const Tensor &labels) override {
+  void apply(Tensor &data, Tensor &labels) override {
     DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -33,7 +33,7 @@ private:
   int cutout_size_;
 
   template <typename T>
-  void apply_impl(const Tensor &data, const Tensor &labels) {
+  void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
 
     const auto shape = data->shape();

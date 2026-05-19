@@ -19,7 +19,7 @@ public:
   Augmentation() = default;
   virtual ~Augmentation() = default;
 
-  virtual void apply(const Tensor &data, const Tensor &labels) = 0;
+  virtual void apply(Tensor &data, Tensor &labels) = 0;
   virtual std::unique_ptr<Augmentation> clone() const = 0;
 
   void set_name(const std::string &name) { name_ = name; }
@@ -61,7 +61,7 @@ public:
   /**
    * Apply augmentations in the order they were added
    */
-  void apply(const Tensor &data, const Tensor &labels) {
+  void apply(Tensor &data, Tensor &labels) {
     for (auto &aug : augmentations_) {
       aug->apply(data, labels);
     }
