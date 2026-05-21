@@ -195,7 +195,6 @@ def main():
         default="single"
     )
 
-    parser.add_argument("--all-runs", action="store_true")
     parser.add_argument("--double-column", action="store_true")
 
     parser.add_argument("--xmax", type=float, default=None)
@@ -203,8 +202,8 @@ def main():
 
     args = parser.parse_args()
 
-    tnn = load_tnn(args.tnn, all_runs=args.all_runs)
-    torch = load_torch(args.torch, all_runs=args.all_runs)
+    tnn = load_tnn(args.tnn, all_runs=True)
+    torch = load_torch(args.torch, all_runs=True)
 
     tnn = add_smoothed_columns(tnn, args.smooth)
     torch = add_smoothed_columns(torch, args.smooth)

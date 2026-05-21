@@ -171,8 +171,6 @@ int main(int argc, char *argv[]) {
                                                    cosine_start_lr, cosine_eta_min)
           : SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
 
-  optimizer->set_learning_rate(train_config.lr_initial);
-
   std::cout << "Optimizer: " << optimizer->name() << ", lr:" << train_config.lr_initial
             << ", beta1:" << adam_beta1 << ", beta2:" << adam_beta2 << ", eps:" << adam_eps
             << ", weight_decay:" << weight_decay << ", scheduler:" << scheduler->name()
