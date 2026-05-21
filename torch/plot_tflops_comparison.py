@@ -7,17 +7,44 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import sys
 
 # ResNet50 FLOPs for training (forward + backward)
 FLOPS_PER_IMAGE_TRAIN = 12.3e9  # 12.3 GFLOPs per image
+
+def find_latest_tnn_log(logs_dir="logs"):
+    """Find the latest TNN batch log file matching pattern: tnn_imagenet100_resnet50_batch_*.csv"""
+    log_path = Path(logs_dir)
+    tnn_files = list(log_path.glob("tnn_imagenet100_resnet50_batch_*.csv"))
+    
+    if not tnn_files:
+        raise FileNotFoundError(f"No TNN log files found matching pattern 'tnn_imagenet100_resnet50_batch_*.csv' in {logs_dir}")
+    
+    # Sort by modification time and get the latest
+    latest_file = max(tnn_files, key=lambda p: p.stat().st_mtime)
+    print(f"✓ Using latest TNN log: {latest_file.name}")
+    return latest_file
+
+def find_latest_torch_log(logs_dir="logs"):
+    """Find the latest Torch metrics log file matching pattern: resnet50_imagenet100_*_rank0_metrics.csv"""
+    log_path = Path(logs_dir)
+    torch_files = list(log_path.glob("resnet50_imagenet100_*_rank0_metrics.csv"))
+    
+    if not torch_files:
+        raise FileNotFoundError(f"No Torch log files found matching pattern 'resnet50_imagenet100_*_rank0_metrics.csv' in {logs_dir}")
+    
+    # Sort by modification time and get the latest
+    latest_file = max(torch_files, key=lambda p: p.stat().st_mtime)
+    print(f"✓ Using latest Torch log: {latest_file.name}")
+    return latest_file
 
 def calculate_tflops(flops, time_seconds):
     """Calculate TFLOPS given FLOPs and time in seconds."""
     return flops / time_seconds / 1e12
 
 def load_tnn_data():
-    """Load TNN framework data (20260518_134111)."""
-    batch_file = Path("logs/tnn_imagenet100_resnet50_batch_20260518_134111.csv")
+    """Load TNN framework data from the latest batch log file."""
+    batch_file = find_latest_tnn_log()
     df = pd.read_csv(batch_file)
     
     batch_size = 128
@@ -41,8 +68,8 @@ def load_tnn_data():
     return df
 
 def load_torch_data():
-    """Load Torch distributed data (20260518_160631)."""
-    metrics_file = Path("logs/resnet50_imagenet100_20260518_160631_rank0_metrics.csv")
+    """Load Torch distributed data from the latest metrics log file."""
+    metrics_file = find_latest_torch_log()
     df = pd.read_csv(metrics_file)
     
     # Filter training batches only
