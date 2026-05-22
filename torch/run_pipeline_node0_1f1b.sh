@@ -35,7 +35,7 @@ torchrun \
   --node_rank=0 \
   --master_addr="${MASTER_ADDR}" \
   --master_port="${MASTER_PORT}" \
-  torch/torch_pipeline_parallel_1f1b_full.py \
+  torch/torch_pipeline_parallel_1f1b.py \
   --model "${MODEL}" \
   --micro-bs "${MICRO_BS}" \
   --seq-len "${SEQ_LEN}"
