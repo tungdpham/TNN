@@ -67,8 +67,8 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
 
     auto process_start = std::chrono::high_resolution_clock::now();
     // Select pipeline schedule. Async overlaps microbatches; sync disables overlap.
-    auto [loss, corrects] =
-        coordinator.async_train_batch(micro_batch_inputs, micro_batch_labels, criterion);
+    auto [loss, corrects] = coordinator.async_train_batch(
+        micro_batch_inputs, micro_batch_labels, criterion, config.gradient_accumulation_steps);
 
     double ppl = std::exp(static_cast<double>(loss));
 
@@ -240,8 +240,8 @@ inline void train_semi_async_step(Coordinator &coordinator,
 
     auto process_start = std::chrono::high_resolution_clock::now();
     // Select pipeline schedule. Async overlaps microbatches; sync disables overlap.
-    auto [loss, corrects] =
-        coordinator.async_train_batch(micro_batch_inputs, micro_batch_labels, criterion);
+    auto [loss, corrects] = coordinator.async_train_batch(
+        micro_batch_inputs, micro_batch_labels, criterion, config.gradient_accumulation_steps);
     double ppl = std::exp(static_cast<double>(loss));
 
     size_t class_samples = 1;
