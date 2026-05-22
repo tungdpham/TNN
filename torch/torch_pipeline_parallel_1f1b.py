@@ -18,11 +18,12 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as T
+from dotenv import load_dotenv
+load_dotenv()
 
 # =========================
 # Utils
 # =========================
-
 def ensure_dir(path: str | Path) -> Path:
     p = Path(path)
     p.mkdir(parents=True, exist_ok=True)
@@ -517,12 +518,12 @@ def _make_model_configs(seq_len=512, augmentation=True):
             "stage0_cls": lambda: GPT2Stage0(gpt_stage0_layers),
             "stage1_cls": lambda: GPT2Stage1(gpt_stage1_layers),
             "train_set": lambda: OpenWebTextBinDataset(
-                path=os.getenv("OPENWEBTEXT_TRAIN_BIN", "data/open-web-text-1pct/train.bin"),
+                path=os.getenv("OPENWEBTEXT_TRAIN_BIN", "data/open-web-text/train.bin"),
                 seq_len=seq_len,
                 dtype=os.getenv("OPENWEBTEXT_BIN_DTYPE", "uint16"),
             ),
             "test_set": lambda: OpenWebTextBinDataset(
-                path=os.getenv("OPENWEBTEXT_VAL_BIN", "data/open-web-text-1pct/val.bin"),
+                path=os.getenv("OPENWEBTEXT_VAL_BIN", "data/open-web-text/val.bin"),
                 seq_len=seq_len,
                 dtype=os.getenv("OPENWEBTEXT_BIN_DTYPE", "uint16"),
             ),
@@ -538,12 +539,12 @@ def _make_model_configs(seq_len=512, augmentation=True):
             "stage0_cls": lambda: GPT2Stage0(gpt_stage0_layers),
             "stage1_cls": lambda: GPT2Stage1(gpt_stage1_layers),
             "train_set": lambda: OpenWebTextBinDataset(
-                path=os.getenv("OPENWEBTEXT_TRAIN_BIN", "data/open-web-text-1pct/train.bin"),
+                path=os.getenv("OPENWEBTEXT_TRAIN_BIN", "data/open-web-text/train.bin"),
                 seq_len=seq_len,
                 dtype=os.getenv("OPENWEBTEXT_BIN_DTYPE", "uint16"),
             ),
             "test_set": lambda: OpenWebTextBinDataset(
-                path=os.getenv("OPENWEBTEXT_VAL_BIN", "data/open-web-text-1pct/val.bin"),
+                path=os.getenv("OPENWEBTEXT_VAL_BIN", "data/open-web-text/val.bin"),
                 seq_len=seq_len,
                 dtype=os.getenv("OPENWEBTEXT_BIN_DTYPE", "uint16"),
             ),
@@ -558,12 +559,12 @@ def _make_model_configs(seq_len=512, augmentation=True):
             "stage0_cls": lambda: GPT2Stage0(gpt_stage0_layers),
             "stage1_cls": lambda: GPT2Stage1(gpt_stage1_layers),
             "train_set": lambda: OpenWebTextBinDataset(
-                path=os.getenv("OPENWEBTEXT_TRAIN_BIN", "data/open-web-text-1pct/train.bin"),
+                path=os.getenv("OPENWEBTEXT_TRAIN_BIN", "data/open-web-text/train.bin"),
                 seq_len=seq_len,
                 dtype=os.getenv("OPENWEBTEXT_BIN_DTYPE", "uint16"),
             ),
             "test_set": lambda: OpenWebTextBinDataset(
-                path=os.getenv("OPENWEBTEXT_VAL_BIN", "data/open-web-text-1pct/val.bin"),
+                path=os.getenv("OPENWEBTEXT_VAL_BIN", "data/open-web-text/val.bin"),
                 seq_len=seq_len,
                 dtype=os.getenv("OPENWEBTEXT_BIN_DTYPE", "uint16"),
             ),
