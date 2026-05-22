@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 import argparse
+import glob
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+
+
+def find_latest(log_dir: str, pattern: str) -> str | None:
+    """Return the most-recently-timestamped file matching the glob pattern."""
+    matches = sorted(glob.glob(os.path.join(log_dir, pattern)))
+    return matches[-1] if matches else None
 
 
 def smooth(s, k):
@@ -124,22 +131,22 @@ def plot_combined(tnn, torch, tnn_val, torch_val, out, double_column, xmax, ymax
     # Set common x-axis limits if specified
     xlim = (0, xmax) if xmax is not None else None
 
-    # Subplot 1: Average Training Loss
+    # Subplot 1: Rolling Training Loss
     ax1.plot(
         tnn["global_step"],
-        tnn["avg_loss_s"],
+        tnn["batch_loss_s"],
         label="TNN",
         color='#1f77b4'
     )
     ax1.plot(
         torch["global_step"],
-        torch["avg_loss_s"],
+        torch["batch_loss_s"],
         label="PyTorch",
         color='#ff7f0e'
     )
     ax1.set_xlabel("Training Step")
-    ax1.set_ylabel("Average Loss")
-    ax1.set_title("(a) Training Loss Comparison")
+    ax1.set_ylabel("Rolling Loss")
+    ax1.set_title("(a) Training Loss")
     if xlim:
         ax1.set_xlim(xlim)
     if ymax is not None:
@@ -268,11 +275,12 @@ def add_smoothed_columns(df, smooth_k):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--tnn", required=True, help="TNN batch training metrics CSV")
-    parser.add_argument("--torch", required=True, help="PyTorch batch training metrics CSV")
-    parser.add_argument("--tnn-val", required=False, help="TNN validation metrics CSV (epoch-level)")
-    parser.add_argument("--torch-val", required=False, help="PyTorch epoch summary CSV")
-    parser.add_argument("--out", required=True)
+    parser.add_argument("--tnn", default=None, help="TNN batch training metrics CSV (auto-detected if omitted)")
+    parser.add_argument("--torch", default=None, help="PyTorch batch training metrics CSV (auto-detected if omitted)")
+    parser.add_argument("--tnn-val", default=None, help="TNN epoch-level validation CSV (auto-detected if omitted)")
+    parser.add_argument("--torch-val", default=None, help="PyTorch epoch summary CSV (auto-detected if omitted)")
+    parser.add_argument("--out", default=None, help="Output image path (default: plots/resnet50_comparison.png)")
+    parser.add_argument("--log-dir", default="logs", help="Directory to search for CSV logs (default: logs)")
 
     parser.add_argument("--smooth", type=int, default=1)
     parser.add_argument("--double-column", action="store_true")
@@ -281,6 +289,37 @@ def main():
     parser.add_argument("--ymax", type=float, default=None)
 
     args = parser.parse_args()
+
+    log_dir = args.log_dir
+
+    # Auto-detect latest log files when paths are not explicitly provided
+    if args.tnn is None:
+        args.tnn = find_latest(log_dir, "tnn_*resnet50*batch*.csv")
+        if args.tnn:
+            print(f"Auto-detected TNN batch CSV: {args.tnn}")
+        else:
+            raise FileNotFoundError(f"No TNN ResNet-50 batch CSV found in '{log_dir}'. Pass --tnn explicitly.")
+
+    if args.torch is None:
+        args.torch = find_latest(log_dir, "resnet50_*rank0_metrics.csv")
+        if args.torch:
+            print(f"Auto-detected PyTorch metrics CSV: {args.torch}")
+        else:
+            raise FileNotFoundError(f"No PyTorch ResNet-50 metrics CSV found in '{log_dir}'. Pass --torch explicitly.")
+
+    if args.tnn_val is None:
+        args.tnn_val = find_latest(log_dir, "tnn_*resnet50*epoch*.csv")
+        if args.tnn_val:
+            print(f"Auto-detected TNN val CSV: {args.tnn_val}")
+
+    if args.torch_val is None:
+        args.torch_val = find_latest(log_dir, "resnet50_*rank0_epoch_summary.csv")
+        if args.torch_val:
+            print(f"Auto-detected PyTorch epoch summary CSV: {args.torch_val}")
+
+    if args.out is None:
+        os.makedirs("plots", exist_ok=True)
+        args.out = os.path.join("plots", "resnet50_comparison.png")
 
     tnn = load_tnn(args.tnn, all_runs=True)
     torch = load_torch(args.torch, all_runs=True)
