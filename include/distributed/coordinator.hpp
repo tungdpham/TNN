@@ -176,7 +176,7 @@ public:
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
   Result async_train_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
-                           const std::unique_ptr<Loss> &criterion) {
+                           const std::unique_ptr<Loss> &criterion, size_t accumulation_steps = 1) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
       throw std::runtime_error("Mismatched number of inputs and labels in async_train_batch");
     }
@@ -215,7 +215,7 @@ public:
           Tensor grad_output =
               make_tensor(allocator, predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, device_targets, grad_output);
-          grad_output->mul_scalar(1.0 / num_microbatches);
+          grad_output->mul_scalar(1.0 / (num_microbatches * accumulation_steps));
           backward(std::move(grad_output), job.mb_id);
         } else {
           throw std::runtime_error("Unexpected message type in FORWARD_JOB");
@@ -290,7 +290,7 @@ public:
    *   forward -> wait output -> loss/grad -> backward -> wait backward complete.
    */
   Result sync_train_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
-                          const std::unique_ptr<Loss> &criterion) {
+                          const std::unique_ptr<Loss> &criterion, size_t accumulation_steps = 1) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
       throw std::runtime_error("Mismatched number of inputs and labels in sync_train_batch");
     }
@@ -342,7 +342,7 @@ public:
       PoolAllocator &allocator = PoolAllocator::instance(predictions->device(), defaultFlowHandle);
       Tensor grad_output = make_tensor(allocator, predictions->data_type(), predictions->shape());
       criterion->compute_gradient(predictions, device_targets, grad_output);
-      grad_output->mul_scalar(1.0 / num_microbatches);
+      grad_output->mul_scalar(1.0 / (num_microbatches * accumulation_steps));
 
       backward(std::move(grad_output), i);
 

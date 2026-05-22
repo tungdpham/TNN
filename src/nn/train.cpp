@@ -294,6 +294,10 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
 
     predictions = nullptr;  // free prediction buffer early
 
+    if (config.gradient_accumulation_steps > 1) {
+      loss_gradient->mul_scalar(1.0 / config.gradient_accumulation_steps);
+    }
+
     Tensor backward_output = make_tensor(mem_pool, batch_data->data_type(), batch_data->shape());
 
     const InputPack grad_inputs{
@@ -524,6 +528,9 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       OutputPack grad_inputs{
           {"input", &backward_output},
       };
+      if (config.gradient_accumulation_steps > 1) {
+        loss_gradient->mul_scalar(1.0 / config.gradient_accumulation_steps);
+      }
       executor.backward(grad_outputs, grad_inputs);
 
       backward_output = nullptr;  // free backward output buffer early
