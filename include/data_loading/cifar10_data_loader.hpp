@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include <numeric>
 #include <string>
@@ -65,8 +66,18 @@ private:
   IAllocator &allocator_;
   DType_t dtype_ = DType_t::FP32;
 
-  Vec<std::string> class_names_ = {"airplane", "automobile", "bird",  "cat",  "deer",
-                                   "dog",      "frog",       "horse", "ship", "truck"};
+  Vec<std::string> class_names_;
+
+  static Vec<std::string> load_names_from_file(const std::string &path) {
+    Vec<std::string> names;
+    std::ifstream f(path);
+    if (!f.is_open()) return names;
+    std::string line;
+    while (std::getline(f, line)) {
+      if (!line.empty()) names.push_back(line);
+    }
+    return names;
+  }
 
   void cleanup_maps() {
     for (auto &mf : mapped_files_) mf.unmap();
@@ -195,6 +206,12 @@ public:
    */
   bool load_multiple_files(const Vec<std::string> &filenames) { return load_files_impl(filenames); }
 
+  void set_label_file(const std::string &path) {
+    class_names_ = load_names_from_file(path);
+    if (class_names_.empty())
+      std::cerr << "Warning: could not read class names from " << path << std::endl;
+  }
+
   bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
     DISPATCH_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
   }
@@ -252,6 +269,10 @@ public:
 
   static void create(const std::string &data_path, CIFAR10DataLoader &train_loader,
                      CIFAR10DataLoader &test_loader) {
+    const std::string label_file = data_path + "/cifar-10-batches-bin/batches.meta.txt";
+    train_loader.set_label_file(label_file);
+    test_loader.set_label_file(label_file);
+
     if (!train_loader.load_multiple_files({data_path + "/cifar-10-batches-bin/data_batch_1.bin",
                                            data_path + "/cifar-10-batches-bin/data_batch_2.bin",
                                            data_path + "/cifar-10-batches-bin/data_batch_3.bin",
