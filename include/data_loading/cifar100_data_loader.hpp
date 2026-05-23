@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <numeric>
 #include <string>
@@ -60,49 +61,22 @@ private:
   Vec<std::pair<size_t, size_t>> sample_map_;
   // Access order — shuffled in-place; current_index_ indexes into this
   Vec<size_t> access_order_;
+  Vec<std::string> fine_class_names_;
+  Vec<std::string> coarse_class_names_;
   bool use_coarse_labels_;
   IAllocator &allocator_;
   DType_t dtype_ = DType_t::FP32;
 
-  Vec<std::string> fine_class_names_ = {
-      "apple",       "aquarium_fish", "baby",      "bear",       "beaver",       "bed",
-      "bee",         "beetle",        "bicycle",   "bottle",     "bowl",         "boy",
-      "bridge",      "bus",           "butterfly", "camel",      "can",          "castle",
-      "caterpillar", "cattle",        "chair",     "chimpanzee", "clock",        "cloud",
-      "cockroach",   "couch",         "crab",      "crocodile",  "cup",          "dinosaur",
-      "dolphin",     "elephant",      "flatfish",  "forest",     "fox",          "girl",
-      "hamster",     "house",         "kangaroo",  "keyboard",   "lamp",         "lawn_mower",
-      "leopard",     "lion",          "lizard",    "lobster",    "man",          "maple_tree",
-      "motorcycle",  "mountain",      "mouse",     "mushroom",   "oak_tree",     "orange",
-      "orchid",      "otter",         "palm_tree", "pear",       "pickup_truck", "pine_tree",
-      "plain",       "plate",         "poppy",     "porcupine",  "possum",       "rabbit",
-      "raccoon",     "ray",           "road",      "rocket",     "rose",         "sea",
-      "seal",        "shark",         "shrew",     "skunk",      "skyscraper",   "snail",
-      "snake",       "spider",        "squirrel",  "streetcar",  "sunflower",    "sweet_pepper",
-      "table",       "tank",          "telephone", "television", "tiger",        "tractor",
-      "train",       "trout",         "tulip",     "turtle",     "wardrobe",     "whale",
-      "willow_tree", "wolf",          "woman",     "worm"};
-
-  Vec<std::string> coarse_class_names_ = {"aquatic_mammals",
-                                          "fish",
-                                          "flowers",
-                                          "food_containers",
-                                          "fruit_and_vegetables",
-                                          "household_electrical_devices",
-                                          "household_furniture",
-                                          "insects",
-                                          "large_carnivores",
-                                          "large_man-made_outdoor_things",
-                                          "large_natural_outdoor_scenes",
-                                          "large_omnivores_and_herbivores",
-                                          "medium_mammals",
-                                          "non-insect_invertebrates",
-                                          "people",
-                                          "reptiles",
-                                          "small_mammals",
-                                          "trees",
-                                          "vehicles_1",
-                                          "vehicles_2"};
+  static Vec<std::string> load_names_from_file(const std::string &path) {
+    Vec<std::string> names;
+    std::ifstream f(path);
+    if (!f.is_open()) return names;
+    std::string line;
+    while (std::getline(f, line)) {
+      if (!line.empty()) names.push_back(line);
+    }
+    return names;
+  }
 
   void cleanup_maps() {
     for (auto &mf : mapped_files_) mf.unmap();
@@ -229,6 +203,15 @@ public:
    */
   bool load_multiple_files(const Vec<std::string> &filenames) { return load_files_impl(filenames); }
 
+  void set_label_files(const std::string &fine_path, const std::string &coarse_path) {
+    fine_class_names_ = load_names_from_file(fine_path);
+    if (fine_class_names_.empty())
+      std::cerr << "Warning: could not read fine class names from " << fine_path << std::endl;
+    coarse_class_names_ = load_names_from_file(coarse_path);
+    if (coarse_class_names_.empty())
+      std::cerr << "Warning: could not read coarse class names from " << coarse_path << std::endl;
+  }
+
   bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
     DISPATCH_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
   }
@@ -291,6 +274,11 @@ public:
 
   static void create(const std::string &data_path, CIFAR100DataLoader &train_loader,
                      CIFAR100DataLoader &test_loader) {
+    const std::string fine_labels = data_path + "/cifar-100-binary/fine_label_names.txt";
+    const std::string coarse_labels = data_path + "/cifar-100-binary/coarse_label_names.txt";
+    train_loader.set_label_files(fine_labels, coarse_labels);
+    test_loader.set_label_files(fine_labels, coarse_labels);
+
     if (!train_loader.load_data(data_path + "/cifar-100-binary/train.bin")) {
       throw std::runtime_error("Failed to load training data!");
     }
