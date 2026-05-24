@@ -252,6 +252,10 @@ class ResNet9Stage0(nn.Module):
         self.maxpool = nn.MaxPool2d(2, 2)
         self.res1 = _BasicResidualBlock(128)
         self.res2 = _BasicResidualBlock(128)
+        self.conv3 = nn.Conv2d(128, 256, 3, padding=1, bias=True)
+        self.bn3 = nn.BatchNorm2d(256)
+        self.maxpool2 = nn.MaxPool2d(2, 2)
+        self.res3 = _BasicResidualBlock(256)
 
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)), inplace=True)
@@ -259,15 +263,14 @@ class ResNet9Stage0(nn.Module):
         x = self.maxpool(x)
         x = self.res1(x)
         x = self.res2(x)
+        x = F.relu(self.bn3(self.conv3(x)), inplace=True)
+        x = self.maxpool2(x)
+        x = self.res3(x)
         return x
 
 class ResNet9Stage1(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv3 = nn.Conv2d(128, 256, 3, padding=1, bias=True)
-        self.bn3 = nn.BatchNorm2d(256)
-        self.maxpool2 = nn.MaxPool2d(2, 2)
-        self.res3 = _BasicResidualBlock(256)
         self.res4 = _BasicResidualBlock(256)
         self.conv4 = nn.Conv2d(256, 512, 3, padding=1, bias=True)
         self.bn4 = nn.BatchNorm2d(512)
@@ -278,9 +281,6 @@ class ResNet9Stage1(nn.Module):
         self.fc = nn.Linear(512, 10)
 
     def forward(self, x):
-        x = F.relu(self.bn3(self.conv3(x)), inplace=True)
-        x = self.maxpool2(x)
-        x = self.res3(x)
         x = self.res4(x)
         x = F.relu(self.bn4(self.conv4(x)), inplace=True)
         x = self.maxpool3(x)
@@ -327,21 +327,23 @@ class ResNet50TinyStage0(nn.Module):
             _BottleneckBlock(512, 128, 512, stride=1),
             _BottleneckBlock(512, 128, 512, stride=1),
             _BottleneckBlock(512, 128, 512, stride=1))
+        self.layer3 = nn.Sequential(
+            _BottleneckBlock(512, 256, 1024, stride=2),
+            _BottleneckBlock(1024, 256, 1024, stride=1),
+            _BottleneckBlock(1024, 256, 1024, stride=1),
+            _BottleneckBlock(1024, 256, 1024, stride=1))
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)), inplace=True)
         x = self.maxpool(x)
         x = self.layer1(x)
         x = self.layer2(x)
+        x = self.layer3(x)
         return x
 
 class ResNet50TinyStage1(nn.Module):
     def __init__(self):
         super().__init__()
         self.layer3 = nn.Sequential(
-            _BottleneckBlock(512, 256, 1024, stride=2),
-            _BottleneckBlock(1024, 256, 1024, stride=1),
-            _BottleneckBlock(1024, 256, 1024, stride=1),
-            _BottleneckBlock(1024, 256, 1024, stride=1),
             _BottleneckBlock(1024, 256, 1024, stride=1),
             _BottleneckBlock(1024, 256, 1024, stride=1))
         self.layer4 = nn.Sequential(
@@ -372,21 +374,23 @@ class ResNet50ImgNet100Stage0(nn.Module):
             _BottleneckBlock(512, 128, 512, stride=1),
             _BottleneckBlock(512, 128, 512, stride=1),
             _BottleneckBlock(512, 128, 512, stride=1))
+        self.layer3 = nn.Sequential(
+            _BottleneckBlock(512, 256, 1024, stride=2),
+            _BottleneckBlock(1024, 256, 1024, stride=1),
+            _BottleneckBlock(1024, 256, 1024, stride=1),
+            _BottleneckBlock(1024, 256, 1024, stride=1))
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)), inplace=True)
         x = self.maxpool(x)
         x = self.layer1(x)
         x = self.layer2(x)
+        x = self.layer3(x)
         return x
 
 class ResNet50ImgNet100Stage1(nn.Module):
     def __init__(self):
         super().__init__()
         self.layer3 = nn.Sequential(
-            _BottleneckBlock(512, 256, 1024, stride=2),
-            _BottleneckBlock(1024, 256, 1024, stride=1),
-            _BottleneckBlock(1024, 256, 1024, stride=1),
-            _BottleneckBlock(1024, 256, 1024, stride=1),
             _BottleneckBlock(1024, 256, 1024, stride=1),
             _BottleneckBlock(1024, 256, 1024, stride=1))
         self.layer4 = nn.Sequential(
@@ -485,7 +489,7 @@ class GPT2Stage1(nn.Module):
 def _make_model_configs(seq_len=512, augmentation=True):
     cifar10_root = os.getenv("CIFAR10_BIN_ROOT", "data/cifar-10-batches-bin")
     imgnet100_root = os.getenv("IMAGENET100_ROOT", "data/imagenet-100")
-    gpt_stage0_layers = int(os.getenv("GPT2_STAGE0_LAYERS", "6"))
+    gpt_stage0_layers = int(os.getenv("GPT2_STAGE0_LAYERS", "8"))
     gpt_stage1_layers = _GPT2_NUM_LAYERS - gpt_stage0_layers
     imagenet100_train_transform = _imagenet100_train_transform if augmentation else _imagenet100_test_transform
     return {
@@ -494,7 +498,7 @@ def _make_model_configs(seq_len=512, augmentation=True):
             "stage1_cls": ResNet9Stage1,
             "train_set": lambda: CIFAR10Bin(cifar10_root, train=True, transform=_cifar10_transform),
             "test_set": lambda: CIFAR10Bin(cifar10_root, train=False, transform=_cifar10_transform),
-            "act_tail": (128, 16, 16),
+            "act_tail": (256, 8, 8),
             "batch_size": int(os.getenv("BATCH_SIZE", "128")),
             "epochs": int(os.getenv("EPOCHS", "10")),
             "lr": float(os.getenv("LR_INITIAL", "0.001")),
@@ -507,7 +511,7 @@ def _make_model_configs(seq_len=512, augmentation=True):
             "stage1_cls": ResNet50ImgNet100Stage1,
             "train_set": lambda: ImageNet100Dataset(imgnet100_root, train=True, transform=imagenet100_train_transform),
             "test_set": lambda: ImageNet100Dataset(imgnet100_root, train=False, transform=_imagenet100_test_transform),
-            "act_tail": (512, 28, 28),
+            "act_tail": (1024, 14, 14),
             "batch_size": int(os.getenv("BATCH_SIZE", "128")),
             "epochs": int(os.getenv("EPOCHS", "2")),
             "lr": float(os.getenv("LR_INITIAL", "0.0001")),
