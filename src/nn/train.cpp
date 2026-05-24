@@ -7,31 +7,52 @@
 
 #include "nn/train.hpp"
 
+#include <fmt/core.h>
+#include <fmt/ranges.h>
+
+#include <cctype>
 #include <chrono>
 #include <cstddef>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 
+#include "data_loading/batch_prefetcher.hpp"
+#include "device/del_allocator_v2.hpp"
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
-#include "nn/accuracy.hpp"
+#include "nn/csv_logger.hpp"
 #include "nn/graph_executor.hpp"
+#include "nn/metrics.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "type/type.hpp"
 #include "utils/env.hpp"
-#include "utils/memory.hpp"
 
 using namespace std;
 
 namespace tnn {
+
+static std::string normalize_train_mode(std::string mode) {
+  for (char &c : mode) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  }
+  if (mode == "epoch" || mode == "batch" || mode == "auto") {
+    return mode;
+  }
+  std::cerr << "Warning: invalid TRAIN_MODE/TNN_TRAIN_MODE=\"" << mode
+            << "\". Expected epoch, batch, or auto. Falling back to auto." << std::endl;
+  return "auto";
+}
+
 void TrainingConfig::print_config() const {
   cout << "Training Configuration:" << endl;
   cout << "  Epochs: " << epochs << endl;
   cout << "  Batch Size: " << batch_size << endl;
   cout << "  Max Steps: " << max_steps << endl;
+  cout << "  Train Mode: " << train_mode << endl;
   cout << "  Initial Learning Rate: " << lr_initial << endl;
   cout << "  Gradient Accumulation Steps: " << gradient_accumulation_steps << endl;
   cout << "  Progress Print Interval (batches): " << progress_print_interval << endl;
@@ -45,17 +66,25 @@ void TrainingConfig::print_config() const {
   cout << "  Print Layer Memory Usage: " << (print_layer_memory_usage ? "Yes" : "No") << endl;
   cout << "  Number of Microbatches: " << num_microbatches << endl;
   cout << "  Device Type: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
+  cout << "  Data Prefetch: " << (prefetch_data ? "Yes" : "No") << endl;
+  cout << "  Prefetch Depth: " << prefetch_depth << endl;
+  cout << "  Async Pipeline Flag: " << (async_pipeline ? "Yes" : "No") << endl;
+  cout << "  Augmentation: " << (augmentation ? "Yes" : "No") << endl;
 }
 
 void TrainingConfig::load_from_env() {
   // Get training parameters from environment or use defaults
-  epochs = Env::get<int>("EPOCHS", DEFAULT_EPOCH);
-  batch_size = Env::get<size_t>("BATCH_SIZE", DEFAULT_BATCH_SIZE);
-  max_steps = Env::get<uint64_t>("MAX_STEPS", -1);  // -1 for no limit
-  lr_initial = Env::get<float>("LR_INITIAL", 0.001f);
-  gradient_accumulation_steps = Env::get<int>("GRADIENT_ACCUMULATION_STEPS", 1);
-  progress_print_interval = Env::get<int>("PROGRESS_PRINT_INTERVAL", DEFAULT_PRINT_INTERVAL);
-  string profiler_type_str = Env::get<string>("PROFILER_TYPE", "NONE");
+  Env::get("EPOCHS", epochs);
+  Env::get("BATCH_SIZE", batch_size);
+  Env::get("MAX_STEPS", max_steps);
+  Env::get("TNN_TRAIN_MODE", train_mode);
+  Env::get("TRAIN_MODE", train_mode);
+  train_mode = normalize_train_mode(train_mode);
+  Env::get("LR_INITIAL", lr_initial);
+  Env::get("GRADIENT_ACCUMULATION_STEPS", gradient_accumulation_steps);
+  Env::get("PROGRESS_PRINT_INTERVAL", progress_print_interval);
+  string profiler_type_str = "NONE";
+  Env::get("PROFILER_TYPE", profiler_type_str);
   if (profiler_type_str == "NORMAL") {
     profiler_type = ProfilerType::NORMAL;
   } else if (profiler_type_str == "CUMULATIVE") {
@@ -63,22 +92,48 @@ void TrainingConfig::load_from_env() {
   } else {
     profiler_type = ProfilerType::NONE;
   }
-  num_threads = Env::get<int64_t>("NUM_THREADS", DEFAULT_NUM_THREADS);
-  print_layer_profiling = Env::get<bool>("PRINT_LAYER_PROFILING", false);
-  print_layer_memory_usage = Env::get<bool>("PRINT_LAYER_MEMORY_USAGE", false);
-  num_microbatches = Env::get<size_t>("NUM_MICROBATCHES", 2);
-  string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
+  Env::get("NUM_THREADS", num_threads);
+  Env::get("PRINT_LAYER_PROFILING", print_layer_profiling);
+  Env::get("PRINT_LAYER_MEMORY_USAGE", print_layer_memory_usage);
+  Env::get("NUM_MICROBATCHES", num_microbatches);
+  string device_type_str = "CPU";
+  Env::get("DEVICE_TYPE", device_type_str);
   device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
-  model_name = Env::get<string>("MODEL_NAME", model_name);
-  model_path = Env::get<string>("MODEL_PATH", model_path);
-  dataset_name = Env::get<string>("DATASET_NAME", dataset_name);
-  dataset_path = Env::get<string>("DATASET_PATH", dataset_path);
-  string io_dtype_str = Env::get<string>("IO_DTYPE", dtype_to_string(io_dtype));
+  Env::get("MODEL_NAME", model_name);
+  Env::get("MODEL_PATH", model_path);
+  Env::get("DATASET_NAME", dataset_name);
+  Env::get("DATASET_PATH", dataset_path);
+  string io_dtype_str = dtype_to_string(io_dtype);
+  Env::get("IO_DTYPE", io_dtype_str);
   io_dtype = string_to_dtype(io_dtype_str);
-  string param_dtype_str = Env::get<string>("PARAM_DTYPE", dtype_to_string(param_dtype));
+  string param_dtype_str = dtype_to_string(param_dtype);
+  Env::get("PARAM_DTYPE", param_dtype_str);
   param_dtype = string_to_dtype(param_dtype_str);
-  string compute_dtype_str = Env::get<string>("COMPUTE_DTYPE", dtype_to_string(compute_dtype));
+  string compute_dtype_str = dtype_to_string(compute_dtype);
+  Env::get("COMPUTE_DTYPE", compute_dtype_str);
   compute_dtype = string_to_dtype(compute_dtype_str);
+
+  // Ablation flags. Prefer TNN_* names, but also accept legacy short names.
+  Env::get("TNN_PREFETCH_DATA", prefetch_data);
+  Env::get("PREFETCH_DATA", prefetch_data);
+  Env::get("TNN_PREFETCH_DEPTH", prefetch_depth);
+  Env::get("PREFETCH_DEPTH", prefetch_depth);
+  Env::get("TNN_ASYNC_PIPELINE", async_pipeline);
+  Env::get("ASYNC_PIPELINE", async_pipeline);
+  Env::get("TNN_AUGMENTATION", augmentation);
+  Env::get("AUGMENTATION", augmentation);
+
+  // Parse LogMode settings
+  Env::get("LOG_LOSS", log_mode.log_loss);
+  Env::get("LOG_ACCURACY", log_mode.log_accuracy);
+  Env::get("LOG_PRECISION", log_mode.log_precision);
+  Env::get("LOG_RECALL", log_mode.log_recall);
+  Env::get("LOG_F1_SCORE", log_mode.log_f1_score);
+  Env::get("LOG_PERPLEXITY", log_mode.log_perplexity);
+  Env::get("LOG_TOP_K_ACCURACY", log_mode.log_top_k_accuracy);
+  Env::get("LOG_MAE", log_mode.log_mae);
+  Env::get("LOG_MSE", log_mode.log_mse);
+  Env::get("LOG_RMSE", log_mode.log_rmse);
 }
 
 void TrainingConfig::load_from_json(const string &config_path) {
@@ -94,6 +149,7 @@ void TrainingConfig::load_from_json(const string &config_path) {
   epochs = config.value("epochs", epochs);
   batch_size = config.value("batch_size", batch_size);
   max_steps = config.value("max_steps", max_steps);
+  train_mode = normalize_train_mode(config.value("train_mode", train_mode));
   lr_initial = config.value("lr_initial", lr_initial);
   gradient_accumulation_steps =
       config.value("gradient_accumulation_steps", gradient_accumulation_steps);
@@ -124,16 +180,39 @@ void TrainingConfig::load_from_json(const string &config_path) {
   param_dtype = string_to_dtype(param_dtype_str);
   string compute_dtype_str = config.value("compute_dtype", dtype_to_string(compute_dtype));
   compute_dtype = string_to_dtype(compute_dtype_str);
+
+  prefetch_data = config.value("prefetch_data", prefetch_data);
+  prefetch_depth = config.value("prefetch_depth", prefetch_depth);
+  async_pipeline = config.value("async_pipeline", async_pipeline);
+  augmentation = config.value("augmentation", augmentation);
+
+  // Parse LogMode settings from JSON
+  if (config.contains("log_mode")) {
+    auto log_config = config["log_mode"];
+    log_mode.log_loss = log_config.value("log_loss", log_mode.log_loss);
+    log_mode.log_accuracy = log_config.value("log_accuracy", log_mode.log_accuracy);
+    log_mode.log_precision = log_config.value("log_precision", log_mode.log_precision);
+    log_mode.log_recall = log_config.value("log_recall", log_mode.log_recall);
+    log_mode.log_f1_score = log_config.value("log_f1_score", log_mode.log_f1_score);
+    log_mode.log_perplexity = log_config.value("log_perplexity", log_mode.log_perplexity);
+    log_mode.log_top_k_accuracy =
+        log_config.value("log_top_k_accuracy", log_mode.log_top_k_accuracy);
+    log_mode.log_mae = log_config.value("log_mae", log_mode.log_mae);
+    log_mode.log_mse = log_config.value("log_mse", log_mode.log_mse);
+    log_mode.log_rmse = log_config.value("log_rmse", log_mode.log_rmse);
+  }
 }
 
 static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
                           unique_ptr<Optimizer> &optimizer, const unique_ptr<Loss> &criterion,
-                          unique_ptr<Scheduler> &scheduler, const TrainingConfig &config) {
+                          unique_ptr<Scheduler> &scheduler, const TrainingConfig &config,
+                          CsvLogger &logger, int epoch) {
   auto train_start = chrono::high_resolution_clock::now();
   Tensor batch_data, batch_labels;
   const Device &model_device = graph.device();
-  PoolAllocator &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
-  GraphExecutor executor(graph, mem_pool);
+  auto &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
+  auto ws_allocator = DELAllocatorV2::instance(model_device, defaultFlowHandle);
+  GraphExecutor executor(graph, ws_allocator);
 
   cout << "Starting training epoch..." << endl;
   graph.set_training(true);
@@ -141,48 +220,91 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
   train_loader->reset();
 
   float total_loss = 0.0;
-  double total_corrects = 0.0;
-  size_t cur_samples = 0;
+  int total_corrects = 0;
+  size_t total_class_num = 0;
   int num_batches = 0;
   int grad_accum_counter = 0;
 
+  std::unique_ptr<BatchPrefetcher> prefetcher;
+  if (config.prefetch_data) {
+    prefetcher =
+        std::make_unique<BatchPrefetcher>(*train_loader, config.batch_size, config.prefetch_depth);
+    prefetcher->start();
+    cout << "Data prefetching enabled. Depth: " << config.prefetch_depth << endl;
+  }
+
+  auto get_next = [&](Tensor &data, Tensor &labels) -> bool {
+    if (prefetcher) {
+      return prefetcher->next(data, labels);
+    }
+    return train_loader->get_batch(config.batch_size, data, labels);
+  };
+
   cout << "Training batches: " << train_loader->size() << endl;
-  while (train_loader->get_batch(config.batch_size, batch_data, batch_labels) &&
+  while (get_next(batch_data, batch_labels) &&
          (config.max_steps == -1 || num_batches < config.max_steps)) {
     auto batch_start = chrono::high_resolution_clock::now();
     ++num_batches;
-    cur_samples += batch_data->dimension(0);
     auto device_labels = batch_labels->to_device(model_device);
 
     Tensor predictions = make_tensor(mem_pool, batch_data->data_type());
 
     const InputPack inputs{
-        {"input", batch_data},
+        {"input", &batch_data},
     };
     OutputPack outputs{
-        {"output", predictions},
+        {"output", &predictions},
     };
 
     executor.forward(inputs, outputs);
+
+    size_t batch_size = 1;
+    for (size_t i = 0; i < predictions->dims() - 1; ++i) {
+      batch_size *= predictions->shape()[i];
+    }
+    total_class_num += batch_size;
 
     float loss;
     criterion->compute_loss(predictions, device_labels, loss);
     total_loss += loss;
 
-    total_corrects += compute_class_corrects(predictions, device_labels);
+    int batch_corrects = compute_class_corrects(predictions, device_labels);
+    total_corrects += batch_corrects;
+
+    // Compute additional metrics before freeing predictions
+    std::unordered_map<std::string, double> batch_metrics;
+    if (config.log_mode.log_precision) {
+      batch_metrics["precision"] = compute_precision(predictions, device_labels);
+    }
+    if (config.log_mode.log_recall) {
+      batch_metrics["recall"] = compute_recall(predictions, device_labels);
+    }
+    if (config.log_mode.log_f1_score) {
+      batch_metrics["f1_score"] = compute_f1_score(predictions, device_labels);
+    }
+    if (config.log_mode.log_perplexity) {
+      batch_metrics["perplexity"] = std::exp(static_cast<double>(loss));
+    }
+    if (config.log_mode.log_top_k_accuracy) {
+      batch_metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_labels, 5);
+    }
 
     Tensor loss_gradient = make_tensor(mem_pool, batch_data->data_type(), predictions->shape());
     criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
     predictions = nullptr;  // free prediction buffer early
 
+    if (config.gradient_accumulation_steps > 1) {
+      loss_gradient->mul_scalar(1.0 / config.gradient_accumulation_steps);
+    }
+
     Tensor backward_output = make_tensor(mem_pool, batch_data->data_type(), batch_data->shape());
 
     const InputPack grad_inputs{
-        {"output", loss_gradient},
+        {"output", &loss_gradient},
     };
     OutputPack grad_outputs{
-        {"input", backward_output},
+        {"input", &backward_output},
     };
     executor.backward(grad_inputs, grad_outputs);
 
@@ -199,16 +321,38 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
     }
     model_device.getFlow(defaultFlowHandle)->synchronize();
 
+    // Log batch metrics
+    {
+      double batch_acc_pct = total_class_num > 0 ? (total_corrects * 100.0 / total_class_num) : 0.0;
+
+      if (config.log_mode.log_loss) {
+        batch_metrics["loss"] = loss;
+      }
+      if (config.log_mode.log_accuracy) {
+        batch_metrics["accuracy_pct"] = batch_acc_pct;
+      }
+      batch_metrics["time_ms"] = batch_duration.count();
+
+      logger.log_batch(epoch, num_batches, batch_metrics);
+    }
+
     if (num_batches % config.progress_print_interval == 0) {
       cout << "Batch ID: " << num_batches << ", Batch's Loss: " << fixed << setprecision(4) << loss
-           << ", Cumulative Accuracy: " << setprecision(2) << (total_corrects * 100.0 / cur_samples)
-           << "%" << ", Batch Time: " << batch_duration.count() << "ms" << endl;
+           << ", Cumulative Accuracy: " << setprecision(2)
+           << (total_corrects * 100.0 / total_class_num) << "%";
+      if (config.log_mode.log_f1_score && batch_metrics.count("f1_score")) {
+        cout << ", F1: " << setprecision(4) << batch_metrics["f1_score"];
+      }
+      if (config.log_mode.log_perplexity && batch_metrics.count("perplexity")) {
+        cout << ", PPL: " << setprecision(2) << batch_metrics["perplexity"];
+      }
+      cout << ", Batch Time: " << batch_duration.count() << "ms" << endl;
     }
   }
   cout << endl;
 
   const double avg_train_loss = total_loss / num_batches;
-  const double avg_train_accuracy = total_corrects / cur_samples;
+  const double avg_train_accuracy = static_cast<double>(total_corrects) / total_class_num;
 
   auto train_end = chrono::high_resolution_clock::now();
   auto train_epoch_duration = chrono::duration_cast<chrono::milliseconds>(train_end - train_start);
@@ -223,17 +367,19 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
   ThreadWrapper thread_wrapper({config.num_threads});
 
   double best_val_accuracy = 0.0;
+  CsvLogger logger("tnn_" + graph.name(), config.log_dir, &config.log_mode);
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
       cout << "Epoch " << epoch + 1 << "/" << config.epochs << endl;
 
       // train phrase
-      auto [avg_train_loss, avg_train_accuracy] =
-          train_epoch(graph, train_loader, optimizer, criterion, scheduler, config);
+      auto [avg_train_loss, avg_train_accuracy] = train_epoch(
+          graph, train_loader, optimizer, criterion, scheduler, config, logger, epoch + 1);
 
       // validation phrase
-      auto [avg_val_loss, avg_val_accuracy] = validate_model(graph, val_loader, criterion, config);
+      auto [avg_val_loss, avg_val_accuracy] =
+          validate_model(graph, val_loader, criterion, config, &logger, epoch + 1);
 
       if (avg_val_accuracy > best_val_accuracy) {
         best_val_accuracy = avg_val_accuracy;
@@ -266,7 +412,19 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
         thread_wrapper.clean_buffers();
       }
 
-      cout << get_memory_usage_kb() / 1024 << " MB of memory used." << endl;
+      // Log epoch metrics
+      {
+        std::unordered_map<std::string, double> metrics;
+        if (config.log_mode.log_loss) {
+          metrics["train_loss"] = avg_train_loss;
+          metrics["val_loss"] = avg_val_loss;
+        }
+        if (config.log_mode.log_accuracy) {
+          metrics["train_accuracy_pct"] = avg_train_accuracy * 100.0;
+          metrics["val_accuracy_pct"] = avg_val_accuracy * 100.0;
+        }
+        logger.log_epoch(epoch + 1, metrics);
+      }
     }
   });
 }
@@ -283,30 +441,58 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
   train_loader->reset();
 
   const Device &model_device = graph.device();
-  PoolAllocator &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
-  GraphExecutor executor(graph, mem_pool);
-  Tensor loss_gradient = make_tensor(config.io_dtype, {1}, model_device);
-  Tensor device_labels = make_tensor(config.io_dtype, {1}, model_device);
-  Tensor predictions = make_tensor(config.io_dtype, {1}, model_device);
-  Tensor backward_output = make_tensor(config.io_dtype, {1}, model_device);
+  auto &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
+  auto ws_allocator = DELAllocatorV2::instance(model_device, defaultFlowHandle);
+  GraphExecutor executor(graph, ws_allocator);
 
   int grad_accum_counter = 0;
+  CsvLogger logger("tnn_" + graph.name(), config.log_dir, &config.log_mode);
 
   train_loader->reset();
   auto start_time = chrono::high_resolution_clock::now();
 
+  std::unique_ptr<BatchPrefetcher> prefetcher;
+  auto start_prefetcher = [&]() {
+    prefetcher.reset();
+    if (config.prefetch_data) {
+      prefetcher = std::make_unique<BatchPrefetcher>(*train_loader, config.batch_size,
+                                                     config.prefetch_depth);
+      prefetcher->start();
+    }
+  };
+  start_prefetcher();
+  if (config.prefetch_data) {
+    cout << "Data prefetching enabled. Depth: " << config.prefetch_depth << endl;
+  }
+
+  auto get_next = [&](Tensor &data, Tensor &labels) -> bool {
+    if (prefetcher) {
+      return prefetcher->next(data, labels);
+    }
+    return train_loader->get_batch(config.batch_size, data, labels);
+  };
+
   thread_wrapper.execute([&]() -> void {
     for (int steps = 0; steps < config.max_steps; ++steps) {
-      if (!train_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
-        break;
+      if (!get_next(batch_data, batch_labels)) {
+        if (prefetcher) {
+          prefetcher->stop();
+        }
+        train_loader->shuffle();
+        train_loader->reset();
+        start_prefetcher();
+        if (!get_next(batch_data, batch_labels)) {
+          break;
+        }
       }
       auto batch_start = chrono::high_resolution_clock::now();
-      device_labels = batch_labels->to_device(model_device);
+      Tensor predictions;
+      Tensor device_labels = batch_labels->to_device(model_device);
       const InputPack inputs{
-          {"input", batch_data},
+          {"input", &batch_data},
       };
       OutputPack outputs{
-          {"output", predictions},
+          {"output", &predictions},
       };
       executor.forward(inputs, outputs);
       float loss;
@@ -314,15 +500,40 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 
       int corrects = compute_class_corrects(predictions, device_labels);
 
+      // Compute additional metrics before freeing predictions
+      std::unordered_map<std::string, double> batch_metrics;
+      if (config.log_mode.log_precision) {
+        batch_metrics["precision"] = compute_precision(predictions, device_labels);
+      }
+      if (config.log_mode.log_recall) {
+        batch_metrics["recall"] = compute_recall(predictions, device_labels);
+      }
+      if (config.log_mode.log_f1_score) {
+        batch_metrics["f1_score"] = compute_f1_score(predictions, device_labels);
+      }
+      if (config.log_mode.log_perplexity) {
+        batch_metrics["perplexity"] = std::exp(static_cast<double>(loss));
+      }
+      if (config.log_mode.log_top_k_accuracy) {
+        batch_metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_labels, 5);
+      }
+
+      Tensor loss_gradient = make_tensor(mem_pool, batch_data->data_type(), predictions->shape());
       criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
+      Tensor backward_output = make_tensor(mem_pool, batch_data->data_type(), batch_data->shape());
       const InputPack grad_outputs{
-          {"output", loss_gradient},
+          {"output", &loss_gradient},
       };
       OutputPack grad_inputs{
-          {"input", backward_output},
+          {"input", &backward_output},
       };
+      if (config.gradient_accumulation_steps > 1) {
+        loss_gradient->mul_scalar(1.0 / config.gradient_accumulation_steps);
+      }
       executor.backward(grad_outputs, grad_inputs);
+
+      backward_output = nullptr;  // free backward output buffer early
 
       auto batch_end = chrono::high_resolution_clock::now();
       auto batch_duration = chrono::duration_cast<chrono::milliseconds>(batch_end - batch_start);
@@ -335,10 +546,36 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
         }
       }
 
+      size_t num_samples = 1;
+      for (size_t i = 0; i < predictions->dims() - 1; ++i) {
+        num_samples *= predictions->shape()[i];
+      }
+
+      double batch_acc_pct = corrects * 100.0 / num_samples;
+
+      // Log batch metrics for benchmarking.
+      {
+        if (config.log_mode.log_loss) {
+          batch_metrics["loss"] = loss;
+        }
+        if (config.log_mode.log_accuracy) {
+          batch_metrics["accuracy_pct"] = batch_acc_pct;
+        }
+        batch_metrics["time_ms"] = batch_duration.count();
+
+        logger.log_batch(1, steps, batch_metrics);
+      }
+
       if (steps % config.progress_print_interval == 0) {
         cout << "Batch ID: " << steps << ", Batch's Loss: " << fixed << setprecision(4) << loss
-             << ", Batch's Accuracy: " << setprecision(2) << (corrects * 100.0 / config.batch_size)
-             << "%" << ", Batch Time: " << batch_duration.count() << "ms" << endl;
+             << ", Batch's Accuracy: " << setprecision(2) << batch_acc_pct << "%";
+        if (config.log_mode.log_f1_score && batch_metrics.count("f1_score")) {
+          cout << ", F1: " << setprecision(4) << batch_metrics["f1_score"];
+        }
+        if (config.log_mode.log_perplexity && batch_metrics.count("perplexity")) {
+          cout << ", PPL: " << setprecision(2) << batch_metrics["perplexity"];
+        }
+        cout << ", Batch Time: " << batch_duration.count() << "ms" << endl;
       }
     }
 
@@ -386,9 +623,11 @@ void train_model(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 }
 
 Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
-                      const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
-  PoolAllocator &mem_pool = PoolAllocator::instance(graph.device(), defaultFlowHandle);
-  GraphExecutor executor(graph, mem_pool);
+                      const unique_ptr<Loss> &criterion, const TrainingConfig &config,
+                      CsvLogger *logger, int epoch) {
+  auto &mem_pool = PoolAllocator::instance(graph.device(), defaultFlowHandle);
+  auto ws_allocator = DELAllocatorV2::instance(graph.device(), defaultFlowHandle);
+  GraphExecutor executor(graph, ws_allocator);
   Tensor batch_data, batch_labels;
 
   graph.set_training(false);
@@ -405,11 +644,11 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
   while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
     Tensor device_input = batch_data->to_device(model_device);
     const InputPack inputs{
-        {"input", device_input},
+        {"input", &device_input},
     };
     Tensor predictions = make_tensor<float>(mem_pool, {});
     OutputPack outputs{
-        {"output", predictions},
+        {"output", &predictions},
     };
     executor.forward(inputs, outputs);
 
@@ -417,8 +656,38 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
     float loss;
     criterion->compute_loss(predictions, device_batch_labels, loss);
     val_loss += loss;
-    val_corrects += compute_class_corrects(predictions, device_batch_labels);
+    int batch_corrects = compute_class_corrects(predictions, device_batch_labels);
+    val_corrects += batch_corrects;
     ++val_batches;
+
+    if (logger) {
+      std::unordered_map<std::string, double> metrics;
+      double batch_acc_pct = batch_corrects / static_cast<double>(config.batch_size) * 100.0;
+
+      if (config.log_mode.log_loss) {
+        metrics["loss"] = loss;
+      }
+      if (config.log_mode.log_accuracy) {
+        metrics["accuracy_pct"] = batch_acc_pct;
+      }
+      if (config.log_mode.log_precision) {
+        metrics["precision"] = compute_precision(predictions, device_batch_labels);
+      }
+      if (config.log_mode.log_recall) {
+        metrics["recall"] = compute_recall(predictions, device_batch_labels);
+      }
+      if (config.log_mode.log_f1_score) {
+        metrics["f1_score"] = compute_f1_score(predictions, device_batch_labels);
+      }
+      if (config.log_mode.log_perplexity) {
+        metrics["perplexity"] = std::exp(static_cast<double>(loss));
+      }
+      if (config.log_mode.log_top_k_accuracy) {
+        metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_batch_labels, 5);
+      }
+
+      logger->log_val_batch(epoch, val_batches, metrics);
+    }
   }
 
   double avg_val_loss = val_loss / val_batches;

@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "nn/layers_impl/parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -32,8 +31,8 @@ private:
                                       const ConstTensor &class_token, size_t batch_size,
                                       size_t seq_len, size_t embed_dim, flowHandle_t handle) const;
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     auto token_desc = ParamDescriptor{
         param_dtype_,
         {1, embed_dim_},
@@ -45,22 +44,8 @@ private:
   }
 
   void init_impl() override;
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   explicit ClassTokenLayer(size_t embed_dim, const std::string &name = "class_token");
@@ -70,7 +55,7 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
 public:
   static std::unique_ptr<ClassTokenLayer> create_from_config(const LayerConfig &config);

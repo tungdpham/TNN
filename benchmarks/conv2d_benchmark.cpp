@@ -23,16 +23,15 @@ signed main() {
 
   Tensor input = make_tensor<float>({128, 224, 224, 16}, getGPU());
   input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor output = make_tensor<float>({128, 224, 224, 128}, getGPU());
 
   // cold pass
-  conv_node.forward({input}, {output});
+  Tensor output = conv_node.forward({input})[0];
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    conv_node.forward({input}, {output});
+    output = conv_node.forward({input})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
@@ -49,14 +48,13 @@ signed main() {
 
   Tensor nchw_input = make_tensor<float>({128, 16, 224, 224}, getGPU());
   nchw_input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor nchw_output = make_tensor<float>({128, 128, 224, 224}, getGPU());
   // legacy conv2d benchmark
   // cold pass
-  legacy_node.forward({nchw_input}, {nchw_output});
+  Tensor nchw_output = legacy_node.forward({nchw_input})[0];
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    legacy_node.forward({nchw_input}, {nchw_output});
+    nchw_output = legacy_node.forward({nchw_input})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();

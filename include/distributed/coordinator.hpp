@@ -9,6 +9,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -20,9 +21,9 @@
 #include "distributed/endpoint.hpp"
 #include "distributed/worker.hpp"
 #include "logging/logger.hpp"
-#include "nn/accuracy.hpp"
 #include "nn/blocks_impl/sequential.hpp"
 #include "nn/loss.hpp"
+#include "nn/metrics.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
@@ -44,7 +45,7 @@ struct CoordinatorConfig {
   std::unique_ptr<Partitioner> partitioner;
   std::unique_ptr<Worker> local_worker = nullptr;
   Endpoint coordinator_endpoint;
-  std::vector<Endpoint> worker_endpoints;
+  Vec<Endpoint> worker_endpoints;
 };
 
 class Coordinator {
@@ -131,9 +132,21 @@ public:
       Message update_msg(CommandType::UPDATE_PARAMETERS, std::monostate{});
       comm_->send_message(std::move(update_msg), worker_endpoint);
     }
+    scheduler_->step();
     bool success = join(CommandType::PARAMETERS_UPDATED, worker_endpoints_.size(), 60);
     if (!success) {
       std::cerr << "Warning: Timeout waiting for parameter update confirmations from all stages\n";
+    }
+  }
+
+  void print_lr() {
+    for (const auto &worker_endpoint : worker_endpoints_) {
+      Message lr_msg(CommandType::PRINT_LR, std::monostate{});
+      comm_->send_message(std::move(lr_msg), worker_endpoint);
+    }
+    bool success = join(CommandType::LR_PRINTED, worker_endpoints_.size(), 30);
+    if (!success) {
+      std::cerr << "Warning: Not all stages confirmed LR print within timeout.\n";
     }
   }
 
@@ -162,9 +175,8 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  Result async_train_batch(std::vector<Tensor> &microbatch_inputs,
-                           std::vector<Tensor> &microbatch_labels,
-                           const std::unique_ptr<Loss> &criterion) {
+  Result async_train_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
+                           const std::unique_ptr<Loss> &criterion, size_t accumulation_steps = 1) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
       throw std::runtime_error("Mismatched number of inputs and labels in async_train_batch");
     }
@@ -182,8 +194,7 @@ public:
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
       message_notification_cv_.wait(
           lock, [this]() { return comm_->message_count(CommandType::FORWARD_JOB) > 0; });
-      std::vector<Message> FORWARD_JOBs =
-          comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+      Vec<Message> FORWARD_JOBs = comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
       for (auto &forward_msg : FORWARD_JOBs) {
         if (forward_msg.has_type<Job>()) {
@@ -199,11 +210,12 @@ public:
           total_corrects += compute_class_corrects(predictions, device_targets);
 
           total_loss += loss;
+          PoolAllocator &allocator =
+              PoolAllocator::instance(predictions->device(), defaultFlowHandle);
           Tensor grad_output =
-              make_tensor(PoolAllocator::instance(predictions->device(), defaultFlowHandle),
-                          predictions->data_type(), predictions->shape());
+              make_tensor(allocator, predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, device_targets, grad_output);
-          grad_output->mul_scalar(1.0 / num_microbatches);
+          grad_output->mul_scalar(1.0 / (num_microbatches * accumulation_steps));
           backward(std::move(grad_output), job.mb_id);
         } else {
           throw std::runtime_error("Unexpected message type in FORWARD_JOB");
@@ -228,8 +240,7 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  Result async_val_batch(std::vector<Tensor> &microbatch_inputs,
-                         std::vector<Tensor> &microbatch_labels,
+  Result async_val_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
                          const std::unique_ptr<Loss> &criterion) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
       throw std::runtime_error("Mismatched number of inputs and labels in async_train_batch");
@@ -246,8 +257,7 @@ public:
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
       message_notification_cv_.wait(
           lock, [this]() { return comm_->message_count(CommandType::FORWARD_JOB) > 0; });
-      std::vector<Message> FORWARD_JOBs =
-          comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+      Vec<Message> FORWARD_JOBs = comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
       for (auto &forward_msg : FORWARD_JOBs) {
         if (forward_msg.has_type<Job>()) {
@@ -259,6 +269,7 @@ public:
           Tensor device_targets = targets->to_device(predictions->device());
           float loss = 0.0f;
           criterion->compute_loss(predictions, device_targets, loss);
+          loss *= (1.0f / num_microbatches);  // Average loss across microbatches
           total_corrects += compute_class_corrects(predictions, device_targets);
 
           total_loss += loss;
@@ -266,6 +277,144 @@ public:
           throw std::runtime_error("Unexpected message type in FORWARD_JOB");
         }
       }
+    }
+
+    return {total_loss, static_cast<double>(total_corrects)};
+  }
+
+  /**
+   * @brief Synchronous pipeline train batch.
+   *
+   * Non-overlapped ablation path for TNN_ASYNC_PIPELINE=0.
+   * It processes one microbatch at a time:
+   *   forward -> wait output -> loss/grad -> backward -> wait backward complete.
+   */
+  Result sync_train_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
+                          const std::unique_ptr<Loss> &criterion, size_t accumulation_steps = 1) {
+    if (microbatch_inputs.size() != microbatch_labels.size()) {
+      throw std::runtime_error("Mismatched number of inputs and labels in sync_train_batch");
+    }
+
+    const size_t num_microbatches = microbatch_inputs.size();
+    float total_loss = 0.0f;
+    int total_corrects = 0;
+
+    for (size_t i = 0; i < num_microbatches; ++i) {
+      forward(std::move(microbatch_inputs[i]), i);
+
+      Message forward_msg;
+      {
+        std::unique_lock<std::mutex> lock(message_notification_mutex_);
+        message_notification_cv_.wait(
+            lock, [this]() { return comm_->message_count(CommandType::FORWARD_JOB) > 0; });
+
+        Vec<Message> forward_msgs = comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+        if (forward_msgs.empty()) {
+          throw std::runtime_error("sync_train_batch woke up without FORWARD_JOB");
+        }
+
+        bool found = false;
+        for (auto &msg : forward_msgs) {
+          if (!msg.has_type<Job>()) {
+            throw std::runtime_error("Unexpected message type in sync_train_batch FORWARD_JOB");
+          }
+          if (msg.get<Job>().mb_id == i && !found) {
+            forward_msg = std::move(msg);
+            found = true;
+          }
+        }
+        if (!found) {
+          throw std::runtime_error("sync_train_batch could not find expected microbatch result");
+        }
+      }
+
+      Job &job = forward_msg.get<Job>();
+      Tensor &predictions = job.data;
+      Tensor &targets = microbatch_labels[i];
+      Tensor device_targets = targets->to_device(predictions->device());
+
+      float loss = 0.0f;
+      criterion->compute_loss(predictions, device_targets, loss);
+      loss *= (1.0f / num_microbatches);
+      total_loss += loss;
+      total_corrects += compute_class_corrects(predictions, device_targets);
+
+      PoolAllocator &allocator = PoolAllocator::instance(predictions->device(), defaultFlowHandle);
+      Tensor grad_output = make_tensor(allocator, predictions->data_type(), predictions->shape());
+      criterion->compute_gradient(predictions, device_targets, grad_output);
+      grad_output->mul_scalar(1.0 / (num_microbatches * accumulation_steps));
+
+      backward(std::move(grad_output), i);
+
+      {
+        std::unique_lock<std::mutex> lock(message_notification_mutex_);
+        message_notification_cv_.wait(
+            lock, [this]() { return comm_->message_count(CommandType::BACKWARD_COMPLETE) > 0; });
+        Vec<Message> done_msgs =
+            comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_COMPLETE);
+        if (done_msgs.empty()) {
+          throw std::runtime_error("sync_train_batch woke up without BACKWARD_COMPLETE");
+        }
+      }
+    }
+
+    return {total_loss, static_cast<double>(total_corrects)};
+  }
+
+  /**
+   * @brief Synchronous pipeline validation batch.
+   *
+   * Non-overlapped validation path for TNN_ASYNC_PIPELINE=0.
+   */
+  Result sync_val_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
+                        const std::unique_ptr<Loss> &criterion) {
+    if (microbatch_inputs.size() != microbatch_labels.size()) {
+      throw std::runtime_error("Mismatched number of inputs and labels in sync_val_batch");
+    }
+
+    const size_t num_microbatches = microbatch_inputs.size();
+    float total_loss = 0.0f;
+    int total_corrects = 0;
+
+    for (size_t i = 0; i < num_microbatches; ++i) {
+      forward(std::move(microbatch_inputs[i]), i);
+
+      Message forward_msg;
+      {
+        std::unique_lock<std::mutex> lock(message_notification_mutex_);
+        message_notification_cv_.wait(
+            lock, [this]() { return comm_->message_count(CommandType::FORWARD_JOB) > 0; });
+
+        Vec<Message> forward_msgs = comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+        if (forward_msgs.empty()) {
+          throw std::runtime_error("sync_val_batch woke up without FORWARD_JOB");
+        }
+
+        bool found = false;
+        for (auto &msg : forward_msgs) {
+          if (!msg.has_type<Job>()) {
+            throw std::runtime_error("Unexpected message type in sync_val_batch FORWARD_JOB");
+          }
+          if (msg.get<Job>().mb_id == i && !found) {
+            forward_msg = std::move(msg);
+            found = true;
+          }
+        }
+        if (!found) {
+          throw std::runtime_error("sync_val_batch could not find expected microbatch result");
+        }
+      }
+
+      Job &job = forward_msg.get<Job>();
+      Tensor &predictions = job.data;
+      Tensor &targets = microbatch_labels[i];
+      Tensor device_targets = targets->to_device(predictions->device());
+
+      float loss = 0.0f;
+      criterion->compute_loss(predictions, device_targets, loss);
+      loss *= (1.0f / num_microbatches);
+      total_loss += loss;
+      total_corrects += compute_class_corrects(predictions, device_targets);
     }
 
     return {total_loss, static_cast<double>(total_corrects)};
@@ -313,7 +462,7 @@ public:
       std::cerr << "Warning: Not all stages reported profiling data within timeout.\n";
     }
 
-    std::vector<Message> profiling_messages =
+    Vec<Message> profiling_messages =
         comm_->dequeue_all_messages_by_type(CommandType::PROFILING_REPORTED);
 
     auto &aggregator = GlobalProfiler::get_profiler();
@@ -361,7 +510,21 @@ public:
     }
   }
 
-  std::vector<Message> dequeue_all_messages(CommandType target_type) {
+  /**
+   * @brief Requests all workers to flush their metric CSV logs to disk.
+   */
+  void print_logs() {
+    for (const auto &worker_endpoint : worker_endpoints_) {
+      Message log_msg(CommandType::PRINT_LOGS, std::monostate{});
+      comm_->send_message(std::move(log_msg), worker_endpoint);
+    }
+    bool all_flushed = join(CommandType::LOGS_PRINTED, worker_endpoints_.size(), 30);
+    if (!all_flushed) {
+      std::cerr << "Warning: Not all workers confirmed log flush within timeout.\n";
+    }
+  }
+
+  Vec<Message> dequeue_all_messages(CommandType target_type) {
     return comm_->dequeue_all_messages_by_type(target_type);
   }
 
@@ -469,13 +632,14 @@ protected:
   Endpoint coordinator_endpoint_;
 
   // Topology information
-  std::vector<SeqPartition> partitions_;
-  std::vector<Endpoint> worker_endpoints_;
-  std::vector<StageConfig> stage_configs_;
+  Vec<SeqPartition> partitions_;
+  Vec<Endpoint> worker_endpoints_;
+  Vec<StageConfig> stage_configs_;
   Logger logger_{"profiler", "logs/profiler.log", LogLevel::info};
 
   // Training Parameters
   bool should_stop_ = true;
+  size_t coordinator_update_count_ = 0;
 
   // Message synchronization
   mutable std::mutex message_notification_mutex_;

@@ -33,6 +33,10 @@ template <>
 struct CudaType<double> {
   static constexpr cudaDataType_t type = CUDA_R_64F;
 };
+template <>
+struct CudaType<int> {
+  static constexpr cudaDataType_t type = CUDA_R_32I;
+};
 
 template <typename T>
 struct CublasComputeType;
@@ -51,6 +55,10 @@ struct CublasComputeType<float> {
 template <>
 struct CublasComputeType<double> {
   static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_64F;
+};
+template <>
+struct CublasComputeType<int> {
+  static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_32I;
 };
 
 template <typename A_T, typename B_T, typename C_T, typename Compute_T>
@@ -110,28 +118,28 @@ void gemm_strided_batched_ex(const A_T* A, const B_T* B, C_T* C, const size_t M,
 #define INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, COMPUTE_T) \
   INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, COMPUTE_T)
 
-#define INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, C_T)        \
-  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, fp16)  \
-  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, bf16)  \
-  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, float) \
-  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, double)
+#define INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, C_T)         \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, fp16)   \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, bf16)   \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, float)  \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, double) \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, int)
 
-#define INSTANTIATE_CUBLAS_GEMM_B(A_T, B_T)  \
-  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, fp16)  \
-  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, bf16)  \
-  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, float) \
-  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, double)
+#define INSTANTIATE_CUBLAS_GEMM_B(A_T, B_T)   \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, fp16)   \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, bf16)   \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, float)  \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, double) \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, int)
 
-#define INSTANTIATE_CUBLAS_GEMM_A(A_T)  \
-  INSTANTIATE_CUBLAS_GEMM_B(A_T, fp16)  \
-  INSTANTIATE_CUBLAS_GEMM_B(A_T, bf16)  \
-  INSTANTIATE_CUBLAS_GEMM_B(A_T, float) \
-  INSTANTIATE_CUBLAS_GEMM_B(A_T, double)
+#define INSTANTIATE(A_T)                 \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, fp16)   \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, bf16)   \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, float)  \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, double) \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, int)
 
-INSTANTIATE_CUBLAS_GEMM_A(fp16)
-INSTANTIATE_CUBLAS_GEMM_A(bf16)
-INSTANTIATE_CUBLAS_GEMM_A(float)
-INSTANTIATE_CUBLAS_GEMM_A(double)
+#include "macros/floating_type_instantiation.hpp"
 #undef INSTANTIATE_CUBLAS_GEMM_A
 #undef INSTANTIATE_CUBLAS_GEMM_B
 #undef INSTANTIATE_CUBLAS_GEMM_C

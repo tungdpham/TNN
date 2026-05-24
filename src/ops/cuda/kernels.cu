@@ -424,7 +424,7 @@ void cuda_copy(const T* a, T* c, size_t size, cudaStream_t stream) {
 template <typename T>
 void cuda_h2d_copy(const T* a, T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
-  cudaMemcpyAsync(c, a, size * sizeof(T), cudaMemcpyHostToDevice, stream);
+  cudaMemcpy(c, a, size * sizeof(T), cudaMemcpyHostToDevice);
   tnn::cuda::checkCudaError(cudaGetLastError(), "h2d_copy", __FILE__, __LINE__);
 }
 

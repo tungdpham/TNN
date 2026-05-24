@@ -25,14 +25,13 @@ void run_forward(feHandle_t *handle, const ConvolutionStats &stats, const void *
                  const void *weight_data, const void *bias_data, void *output_data,
                  void *workspace_data, cudaStream_t stream);
 
-void run_backward_data(feHandle_t *handle, const ConvolutionStats &stats, const void *gradient_data,
-                       const void *weight_data, void *input_grad_data, void *workspace_data,
-                       cudaStream_t stream);
+void run_dgrad(feHandle_t *handle, const ConvolutionStats &stats, const void *gradient_data,
+               const void *weight_data, void *input_grad_data, void *workspace_data,
+               cudaStream_t stream);
 
-void run_backward_weights_and_bias(feHandle_t *handle, const ConvolutionStats &stats,
-                                   const void *input_data, const void *gradient_data,
-                                   void *weight_grad_data, void *bias_grad_data,
-                                   void *workspace_data, cudaStream_t stream);
+void run_wgrad_and_bgrad(feHandle_t *handle, const ConvolutionStats &stats, const void *input_data,
+                         const void *gradient_data, void *weight_grad_data, void *bias_grad_data,
+                         void *workspace_data, cudaStream_t stream);
 
 }  // namespace cudnn_conv2d
 }  // namespace cuda

@@ -366,7 +366,7 @@ void cuda_cnhw_to_nchw(const T* input, T* output, size_t n, size_t c, size_t h, 
   cuda_nchw_to_cnhw(input, output, c, n, h, w, stream);
 }
 
-#define INSTANTIATE_KERNEL_FUNC(T)                                                                \
+#define INSTANTIATE(T)                                                                            \
   template void cuda_im2col<T>(const T* input, T* col_data, size_t batch_size, size_t channels,   \
                                size_t height, size_t width, size_t kernel_h, size_t kernel_w,     \
                                size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,      \
@@ -390,10 +390,9 @@ void cuda_cnhw_to_nchw(const T* input, T* output, size_t n, size_t c, size_t h, 
   template void cuda_nchw_to_cnhw<T>(const T*, T*, size_t, size_t, size_t, size_t, cudaStream_t); \
   template void cuda_cnhw_to_nchw<T>(const T*, T*, size_t, size_t, size_t, size_t, cudaStream_t);
 
-INSTANTIATE_KERNEL_FUNC(fp16)
-INSTANTIATE_KERNEL_FUNC(bf16)
-INSTANTIATE_KERNEL_FUNC(float)
-INSTANTIATE_KERNEL_FUNC(double)
+#include "macros/any_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace cuda
 }  // namespace tnn

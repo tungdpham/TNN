@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "device/task.hpp"
 #include "nn/layer.hpp"
@@ -18,42 +17,34 @@
 namespace tnn {
 
 // Base class for N-ary element-wise operations
+// TODO: dependent caching. Probably should move impl into individual layers for better control
 class NAryOpLayer : public virtual Layer {
 public:
   explicit NAryOpLayer(NAryOp op_type, const std::string &name = "")
       : Layer(name),
         op_type_(op_type) {}
 
-  void forward_impl(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
-                    size_t mb_id = 0) override;
-  void backward_impl(const std::vector<ConstTensor> &grad_outputs,
-                     const std::vector<Tensor> &grad_inputs, size_t mb_id = 0) override;
+  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id = 0) override;
+  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0) override;
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
   LayerConfig get_config() const override;
-  std::vector<ParamDescriptor> param_descriptors() override { return {}; }
+  Vec<ParamDescriptor> param_descriptors() override { return {}; }
   std::string type() const override = 0;
-
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
 
 protected:
   NAryOp op_type_;
 
 private:
   template <typename Compute_T>
-  std::unique_ptr<Task> compute_nary_forward_impl(const std::vector<ConstTensor> &inputs,
-                                                  const Tensor &output,
-                                                  const std::vector<size_t> &shape,
+  std::unique_ptr<Task> compute_nary_forward_impl(const Vec<ConstTensor> &inputs,
+                                                  const Tensor &output, const Vec<size_t> &shape,
                                                   flowHandle_t handle);
   template <typename Compute_T>
   std::unique_ptr<Task> compute_nary_backward_impl(const ConstTensor &grad_output,
-                                                   const std::vector<Tensor> &grad_inputs,
-                                                   const std::vector<ConstTensor> &fwd_inputs,
-                                                   const std::vector<size_t> &shape,
-                                                   flowHandle_t handle);
+                                                   const Vec<Tensor> &grad_inputs,
+                                                   const Vec<ConstTensor> &fwd_inputs,
+                                                   const Vec<size_t> &shape, flowHandle_t handle);
 };
 
 class AddLayer : public NAryOpLayer {

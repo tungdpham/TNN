@@ -10,7 +10,7 @@
 #include <memory>
 #include <string>
 
-#include "context.hpp"
+#include "device/context.hpp"
 #include "device/flow.hpp"
 #include "device_type.hpp"
 
@@ -36,12 +36,14 @@ public:
   std::string getName() const;
   size_t getTotalMemory() const;
   size_t getAvailableMemory() const;
+  size_t getUsedMemory() const;
   void *allocateMemory(size_t size) const;
   void deallocateMemory(void *ptr) const;
   void *allocateAlignedMemory(size_t size, size_t alignment) const;
   void deallocateAlignedMemory(void *ptr) const;
   void copyToDevice(void *dest, const void *src, size_t size) const;
   void copyToHost(void *dest, const void *src, size_t size) const;
+  EngineType get_engine() const;
   Endianness get_endianness() const;
   void createFlow(flowHandle_t handle) const;
   Flow *getFlow(flowHandle_t handle) const;

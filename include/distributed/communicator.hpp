@@ -11,11 +11,10 @@
 #include <mutex>
 #include <queue>
 #include <string>
-#include <thread>
 #include <unordered_map>
-#include <vector>
 
 #include "device/iallocator.hpp"
+#include "distributed/io_context_pool.hpp"
 #include "endpoint.hpp"
 #include "message.hpp"
 #include "message_map.hpp"
@@ -29,11 +28,12 @@ namespace tnn {
  */
 class Communicator {
 private:
-  std::vector<CommandType> all_command_types_ = get_enum_vector<CommandType>();
+  Vec<CommandType> all_command_types_ = get_enum_vector<CommandType>();
 
 public:
-  Communicator(Endpoint endpoint)
-      : endpoint_(endpoint) {}
+  Communicator(Endpoint endpoint, int io_threads)
+      : endpoint_(endpoint),
+        io_context_pool_(io_threads) {}
 
   virtual ~Communicator() {
     std::lock_guard<std::mutex> out_lock(out_message_mutex_);
@@ -51,9 +51,11 @@ public:
   void send_message(Message &&message, const Endpoint &endpoint) {
     if (endpoint.type() == CommunicationType::IN_PROCESS) {
       auto other_communicator = endpoint.get_parameter<Communicator *>("communicator");
-      std::thread([other_communicator, msg = std::move(message)]() mutable {
-        other_communicator->enqueue_input_message(std::move(msg));
-      }).detach();
+
+      auto &io_context = io_context_pool_.get();
+      asio::post(io_context, [other_communicator, message = std::move(message)]() mutable {
+        other_communicator->enqueue_input_message(std::move(message));
+      });
     } else {
       this->send_impl(std::move(message), endpoint);
     }
@@ -125,8 +127,8 @@ public:
     return message;
   }
 
-  inline std::vector<Message> dequeue_all_messages_by_type(CommandType target_type) {
-    std::vector<Message> messages = message_queues_.pop_all(target_type);
+  inline Vec<Message> dequeue_all_messages_by_type(CommandType target_type) {
+    Vec<Message> messages = message_queues_.pop_all(target_type);
     return messages;
   }
 
@@ -185,6 +187,7 @@ protected:
 
 protected:
   Endpoint endpoint_;
+  IoContextPool io_context_pool_;
   MessageMap message_queues_;
   std::queue<std::pair<Message, Endpoint>> out_message_queue_;
   mutable std::mutex out_message_mutex_;

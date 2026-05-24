@@ -10,7 +10,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "nn/layers_impl/common/batchnorm.hpp"
 #include "parameterized_layer.hpp"
@@ -20,6 +19,9 @@
 #include <cudnn.h>
 
 #include "cuda/cudnn_batchnorm_ops.hpp"
+#endif
+#ifdef USE_DNNL
+#include "nn/layers_impl/cpu/dnnl_batchnorm_ops.hpp"
 #endif
 
 namespace tnn {
@@ -44,10 +46,20 @@ private:
 
   mutable std::unordered_map<size_t, BatchNormStats> stats_cache;
 
+#ifdef USE_DNNL
+  void build_dnnl_handle(const Vec<size_t> &input_shape) const;
+  Tensor dnnl_forward(const ConstTensor &input, size_t mb_id);
+  Tensor dnnl_backward(const ConstTensor &grad_output, size_t mb_id);
+
+  mutable std::unordered_map<size_t, cpu::dnnl_batchnorm::dnnlBNHandle_t *> dnnl_handle_cache;
+  mutable std::unordered_map<size_t, BatchNormStats> dnnl_stats_cache;
+#endif
+
 #ifdef USE_CUDNN
   void build_graph(const Vec<size_t> &input_shape) const;
 
   mutable std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
+
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> forward_training_task(
       cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const ConstTensor &input,
@@ -75,12 +87,12 @@ private:
                                       const ConstTensor &batch_mean, const ConstTensor &batch_var,
                                       const Tensor &workspace, flowHandle_t handle);
 
-  void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
+  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
+  Tensor cudnn_backward(const ConstTensor &grad_output, size_t mb_id);
 #endif
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     auto gamma_desc = ParamDescriptor{
         param_dtype_,
         {num_features_},
@@ -112,10 +124,12 @@ private:
     return descriptors;
   }
 
+  Tensor def_forward(const ConstTensor &input, size_t mb_id);
+  Tensor def_backward(const ConstTensor &grad_output, size_t mb_id);
+
   void init_impl() override;
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   explicit BatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
@@ -127,13 +141,9 @@ public:
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   static std::unique_ptr<BatchNormLayer> create_from_config(const LayerConfig &config);
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 };
 
 }  // namespace tnn

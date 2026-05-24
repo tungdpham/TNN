@@ -1,14 +1,14 @@
 #pragma once
 
 #ifdef USE_MKL
+#include <stdexcept>
+
 #include "utils/mkl_utils.hpp"
 #else
 #include "dgemm.hpp"
 #include "sgemm.hpp"
 #endif
-#include <stdexcept>
 #include <type_traits>
-#include <vector>
 
 namespace tnn {
 namespace cpu {

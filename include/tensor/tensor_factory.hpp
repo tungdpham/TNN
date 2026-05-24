@@ -10,14 +10,13 @@
 namespace tnn {
 
 template <typename T>
-inline Tensor make_tensor(std::vector<size_t> shape, const Device &device = getHost()) {
+inline Tensor make_tensor(Vec<size_t> shape, const Device &device = getHost()) {
   auto &allocator = DeviceAllocator::instance(device);
   return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), shape);
 }
 
 template <typename T>
-inline Tensor make_tensor(std::vector<size_t> shape, const dptr &data,
-                          const Device &device = getHost()) {
+inline Tensor make_tensor(Vec<size_t> shape, const dptr &data, const Device &device = getHost()) {
   auto &allocator = DeviceAllocator::instance(device);
   return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), shape, data);
 }
@@ -36,8 +35,7 @@ inline Tensor make_tensor(std::initializer_list<size_t> shape, const dptr &data,
   return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), shape, data);
 }
 
-inline Tensor make_tensor(DType_t dtype, std::vector<size_t> shape,
-                          const Device &device = getHost()) {
+inline Tensor make_tensor(DType_t dtype, Vec<size_t> shape, const Device &device = getHost()) {
   auto &allocator = DeviceAllocator::instance(device);
   return std::make_shared<TensorImpl>(allocator, dtype, shape);
 }
@@ -49,26 +47,25 @@ inline Tensor make_tensor(DType_t dtype, std::initializer_list<size_t> shape = {
 }
 
 template <typename T>
-inline Tensor make_tensor(IAllocator &allocator, std::vector<size_t> shape, dptr &&data) {
+inline Tensor make_tensor(IAllocator &allocator, Vec<size_t> shape, dptr &&data) {
   return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), std::move(data), shape);
 }
 
-inline Tensor make_tensor(IAllocator &allocator, DType_t dtype, std::vector<size_t> shape,
-                          dptr &&data) {
+inline Tensor make_tensor(IAllocator &allocator, DType_t dtype, Vec<size_t> shape, dptr &&data) {
   return std::make_shared<TensorImpl>(allocator, dtype, shape, std::move(data));
 }
 
 template <typename T>
-inline Tensor make_tensor(IAllocator &allocator, std::vector<size_t> shape) {
+inline Tensor make_tensor(IAllocator &allocator, Vec<size_t> shape) {
   return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), shape);
 }
 
 template <typename T>
 inline Tensor make_tensor(IAllocator &allocator, std::initializer_list<size_t> shape = {}) {
-  return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), std::vector<size_t>(shape));
+  return std::make_shared<TensorImpl>(allocator, dtype_of<T>(), Vec<size_t>(shape));
 }
 
-inline Tensor make_tensor(IAllocator &allocator, DType_t dtype, std::vector<size_t> shape) {
+inline Tensor make_tensor(IAllocator &allocator, DType_t dtype, Vec<size_t> shape) {
   return std::make_shared<TensorImpl>(allocator, dtype, shape);
 }
 
@@ -89,7 +86,7 @@ inline Tensor dtype_cast(const ConstTensor &input, DType_t target_dtype) {
   const dptr &input_data = input->data_ptr();
   size_t input_size = input->size();
   dptr output_data = make_dptr(input->device(), input_size * get_dtype_size(target_dtype));
-  DISPATCH_ON_ANY_DTYPE(
+  DISPATCH_ANY_DTYPE(
       input->data_type(), A_T,
       DISPATCH_DTYPE(target_dtype, B_T, ops::cast<A_T, B_T>(input_data, output_data, input_size)));
   return make_tensor(input->allocator(), target_dtype, input->shape(), std::move(output_data));
@@ -106,7 +103,7 @@ inline void load_into(std::ifstream &in, Tensor &tensor) {
   }
   size_t dims;
   in.read(reinterpret_cast<char *>(&dims), sizeof(size_t));
-  std::vector<size_t> shape(dims);
+  Vec<size_t> shape(dims);
   in.read(reinterpret_cast<char *>(shape.data()), dims * sizeof(size_t));
   if (in.gcount() != static_cast<std::streamsize>(dims * sizeof(size_t))) {
     throw std::runtime_error("Failed to read tensor shape from file");
@@ -121,7 +118,7 @@ inline void load_into(std::ifstream &in, Tensor &tensor) {
       throw std::runtime_error("Failed to read tensor data from file");
     }
   } else {
-    std::vector<char> host_buffer(byte_size);
+    Vec<char> host_buffer(byte_size);
     in.read(reinterpret_cast<char *>(host_buffer.data()), byte_size);
     if (in.gcount() != static_cast<std::streamsize>(byte_size)) {
       throw std::runtime_error("Failed to read tensor data from file");
@@ -138,7 +135,7 @@ inline Tensor load(std::ifstream &in, IAllocator &allocator) {
   in.read(reinterpret_cast<char *>(&dtype), sizeof(DType_t));
   size_t dims;
   in.read(reinterpret_cast<char *>(&dims), sizeof(size_t));
-  std::vector<size_t> shape(dims);
+  Vec<size_t> shape(dims);
   in.read(reinterpret_cast<char *>(shape.data()), dims * sizeof(size_t));
   if (in.gcount() != static_cast<std::streamsize>(dims * sizeof(size_t))) {
     throw std::runtime_error("Failed to read tensor shape from file");
@@ -151,7 +148,7 @@ inline Tensor load(std::ifstream &in, IAllocator &allocator) {
       throw std::runtime_error("Failed to read tensor data from file");
     }
   } else {
-    std::vector<char> host_buffer(byte_size);
+    Vec<char> host_buffer(byte_size);
     in.read(reinterpret_cast<char *>(host_buffer.data()), byte_size);
     if (in.gcount() != static_cast<std::streamsize>(byte_size)) {
       throw std::runtime_error("Failed to read tensor data from file");

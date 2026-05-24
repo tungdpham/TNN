@@ -9,6 +9,7 @@
 #include <array>
 
 #include "augmentation.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -38,7 +39,7 @@ public:
     this->name_ = "Normalization";
   }
 
-  void apply(const Tensor &data, const Tensor &labels) override {
+  void apply(Tensor &data, Tensor &labels) override {
     DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -58,7 +59,7 @@ public:
 
 private:
   template <typename T>
-  void apply_impl(const Tensor &data, const Tensor &labels) {
+  void apply_impl(Tensor &data, Tensor &labels) {
     const auto shape = data->shape();
     if (shape.size() != 4) return;
 
@@ -74,7 +75,7 @@ private:
     T *ptr = data->data_as<T>();
 
     // Apply normalization to each image in the batch
-    for (size_t b = 0; b < batch_size; ++b) {
+    parallel_for<size_t>(0, batch_size, [&](size_t b) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           // Normalize each channel
@@ -87,7 +88,7 @@ private:
           }
         }
       }
-    }
+    });
   }
 };
 

@@ -59,6 +59,20 @@ struct TypeTraits<fp64> {
   using HigherPrecision = fp64;
 };
 
+template <>
+struct TypeTraits<int> {
+  static constexpr const char *name = "int";
+  using ComputePrecision = int;
+  using HigherPrecision = int;
+};
+
+template <>
+struct TypeTraits<size_t> {
+  static constexpr const char *name = "size_t";
+  using ComputePrecision = size_t;
+  using HigherPrecision = size_t;
+};
+
 enum class DType_t : uint32_t {
   BYTE,
   UINT8_T,
@@ -235,7 +249,7 @@ inline DType_t string_to_dtype(const std::string &dtype_str) {
       throw std::runtime_error("Unknown dtype in dispatch"); \
   }
 
-#define DISPATCH_ON_ANY_DTYPE(dtype_value, type_alias, ...)  \
+#define DISPATCH_ANY_DTYPE(dtype_value, type_alias, ...)     \
   switch (dtype_value) {                                     \
     case DType_t::UINT8_T: {                                 \
       using type_alias = uint8_t;                            \
@@ -249,6 +263,11 @@ inline DType_t string_to_dtype(const std::string &dtype_str) {
     }                                                        \
     case DType_t::BF16: {                                    \
       using type_alias = bf16;                               \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
+    case DType_t::INT32_T: {                                 \
+      using type_alias = int32_t;                            \
       __VA_ARGS__;                                           \
       break;                                                 \
     }                                                        \

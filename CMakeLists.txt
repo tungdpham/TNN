@@ -21,6 +21,7 @@ option(ENABLE_CUDA "Enable CUDA support" OFF)
 option(ENABLE_CUDNN "Enable cuDNN support (auto-detected if not specified)" ON)
 option(ENABLE_TBB "Enable Intel TBB support" ON)
 option(ENABLE_MKL "Enable Intel MKL support" OFF)
+option(ENABLE_DNNL "Enable Intel oneDNN (DNNL) support" OFF)
 option(ENABLE_DEBUG "Enable debug build with sanitizers" OFF)
 
 # default to release
@@ -47,6 +48,10 @@ endif()
 
 if(ENABLE_MKL)
     include(FindMKL)
+endif()
+
+if(ENABLE_DNNL)
+    include(FindDNNL)
 endif()
 
 if(ENABLE_CUDA)
@@ -76,6 +81,7 @@ include_directories(
 # Linkers
 include(LinkTBB)
 include(LinkMKL)
+include(LinkDNNL)
 include(LinkCUDA)
 include(LinkWindowsLibs)
 include(LinkOpenMP)

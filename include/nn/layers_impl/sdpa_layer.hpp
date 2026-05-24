@@ -10,7 +10,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "device/task.hpp"
 #include "nn/layer.hpp"
@@ -28,7 +27,7 @@ private:
   bool is_training_;
 
   // Cache input shapes and forward pass data for backward
-  std::unordered_map<size_t, std::vector<size_t>> micro_batch_q_shapes_;
+  std::unordered_map<size_t, Vec<size_t>> micro_batch_q_shapes_;
   std::unordered_map<size_t, ConstTensor> micro_batch_q_cache_;
   std::unordered_map<size_t, ConstTensor> micro_batch_k_cache_;
   std::unordered_map<size_t, ConstTensor> micro_batch_v_cache_;
@@ -62,10 +61,8 @@ private:
                       size_t mb_id);
 #endif
 
-  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                    size_t mb_id = 0) override;
-  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                     size_t mb_id = 0) override;
+  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id = 0) override;
+  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0) override;
 
 public:
   static constexpr const char *TYPE_NAME = "sdpa";
@@ -78,11 +75,7 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
-  std::vector<ParamDescriptor> param_descriptors() override { return {}; }
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  Vec<ParamDescriptor> param_descriptors() override { return {}; }
 
   static std::unique_ptr<SDPALayer> create_from_config(const LayerConfig &config);
 };

@@ -39,42 +39,33 @@ AttentionBlock::AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causa
   out_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_out");
 }
 
-void AttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                                  size_t mb_id) {
+Vec<Tensor> AttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
   const ConstTensor &input = inputs[0];
-  const Tensor &output = outputs[0];
   const auto &input_shape = input->shape();
 
   size_t batch_size = input_shape[0];
   size_t seq_len = input_shape[1];
 
   if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
   }
 
-  Tensor q = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
-  Tensor k = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
-  Tensor v = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
-
-  q_proj_->forward({input}, {q}, mb_id);
-  k_proj_->forward({input}, {k}, mb_id);
-  v_proj_->forward({input}, {v}, mb_id);
+  Tensor q = q_proj_->forward({input}, mb_id)[0];
+  Tensor k = k_proj_->forward({input}, mb_id)[0];
+  Tensor v = v_proj_->forward({input}, mb_id)[0];
 
   Tensor attn_out = this->get_workspace(input_shape, io_dtype_);
-  attn_out->ensure(input_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_attention_forward, q, k, v, attn_out, batch_size, seq_len,
                                  defaultFlowHandle);
 
-  out_proj_->forward({attn_out}, {output}, mb_id);
+  return out_proj_->forward({attn_out}, mb_id);
 }
 
-void AttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
-                                   const Vec<Tensor> &grad_inputs, size_t mb_id) {
+Vec<Tensor> AttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   const ConstTensor &grad_output = grad_outputs[0];
-  const Tensor &grad_input = grad_inputs[0];
-  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
   }
@@ -82,16 +73,11 @@ void AttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
   size_t batch_size = input->dimension(0);
   size_t seq_len = input->dimension(1);
 
-  Tensor q = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
-  Tensor k = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
-  Tensor v = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor q = q_proj_->forward({input}, mb_id)[0];
+  Tensor k = k_proj_->forward({input}, mb_id)[0];
+  Tensor v = v_proj_->forward({input}, mb_id)[0];
 
-  q_proj_->forward({input}, {q}, mb_id);
-  k_proj_->forward({input}, {k}, mb_id);
-  v_proj_->forward({input}, {v}, mb_id);
-
-  Tensor d_attn_out = this->get_workspace(grad_output->shape(), io_dtype_);
-  out_proj_->backward({grad_output}, {d_attn_out}, mb_id);
+  Tensor d_attn_out = out_proj_->backward({grad_output}, mb_id)[0];
 
   Tensor dq = this->get_workspace(q->shape(), io_dtype_);
   Tensor dk = this->get_workspace(k->shape(), io_dtype_);
@@ -100,23 +86,19 @@ void AttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_attention_backward, q, k, v, d_attn_out, dq, dk, dv,
                                  batch_size, seq_len, defaultFlowHandle);
 
-  Tensor dq_in = this->get_workspace(q->shape(), io_dtype_);
-  Tensor dk_in = this->get_workspace(k->shape(), io_dtype_);
-  Tensor dv_in = this->get_workspace(v->shape(), io_dtype_);
+  Tensor dq_in = q_proj_->backward({dq}, mb_id)[0];
+  Tensor dk_in = k_proj_->backward({dk}, mb_id)[0];
+  Tensor dv_in = v_proj_->backward({dv}, mb_id)[0];
 
-  q_proj_->backward({dq}, {dq_in}, mb_id);
-  k_proj_->backward({dk}, {dk_in}, mb_id);
-  v_proj_->backward({dv}, {dv_in}, mb_id);
-
-  grad_input->ensure(dq_in->shape());
+  Tensor grad_input = this->get_output_tensor(input->shape());
   size_t size = dq_in->size();
 
-  Tensor temp = this->get_workspace(dq_in->shape(), io_dtype_);
+  DISPATCH_IO_DTYPE(ops::add, dq_in->data_ptr(), dk_in->data_ptr(), grad_input->data_ptr(), size,
+                    defaultFlowHandle);
+  DISPATCH_IO_DTYPE(ops::add, grad_input->data_ptr(), dv_in->data_ptr(), grad_input->data_ptr(),
+                    size, defaultFlowHandle);
 
-  DISPATCH_IO_DTYPE(ops::add, dq_in->data_ptr(), dk_in->data_ptr(), temp->data_ptr(), size,
-                    defaultFlowHandle);
-  DISPATCH_IO_DTYPE(ops::add, temp->data_ptr(), dv_in->data_ptr(), grad_input->data_ptr(), size,
-                    defaultFlowHandle);
+  return {grad_input};
 }
 
 Vec<Vec<size_t>> AttentionBlock::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
@@ -132,12 +114,11 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(
     throw std::runtime_error("AttentionBlock IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     throw std::runtime_error("AttentionBlock CPU implementation not yet available.");
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
-
+  else if (get_engine_type() == EngineType::CUDA) {
     size_t L = seq_len;
     size_t batch_count = batch_size * num_heads_;
 
@@ -189,7 +170,6 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(
 
     create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, attn_heads->data_as<IO_T>(),
                      output->data_as<IO_T>(), batch_size, num_heads_, L, head_dim_);
-
     return nullptr;
   }
 #endif
@@ -211,11 +191,11 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
     throw std::runtime_error("AttentionBlock IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     throw std::runtime_error("AttentionBlock CPU implementation not yet available.");
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     auto q_raw = q->data_as<IO_T>();
     auto k_raw = k->data_as<IO_T>();
     auto v_raw = v->data_as<IO_T>();
@@ -320,87 +300,8 @@ LayerConfig AttentionBlock::get_config() const {
   config.type = this->type();
   config.set("embed_dim", embed_dim_);
   config.set("num_heads", num_heads_);
+  config.set("is_causal", is_causal_);
   return config;
-}
-
-size_t AttentionBlock::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-  const auto &shape = input_shapes[0];
-  size_t batch_size = shape[0], seq_len = shape[1];
-  size_t dtype_size = get_dtype_size(io_dtype_);
-
-  // Outer forward buffers: q, k, v, attn_out  (4 * [B, L, E])
-  size_t outer_bytes = 4 * batch_size * seq_len * embed_dim_ * dtype_size;
-  // Inner buffers in compute_attention_forward:
-  //   q_heads, k_heads, v_heads: 3 * [B, H, L, D]
-  //   scores: [B*H, L, L]
-  //   attn_heads: [B, H, L, D]
-  size_t inner_qkv_heads = 3 * batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_scores = batch_size * num_heads_ * seq_len * seq_len * dtype_size;
-  size_t inner_attn_heads = batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_bytes = inner_qkv_heads + inner_scores + inner_attn_heads;
-  return outer_bytes + inner_bytes;
-}
-
-size_t AttentionBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  const auto &shape = input_shapes[0];
-  size_t batch_size = shape[0], seq_len = shape[1];
-  size_t dtype_size = get_dtype_size(io_dtype_);
-
-  // Outer forward buffers: q, k, v, attn_out  (4 * [B, L, E])
-  size_t outer_bytes = 4 * batch_size * seq_len * embed_dim_ * dtype_size;
-
-  // Inner buffers in compute_attention_forward:
-  //   q_heads, k_heads, v_heads: 3 * [B, H, L, D]
-  //   scores: [B*H, L, L]
-  //   attn_heads: [B, H, L, D]
-  size_t inner_qkv_heads = 3 * batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_scores = batch_size * num_heads_ * seq_len * seq_len * dtype_size;
-  size_t inner_attn_heads = batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_bytes = inner_qkv_heads + inner_scores + inner_attn_heads;
-
-  // Sub-layer (dense proj) workspace — max of q/k/v/out proj workspace
-  size_t proj_input_shape_bytes = 0;
-  Vec<size_t> proj_input = {batch_size, seq_len, embed_dim_};
-  if (q_proj_) {
-    proj_input_shape_bytes = q_proj_->fwd_workspace({{proj_input}});
-  }
-
-  size_t total = outer_bytes + inner_bytes + proj_input_shape_bytes;
-  return (total + 255) & ~static_cast<size_t>(255);
-}
-
-size_t AttentionBlock::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  return fwd_workspace(input_shapes);
-}
-
-size_t AttentionBlock::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  const auto &shape = input_shapes[0];
-  size_t batch_size = shape[0], seq_len = shape[1];
-  size_t dtype_size = get_dtype_size(io_dtype_);
-
-  // Outer backward buffers: dq, dk, dv (3 * [B, L, E])
-  size_t outer_bytes = 3 * batch_size * seq_len * embed_dim_ * dtype_size;
-
-  // Inner buffers in compute_attention_backward:
-  //   q_heads, k_heads, v_heads: 3 * [B, H, L, D]
-  //   scores: [B*H, L, L]
-  //   dattn: [B*H, L, L]
-  //   dq_heads, dk_heads: 2 * [B, H, L, D]
-  size_t inner_qkv_heads = 3 * batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_scores = batch_size * num_heads_ * seq_len * seq_len * dtype_size;
-  size_t inner_dattn = batch_size * num_heads_ * seq_len * seq_len * dtype_size;
-  size_t inner_dqdk_heads = 2 * batch_size * num_heads_ * seq_len * head_dim_ * dtype_size;
-  size_t inner_bytes = inner_qkv_heads + inner_scores + inner_dattn + inner_dqdk_heads;
-
-  // Sub-layer (dense proj) workspace — max of q/k/v/out proj workspace
-  size_t proj_input_shape_bytes = 0;
-  Vec<size_t> proj_input = {batch_size, seq_len, embed_dim_};
-  if (out_proj_) {
-    proj_input_shape_bytes = out_proj_->bwd_workspace({{proj_input}});
-  }
-
-  size_t total = outer_bytes + inner_bytes + proj_input_shape_bytes;
-  return (total + 255) & ~static_cast<size_t>(255);
 }
 
 std::unique_ptr<AttentionBlock> AttentionBlock::create_from_config(const LayerConfig &config) {

@@ -12,16 +12,18 @@
 #include <numeric>
 #include <vector>
 
-namespace {
+#include "type/type.hpp"
 
-static size_t product(const std::vector<size_t> &shape) {
+namespace tnn {
+
+static size_t product(const Vec<size_t> &shape) {
   return std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
 }
 
 template <typename T>
-static void reference_slice_forward(const std::vector<T> &input, std::vector<T> &output,
-                                    const std::vector<size_t> &input_shape, size_t axis,
-                                    size_t start, size_t length) {
+static void reference_slice_forward(const Vec<T> &input, Vec<T> &output,
+                                    const Vec<size_t> &input_shape, size_t axis, size_t start,
+                                    size_t length) {
   size_t outer_size = 1;
   for (size_t i = 0; i < axis; ++i) {
     outer_size *= input_shape[i];
@@ -47,9 +49,9 @@ static void reference_slice_forward(const std::vector<T> &input, std::vector<T> 
 }
 
 template <typename T>
-static void reference_slice_backward(const std::vector<T> &grad_output, std::vector<T> &grad_input,
-                                     const std::vector<size_t> &input_shape, size_t axis,
-                                     size_t start, size_t length) {
+static void reference_slice_backward(const Vec<T> &grad_output, Vec<T> &grad_input,
+                                     const Vec<size_t> &input_shape, size_t axis, size_t start,
+                                     size_t length) {
   size_t outer_size = 1;
   for (size_t i = 0; i < axis; ++i) {
     outer_size *= input_shape[i];
@@ -74,13 +76,11 @@ static void reference_slice_backward(const std::vector<T> &grad_output, std::vec
   }
 }
 
-}  // namespace
-
 TEST(SliceOpsTest, CpuForwardBackwardMatchesReference) {
   using T = float;
 
-  const std::vector<size_t> input_shape = {2, 3, 4};
-  std::vector<T> input(product(input_shape));
+  const Vec<size_t> input_shape = {2, 3, 4};
+  Vec<T> input(product(input_shape));
   for (size_t i = 0; i < input.size(); ++i) {
     input[i] = static_cast<T>(i + 1);
   }
@@ -91,7 +91,7 @@ TEST(SliceOpsTest, CpuForwardBackwardMatchesReference) {
     size_t length;
   };
 
-  const std::vector<Case> cases = {
+  const Vec<Case> cases = {
       {0, 0, 1},
       {0, 1, 1},
       {1, 1, 2},
@@ -99,10 +99,10 @@ TEST(SliceOpsTest, CpuForwardBackwardMatchesReference) {
   };
 
   for (const auto &c : cases) {
-    std::vector<T> expected_out;
+    Vec<T> expected_out;
     reference_slice_forward(input, expected_out, input_shape, c.axis, c.start, c.length);
 
-    std::vector<T> actual_out(expected_out.size(), T(0));
+    Vec<T> actual_out(expected_out.size(), T(0));
     tnn::cpu::slice::slice_forward<T>(input.data(), actual_out.data(), input_shape, c.axis, c.start,
                                       c.length);
 
@@ -112,16 +112,16 @@ TEST(SliceOpsTest, CpuForwardBackwardMatchesReference) {
           << "axis=" << c.axis << " start=" << c.start << " length=" << c.length << " idx=" << i;
     }
 
-    std::vector<T> grad_output(expected_out.size());
+    Vec<T> grad_output(expected_out.size());
     for (size_t i = 0; i < grad_output.size(); ++i) {
       grad_output[i] = static_cast<T>(100 + i);
     }
 
-    std::vector<T> expected_grad_input;
+    Vec<T> expected_grad_input;
     reference_slice_backward(grad_output, expected_grad_input, input_shape, c.axis, c.start,
                              c.length);
 
-    std::vector<T> actual_grad_input(product(input_shape), T(-1));
+    Vec<T> actual_grad_input(product(input_shape), T(-1));
     tnn::cpu::slice::slice_backward<T>(grad_output.data(), actual_grad_input.data(), input_shape,
                                        c.axis, c.start, c.length);
 
@@ -137,8 +137,8 @@ TEST(SliceOpsTest, CpuForwardBackwardMatchesReference) {
 TEST(SliceOpsTest, CudaForwardBackwardMatchesReference) {
   using T = float;
 
-  const std::vector<size_t> input_shape = {2, 3, 4};
-  std::vector<T> input(product(input_shape));
+  const Vec<size_t> input_shape = {2, 3, 4};
+  Vec<T> input(product(input_shape));
   for (size_t i = 0; i < input.size(); ++i) {
     input[i] = static_cast<T>(i + 1);
   }
@@ -147,7 +147,7 @@ TEST(SliceOpsTest, CudaForwardBackwardMatchesReference) {
   const size_t start = 1;
   const size_t length = 2;
 
-  std::vector<T> expected_out;
+  Vec<T> expected_out;
   reference_slice_forward(input, expected_out, input_shape, axis, start, length);
 
   T *d_in = nullptr;
@@ -160,7 +160,7 @@ TEST(SliceOpsTest, CudaForwardBackwardMatchesReference) {
 
   tnn::cuda::slice::slice_forward<T>(d_in, d_out, input_shape, axis, start, length, 0);
 
-  std::vector<T> actual_out(expected_out.size(), T(0));
+  Vec<T> actual_out(expected_out.size(), T(0));
   cudaMemcpy(actual_out.data(), d_out, expected_out.size() * sizeof(T), cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();
 
@@ -168,11 +168,11 @@ TEST(SliceOpsTest, CudaForwardBackwardMatchesReference) {
     EXPECT_EQ(actual_out[i], expected_out[i]) << "idx=" << i;
   }
 
-  std::vector<T> grad_output(expected_out.size());
+  Vec<T> grad_output(expected_out.size());
   for (size_t i = 0; i < grad_output.size(); ++i) {
     grad_output[i] = static_cast<T>(100 + i);
   }
-  std::vector<T> expected_grad_input;
+  Vec<T> expected_grad_input;
   reference_slice_backward(grad_output, expected_grad_input, input_shape, axis, start, length);
 
   T *d_grad = nullptr;
@@ -185,7 +185,7 @@ TEST(SliceOpsTest, CudaForwardBackwardMatchesReference) {
 
   tnn::cuda::slice::slice_backward<T>(d_grad, d_grad_in, input_shape, axis, start, length, 0);
 
-  std::vector<T> actual_grad_input(input.size(), T(0));
+  Vec<T> actual_grad_input(input.size(), T(0));
   cudaMemcpy(actual_grad_input.data(), d_grad_in, input.size() * sizeof(T), cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();
 
@@ -199,3 +199,5 @@ TEST(SliceOpsTest, CudaForwardBackwardMatchesReference) {
   cudaFree(d_grad_in);
 }
 #endif
+
+}  // namespace tnn

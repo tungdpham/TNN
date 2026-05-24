@@ -22,15 +22,13 @@ void elu_gradient(const T *input, const T *grad_output, T *grad_input, size_t si
   });
 }
 
-#define INSTANTIATE_ELU(T)                                                                        \
+#define INSTANTIATE(T)                                                                            \
   template void elu<T>(const T *input, T *output, size_t size, T alpha);                          \
   template void elu_gradient<T>(const T *input, const T *grad_output, T *grad_input, size_t size, \
                                 T alpha);
-INSTANTIATE_ELU(fp16)
-INSTANTIATE_ELU(bf16)
-INSTANTIATE_ELU(float)
-INSTANTIATE_ELU(double)
-#undef INSTANTIATE_ELU
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace cpu
 }  // namespace tnn

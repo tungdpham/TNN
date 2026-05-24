@@ -30,8 +30,7 @@ TEST(AttentionBlockTest, ForwardPassCPU) {
   auto attention = std::make_unique<AttentionBlock>(embed_dim, num_heads, "attn");
   attention->init();
 
-  Tensor output;
-  attention->forward({input}, {output});
+  Tensor output = attention->forward({input})[0];
 
   // Check output shape
   auto output_shape = output->shape();

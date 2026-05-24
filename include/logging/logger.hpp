@@ -18,7 +18,7 @@ public:
   Logger(const std::string &name = "default_logger", const std::string &log_file = "",
          LogLevel level = LogLevel::info);
 
-  ~Logger() = default;
+  ~Logger();
 
   void set_level(LogLevel level);
 
@@ -82,6 +82,14 @@ public:
 
   void log_runtime(LogLevel level, std::string_view msg) {
     if (logger_) logger_->log(level, msg);
+  }
+
+  void set_pattern(const std::string &pattern) {
+    if (logger_) logger_->set_pattern(pattern);
+  }
+
+  void flush() {
+    if (logger_) logger_->flush();
   }
 
 private:

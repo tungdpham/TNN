@@ -54,8 +54,8 @@ public:
     register_activation("gelu", []() { return std::make_unique<GELU>(); });
   }
 
-  static std::vector<std::string> get_available_activations() {
-    std::vector<std::string> names;
+  static Vec<std::string> get_available_activations() {
+    Vec<std::string> names;
     for (const auto &pair : creators_) {
       names.push_back(pair.first);
     }

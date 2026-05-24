@@ -13,7 +13,6 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "nn/block.hpp"
 #include "nn/blocks_impl/sequential.hpp"
@@ -22,41 +21,32 @@
 
 namespace tnn {
 
-/**
- * MSequential: Multi-Input Single-Output (MISO) Block
- *
- * Implements the joining architecture described in Section 3.1.2 of the paper.
- * Multiple independent Sequential branches converge into a single join layer.
- *
- * Memory scheduling follows Algorithm 2 (Minimum Space for m joining SISO sequences)
- * to optimize buffer reuse by executing branches in order of decreasing (M_b,i - O_i).
- */
 class MSequential : public Block {
 private:
-  std::vector<std::unique_ptr<Sequential>> sequences_;
+  Vec<std::unique_ptr<Sequential>> sequences_;
   std::unique_ptr<Layer> join_layer_;
 
   // Cache for memory planning
   struct SequenceMemInfo {
-    size_t cycling_cost;  // M_b,i: peak buffer requirement for sequence i
-    size_t output_size;   // O_i: terminal output size of sequence i
-    int priority;         // M_b,i - O_i: used for scheduling order
-    size_t index;         // original index in sequences_ vector
+    size_t cycling_cost;  // W_i: peak memory pressure during sequence execution (measured via hook)
+    size_t output_size;  // b_i = O_i + R_i: retained memory after forward (output + residual cache)
+    int priority;        // W_i - b_i: scheduling priority (descending = execute first)
+    size_t index;        // original index in sequences_ vector
   };
 
   // Cached execution order (sorted by priority, descending)
-  mutable std::vector<size_t> execution_order_;
-  mutable bool execution_order_cached_ = false;
+  Vec<size_t> execution_order_;
+  bool execution_order_cached_ = false;
 
   std::unordered_map<size_t, Vec<Vec<size_t>>> input_shapes_cache_;
 
-  std::vector<size_t> compute_execution_order(const Vec<Vec<size_t>> &input_shapes) const;
+  Vec<size_t> compute_execution_order(const Vec<ConstTensor> &inputs, size_t mb_id);
 
-  SequenceMemInfo compute_sequence_memory(size_t seq_idx, const Vec<size_t> &input_shapes) const;
+  SequenceMemInfo measure_sequence_memory(size_t seq_idx, ConstTensor input, size_t mb_id);
 
 protected:
-  std::vector<Layer *> layers() override {
-    std::vector<Layer *> layers;
+  Vec<Layer *> layers() override {
+    Vec<Layer *> layers;
     for (auto &seq : sequences_) {
       layers.push_back(seq.get());
     }
@@ -66,10 +56,8 @@ protected:
     return layers;
   }
 
-  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                    size_t mb_id) override;
-  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                     size_t mb_id) override;
+  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) override;
+  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) override;
 
 public:
   /**
@@ -79,7 +67,7 @@ public:
    * @param join_layer Layer that accepts multiple inputs and produces single output
    * @param name Block name
    */
-  explicit MSequential(std::vector<std::unique_ptr<Sequential>> sequences,
+  explicit MSequential(Vec<std::unique_ptr<Sequential>> sequences,
                        std::unique_ptr<Layer> join_layer, const std::string &name = "msequential");
 
   static constexpr const char *TYPE_NAME = "msequential";
@@ -88,14 +76,9 @@ public:
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
 
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-
   void print_summary(const Vec<Vec<size_t>> &input_shapes) const;
 
-  std::vector<Sequential *> get_sequences();
+  Vec<Sequential *> get_sequences();
   Layer *get_join_layer();
 
   LayerConfig get_config() const override;

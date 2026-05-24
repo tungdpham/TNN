@@ -14,10 +14,12 @@
 #include "cuda/cudnn_conv2d_ops.hpp"
 #include "device/task.hpp"
 #endif
+#ifdef USE_DNNL
+#include "nn/layers_impl/cpu/dnnl_conv2d_ops.hpp"
+#endif
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace tnn {
 
@@ -65,18 +67,27 @@ private:
       const Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
       size_t output_w, flowHandle_t handle) const;
 
-  void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void cudnn_backward(const ConstTensor &current_gradient, const Tensor &grad_input, size_t mb_id);
+  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
+  Tensor cudnn_backward(const ConstTensor &current_gradient, size_t mb_id);
 
   mutable std::unordered_map<size_t, cuda::cudnn_conv2d::feHandle_t *> fe_handle_cache;
   mutable std::unordered_map<size_t, ConvolutionStats> stats_cache;
 #endif
 
-  void def_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void def_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
+#ifdef USE_DNNL
+  void build_dnnl_handle(const Vec<size_t> &input_shape) const;
+  Tensor dnnl_forward(const ConstTensor &input, size_t mb_id);
+  Tensor dnnl_backward(const ConstTensor &grad_output, size_t mb_id);
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  mutable std::unordered_map<size_t, cpu::dnnl_conv2d::dnnlHandle_t *> dnnl_handle_cache;
+  mutable std::unordered_map<size_t, ConvolutionStats> dnnl_stats_cache;
+#endif
+
+  Tensor def_forward(const ConstTensor &input, size_t mb_id);
+  Tensor def_backward(const ConstTensor &grad_output, size_t mb_id);
+
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     auto weight_desc = ParamDescriptor{
         param_dtype_,
         {out_channels_, kernel_h_, kernel_w_, in_channels_},
@@ -97,9 +108,8 @@ private:
   }
 
   void init_impl() override;
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   static constexpr const char *TYPE_NAME = "conv2d";
@@ -112,11 +122,7 @@ public:
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
   static std::unique_ptr<Conv2DLayer> create_from_config(const LayerConfig &config);
 };

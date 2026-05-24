@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 
 #include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
+#include "type/cuda/vectorized_types.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
@@ -17,36 +18,19 @@ namespace batchnorm_nchw {
 #define WARP_SIZE 32
 
 template <typename T>
-struct VectorType;
-template <>
-struct VectorType<fp16> {
-  using type = half2;
-  static constexpr int size = 2;
-};
-template <>
-struct VectorType<bf16> {
-  using type = __nv_bfloat162;
-  static constexpr int size = 2;
-};
-template <>
-struct VectorType<float> {
-  using type = float4;
-  static constexpr int size = 4;
-};
-template <>
-struct VectorType<double> {
-  using type = double2;
-  static constexpr int size = 2;
-};
-
-template <typename T>
 struct WelfordData {
   T mean;
   T m2;
   T count;
 
-  __device__ WelfordData() : mean(0), m2(0), count(0) {}
-  __device__ WelfordData(T m, T v, T c) : mean(m), m2(v), count(c) {}
+  __device__ WelfordData()
+      : mean(0),
+        m2(0),
+        count(0) {}
+  __device__ WelfordData(T m, T v, T c)
+      : mean(m),
+        m2(v),
+        count(c) {}
 };
 
 template <typename T>
@@ -185,8 +169,8 @@ __global__ void fused_stats_kernel_vec(const T* __restrict__ input, float* __res
                                        float* __restrict__ running_mean,
                                        float* __restrict__ running_var, size_t N, size_t C,
                                        size_t S, float momentum, float epsilon) {
-  using VecT = typename VectorType<T>::type;
-  constexpr int vec_size = VectorType<T>::size;
+  using VecT = typename VectoredTraits<T>::type;
+  constexpr int vec_size = VectoredTraits<T>::size;
 
   int c = blockIdx.x;
   if (c >= C) return;
@@ -267,8 +251,8 @@ __global__ void fused_apply_kernel_vec(const T* __restrict__ input, const float*
                                        const float* __restrict__ beta, T* __restrict__ output,
                                        float* __restrict__ normalized_cache, size_t N, size_t C,
                                        size_t S, bool affine) {
-  using VecT = typename VectorType<T>::type;
-  constexpr int vec_size = VectorType<T>::size;
+  using VecT = typename VectoredTraits<T>::type;
+  constexpr int vec_size = VectoredTraits<T>::size;
 
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_vectors = (N * C * S) / vec_size;
@@ -348,8 +332,8 @@ __global__ void fused_backward_reduce_kernel_vec(const T* __restrict__ grad_outp
                                                  float* __restrict__ d_gamma,
                                                  float* __restrict__ d_beta, size_t N, size_t C,
                                                  size_t S) {
-  using VecT = typename VectorType<T>::type;
-  constexpr int vec_size = VectorType<T>::size;
+  using VecT = typename VectoredTraits<T>::type;
+  constexpr int vec_size = VectoredTraits<T>::size;
 
   int c = blockIdx.x;
   if (c >= C) return;
@@ -425,8 +409,8 @@ __global__ void fused_backward_apply_kernel_vec(
     const float* __restrict__ inv_std, const float* __restrict__ gamma,
     const float* __restrict__ d_gamma, const float* __restrict__ d_beta, T* __restrict__ grad_input,
     size_t N, size_t C, size_t S, bool affine) {
-  using VecT = typename VectorType<T>::type;
-  constexpr int vec_size = VectorType<T>::size;
+  using VecT = typename VectoredTraits<T>::type;
+  constexpr int vec_size = VectoredTraits<T>::size;
 
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_vectors = (N * C * S) / vec_size;
@@ -462,11 +446,11 @@ __global__ void fused_backward_apply_kernel_vec(
 }
 
 template <typename T>
-__global__ void compute_inference_output_kernel(const T* input_data, const float* running_mean_data,
-                                                const float* running_var_data,
-                                                const float* gamma_data, const float* beta_data,
-                                                T* output_data, size_t batch_size, size_t channels,
-                                                size_t spatial_size, float epsilon, bool affine) {
+__global__ void run_inference_kernel(const T* input_data, const float* running_mean_data,
+                                     const float* running_var_data, const float* gamma_data,
+                                     const float* beta_data, T* output_data, size_t batch_size,
+                                     size_t channels, size_t spatial_size, float epsilon,
+                                     bool affine) {
   extern __shared__ char shared_mem[];
   float* s_mean = reinterpret_cast<float*>(shared_mem);
   float* s_inv_std = s_mean + channels;
@@ -502,11 +486,11 @@ __global__ void compute_inference_output_kernel(const T* input_data, const float
 }
 
 template <typename T>
-void run_forward_fused(const T* input, float* mean, float* inv_std, float* running_mean,
-                       float* running_var, const float* gamma, const float* beta, T* output,
-                       float* norm_cache, size_t N, size_t C, size_t S, float momentum,
-                       float epsilon, bool affine, cudaStream_t stream) {
-  constexpr int vec_size = VectorType<T>::size;
+void run_forward(const T* input, float* mean, float* inv_std, float* running_mean,
+                 float* running_var, const float* gamma, const float* beta, T* output,
+                 float* norm_cache, size_t N, size_t C, size_t S, float momentum, float epsilon,
+                 bool affine, cudaStream_t stream) {
+  constexpr int vec_size = VectoredTraits<T>::size;
   if (S % vec_size == 0) {
     fused_stats_kernel_vec<<<C, BLOCK_SIZE, 0, stream>>>(input, mean, inv_std, running_mean,
                                                          running_var, N, C, S, momentum, epsilon);
@@ -528,10 +512,10 @@ void run_forward_fused(const T* input, float* mean, float* inv_std, float* runni
 }
 
 template <typename T>
-void run_backward_fused(const T* grad_output, const float* norm_input, const float* inv_std,
-                        const float* gamma, float* d_gamma, float* d_beta, T* grad_input, size_t N,
-                        size_t C, size_t S, bool affine, cudaStream_t stream) {
-  constexpr int vec_size = VectorType<T>::size;
+void run_backward(const T* grad_output, const float* norm_input, const float* inv_std,
+                  const float* gamma, float* d_gamma, float* d_beta, T* grad_input, size_t N,
+                  size_t C, size_t S, bool affine, cudaStream_t stream) {
+  constexpr int vec_size = VectoredTraits<T>::size;
   if (S % vec_size == 0) {
     fused_backward_reduce_kernel_vec<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
                                                                    d_beta, N, C, S);
@@ -553,43 +537,40 @@ void run_backward_fused(const T* grad_output, const float* norm_input, const flo
 }
 
 template <typename T>
-void compute_inference_output(const T* input_data, const float* running_mean_data,
-                              const float* running_var_data, const float* gamma_data,
-                              const float* beta_data, T* output_data, size_t batch_size,
-                              size_t channels, size_t spatial_size, float epsilon, bool affine,
-                              cudaStream_t stream) {
+void run_inference(const T* input_data, const float* running_mean_data,
+                   const float* running_var_data, const float* gamma_data, const float* beta_data,
+                   T* output_data, size_t batch_size, size_t channels, size_t spatial_size,
+                   float epsilon, bool affine, cudaStream_t stream) {
   size_t total_elements = batch_size * channels * spatial_size;
   int threads_per_block = BLOCK_SIZE;
   int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
 
   size_t shared_mem_size = 4 * channels * sizeof(float);
 
-  compute_inference_output_kernel<<<num_blocks, threads_per_block, shared_mem_size, stream>>>(
+  run_inference_kernel<<<num_blocks, threads_per_block, shared_mem_size, stream>>>(
       input_data, running_mean_data, running_var_data, gamma_data, beta_data, output_data,
       batch_size, channels, spatial_size, epsilon, affine);
 }
 
-#define INSTANTIATE_BATCHNORM(T)                                                                  \
-  template void compute_inference_output<T>(                                                      \
-      const T* input_data, const float* running_mean_data, const float* running_var_data,         \
-      const float* gamma_data, const float* beta_data, T* output_data, size_t batch_size,         \
-      size_t channels, size_t spatial_size, float epsilon, bool affine, cudaStream_t stream);     \
-                                                                                                  \
-  template void run_forward_fused<T>(                                                             \
-      const T* input, float* mean, float* inv_std, float* running_mean, float* running_var,       \
-      const float* gamma, const float* beta, T* output, float* norm_cache, size_t N, size_t C,    \
-      size_t S, float momentum, float epsilon, bool affine, cudaStream_t stream);                 \
-                                                                                                  \
-  template void run_backward_fused<T>(const T* grad_output, const float* norm_input,              \
-                                      const float* inv_std, const float* gamma, float* d_gamma,   \
-                                      float* d_beta, T* grad_input, size_t N, size_t C, size_t S, \
-                                      bool affine, cudaStream_t stream);
+#define INSTANTIATE(T)                                                                           \
+  template void run_inference<T>(                                                                \
+      const T* input_data, const float* running_mean_data, const float* running_var_data,        \
+      const float* gamma_data, const float* beta_data, T* output_data, size_t batch_size,        \
+      size_t channels, size_t spatial_size, float epsilon, bool affine, cudaStream_t stream);    \
+                                                                                                 \
+  template void run_forward<T>(const T* input, float* mean, float* inv_std, float* running_mean, \
+                               float* running_var, const float* gamma, const float* beta,        \
+                               T* output, float* norm_cache, size_t N, size_t C, size_t S,       \
+                               float momentum, float epsilon, bool affine, cudaStream_t stream); \
+                                                                                                 \
+  template void run_backward<T>(const T* grad_output, const float* norm_input,                   \
+                                const float* inv_std, const float* gamma, float* d_gamma,        \
+                                float* d_beta, T* grad_input, size_t N, size_t C, size_t S,      \
+                                bool affine, cudaStream_t stream);
 
-INSTANTIATE_BATCHNORM(fp16)
-INSTANTIATE_BATCHNORM(bf16)
-INSTANTIATE_BATCHNORM(float)
-INSTANTIATE_BATCHNORM(double)
-#undef INSTANTIATE_BATCHNORM
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace batchnorm_nchw
 }  // namespace cuda

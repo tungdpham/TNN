@@ -15,30 +15,31 @@ FlattenLayer::FlattenLayer(int start_dim, int end_dim, const std::string &name)
       start_dim_(start_dim),
       end_dim_(end_dim) {}
 
-void FlattenLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor FlattenLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
 
-  std::vector<size_t> output_shape = compute_output_shape(input->shape());
-  output->ensure(output_shape);
+  Vec<size_t> output_shape = compute_output_shape(input->shape());
+  Tensor output = get_output_tensor(output_shape);
 
   input->copy_to(output);
+  return output;
 }
 
-void FlattenLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                 size_t mb_id) {
+Tensor FlattenLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   auto it = micro_batch_original_shapes_.find(mb_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in FlattenLayer: " +
                              std::to_string(mb_id));
   }
-  const std::vector<size_t> &original_shape = it->second;
+  const Vec<size_t> &original_shape = it->second;
   size_t expected_size =
       std::accumulate(original_shape.begin(), original_shape.end(), 1, std::multiplies<size_t>());
   if (grad_output->size() != expected_size) {
     throw std::runtime_error("Gradient size does not match original input size in FlattenLayer");
   }
-  grad_input->ensure(original_shape);
+  Tensor grad_input = get_output_tensor(original_shape);
   grad_output->copy_to(grad_input);
+  return grad_input;
 }
 
 LayerConfig FlattenLayer::get_config() const {
@@ -50,13 +51,12 @@ LayerConfig FlattenLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> FlattenLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> FlattenLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.empty()) {
     throw std::invalid_argument("FlattenLayer expects non-empty input shape");
   }
 
-  std::vector<size_t> output_shape;
+  Vec<size_t> output_shape;
 
   output_shape.push_back(input_shape[0]);
 

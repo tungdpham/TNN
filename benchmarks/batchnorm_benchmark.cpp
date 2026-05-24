@@ -50,16 +50,15 @@ signed main() {
 
   Tensor input = make_tensor<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, getGPU());
   input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor output = make_tensor<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, getGPU());
 
   // cold pass
-  bn_node.forward({input}, {output});
+  Tensor output = bn_node.forward({input})[0];
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    bn_node.forward({input}, {output});
+    output = bn_node.forward({input})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
@@ -76,21 +75,18 @@ signed main() {
 
   Tensor legacy_input = make_tensor<float>({BATCH_SIZE, NUM_FEATURES, HEIGHT, WIDTH}, getGPU());
   legacy_input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor legacy_output = make_tensor<float>({BATCH_SIZE, NUM_FEATURES, HEIGHT, WIDTH}, getGPU());
-  Tensor legacy_relu_output =
-      make_tensor<float>({BATCH_SIZE, NUM_FEATURES, HEIGHT, WIDTH}, getGPU());
 
   // legacy batchnorm benchmark
 
   // cold pass
-  legacy_bn_node.forward({legacy_input}, {legacy_output});
-  relu_node.forward({legacy_output}, {legacy_relu_output});
+  Tensor legacy_output = legacy_bn_node.forward({legacy_input})[0];
+  Tensor legacy_relu_output = relu_node.forward({legacy_output})[0];
 
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    legacy_bn_node.forward({legacy_input}, {legacy_output});
-    relu_node.forward({legacy_output}, {legacy_relu_output});
+    legacy_output = legacy_bn_node.forward({legacy_input})[0];
+    legacy_relu_output = relu_node.forward({legacy_output})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();

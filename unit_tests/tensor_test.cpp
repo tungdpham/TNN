@@ -30,7 +30,7 @@ TEST_F(TensorTest, Constructor4D) {
 }
 
 TEST_F(TensorTest, ConstructorWithShape) {
-  std::vector<size_t> shape = {2, 3, 4, 4};
+  Vec<size_t> shape = {2, 3, 4, 4};
   Tensor tensor = make_tensor<float>(shape);
 
   EXPECT_EQ(tensor->shape(), shape);

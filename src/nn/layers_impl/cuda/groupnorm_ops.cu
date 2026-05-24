@@ -93,7 +93,7 @@ __global__ void fused_group_stats_kernel(const T* __restrict__ input, T* __restr
   if (threadIdx.x == 0) {
     T inv_group_size = T(1) / T(group_size);
     T var = var_sum * inv_group_size;
-    T inv_std = rsqrt(var + epsilon);
+    T inv_std = static_cast<T>(rsqrt(static_cast<double>(var + epsilon)));
     inv_std_out[group_idx] = inv_std;
   }
 }
@@ -236,9 +236,9 @@ __global__ void fused_group_backward_apply_kernel(const T* __restrict__ grad_out
 }
 
 template <typename T>
-void run_forward_fused(const T* input, T* mean, T* inv_std, const T* gamma, const T* beta,
-                       T* output, T* norm_cache, size_t N, size_t C, size_t S, size_t num_groups,
-                       T epsilon, bool affine, cudaStream_t stream) {
+void run_forward(const T* input, T* mean, T* inv_std, const T* gamma, const T* beta, T* output,
+                 T* norm_cache, size_t N, size_t C, size_t S, size_t num_groups, T epsilon,
+                 bool affine, cudaStream_t stream) {
   size_t total_groups = N * num_groups;
   fused_group_stats_kernel<<<total_groups, BLOCK_SIZE, 0, stream>>>(input, mean, inv_std, N, C, S,
                                                                     num_groups, epsilon);
@@ -250,9 +250,9 @@ void run_forward_fused(const T* input, T* mean, T* inv_std, const T* gamma, cons
 }
 
 template <typename T>
-void run_backward_fused(const T* grad_output, const T* norm_input, const T* inv_std, const T* gamma,
-                        T* d_gamma, T* d_beta, T* grad_input, size_t N, size_t C, size_t S,
-                        size_t num_groups, bool affine, cudaStream_t stream) {
+void run_backward(const T* grad_output, const T* norm_input, const T* inv_std, const T* gamma,
+                  T* d_gamma, T* d_beta, T* grad_input, size_t N, size_t C, size_t S,
+                  size_t num_groups, bool affine, cudaStream_t stream) {
   if (affine) {
     fused_group_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input,
                                                                      d_gamma, d_beta, N, C, S);
@@ -263,21 +263,18 @@ void run_backward_fused(const T* grad_output, const T* norm_input, const T* inv_
       grad_output, norm_input, inv_std, gamma, grad_input, N, C, S, num_groups, affine);
 }
 
-#define INSTANTIATE_GROUPNORM(T)                                                                   \
-  template void run_forward_fused<T>(const T* input, T* mean, T* inv_std, const T* gamma,          \
-                                     const T* beta, T* output, T* norm_cache, size_t N, size_t C,  \
-                                     size_t S, size_t num_groups, T epsilon, bool affine,          \
-                                     cudaStream_t stream);                                         \
+#define INSTANTIATE(T)                                                                             \
+  template void run_forward<T>(const T* input, T* mean, T* inv_std, const T* gamma, const T* beta, \
+                               T* output, T* norm_cache, size_t N, size_t C, size_t S,             \
+                               size_t num_groups, T epsilon, bool affine, cudaStream_t stream);    \
                                                                                                    \
-  template void run_backward_fused<T>(const T* grad_output, const T* norm_input, const T* inv_std, \
-                                      const T* gamma, T* d_gamma, T* d_beta, T* grad_input,        \
-                                      size_t N, size_t C, size_t S, size_t num_groups,             \
-                                      bool affine, cudaStream_t stream);
-INSTANTIATE_GROUPNORM(fp16)
-INSTANTIATE_GROUPNORM(bf16)
-INSTANTIATE_GROUPNORM(float)
-INSTANTIATE_GROUPNORM(double)
-#undef INSTANTIATE_GROUPNORM
+  template void run_backward<T>(const T* grad_output, const T* norm_input, const T* inv_std,       \
+                                const T* gamma, T* d_gamma, T* d_beta, T* grad_input, size_t N,    \
+                                size_t C, size_t S, size_t num_groups, bool affine,                \
+                                cudaStream_t stream);
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace groupnorm
 }  // namespace cuda

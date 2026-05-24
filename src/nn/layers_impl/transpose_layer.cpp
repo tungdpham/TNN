@@ -28,12 +28,12 @@ std::unique_ptr<Task> TransposeLayer::permute(const ConstTensor &input, const Te
     throw std::runtime_error("TransposeLayer IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  if (this->device().device_type() == DeviceType::CPU) {
+  if (get_engine_type() == EngineType::CPU) {
     return create_cpu_task(handle, cpu::permute_heads<Compute_T, Compute_T>,
                            input->data_as<Compute_T>(), output->data_as<Compute_T>(), B, L, H, D);
   }
 #ifdef USE_CUDA
-  else if (this->device().device_type() == DeviceType::GPU) {
+  else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle, cuda::permute_heads<Compute_T, Compute_T>,
                             input->data_as<Compute_T>(), output->data_as<Compute_T>(), B, L, H, D);
   }
@@ -44,7 +44,7 @@ std::unique_ptr<Task> TransposeLayer::permute(const ConstTensor &input, const Te
   return nullptr;
 }
 
-void TransposeLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor TransposeLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 3) {
     throw std::runtime_error("TransposeLayer expects 3D input (Batch, D1, D2)");
   }
@@ -53,13 +53,13 @@ void TransposeLayer::forward_impl(const ConstTensor &input, const Tensor &output
   size_t H = input->dimension(2);
   size_t D = 1;
 
-  output->ensure({B, H, L});
+  Tensor output = get_output_tensor({B, H, L});
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, input, output, B, L, H, D, this->flow_handle_);
+  return output;
 }
 
-void TransposeLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                   size_t mb_id) {
+Tensor TransposeLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   // Gradient is (B, H, L). We want (B, L, H).
   if (grad_output->dims() != 3) {
     throw std::runtime_error("TransposeLayer: Gradient must be 3D");
@@ -70,13 +70,13 @@ void TransposeLayer::backward_impl(const ConstTensor &grad_output, const Tensor 
   size_t L = grad_output->dimension(2);
   size_t D = 1;
 
-  grad_input->ensure({B, L, H});
+  Tensor grad_input = get_output_tensor({B, L, H});
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, grad_output, grad_input, B, H, L, D, this->flow_handle_);
+  return grad_input;
 }
 
-std::vector<size_t> TransposeLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> TransposeLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 3)
     throw std::runtime_error("TransposeLayer expects 3 dims (B, D1, D2)");
   return {input_shape[0], input_shape[2], input_shape[1]};

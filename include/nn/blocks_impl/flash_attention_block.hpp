@@ -18,7 +18,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace tnn {
 
@@ -51,22 +50,20 @@ private:
       const ConstTensor &stats_tensor, const Tensor &grad_q_heads, const Tensor &grad_k_heads,
       const Tensor &grad_v_heads, const Tensor &workspace, flowHandle_t handle) const;
 
-  void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
+  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
+  Tensor cudnn_backward(const ConstTensor &grad_output, size_t mb_id);
 
   mutable std::unordered_map<size_t, cuda::cudnn_flash_attention::feHandle_t *> fe_handle_cache;
 #endif
   mutable std::unordered_map<size_t, AttentionStats> stats_cache;
 
-  std::vector<Layer *> layers() override {
+  Vec<Layer *> layers() override {
     return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
   }
 
   // Expects input: [batch_size, seq_len, embed_dim], output: [batch_size, seq_len, embed_dim]
-  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                    size_t mb_id = 0) override;
-  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                     size_t mb_id = 0) override;
+  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id = 0) override;
+  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0) override;
 
 public:
   FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
@@ -79,10 +76,6 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   static std::unique_ptr<FlashAttentionBlock> create_from_config(const LayerConfig &config);
 };
 

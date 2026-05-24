@@ -7,48 +7,69 @@
 
 #include "nn/layer.hpp"
 
+#include <fmt/ranges.h>
+
 #include "device/flow.hpp"
+#include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
+
+void Layer::set_engine_type(EngineType engine_type) {
+  engine_type_ = engine_type;
+  on_set_engine_type(engine_type);
+}
+
+EngineType Layer::get_engine_type() const { return engine_type_; }
 
 void Layer::init() {
   if (initialized_) {
     throw std::runtime_error("Cannot initalize Layer more than once. ");
   }
+  if (engine_type_ == EngineType::UNKNOWN) {
+    throw std::runtime_error("Engine type must be set to a valid value before initializing Layer.");
+  }
   init_impl();
   initialized_ = true;
 }
 
-void Layer::forward(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
-                    size_t mb_id) {
+Vec<Tensor> Layer::forward(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (!initialized_) {
     throw std::runtime_error("Layer must be initialized before calling forward");
   }
-  std::vector<ConstTensor> current_inputs;
+  is_fwd_ = true;
+  Vec<ConstTensor> current_inputs;
   for (auto &input : inputs) {
     if (input->device() == this->device())
       current_inputs.push_back(input);
     else
       current_inputs.push_back(input->to_device(this->device()));
   }
-  forward_impl(current_inputs, outputs, mb_id);
+  Vec<Tensor> outputs = forward_impl(current_inputs, mb_id);
+#ifndef NDEBUG
+  this->device().getFlow(flow_handle_)->synchronize();
+#endif
+  return outputs;
 }
 
-void Layer::backward(const std::vector<ConstTensor> &grad_outputs,
-                     const std::vector<Tensor> &grad_inputs, size_t mb_id) {
+Vec<Tensor> Layer::backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   if (!initialized_) {
     throw std::runtime_error("Layer must be initialized before calling backward");
   }
-  std::vector<ConstTensor> current_grad_outputs;
+  is_fwd_ = false;
+  Vec<ConstTensor> current_grad_outputs;
   for (auto &grad : grad_outputs) {
     if (grad->device() == this->device())
       current_grad_outputs.push_back(grad);
     else
       current_grad_outputs.push_back(grad->to_device(this->device()));
   }
-  backward_impl(current_grad_outputs, grad_inputs, mb_id);
+  auto grad_inputs = backward_impl(current_grad_outputs, mb_id);
   clear_cache(mb_id);
+#ifndef NDEBUG
+  this->device().getFlow(flow_handle_)->synchronize();
+#endif
+  return grad_inputs;
 }
 
 Layer &Layer::set_allocator(DELAllocatorV2 &allocator) {
@@ -120,8 +141,8 @@ void Layer::save_state(std::ofstream &file) {
   }
 }
 
-std::vector<Tensor> Layer::parameters() {
-  std::vector<Tensor> params;
+Vec<Tensor> Layer::parameters() {
+  Vec<Tensor> params;
   auto descs = this->param_descriptors();
   for (const auto &desc : descs) {
     params.push_back(*desc.data_ptr);
@@ -129,8 +150,8 @@ std::vector<Tensor> Layer::parameters() {
   return params;
 }
 
-std::vector<Tensor> Layer::gradients() {
-  std::vector<Tensor> grads;
+Vec<Tensor> Layer::gradients() {
+  Vec<Tensor> grads;
   auto descs = this->param_descriptors();
   for (const auto &desc : descs) {
     grads.push_back(*desc.grad_ptr);
@@ -138,50 +159,70 @@ std::vector<Tensor> Layer::gradients() {
   return grads;
 }
 
-Tensor Layer::make_io_tensor(std::vector<size_t> shape) {
-  return make_tensor(io_dtype_, shape, device());
-}
-
-Tensor Layer::make_compute_tensor(std::vector<size_t> shape) {
-  return make_tensor(compute_dtype_, shape, device());
-}
-
-ConstTensor &Layer::get_cached_tensor(size_t mb_id, const std::string &key) {
-  return cached_tensors_[{mb_id, key}];
-}
-
-Tensor &Layer::get_mutable_tensor(size_t mb_id, const std::string &key) {
-  return mutable_tensors_[{mb_id, key}];
-}
-
-Tensor Layer::get_act() {
+Tensor Layer::get_tensor(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
-  if (is_training_) {
-    allocator_->set_side(0);
-  }
-  return make_tensor(
-      *allocator_, io_dtype_,
-      {});  // let layer lazily resize it as needed, and reuse across forward/backward calls within
-            // the same micro-batch ID. Algorithm 1 applies here since we only use it for
-            // activations, which are always used in forward and backward pass in pairs.
+  return make_tensor(dtype, shape, device());
 }
 
-Tensor Layer::get_workspace(const std::vector<size_t> &shape, DType_t dtype) {
+void Layer::set_immutable_cache(size_t mb_id, const std::string &key, ConstTensor value) {
+  if (!is_training_) {
+    return;  // no need to cache in inference mode
+  }
+  immutable_cache_[{mb_id, key}] = std::move(value);
+}
+
+ConstTensor &Layer::get_immutable_cache(size_t mb_id, const std::string &key) {
+  return immutable_cache_[{mb_id, key}];
+}
+
+void Layer::set_mutable_cache(size_t mb_id, const std::string &key, Tensor value) {
+  if (!is_training_) {
+    return;  // no need to cache in inference mode
+  }
+  mutable_cache_[{mb_id, key}] = std::move(value);
+}
+
+Tensor &Layer::get_mutable_cache(size_t mb_id, const std::string &key) {
+  return mutable_cache_[{mb_id, key}];
+}
+
+Tensor Layer::get_output_tensor(const Vec<size_t> &shape) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
-  if (is_training_) {
-    allocator_->set_side(1);
+  Tensor output_tensor = make_tensor(*allocator_, io_dtype_, shape);
+  return output_tensor;
+}
+
+Tensor Layer::get_cache_tensor(const Vec<size_t> &shape, DType_t dtype) {
+  if (!allocator_) {
+    throw std::runtime_error("Allocator is not set");
   }
-  return make_tensor(*allocator_, dtype, shape);
+  Tensor cache_tensor = make_tensor(*allocator_, dtype, shape);
+  return cache_tensor;
+}
+
+Tensor Layer::get_workspace(const Vec<size_t> &shape, DType_t dtype) {
+  if (!allocator_) {
+    throw std::runtime_error("Allocator is not set");
+  }
+  Tensor workspace_tensor = make_tensor(*allocator_, dtype, shape);
+  return workspace_tensor;
 }
 
 void Layer::clear_cache(size_t mb_id) {
-  for (auto it = cached_tensors_.begin(); it != cached_tensors_.end();) {
+  for (auto it = immutable_cache_.begin(); it != immutable_cache_.end();) {
     if (it->first.first == mb_id) {
-      it = cached_tensors_.erase(it);
+      it = immutable_cache_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  for (auto it = mutable_cache_.begin(); it != mutable_cache_.end();) {
+    if (it->first.first == mb_id) {
+      it = mutable_cache_.erase(it);
     } else {
       ++it;
     }

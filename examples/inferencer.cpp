@@ -2,7 +2,6 @@
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
 #include "nn/graph_builder.hpp"
-#include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
@@ -22,11 +21,13 @@ signed main() {
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
   GraphBuilder builder;
 
-  string dataset_name = Env::get<std::string>("DATASET_NAME", "");
+  string dataset_name = "";
+  Env::get("DATASET_NAME", dataset_name);
   if (dataset_name.empty()) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");
   }
-  string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
+  string dataset_path = "data";
+  Env::get("DATASET_PATH", dataset_path);
   auto [train_loader, val_loader] = DataLoaderFactory::create(dataset_name, dataset_path);
   if (!train_loader || !val_loader) {
     cerr << "Failed to create data loaders for model: " << train_config.model_name << endl;
@@ -35,7 +36,7 @@ signed main() {
 
   Graph graph = load_or_create_model(train_config.model_name, train_config.model_path, allocator);
 
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto criterion = LossFactory::create_crossentropy();
 
   try {
     auto res = validate_model(graph, val_loader, criterion, train_config);

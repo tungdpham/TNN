@@ -32,7 +32,7 @@ AvgPool2DLayer::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, si
   }
 }
 
-void AvgPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+Tensor AvgPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::runtime_error("AvgPool2DLayer: input must be 4D (NHWC format)");
   }
@@ -48,14 +48,15 @@ void AvgPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  output->ensure({batch_size, output_h, output_w, channels});
+  Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
 
-  DISPATCH_IO_DTYPE(compute_avg_pool_forward_impl, input, output, batch_size, input_h, input_w,
-                    channels, output_h, output_w, this->flow_handle_);
+  DISPATCH_IO_DTYPE(run_forward, input, output, batch_size, input_h, input_w, channels, output_h,
+                    output_w, this->flow_handle_);
+
+  return output;
 }
 
-void AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                   size_t mb_id) {
+Tensor AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   if (grad_output->dims() != 4) {
     throw std::runtime_error("AvgPool2DLayer: grad_output must be 4D (NHWC format)");
   }
@@ -74,31 +75,35 @@ void AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor 
   const size_t output_h = grad_shape[1];
   const size_t output_w = grad_shape[2];
 
-  grad_input->ensure({batch_size, input_h, input_w, channels});
+  Tensor grad_input = get_output_tensor({batch_size, input_h, input_w, channels});
   grad_input->fill(0);
 
-  DISPATCH_IO_DTYPE(compute_avg_pool_backward_impl, grad_output, grad_input, batch_size, input_h,
-                    input_w, channels, output_h, output_w, this->flow_handle_);
+  DISPATCH_IO_DTYPE(run_backward, grad_output, grad_input, batch_size, input_h, input_w, channels,
+                    output_h, output_w, this->flow_handle_);
+
+  return grad_input;
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_forward_impl(
-    const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t height,
-    size_t width, size_t channels, size_t output_h, size_t output_w, flowHandle_t handle) const {
+std::unique_ptr<Task> AvgPool2DLayer::run_forward(const ConstTensor &input_data,
+                                                  const Tensor &output_data, size_t batch_size,
+                                                  size_t height, size_t width, size_t channels,
+                                                  size_t output_h, size_t output_w,
+                                                  flowHandle_t handle) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("AvgPool2DLayer: data type mismatch in forward pass");
   }
 
   if (input_data->device_type() == DeviceType::CPU) {
-    cpu::avgpool_forward<IO_T>(input_data->data_as<IO_T>(), output_data->data_as<IO_T>(),
-                               batch_size, height, width, channels, pool_h_, pool_w_, stride_h_,
-                               stride_w_, pad_h_, pad_w_, output_h, output_w);
+    cpu::avgpool::run_forward<IO_T>(input_data->data_as<IO_T>(), output_data->data_as<IO_T>(),
+                                    batch_size, height, width, channels, pool_h_, pool_w_,
+                                    stride_h_, stride_w_, pad_h_, pad_w_, output_h, output_w);
   }
 #ifdef USE_CUDA
   else if (input_data->device_type() == DeviceType::GPU) {
-    cuda::avgpool_forward<IO_T>(input_data->data_as<IO_T>(), output_data->data_as<IO_T>(),
-                                batch_size, height, width, channels, pool_h_, pool_w_, stride_h_,
-                                stride_w_, pad_h_, pad_w_, output_h, output_w);
+    cuda::avgpool::run_forward<IO_T>(input_data->data_as<IO_T>(), output_data->data_as<IO_T>(),
+                                     batch_size, height, width, channels, pool_h_, pool_w_,
+                                     stride_h_, stride_w_, pad_h_, pad_w_, output_h, output_w);
   }
 #endif
   else {
@@ -108,25 +113,28 @@ std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_forward_impl(
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_backward_impl(
-    const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
-    size_t input_h, size_t input_w, size_t channels, size_t output_h, size_t output_w,
-    flowHandle_t handle) const {
+std::unique_ptr<Task> AvgPool2DLayer::run_backward(const ConstTensor &gradient_data,
+                                                   const Tensor &grad_input_data, size_t batch_size,
+                                                   size_t input_h, size_t input_w, size_t channels,
+                                                   size_t output_h, size_t output_w,
+                                                   flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("AvgPool2DLayer: data type mismatch in backward pass");
   }
 
   if (gradient_data->device_type() == DeviceType::CPU) {
-    cpu::avgpool_backward<IO_T>(gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
-                                batch_size, input_h, input_w, channels, pool_h_, pool_w_, stride_h_,
-                                stride_w_, pad_h_, pad_w_, output_h, output_w);
+    cpu::avgpool::run_backward<IO_T>(gradient_data->data_as<IO_T>(),
+                                     grad_input_data->data_as<IO_T>(), batch_size, input_h, input_w,
+                                     channels, pool_h_, pool_w_, stride_h_, stride_w_, pad_h_,
+                                     pad_w_, output_h, output_w);
   }
 #ifdef USE_CUDA
   else if (gradient_data->device_type() == DeviceType::GPU) {
-    cuda::avgpool_backward<IO_T>(gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
-                                 batch_size, input_h, input_w, channels, pool_h_, pool_w_,
-                                 stride_h_, stride_w_, pad_h_, pad_w_, output_h, output_w);
+    cuda::avgpool::run_backward<IO_T>(gradient_data->data_as<IO_T>(),
+                                      grad_input_data->data_as<IO_T>(), batch_size, input_h,
+                                      input_w, channels, pool_h_, pool_w_, stride_h_, stride_w_,
+                                      pad_h_, pad_w_, output_h, output_w);
   }
 #endif
   else {
@@ -148,8 +156,7 @@ LayerConfig AvgPool2DLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> AvgPool2DLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> AvgPool2DLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("AvgPool2DLayer: input shape must be 4D (NHWC format)");
   }

@@ -9,16 +9,17 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <variant>
 
 #include "communicator.hpp"
 #include "device/device_manager.hpp"
 #include "device/flow.hpp"
-#include "device/iallocator.hpp"
 #include "device/pool_allocator.hpp"
 #include "distributed/command_type.hpp"
 #include "job.hpp"
@@ -30,10 +31,10 @@
 #include "nn/op_node.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
-#include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
 #include "tensor/tensor.hpp"
+#include "tensor/tensor_utils.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
@@ -104,11 +105,8 @@ public:
     GraphBuilder builder;
     auto &node = builder.add_layer(Sequential::create_from_config(model_config));
     this->model_ = &node;
-    this->model_->set_seed(123456);
+    // this->model_->set_seed(123456);
     this->graph_ = std::make_unique<Graph>(builder.compile(allocator));
-
-    auto parsed_config = this->model_->get_config();
-    std::cout << parsed_config.to_json().dump(4) << std::endl;
 
     OptimizerConfig optimizer_config = config.optimizer_config;
     this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
@@ -143,65 +141,35 @@ protected:
   virtual void process_message(Message &&message) {
     switch (message.header().command_type) {
       case CommandType::FORWARD_JOB: {
-        auto forward_start = std::chrono::system_clock::now();
         const Job &forward_job = message.get<Job>();
-        IAllocator &out_allocator = communicator_->out_allocator();
-        PoolAllocator &pool_allocator =
-            PoolAllocator::instance(model_->device(), defaultFlowHandle);
-        DType_t input_dtype = forward_job.data->data_type();
-        auto output_shapes = this->model_->output_shapes({forward_job.data->shape()});
-        auto output_shape = output_shapes[0];
-        Tensor output_tensor;
-        if (out_allocator.device() == this->model_->device()) {
-          output_tensor = make_tensor(out_allocator, input_dtype, output_shape);
-        } else {
-          output_tensor = make_tensor(pool_allocator, input_dtype, output_shape);
-        }
-        this->model_->forward({forward_job.data}, {output_tensor}, forward_job.mb_id);
-        auto forward_end = std::chrono::system_clock::now();
-        GlobalProfiler::add_event(
-            {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
-        Job output(output_tensor, forward_job.mb_id);
+        auto outputs = this->model_->forward({forward_job.data}, forward_job.mb_id);
+        Job output(outputs[0], forward_job.mb_id);
         message = Message(CommandType::FORWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), next_stage_endpoint_);
       } break;
       case CommandType::BACKWARD_JOB: {
-        auto backward_start = std::chrono::system_clock::now();
         const Job &backward_job = message.get<Job>();
-        IAllocator &out_allocator = communicator_->out_allocator();
-        PoolAllocator &pool_allocator =
-            PoolAllocator::instance(model_->device(), defaultFlowHandle);
-        Tensor output_tensor;
-        if (out_allocator.device() == this->model_->device()) {
-          output_tensor = make_tensor(out_allocator, backward_job.data->data_type(), {1});
-        } else {
-          output_tensor = make_tensor(pool_allocator, backward_job.data->data_type(), {1});
-        }
-        this->model_->backward({backward_job.data}, {output_tensor}, backward_job.mb_id);
-        auto backward_end = std::chrono::system_clock::now();
-        GlobalProfiler::add_event(
-            {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
+        auto outputs = this->model_->backward({backward_job.data}, backward_job.mb_id);
         if (prev_stage_endpoint_ == Endpoint::empty()) {
           // only send backward complete if there is no previous stage
           Message complete_msg(CommandType::BACKWARD_COMPLETE);
           communicator_->send_message(std::move(complete_msg), coordinator_endpoint_);
           break;
         }
-        Job output(output_tensor, backward_job.mb_id);
+        Job output(outputs[0], backward_job.mb_id);
         message = Message(CommandType::BACKWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), prev_stage_endpoint_);
       } break;
       case CommandType::UPDATE_PARAMETERS: {
-        auto update_start = std::chrono::system_clock::now();
-        // implicitly clear grads
-        this->optimizer_->update();
-        this->optimizer_->zero_grads();
+        update_count_++;
+
         if (scheduler_) {
           this->scheduler_->step();
         }
-        auto update_end = std::chrono::system_clock::now();
-        GlobalProfiler::add_event(
-            {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
+        this->optimizer_->update();
+        this->optimizer_->zero_grads();
+        this->graph_->device().getFlow(defaultFlowHandle)->synchronize();
+
         Message response(CommandType::PARAMETERS_UPDATED, std::monostate{});
         communicator_->send_message(std::move(response), coordinator_endpoint_);
       } break;
@@ -215,6 +183,17 @@ protected:
         break;
       case CommandType::STATUS_REQUEST: {
         throw std::runtime_error("Not implemented yet");
+        break;
+      }
+      case CommandType::PRINT_LR: {
+        if (scheduler_) {
+          float lr = scheduler_->get_lr();
+          std::cout << "Stage " << id_ << " current learning rate: " << lr << std::endl;
+          Message response(CommandType::LR_PRINTED, std::monostate{});
+          communicator_->send_message(std::move(response), coordinator_endpoint_);
+        } else {
+          std::cout << "Warning: No scheduler available to get learning rate" << std::endl;
+        }
         break;
       }
       case CommandType::ERROR_REPORT:
@@ -276,6 +255,11 @@ protected:
         throw std::runtime_error("Not implemented yet");
         break;
       }
+      case CommandType::PRINT_LOGS: {
+        Message response(CommandType::LOGS_PRINTED);
+        communicator_->send_message(std::move(response), coordinator_endpoint_);
+        break;
+      }
       case CommandType::HANDSHAKE: {
         // do nothing;
         break;
@@ -335,6 +319,9 @@ protected:
   std::unique_ptr<Communicator> communicator_;
 
   std::string id_;
+  int forward_step_ = 0;
+  int backward_step_ = 0;
+  size_t update_count_ = 0;
   Endpoint coordinator_endpoint_;
   Endpoint next_stage_endpoint_;
   Endpoint prev_stage_endpoint_;

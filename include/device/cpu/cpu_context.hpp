@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2025 Tung D. Pham
+ *
+ * This software is licensed under the MIT License. See the LICENSE file in the
+ * project root for the full license text.
+ */
 #pragma once
 
 #include <cstddef>
@@ -22,6 +28,7 @@ public:
   void copyToDevice(void *dest, const void *src, size_t size) override;
   void copyToHost(void *dest, const void *src, size_t size) override;
   void createFlow(flowHandle_t handle) override;
+  EngineType get_engine() const override;
   Endianness get_endianness() const override;
   Flow *getFlow(flowHandle_t handle) override;
 };

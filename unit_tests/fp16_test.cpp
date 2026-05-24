@@ -56,12 +56,8 @@ TEST_F(FP16Test, Dense) {
   Tensor input_fp32 = fp32_input->to_device(getGPU());
   Tensor input_fp16 = fp16_input->to_device(getGPU());
 
-  Tensor output_fp32, output_fp16;
-  output_fp32 = make_tensor(DType_t::FP32, {32, 64}, getGPU());
-  output_fp16 = make_tensor(DType_t::FP16, {32, 64}, getGPU());
-
-  fp32_node.forward({input_fp32}, {output_fp32});
-  fp16_node.forward({input_fp16}, {output_fp16});
+  Tensor output_fp32 = fp32_node.forward({input_fp32})[0];
+  Tensor output_fp16 = fp16_node.forward({input_fp16})[0];
 
   Tensor cpu_output_fp32 = output_fp32->to_host();
   Tensor cpu_output_fp16 = output_fp16->to_host();

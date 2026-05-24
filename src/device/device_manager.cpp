@@ -90,8 +90,8 @@ const Device &DeviceManager::getDevice(DeviceType type) const {
   throw std::runtime_error("No device of the specified type found");
 }
 
-std::vector<std::string> DeviceManager::getAvailableDeviceIDs() const {
-  std::vector<std::string> ids;
+Vec<std::string> DeviceManager::getAvailableDeviceIDs() const {
+  Vec<std::string> ids;
   ids.reserve(devices_.size());
   for (const auto &pair : devices_) {
     ids.push_back(pair.first);

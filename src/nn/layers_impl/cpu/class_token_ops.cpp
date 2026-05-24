@@ -6,10 +6,10 @@
 
 namespace tnn {
 namespace cpu {
-
+namespace class_token {
 template <typename T>
-void class_token_forward(const T *input, const T *token, T *output, size_t batch_size,
-                         size_t seq_len, size_t embed_dim) {
+void run_forward(const T *input, const T *token, T *output, size_t batch_size, size_t seq_len,
+                 size_t embed_dim) {
   size_t S = seq_len;
   size_t E = embed_dim;
   size_t output_S = S + 1;
@@ -29,8 +29,8 @@ void class_token_forward(const T *input, const T *token, T *output, size_t batch
 }
 
 template <typename T>
-void class_token_backward(const T *grad_output, T *grad_input, T *grad_token, size_t batch_size,
-                          size_t seq_len, size_t embed_dim) {
+void run_backward(const T *grad_output, T *grad_input, T *grad_token, size_t batch_size,
+                  size_t seq_len, size_t embed_dim) {
   size_t S = seq_len;
   size_t E = embed_dim;
   size_t output_S = S + 1;
@@ -50,17 +50,16 @@ void class_token_backward(const T *grad_output, T *grad_input, T *grad_token, si
   }
 }
 
-#define INSTANTIATE_CLASS_TOKEN(T)                                                           \
-  template void class_token_forward<T>(const T *input, const T *token, T *output,            \
-                                       size_t batch_size, size_t seq_len, size_t embed_dim); \
+#define INSTANTIATE(T)                                                                       \
+  template void run_forward<T>(const T *input, const T *token, T *output, size_t batch_size, \
+                               size_t seq_len, size_t embed_dim);                            \
                                                                                              \
-  template void class_token_backward<T>(const T *grad_output, T *grad_input, T *grad_token,  \
-                                        size_t batch_size, size_t seq_len, size_t embed_dim);
-INSTANTIATE_CLASS_TOKEN(fp16)
-INSTANTIATE_CLASS_TOKEN(bf16)
-INSTANTIATE_CLASS_TOKEN(float)
-INSTANTIATE_CLASS_TOKEN(double)
-#undef INSTANTIATE_CLASS_TOKEN
+  template void run_backward<T>(const T *grad_output, T *grad_input, T *grad_token,          \
+                                size_t batch_size, size_t seq_len, size_t embed_dim);
 
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
+}  // namespace class_token
 }  // namespace cpu
 }  // namespace tnn

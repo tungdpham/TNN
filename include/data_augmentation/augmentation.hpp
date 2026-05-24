@@ -19,7 +19,7 @@ public:
   Augmentation() = default;
   virtual ~Augmentation() = default;
 
-  virtual void apply(const Tensor &data, const Tensor &labels) = 0;
+  virtual void apply(Tensor &data, Tensor &labels) = 0;
   virtual std::unique_ptr<Augmentation> clone() const = 0;
 
   void set_name(const std::string &name) { name_ = name; }
@@ -40,7 +40,10 @@ protected:
 #include "horizontal_flip.hpp"
 #include "normalization.hpp"
 #include "random_crop.hpp"
+#include "random_resized_crop.hpp"
+#include "resize_center_crop.hpp"
 #include "rotation.hpp"
+#include "saturation.hpp"
 #include "vertical_flip.hpp"
 
 namespace tnn {
@@ -58,7 +61,7 @@ public:
   /**
    * Apply augmentations in the order they were added
    */
-  void apply(const Tensor &data, const Tensor &labels) {
+  void apply(Tensor &data, Tensor &labels) {
     for (auto &aug : augmentations_) {
       aug->apply(data, labels);
     }
@@ -85,7 +88,7 @@ public:
                          augmentations_.end());
   }
 
-  void set_augmentations(const std::vector<std::unique_ptr<Augmentation>> &augs) {
+  void set_augmentations(const Vec<std::unique_ptr<Augmentation>> &augs) {
     augmentations_.clear();
     for (const auto &aug : augs) {
       augmentations_.emplace_back(aug->clone());
@@ -96,12 +99,10 @@ public:
 
   size_t size() const { return augmentations_.size(); }
 
-  const std::vector<std::unique_ptr<Augmentation>> &get_augmentations() const {
-    return augmentations_;
-  }
+  const Vec<std::unique_ptr<Augmentation>> &get_augmentations() const { return augmentations_; }
 
 protected:
-  std::vector<std::unique_ptr<Augmentation>> augmentations_;
+  Vec<std::unique_ptr<Augmentation>> augmentations_;
 };
 
 class AugmentationBuilder {
@@ -134,6 +135,11 @@ public:
     return *this;
   }
 
+  AugmentationBuilder &saturation(float probability = 0.5f, float range = 0.1f) {
+    strategy_.add_augmentation(std::make_unique<SaturationAugmentation>(probability, range));
+    return *this;
+  }
+
   AugmentationBuilder &gaussian_noise(float probability = 0.3f, float std_dev = 0.05f) {
     strategy_.add_augmentation(std::make_unique<GaussianNoiseAugmentation>(probability, std_dev));
     return *this;
@@ -141,6 +147,22 @@ public:
 
   AugmentationBuilder &random_crop(float probability = 0.5f, int padding = 4) {
     strategy_.add_augmentation(std::make_unique<RandomCropAugmentation>(probability, padding));
+    return *this;
+  }
+
+  AugmentationBuilder &random_resized_crop(size_t out_h = 224, size_t out_w = 224,
+                                           float scale_min = 0.08f, float scale_max = 1.0f,
+                                           float ratio_min = 3.0f / 4.0f,
+                                           float ratio_max = 4.0f / 3.0f, int max_attempts = 10) {
+    strategy_.add_augmentation(std::make_unique<RandomResizedCropAugmentation>(
+        out_h, out_w, scale_min, scale_max, ratio_min, ratio_max, max_attempts));
+    return *this;
+  }
+
+  AugmentationBuilder &resize_center_crop(int resize_short_side = 256, size_t crop_h = 224,
+                                          size_t crop_w = 224) {
+    strategy_.add_augmentation(
+        std::make_unique<ResizeCenterCropAugmentation>(resize_short_side, crop_h, crop_w));
     return *this;
   }
 

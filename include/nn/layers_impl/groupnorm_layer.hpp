@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -28,24 +27,23 @@ private:
   Tensor beta_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward_fused(const ConstTensor &input, const Tensor &group_mean,
-                                          const Tensor &group_inv_std, const ConstTensor &gamma,
-                                          const ConstTensor &beta, const Tensor &output,
-                                          const Tensor &norm_cache, size_t batch_size,
-                                          size_t channels, size_t spatial_size,
-                                          flowHandle_t handle = defaultFlowHandle) const;
+  std::unique_ptr<Task> run_forward(const ConstTensor &input, const Tensor &group_mean,
+                                    const Tensor &group_inv_std, const ConstTensor &gamma,
+                                    const ConstTensor &beta, const Tensor &output,
+                                    const Tensor &norm_cache, size_t batch_size, size_t channels,
+                                    size_t spatial_size,
+                                    flowHandle_t handle = defaultFlowHandle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_backward_fused(const ConstTensor &grad_output,
-                                           const ConstTensor &norm_input,
-                                           const ConstTensor &inv_std, const ConstTensor &gamma,
-                                           const Tensor &d_gamma, const Tensor &d_beta,
-                                           const Tensor &grad_input, size_t batch_size,
-                                           size_t channels, size_t spatial_size,
-                                           flowHandle_t handle = defaultFlowHandle) const;
+  std::unique_ptr<Task> run_backward(const ConstTensor &grad_output, const ConstTensor &norm_input,
+                                     const ConstTensor &inv_std, const ConstTensor &gamma,
+                                     const Tensor &d_gamma, const Tensor &d_beta,
+                                     const Tensor &grad_input, size_t batch_size, size_t channels,
+                                     size_t spatial_size,
+                                     flowHandle_t handle = defaultFlowHandle) const;
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     if (affine_) {
       auto gamma_desc = ParamDescriptor{
           param_dtype_,
@@ -66,9 +64,8 @@ private:
   }
 
   void init_impl() override;
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   GroupNormLayer(size_t num_groups, size_t num_channels, float epsilon = 1e-5f, bool affine = true,
@@ -79,19 +76,7 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    return get_shapes_bytes(input_shapes, io_dtype_);
-  }
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   static std::unique_ptr<GroupNormLayer> create_from_config(const LayerConfig &config);
 };
 

@@ -17,13 +17,9 @@
 
 namespace tnn {
 
-void NAryOpLayer::forward_impl(const std::vector<ConstTensor> &inputs,
-                               const std::vector<Tensor> &outputs, size_t mb_id) {
+Vec<Tensor> NAryOpLayer::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (inputs.size() < 2) {
     throw std::runtime_error("NAryOpLayer requires at least 2 inputs");
-  }
-  if (outputs.size() != 1) {
-    throw std::runtime_error("NAryOpLayer produces exactly 1 output");
   }
 
   const auto &first_shape = inputs[0]->shape();
@@ -33,66 +29,72 @@ void NAryOpLayer::forward_impl(const std::vector<ConstTensor> &inputs,
     }
   }
 
-  outputs[0]->ensure(first_shape);
+  Tensor output = get_output_tensor(first_shape);
 
   for (size_t i = 0; i < inputs.size(); ++i) {
     auto key = std::string("fwd_input_") + std::to_string(i);
-    auto &cached = get_cached_tensor(mb_id, key);
+    auto &cached = get_immutable_cache(mb_id, key);
     cached = inputs[i];
   }
 
-  DISPATCH_IO_DTYPE(compute_nary_forward_impl, inputs, outputs[0], first_shape, this->flow_handle_);
+  DISPATCH_IO_DTYPE(compute_nary_forward_impl, inputs, output, first_shape, this->flow_handle_);
+  return {output};
 }
 
-void NAryOpLayer::backward_impl(const std::vector<ConstTensor> &grad_outputs,
-                                const std::vector<Tensor> &grad_inputs, size_t mb_id) {
+Vec<Tensor> NAryOpLayer::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   if (grad_outputs.size() != 1) {
     throw std::runtime_error("NAryOpLayer backward: expects 1 grad output");
-  }
-  if (grad_inputs.size() < 2) {
-    throw std::runtime_error("NAryOpLayer backward: requires at least 2 grad inputs");
   }
 
   const auto &output_shape = grad_outputs[0]->shape();
 
-  for (auto &grad_input : grad_inputs) {
-    grad_input->ensure(output_shape);
-    grad_input->fill(0);
+  Vec<ConstTensor> fwd_inputs;
+  size_t num_inputs = 2;  // Default, will be determined from cache
+  for (size_t i = 0;; ++i) {
+    auto key = std::string("fwd_input_") + std::to_string(i);
+    try {
+      fwd_inputs.push_back(get_immutable_cache(mb_id, key));
+      num_inputs = i + 1;
+    } catch (...) {
+      break;
+    }
   }
 
-  std::vector<ConstTensor> fwd_inputs;
-  for (size_t i = 0; i < grad_inputs.size(); ++i) {
-    auto key = std::string("fwd_input_") + std::to_string(i);
-    fwd_inputs.push_back(get_cached_tensor(mb_id, key));
+  Vec<Tensor> grad_inputs;
+  for (size_t i = 0; i < num_inputs; ++i) {
+    Tensor grad_input = get_output_tensor(output_shape);
+    grad_input->fill(0);
+    grad_inputs.push_back(grad_input);
   }
 
   DISPATCH_IO_DTYPE(compute_nary_backward_impl, grad_outputs[0], grad_inputs, fwd_inputs,
                     output_shape, this->flow_handle_);
+  return grad_inputs;
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> NAryOpLayer::compute_nary_forward_impl(const std::vector<ConstTensor> &inputs,
+std::unique_ptr<Task> NAryOpLayer::compute_nary_forward_impl(const Vec<ConstTensor> &inputs,
                                                              const Tensor &output,
-                                                             const std::vector<size_t> &shape,
+                                                             const Vec<size_t> &shape,
                                                              flowHandle_t handle) {
   if (inputs[0]->data_type() != dtype_of<Compute_T>() ||
       output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("NAryOpLayer: data type mismatch in forward pass");
   }
 
-  std::vector<const Compute_T *> input_ptrs;
+  Vec<const Compute_T *> input_ptrs;
   for (const auto &input : inputs) {
     input_ptrs.push_back(input->data_as<Compute_T>());
   }
 
   if (inputs[0]->device_type() == DeviceType::CPU) {
-    cpu::nary_forward<Compute_T>(input_ptrs, output->data_as<Compute_T>(), shape, op_type_);
+    cpu::nary::run_forward<Compute_T>(input_ptrs, output->data_as<Compute_T>(), shape, op_type_);
   }
 #ifdef USE_CUDA
   else if (inputs[0]->device_type() == DeviceType::GPU) {
-    size_t ws_bytes = cuda::nary_forward_workspace_bytes(input_ptrs.size());
+    size_t ws_bytes = cuda::nary::nary_forward_workspace_bytes(input_ptrs.size());
     Tensor ws = this->get_workspace({ws_bytes}, DType_t::BYTE);
-    return create_cuda_task(handle, cuda::nary_forward<Compute_T>, input_ptrs,
+    return create_cuda_task(handle, cuda::nary::run_forward<Compute_T>, input_ptrs,
                             output->data_as<Compute_T>(), shape, op_type_, ws->data());
   }
 #endif
@@ -104,33 +106,34 @@ std::unique_ptr<Task> NAryOpLayer::compute_nary_forward_impl(const std::vector<C
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> NAryOpLayer::compute_nary_backward_impl(
-    const ConstTensor &grad_output, const std::vector<Tensor> &grad_inputs,
-    const std::vector<ConstTensor> &fwd_inputs, const std::vector<size_t> &shape,
-    flowHandle_t handle) {
+std::unique_ptr<Task> NAryOpLayer::compute_nary_backward_impl(const ConstTensor &grad_output,
+                                                              const Vec<Tensor> &grad_inputs,
+                                                              const Vec<ConstTensor> &fwd_inputs,
+                                                              const Vec<size_t> &shape,
+                                                              flowHandle_t handle) {
   if (grad_output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("NAryOpLayer: data type mismatch in backward pass");
   }
 
-  std::vector<const Compute_T *> fwd_input_ptrs;
+  Vec<const Compute_T *> fwd_input_ptrs;
   for (const auto &input : fwd_inputs) {
     fwd_input_ptrs.push_back(input->data_as<Compute_T>());
   }
 
-  std::vector<Compute_T *> grad_input_ptrs;
+  Vec<Compute_T *> grad_input_ptrs;
   for (auto &grad_input : grad_inputs) {
     grad_input_ptrs.push_back(grad_input->data_as<Compute_T>());
   }
 
   if (grad_output->device_type() == DeviceType::CPU) {
-    cpu::nary_backward<Compute_T>(grad_output->data_as<Compute_T>(), grad_input_ptrs,
-                                  fwd_input_ptrs, shape, op_type_);
+    cpu::nary::run_backward<Compute_T>(grad_output->data_as<Compute_T>(), grad_input_ptrs,
+                                       fwd_input_ptrs, shape, op_type_);
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    size_t ws_bytes = cuda::nary_backward_workspace_bytes(fwd_input_ptrs.size());
+    size_t ws_bytes = cuda::nary::nary_backward_workspace_bytes(fwd_input_ptrs.size());
     Tensor ws = this->get_workspace({ws_bytes}, DType_t::BYTE);
-    return create_cuda_task(handle, cuda::nary_backward<Compute_T>,
+    return create_cuda_task(handle, cuda::nary::run_backward<Compute_T>,
                             grad_output->data_as<Compute_T>(), grad_input_ptrs, fwd_input_ptrs,
                             shape, op_type_, ws->data());
   }
@@ -161,35 +164,6 @@ LayerConfig NAryOpLayer::get_config() const {
   config.name = this->name_;
   config.type = this->type();
   return config;
-}
-
-size_t NAryOpLayer::fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const {
-  return get_shapes_bytes(input_shapes, io_dtype_);
-}
-
-size_t NAryOpLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  auto output_shapes = this->output_shapes(input_shapes);
-  size_t output_bytes = get_shapes_bytes(output_shapes, io_dtype_);
-#ifdef USE_CUDA
-  if (allocator_ && allocator_->device().device_type() == DeviceType::GPU) {
-    return cuda::nary_forward_workspace_bytes(input_shapes.size()) + output_bytes;
-  }
-#endif
-  return output_bytes;
-}
-
-size_t NAryOpLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  return fwd_workspace(input_shapes);
-}
-
-size_t NAryOpLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
-  size_t input_bytes = get_shapes_bytes(input_shapes, io_dtype_);
-#ifdef USE_CUDA
-  if (allocator_ && allocator_->device().device_type() == DeviceType::GPU) {
-    return cuda::nary_backward_workspace_bytes(input_shapes.size()) + input_bytes;
-  }
-#endif
-  return input_bytes;
 }
 
 std::unique_ptr<AddLayer> AddLayer::create_from_config(const LayerConfig &config) {

@@ -157,8 +157,8 @@ public:
     register_layer_type<SubLayer>();
   }
 
-  static std::vector<std::string> available_types() {
-    std::vector<std::string> types;
+  static Vec<std::string> available_types() {
+    Vec<std::string> types;
     for (const auto &pair : creators_) {
       types.push_back(pair.first);
     }
@@ -185,7 +185,7 @@ std::unique_ptr<LayerType> load_config(std::ifstream &file) {
 }
 
 inline void load_params(std::ifstream &file, Layer &layer) {
-  std::vector<Tensor> params = layer.parameters();
+  Vec<Tensor> params = layer.parameters();
   for (auto &param : params) {
     load_into(file, param);
   }

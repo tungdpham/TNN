@@ -10,83 +10,89 @@
 #include <cstddef>
 #include <limits>
 
+#include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
-
+namespace maxpool {
 template <typename T>
-void maxpool_forward(const T *input, T *output, int *mask_indices, size_t batch_size, size_t height,
-                     size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,
-                     size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h,
-                     size_t output_w) {
-  // NHWC format: [batch, height, width, channels]
-  for (size_t b = 0; b < batch_size; ++b) {
+void run_forward(const T *input, T *output, int *mask_indices, size_t batch_size, size_t height,
+                 size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,
+                 size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w) {
+  std::vector<float> local_max(batch_size * channels);
+  std::vector<int> local_idx(batch_size * channels);
+
+  // for (size_t b = 0; b < batch_size; ++b) {
+  parallel_for<size_t>(0, batch_size, [&](size_t b) {
     for (size_t oh = 0; oh < output_h; ++oh) {
+      int h_start = std::max(static_cast<int>(oh * stride_h) - static_cast<int>(pad_h), 0);
+      int h_end = std::min(
+          static_cast<int>(oh * stride_h) - static_cast<int>(pad_h) + static_cast<int>(pool_h),
+          static_cast<int>(height));
+
       for (size_t ow = 0; ow < output_w; ++ow) {
+        int w_start = std::max(static_cast<int>(ow * stride_w) - static_cast<int>(pad_w), 0);
+        int w_end = std::min(
+            static_cast<int>(ow * stride_w) - static_cast<int>(pad_w) + static_cast<int>(pool_w),
+            static_cast<int>(width));
+
         for (size_t c = 0; c < channels; ++c) {
-          float max_val = -std::numeric_limits<float>::infinity();
-          int max_idx = -1;
+          local_max[b * channels + c] = -std::numeric_limits<float>::infinity();
+          local_idx[b * channels + c] = -1;
+        }
 
-          // Calculate input coordinates
-          int h_start = static_cast<int>(oh * stride_h) - static_cast<int>(pad_h);
-          int w_start = static_cast<int>(ow * stride_w) - static_cast<int>(pad_w);
-          int h_end = std::min(h_start + static_cast<int>(pool_h), static_cast<int>(height));
-          int w_end = std::min(w_start + static_cast<int>(pool_w), static_cast<int>(width));
-          h_start = std::max(h_start, 0);
-          w_start = std::max(w_start, 0);
+        for (int h = h_start; h < h_end; ++h) {
+          for (int w = w_start; w < w_end; ++w) {
+            size_t base_input_idx = ((b * height + h) * width + w) * channels;
 
-          // Find maximum value in the pooling window
-          for (int h = h_start; h < h_end; ++h) {
-            for (int w = w_start; w < w_end; ++w) {
-              size_t input_idx = ((b * height + h) * width + w) * channels + c;
+            for (size_t c = 0; c < channels; ++c) {
+              size_t input_idx = base_input_idx + c;
               float val = static_cast<float>(input[input_idx]);
-              if (val > max_val) {
-                max_val = val;
-                max_idx = static_cast<int>(input_idx);
+
+              if (val > local_max[b * channels + c]) {
+                local_max[b * channels + c] = val;
+                local_idx[b * channels + c] = static_cast<int>(input_idx);
               }
             }
           }
+        }
 
-          // Store maximum value and index
-          size_t output_idx = ((b * output_h + oh) * output_w + ow) * channels + c;
-          output[output_idx] = static_cast<T>(max_val);
-          mask_indices[output_idx] = max_idx;
+        size_t base_output_idx = ((b * output_h + oh) * output_w + ow) * channels;
+        for (size_t c = 0; c < channels; ++c) {
+          output[base_output_idx + c] = static_cast<T>(local_max[b * channels + c]);
+          mask_indices[base_output_idx + c] = local_idx[b * channels + c];
         }
       }
     }
-  }
+  });
 }
 
 template <typename T>
-void maxpool_backward(const T *grad_output, T *grad_input, const int *mask_indices,
-                      size_t batch_size, size_t channels, size_t output_h, size_t output_w) {
-  // NHWC format: [batch, height, width, channels]
+void run_backward(const T *grad_output, T *grad_input, const int *mask_indices, size_t batch_size,
+                  size_t channels, size_t output_h, size_t output_w) {
   size_t total_outputs = batch_size * output_h * output_w * channels;
-  for (size_t i = 0; i < total_outputs; ++i) {
+  parallel_for<size_t>(0, total_outputs, [&](size_t i) {
     int max_idx = mask_indices[i];
     if (max_idx >= 0) {
       grad_input[max_idx] = static_cast<T>(static_cast<float>(grad_input[max_idx]) +
                                            static_cast<float>(grad_output[i]));
     }
-  }
+  });
 }
 
-#define INSTANTIATE_MAXPOOL(T)                                                                    \
-  template void maxpool_forward<T>(                                                               \
-      const T *input, T *output, int *mask_indices, size_t batch_size, size_t height,             \
-      size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,               \
-      size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);             \
-  template void maxpool_backward<T>(const T *grad_output, T *grad_input, const int *mask_indices, \
-                                    size_t batch_size, size_t channels, size_t output_h,          \
-                                    size_t output_w);
+#define INSTANTIATE(T)                                                                          \
+  template void run_forward<T>(const T *input, T *output, int *mask_indices, size_t batch_size, \
+                               size_t height, size_t width, size_t channels, size_t pool_h,     \
+                               size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,   \
+                               size_t pad_w, size_t output_h, size_t output_w);                 \
+  template void run_backward<T>(const T *grad_output, T *grad_input, const int *mask_indices,   \
+                                size_t batch_size, size_t channels, size_t output_h,            \
+                                size_t output_w);
+#include "macros/floating_type_instantiation.hpp"
 
-INSTANTIATE_MAXPOOL(fp16)
-INSTANTIATE_MAXPOOL(bf16)
-INSTANTIATE_MAXPOOL(float)
-INSTANTIATE_MAXPOOL(double)
+#undef INSTANTIATE
 
-#undef INSTANTIATE_MAXPOOL
-
+}  // namespace maxpool
 }  // namespace cpu
 }  // namespace tnn

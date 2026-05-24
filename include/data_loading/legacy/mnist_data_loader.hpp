@@ -34,11 +34,11 @@ namespace legacy {
  */
 class MNISTDataLoader : public ImageDataLoader {
 private:
-  std::vector<std::vector<float>> data_;
-  std::vector<int> labels_;
+  Vec<Vec<float>> data_;
+  Vec<int> labels_;
 
-  std::vector<Tensor> batched_data_;
-  std::vector<Tensor> batched_labels_;
+  Vec<Tensor> batched_data_;
+  Vec<Tensor> batched_labels_;
   DType_t dtype_ = DType_t::FP32;
 
   template <typename T>
@@ -67,7 +67,7 @@ private:
       if (!std::getline(ss, cell, ',')) continue;
       labels_.push_back(std::stoi(cell));
 
-      std::vector<float> row;
+      Vec<float> row;
       row.reserve(mnist_constants::IMAGE_SIZE);
 
       while (std::getline(ss, cell, ',')) {
@@ -99,8 +99,7 @@ private:
     batch_data = make_tensor<T>({actual_batch_size, mnist_constants::NUM_CHANNELS,
                                  mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
 
-    batch_labels = make_tensor<T>({actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL});
-    batch_labels->fill(0.0);
+    batch_labels = make_tensor<int>({actual_batch_size});
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const auto &image_data = data_[this->current_index_ + i];
@@ -111,9 +110,7 @@ private:
       }
 
       const size_t label = labels_[this->current_index_ + i];
-      if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
-        batch_labels->at<T>({i, label, 0, 0}) = static_cast<T>(1.0);
-      }
+      batch_labels->at<int>({i}) = static_cast<int>(label);
     }
 
     this->apply_augmentation(batch_data, batch_labels);
@@ -156,10 +153,10 @@ public:
   void shuffle() override {
     if (data_.empty()) return;
 
-    std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
+    Vec<size_t> indices = this->generate_shuffled_indices(data_.size());
 
-    std::vector<std::vector<float>> shuffled_data;
-    std::vector<int> shuffled_labels;
+    Vec<Vec<float>> shuffled_data;
+    Vec<int> shuffled_labels;
     shuffled_data.reserve(data_.size());
     shuffled_labels.reserve(labels_.size());
 
@@ -181,7 +178,7 @@ public:
   /**
    * Get image dimensions (channels, height, width)
    */
-  std::vector<size_t> get_data_shape() const override {
+  Vec<size_t> get_data_shape() const override {
     return {mnist_constants::NUM_CHANNELS, mnist_constants::IMAGE_HEIGHT,
             mnist_constants::IMAGE_WIDTH};
   }
@@ -194,8 +191,8 @@ public:
   /**
    * Get class names for MNIST (digits 0-9)
    */
-  std::vector<std::string> get_class_names() const override {
-    std::vector<std::string> names;
+  Vec<std::string> get_class_names() const override {
+    Vec<std::string> names;
     names.reserve(mnist_constants::NUM_CLASSES);
     for (int i = 0; i < static_cast<int>(mnist_constants::NUM_CLASSES); ++i) {
       names.push_back("digit_" + std::to_string(i));

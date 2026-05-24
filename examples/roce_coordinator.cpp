@@ -3,6 +3,7 @@
 #include <getopt.h>
 
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 #include "data_loading/data_loader_factory.hpp"
@@ -106,23 +107,99 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
-  auto optimizer =
-      OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
-  auto scheduler = SchedulerFactory::create_step_lr(
-      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.6f);
-  std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
-  int port = Env::get<int>("COORDINATOR_PORT", 9000);
+  auto criterion = LossFactory::create_crossentropy();
+  int adamw = 1;
+  float adam_beta1 = 0.9f;
+  float adam_beta2 = 0.95f;
+  float adam_eps = 1e-8f;
+  float weight_decay = 0.1f;
+  Env::get("ADAMW", adamw);
+  Env::get("ADAM_BETA1", adam_beta1);
+  Env::get("ADAM_BETA2", adam_beta2);
+  Env::get("ADAM_EPS", adam_eps);
+  Env::get("ADAM_EPSILON", adam_eps);
+  Env::get("WEIGHT_DECAY", weight_decay);
+
+  auto optimizer = OptimizerFactory::create_adam(train_config.lr_initial, adam_beta1, adam_beta2,
+                                                 adam_eps, weight_decay, adamw != 0);
+
+  std::string lr_scheduler = "warmup_cosine";
+  Env::get("LR_SCHEDULER", lr_scheduler);
+  Env::get("SCHEDULER_TYPE", lr_scheduler);
+
+  int step_lr_epochs = 5;
+  float step_lr_gamma = 0.1f;
+  int step_lr_steps = 0;
+  Env::get("STEP_LR_EPOCHS", step_lr_epochs);
+  Env::get("STEP_LR_GAMMA", step_lr_gamma);
+  Env::get("STEP_LR_STEPS", step_lr_steps);
+
+  size_t steps_per_epoch = train_loader->size() / train_config.batch_size;
+  if (steps_per_epoch == 0) steps_per_epoch = 1;
+
+  int cosine_total_steps = 0;
+  Env::get("COSINE_TOTAL_STEPS", cosine_total_steps);
+  size_t total_steps = 0;
+  if (cosine_total_steps > 0) {
+    total_steps = static_cast<size_t>(cosine_total_steps);
+  } else if (train_config.max_steps > 0) {
+    total_steps = static_cast<size_t>(train_config.max_steps);
+  } else {
+    total_steps = steps_per_epoch * static_cast<size_t>(train_config.epochs);
+  }
+  if (total_steps == 0) total_steps = 1;
+
+  int warmup_steps = 2000;
+  float cosine_start_lr = 0.0f;
+  float cosine_eta_min = 0.0f;
+  Env::get("WARMUP_STEPS", warmup_steps);
+  Env::get("COSINE_START_LR", cosine_start_lr);
+  Env::get("COSINE_ETA_MIN", cosine_eta_min);
+  if (warmup_steps < 0) warmup_steps = 0;
+  if (static_cast<size_t>(warmup_steps) >= total_steps) {
+    warmup_steps = total_steps > 1 ? static_cast<int>(total_steps / 10) : 0;
+  }
+
+  size_t step_size = step_lr_steps > 0 ? static_cast<size_t>(step_lr_steps)
+                                       : static_cast<size_t>(step_lr_epochs) * steps_per_epoch;
+  if (step_size == 0) step_size = 1;
+
+  auto scheduler =
+      (lr_scheduler == "warmup_cosine" || lr_scheduler == "cosine")
+          ? SchedulerFactory::create_warmup_cosine(optimizer.get(),
+                                                   static_cast<size_t>(warmup_steps), total_steps,
+                                                   cosine_start_lr, cosine_eta_min)
+          : SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
+
+  std::cout << "Optimizer: " << optimizer->name() << ", lr:" << train_config.lr_initial
+            << ", beta1:" << adam_beta1 << ", beta2:" << adam_beta2 << ", eps:" << adam_eps
+            << ", weight_decay:" << weight_decay << ", scheduler:" << scheduler->name()
+            << ", warmup_steps:" << warmup_steps << ", total_steps:" << total_steps << std::endl;
+
+  std::string host = "localhost";
+  Env::get("COORDINATOR_HOST", host);
+  int port = 9000;
+  Env::get("COORDINATOR_PORT", port);
 
   Endpoint coordinator_endpoint = Endpoint::roce(host, port, cfg.device_name, cfg.gid_index);
-  Endpoint local_worker_endpoint =
-      Endpoint::roce(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
-                     Env::get<int>("LOCAL_WORKER_PORT", 8000), cfg.device_name, cfg.gid_index);
-  int worker_position = Env::get<std::string>("LOCAL_WORKER_POSITION", "last") == "first" ? 0 : 1;
 
-  std::vector<Endpoint> endpoints = {
-      Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
-                     Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
+  std::string local_worker_host = "localhost";
+  int local_worker_port = 8000;
+  Env::get("LOCAL_WORKER_HOST", local_worker_host);
+  Env::get("LOCAL_WORKER_PORT", local_worker_port);
+  Endpoint local_worker_endpoint =
+      Endpoint::roce(local_worker_host, local_worker_port, cfg.device_name, cfg.gid_index);
+
+  std::string position_str = "last";
+  Env::get("LOCAL_WORKER_POSITION", position_str);
+  int worker_position = position_str == "first" ? 0 : 1;
+
+  std::string worker1_host = "10.10.0.2";
+  int worker1_port = 8001;
+  Env::get("WORKER1_HOST", worker1_host);
+  Env::get("WORKER1_PORT", worker1_port);
+  Vec<Endpoint> endpoints = {
+      Endpoint::roce(worker1_host, worker1_port, "rocep131s0f0", -1),
   };
 
   if (worker_position) {
@@ -134,8 +211,18 @@ int main(int argc, char *argv[]) {
   auto local_worker =
       std::make_unique<RoCEWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
 
-  // initialize a partitioner with weights 2:1
-  auto partitioner = std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({1, 2}));
+  // Parse partition split ratio from environment variable
+  std::string split_ratio_str = "2,1";
+  Env::get("PARTITION_SPLIT_RATIO", split_ratio_str);
+  std::vector<size_t> split_ratios;
+  std::stringstream ss(split_ratio_str);
+  std::string token;
+  while (std::getline(ss, token, ',')) {
+    split_ratios.push_back(static_cast<size_t>(std::stoi(token)));
+  }
+
+  auto partitioner =
+      std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig(split_ratios));
 
   CoordinatorConfig config{
       ParallelMode_t::PIPELINE, std::move(graph),        std::move(optimizer), std::move(scheduler),

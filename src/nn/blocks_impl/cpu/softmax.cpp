@@ -62,17 +62,15 @@ void softmax_backward(const T *output, const T *grad_output, T *grad_input, size
   });
 }
 
-#define INSTANTIATE_SOFTMAX(T)                                                            \
+#define INSTANTIATE(T)                                                                    \
   template void softmax_forward<T>(const T *input, T *output, size_t rows, size_t cols);  \
                                                                                           \
   template void softmax_backward<T>(const T *output, const T *grad_output, T *grad_input, \
                                     size_t rows, size_t cols);
 
-INSTANTIATE_SOFTMAX(fp16)
-INSTANTIATE_SOFTMAX(bf16)
-INSTANTIATE_SOFTMAX(float)
-INSTANTIATE_SOFTMAX(double)
-#undef INSTANTIATE_SOFTMAX
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace cpu
 }  // namespace tnn

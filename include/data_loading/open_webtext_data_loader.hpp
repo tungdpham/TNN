@@ -4,12 +4,14 @@
 #include <unistd.h>
 
 #include "data_loader.hpp"
+#include "device/iallocator.hpp"
 #include "tokenizer/tokenizer.hpp"
 
 namespace tnn {
 
 class OpenWebTextDataLoader : public BaseDataLoader {
 private:
+  IAllocator &allocator_;
   DType_t dtype_ = DType_t::FP32;
   size_t context_length_;
   int padding_token_id_ = -1;  // -1 means no padding token (default behavior)
@@ -20,11 +22,8 @@ private:
       return false;
     }
 
-    batch_data = make_tensor<T>({batch_size, context_length_});
-    batch_labels = make_tensor<T>({batch_size, context_length_, vocab_size_});
-
-    T *label_ptr = static_cast<T *>(batch_labels->data());
-    std::fill(label_ptr, label_ptr + batch_labels->size(), static_cast<T>(0));
+    batch_data = make_tensor<T>(allocator_, {batch_size, context_length_});
+    batch_labels = make_tensor<int>(allocator_, {batch_size, context_length_});
 
     for (size_t b = 0; b < batch_size; ++b) {
       size_t start_pos;
@@ -38,10 +37,8 @@ private:
       for (size_t i = 0; i < context_length_; ++i) {
         batch_data->at<T>({b, i}) = static_cast<T>(mapped_data_[start_pos + i]);
         int token_id = static_cast<int>(mapped_data_[start_pos + i + 1]);
-        // Only set label if token is valid and not a padding token
-        if (token_id >= 0 && token_id < (int)vocab_size_ && token_id != padding_token_id_) {
-          batch_labels->at<T>({b, i, (size_t)token_id}) = static_cast<T>(1);
-        }
+        // Store the token_id directly as an integer label
+        batch_labels->at<int>({b, i}) = token_id;
       }
     }
 
@@ -51,7 +48,8 @@ private:
 public:
   OpenWebTextDataLoader(size_t context_length, DType_t dtype = DType_t::FP32,
                         int padding_token_id = -1)
-      : dtype_(dtype),
+      : allocator_(PoolAllocator::instance(getHost(), defaultFlowHandle)),
+        dtype_(dtype),
         context_length_(context_length),
         padding_token_id_(padding_token_id) {}
 
@@ -115,7 +113,7 @@ public:
 
   int padding_token_id() const { return padding_token_id_; }
 
-  std::vector<size_t> get_data_shape() const override { return {context_length_}; }
+  Vec<size_t> get_data_shape() const override { return {context_length_}; }
 
 private:
   int fd_ = -1;

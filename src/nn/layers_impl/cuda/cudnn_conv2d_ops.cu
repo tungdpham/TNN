@@ -362,11 +362,11 @@ void run_forward(feHandle_t* handle, const ConvolutionStats& stats, const void* 
   ensure_ok(status, "conv_fprop execute");
 }
 
-void run_backward_data(feHandle_t* handle, const ConvolutionStats& stats, const void* gradient_data,
-                       const void* weight_data, void* input_grad_data, void* workspace_data,
-                       cudaStream_t stream) {
+void run_dgrad(feHandle_t* handle, const ConvolutionStats& stats, const void* gradient_data,
+               const void* weight_data, void* input_grad_data, void* workspace_data,
+               cudaStream_t stream) {
   if (!handle) {
-    throw std::runtime_error("run_backward_data called with null feHandle_t");
+    throw std::runtime_error("run_dgrad called with null feHandle_t");
   }
 
   cudnnSetStream(handle->cudnn_handle, stream);
@@ -380,12 +380,11 @@ void run_backward_data(feHandle_t* handle, const ConvolutionStats& stats, const 
   ensure_ok(status, "conv_dgrad execute");
 }
 
-void run_backward_weights_and_bias(feHandle_t* handle, const ConvolutionStats& stats,
-                                   const void* input_data, const void* gradient_data,
-                                   void* weight_grad_data, void* bias_grad_data,
-                                   void* workspace_data, cudaStream_t stream) {
+void run_wgrad_and_bgrad(feHandle_t* handle, const ConvolutionStats& stats, const void* input_data,
+                         const void* gradient_data, void* weight_grad_data, void* bias_grad_data,
+                         void* workspace_data, cudaStream_t stream) {
   if (!handle) {
-    throw std::runtime_error("run_backward_weights_and_bias called with null feHandle_t");
+    throw std::runtime_error("run_wgrad_and_bgrad called with null feHandle_t");
   }
 
   cudnnSetStream(handle->cudnn_handle, stream);

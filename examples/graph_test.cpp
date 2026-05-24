@@ -3,16 +3,17 @@
 #include <getopt.h>
 
 #include "data_loading/data_loader_factory.hpp"
+#include "device/del_allocator_v2.hpp"
 #include "device/device_manager.hpp"
 #include "device/device_type.hpp"
-#include "nn/accuracy.hpp"
+#include "device/pool_allocator.hpp"
 #include "nn/example_models.hpp"
 #include "nn/graph_builder.hpp"
 #include "nn/graph_executor.hpp"
 #include "nn/io_node.hpp"
 #include "nn/layers.hpp"
+#include "nn/metrics.hpp"
 #include "nn/reducer.hpp"
-#include "nn/siso_layer.hpp"
 #include "nn/train.hpp"
 
 using namespace std;
@@ -52,7 +53,6 @@ signed main(int argc, char* argv[]) {
   train_config.print_config();
 
   const Device& device = train_config.device_type == DeviceType::GPU ? getGPU() : getHost();
-  auto& allocator = PoolAllocator::instance(device, defaultFlowHandle);
   GraphBuilder builder;
 
   auto model_uptr = make_unique<Sequential>(ExampleModels::create(train_config.model_name));
@@ -74,16 +74,18 @@ signed main(int argc, char* argv[]) {
   Reducer reducer = ReducerBuilder().seq_reduction().build();
   reducer.reduce(builder);
 
+  auto& allocator = PoolAllocator::instance(device, defaultFlowHandle);
   Graph graph = builder.compile(allocator);
 
-  GraphExecutor executor(graph, allocator);
+  auto ws_allocator = DELAllocatorV2::instance(device, defaultFlowHandle);
+  GraphExecutor executor(graph, ws_allocator);
 
   auto [train_loader, val_loader] =
       DataLoaderFactory::create(train_config.dataset_name, train_config.dataset_path);
   train_loader->set_seed(123456);
 
   Tensor input, label;
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto criterion = LossFactory::create_crossentropy();
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 10e-4f, 3e-4f, false);
 
@@ -93,11 +95,17 @@ signed main(int argc, char* argv[]) {
     Tensor device_input = input->to_device(graph.context().device());
     Tensor device_output;
 
-    InputPack inputs = {{input_node.uid(), device_input}};
-    OutputPack outputs = {{output_node.uid(), device_output}};
+    InputPack inputs = {{
+        input_node.uid(),
+        &device_input,
+    }};
+    OutputPack outputs = {{
+        output_node.uid(),
+        &device_output,
+    }};
 
     executor.forward(inputs, outputs);
-    device_output = outputs[output_node.uid()];
+
     float loss;
     Tensor device_labels = label->to_device(graph.context().device());
     criterion->compute_loss(device_output, device_labels, loss);
@@ -108,11 +116,16 @@ signed main(int argc, char* argv[]) {
     Tensor grad_output = create_like(device_output), grad_input = create_like(device_input);
     criterion->compute_gradient(device_output, device_labels, grad_output);
 
-    InputPack grad_outputs = {{output_node.uid(), grad_output}};
-    OutputPack grad_inputs = {{input_node.uid(), grad_input}};
+    InputPack grad_outputs = {{
+        output_node.uid(),
+        &grad_output,
+    }};
+    OutputPack grad_inputs = {{
+        input_node.uid(),
+        &grad_input,
+    }};
 
     executor.backward(grad_outputs, grad_inputs);
-    grad_input = grad_inputs[input_node.uid()];
 
     optimizer->update();
     optimizer->zero_grads();

@@ -61,13 +61,6 @@ public:
     serialize(writer, message.data());
   }
 
-  void deserialize(Reader &reader, PacketHeader &header) {
-    reader(header.PROTOCOL_VERSION, header.endianess);
-    reader.set_endianess(header.endianess);
-    reader(header.type, header.packet_length, header.msg_length, header.msg_serial_id,
-           header.packet_offset, header.total_packets, header.compression_type);
-  }
-
   void deserialize(Reader &reader, MessageHeader &header) { reader(header); }
 
   void deserialize(Reader &reader, Tensor &tensor) {
@@ -77,11 +70,11 @@ public:
     dtype_size = get_dtype_size(dtype);
     uint64_t shape_size;
     reader(shape_size);
-    std::vector<uint64_t> shape(shape_size);
+    Vec<uint64_t> shape(shape_size);
     for (uint64_t i = 0; i < shape_size; ++i) {
       reader(shape[i]);
     }
-    tensor = make_tensor(allocator_, dtype, std::vector<size_t>(shape.begin(), shape.end()));
+    tensor = make_tensor(allocator_, dtype, Vec<size_t>(shape.begin(), shape.end()));
     if (tensor->size() > 0) {
       auto dptr = tensor->data_ptr();
       reader(make_blob(dptr.get<unsigned char>(), tensor->size() * dtype_size, dptr.device()));

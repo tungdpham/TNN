@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "device/task.hpp"
 #include "parameterized_layer.hpp"
@@ -33,31 +32,28 @@ private:
                                               flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_weight_gradients(const ConstTensor &input,
-                                                 const ConstTensor &grad_output,
-                                                 const Tensor &weight_grad, size_t batch_size,
-                                                 size_t input_features, size_t output_features,
-                                                 flowHandle_t handle) const;
+  std::unique_ptr<Task> run_wgrad(const ConstTensor &input, const ConstTensor &grad_output,
+                                  const Tensor &weight_grad, size_t batch_size,
+                                  size_t input_features, size_t output_features,
+                                  flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_input_gradients(const ConstTensor &grad_output,
-                                                const ConstTensor &weights,
-                                                const Tensor &grad_input, size_t batch_size,
-                                                size_t input_features, size_t output_features,
-                                                flowHandle_t handle) const;
+  std::unique_ptr<Task> run_dgrad(const ConstTensor &grad_output, const ConstTensor &weights,
+                                  const Tensor &grad_input, size_t batch_size,
+                                  size_t input_features, size_t output_features,
+                                  flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_bias_gradients(const ConstTensor &grad_output,
-                                               const Tensor &bias_gradient, size_t batch_size,
-                                               size_t output_features, flowHandle_t handle) const;
+  std::unique_ptr<Task> run_bgrad(const ConstTensor &grad_output, const Tensor &bias_gradient,
+                                  size_t batch_size, size_t output_features,
+                                  flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> add_bias_vector(const Tensor &output, const ConstTensor &bias,
-                                        size_t batch_size, size_t output_features,
-                                        flowHandle_t handle) const;
+  std::unique_ptr<Task> add_bias(const Tensor &output, const ConstTensor &bias, size_t batch_size,
+                                 size_t output_features, flowHandle_t handle) const;
 
-  std::vector<ParamDescriptor> param_descriptors() override {
-    std::vector<ParamDescriptor> descriptors;
+  Vec<ParamDescriptor> param_descriptors() override {
+    Vec<ParamDescriptor> descriptors;
     auto weight_desc = ParamDescriptor{
         param_dtype_,
         {output_features_, input_features_},
@@ -78,9 +74,8 @@ private:
   }
 
   void init_impl() override;
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
   LegacyDenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
@@ -91,19 +86,7 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override { return 0; }
-  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    auto output_shapes = this->output_shapes(input_shapes);
-    return get_shapes_bytes(output_shapes, io_dtype_);
-  }
-  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override {
-    return get_shapes_bytes(input_shapes, io_dtype_);
-  }
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
   static std::unique_ptr<LegacyDenseLayer> create_from_config(const LayerConfig &config);
 };

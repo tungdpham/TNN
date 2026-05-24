@@ -16,7 +16,6 @@ namespace tnn {
 namespace cuda {
 namespace loss {
 
-// Warp-level reduction helpers for better performance
 template <typename T>
 __device__ __forceinline__ T warp_reduce_max(T val) {
   for (int offset = 16; offset > 0; offset /= 2) {
@@ -73,58 +72,45 @@ __device__ __forceinline__ T block_reduce_sum(T val, T* shared) {
   return val;
 }
 
-// Fused logsoftmax cross entropy loss kernel - computes max, sum_exp, and loss in one pass
 template <typename T, int BLOCK_SIZE = 256>
-__global__ void fused_logsoftmax_loss_kernel(const T* logits, const T* targets, T* loss_values,
+__global__ void fused_logsoftmax_loss_kernel(const T* logits, const int* labels, T* loss_values,
                                              size_t num_classes) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
-  size_t b = blockIdx.x;  // One block per batch instance
+  size_t b = blockIdx.x;
   size_t base_ptr = b * num_classes;
 
   __shared__ ComputeT shared_mem[BLOCK_SIZE / 32];
 
-  // Step 1: Find max logit for numerical stability
   ComputeT thread_max = ComputeT(-1e37);
   for (size_t c = threadIdx.x; c < num_classes; c += BLOCK_SIZE) {
     thread_max = fmaxf(thread_max, static_cast<ComputeT>(logits[base_ptr + c]));
   }
   ComputeT max_logit = block_reduce_max(thread_max, shared_mem);
 
-  // Broadcast max to all threads
   if (threadIdx.x == 0) {
     shared_mem[0] = max_logit;
   }
   __syncthreads();
   max_logit = shared_mem[0];
 
-  // Step 2: Compute sum_exp and weighted logit sum in one pass
   ComputeT thread_sum_exp = ComputeT(0);
-  ComputeT thread_weighted_logits = ComputeT(0);
   for (size_t c = threadIdx.x; c < num_classes; c += BLOCK_SIZE) {
     ComputeT logit = static_cast<ComputeT>(logits[base_ptr + c]);
     thread_sum_exp += expf(logit - max_logit);
-
-    ComputeT target = static_cast<ComputeT>(targets[base_ptr + c]);
-    if (target > ComputeT(0)) {
-      thread_weighted_logits += target * logit;
-    }
   }
 
   ComputeT sum_exp = block_reduce_sum(thread_sum_exp, shared_mem);
-  __syncthreads();
-  ComputeT weighted_logits = block_reduce_sum(thread_weighted_logits, shared_mem);
 
-  // Step 3: Compute final loss
   if (threadIdx.x == 0) {
+    int label = labels[b];
+    ComputeT target_logit = static_cast<ComputeT>(logits[base_ptr + label]);
     ComputeT log_sum_exp = logf(sum_exp) + max_logit;
-    loss_values[b] = static_cast<T>(log_sum_exp - weighted_logits);
+    loss_values[b] = static_cast<T>(log_sum_exp - target_logit);
   }
 }
 
-// Specialization for double precision
 template <>
-__global__ void fused_logsoftmax_loss_kernel<double, 256>(const double* logits,
-                                                          const double* targets,
+__global__ void fused_logsoftmax_loss_kernel<double, 256>(const double* logits, const int* labels,
                                                           double* loss_values, size_t num_classes) {
   using ComputeT = double;
   size_t b = blockIdx.x;
@@ -145,39 +131,32 @@ __global__ void fused_logsoftmax_loss_kernel<double, 256>(const double* logits,
   max_logit = shared_mem[0];
 
   ComputeT thread_sum_exp = 0.0;
-  ComputeT thread_weighted_logits = 0.0;
   for (size_t c = threadIdx.x; c < num_classes; c += 256) {
     ComputeT logit = logits[base_ptr + c];
     thread_sum_exp += exp(logit - max_logit);
-
-    ComputeT target = targets[base_ptr + c];
-    if (target > 0.0) {
-      thread_weighted_logits += target * logit;
-    }
   }
 
   ComputeT sum_exp = block_reduce_sum(thread_sum_exp, shared_mem);
-  __syncthreads();
-  ComputeT weighted_logits = block_reduce_sum(thread_weighted_logits, shared_mem);
 
   if (threadIdx.x == 0) {
+    int label = labels[b];
+    ComputeT target_logit = logits[base_ptr + label];
     ComputeT log_sum_exp = log(sum_exp) + max_logit;
-    loss_values[b] = log_sum_exp - weighted_logits;
+    loss_values[b] = log_sum_exp - target_logit;
   }
 }
 
-// Fused logsoftmax cross entropy grad_output kernel
 template <typename T, int BLOCK_SIZE = 256>
 __global__ void fused_logsoftmax_gradient_kernel(
-    const T* logits, const T* targets, T* grad_output, size_t total_elements, size_t num_classes,
+    const T* logits, const int* labels, T* grad_output, size_t total_elements, size_t num_classes,
     typename TypeTraits<T>::ComputePrecision inv_batch) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t b = blockIdx.x;
   size_t base_ptr = b * num_classes;
+  int label = labels[b];
 
   __shared__ ComputeT shared_mem[BLOCK_SIZE / 32];
 
-  // Step 1: Find max logit
   ComputeT thread_max = ComputeT(-1e37);
   for (size_t c = threadIdx.x; c < num_classes; c += BLOCK_SIZE) {
     thread_max = fmaxf(thread_max, static_cast<ComputeT>(logits[base_ptr + c]));
@@ -190,7 +169,6 @@ __global__ void fused_logsoftmax_gradient_kernel(
   __syncthreads();
   max_logit = shared_mem[0];
 
-  // Step 2: Compute sum_exp
   ComputeT thread_sum_exp = ComputeT(0);
   for (size_t c = threadIdx.x; c < num_classes; c += BLOCK_SIZE) {
     ComputeT logit = static_cast<ComputeT>(logits[base_ptr + c]);
@@ -204,23 +182,23 @@ __global__ void fused_logsoftmax_gradient_kernel(
   __syncthreads();
   sum_exp = shared_mem[0];
 
-  // Step 3: Compute grad_output for all elements in this batch
   for (size_t c = threadIdx.x; c < num_classes; c += BLOCK_SIZE) {
     size_t idx = base_ptr + c;
     ComputeT logit = static_cast<ComputeT>(logits[idx]);
     ComputeT softmax_prob = expf(logit - max_logit) / sum_exp;
-    ComputeT target = static_cast<ComputeT>(targets[idx]);
+    ComputeT target = (c == static_cast<size_t>(label)) ? ComputeT(1.0) : ComputeT(0.0);
     grad_output[idx] = static_cast<T>((softmax_prob - target) * inv_batch);
   }
 }
 
 template <>
 __global__ void fused_logsoftmax_gradient_kernel<double, 256>(
-    const double* logits, const double* targets, double* grad_output, size_t total_elements,
+    const double* logits, const int* labels, double* grad_output, size_t total_elements,
     size_t num_classes, double inv_batch) {
   using ComputeT = double;
   size_t b = blockIdx.x;
   size_t base_ptr = b * num_classes;
+  int label = labels[b];
 
   __shared__ ComputeT shared_mem[256 / 32];
 
@@ -253,13 +231,13 @@ __global__ void fused_logsoftmax_gradient_kernel<double, 256>(
     size_t idx = base_ptr + c;
     ComputeT logit = logits[idx];
     ComputeT softmax_prob = exp(logit - max_logit) / sum_exp;
-    ComputeT target = targets[idx];
+    ComputeT target = (c == static_cast<size_t>(label)) ? 1.0 : 0.0;
     grad_output[idx] = (softmax_prob - target) * inv_batch;
   }
 }
 
 template <typename T>
-__global__ void crossentropy_loss_kernel(const T* predictions, const T* targets, T* loss_values,
+__global__ void crossentropy_loss_kernel(const T* predictions, const int* labels, T* loss_values,
                                          const size_t total_instances, const size_t num_classes,
                                          T epsilon) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
@@ -268,23 +246,19 @@ __global__ void crossentropy_loss_kernel(const T* predictions, const T* targets,
 
   size_t b = idx;
   size_t base_ptr = b * num_classes;
+  int label = labels[b];
 
-  ComputeT batch_loss = ComputeT(0);
-  for (size_t c = 0; c < num_classes; ++c) {
-    if (targets[base_ptr + c] > T(0)) {
-      ComputeT pred = static_cast<ComputeT>(predictions[base_ptr + c]);
-      ComputeT eps = static_cast<ComputeT>(epsilon);
-      pred = fmaxf(pred, eps);
-      pred = fminf(pred, ComputeT(1.0) - eps);
-      batch_loss -= static_cast<ComputeT>(targets[base_ptr + c]) * logf(pred);
-    }
-  }
+  ComputeT pred = static_cast<ComputeT>(predictions[base_ptr + label]);
+  ComputeT eps = static_cast<ComputeT>(epsilon);
+  pred = fmaxf(pred, eps);
+  pred = fminf(pred, ComputeT(1.0) - eps);
+  ComputeT batch_loss = -logf(pred);
 
   loss_values[idx] = static_cast<T>(batch_loss);
 }
 
 template <>
-__global__ void crossentropy_loss_kernel<double>(const double* predictions, const double* targets,
+__global__ void crossentropy_loss_kernel<double>(const double* predictions, const int* labels,
                                                  double* loss_values, const size_t total_instances,
                                                  const size_t num_classes, double epsilon) {
   using ComputeT = typename TypeTraits<double>::ComputePrecision;
@@ -293,35 +267,41 @@ __global__ void crossentropy_loss_kernel<double>(const double* predictions, cons
 
   size_t b = idx;
   size_t base_ptr = b * num_classes;
+  int label = labels[b];
 
-  ComputeT batch_loss = 0.0;
-  for (size_t c = 0; c < num_classes; ++c) {
-    if (targets[base_ptr + c] > 0.0) {
-      ComputeT pred = static_cast<ComputeT>(predictions[base_ptr + c]);
-      pred = fmax(pred, static_cast<ComputeT>(epsilon));
-      pred = fmin(pred, 1.0 - static_cast<ComputeT>(epsilon));
-      batch_loss -= static_cast<ComputeT>(targets[base_ptr + c]) * log(pred);
-    }
-  }
+  ComputeT pred = static_cast<ComputeT>(predictions[base_ptr + label]);
+  pred = fmax(pred, static_cast<ComputeT>(epsilon));
+  pred = fmin(pred, 1.0 - static_cast<ComputeT>(epsilon));
+  ComputeT batch_loss = -log(pred);
 
   loss_values[idx] = static_cast<double>(batch_loss);
 }
 
 template <typename T>
-__global__ void crossentropy_gradient_kernel(const T* predictions, const T* targets, T* grad_output,
-                                             const size_t total_elements, T epsilon,
+__global__ void crossentropy_gradient_kernel(const T* predictions, const int* labels,
+                                             T* grad_output, const size_t batch_size,
+                                             const size_t num_classes, T epsilon,
                                              T inv_batch_size) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t total_elements = batch_size * num_classes;
   if (idx >= total_elements) return;
+
+  size_t b = idx / num_classes;
+  size_t c = idx % num_classes;
+  int label = labels[b];
 
   ComputeT pred = static_cast<ComputeT>(predictions[idx]);
   ComputeT eps = static_cast<ComputeT>(epsilon);
   pred = fmaxf(pred, eps);
   pred = fminf(pred, ComputeT(1.0) - eps);
 
-  grad_output[idx] = static_cast<T>((-static_cast<ComputeT>(targets[idx]) / pred) *
-                                    static_cast<ComputeT>(inv_batch_size));
+  if (c == static_cast<size_t>(label)) {
+    grad_output[idx] =
+        static_cast<T>((-ComputeT(1.0) / pred) * static_cast<ComputeT>(inv_batch_size));
+  } else {
+    grad_output[idx] = static_cast<T>(0.0);
+  }
 }
 
 template <typename T>
@@ -492,9 +472,9 @@ __global__ void sum_reduce_kernel_stage2(const T* block_results, T* result,
 }
 
 template <typename T>
-void compute_crossentropy_loss(const T* predictions, const T* targets, float& loss,
-                               const size_t batch_size, const size_t num_classes, T epsilon,
-                               cudaStream_t stream) {
+void compute_crossentropy_loss_probs(const T* predictions, const int* labels, float& loss,
+                                     const size_t batch_size, const size_t num_classes, T epsilon,
+                                     cudaStream_t stream) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t total_instances = batch_size;
   T* d_loss_values;
@@ -504,7 +484,7 @@ void compute_crossentropy_loss(const T* predictions, const T* targets, float& lo
   int num_blocks = (total_instances + threads_per_block - 1) / threads_per_block;
 
   crossentropy_loss_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
-      predictions, targets, d_loss_values, total_instances, num_classes, epsilon);
+      predictions, labels, d_loss_values, total_instances, num_classes, epsilon);
 
   int block_size = 256;
   int grid_size = std::min(256, (int)((total_instances + block_size - 1) / block_size));
@@ -534,9 +514,9 @@ void compute_crossentropy_loss(const T* predictions, const T* targets, float& lo
 }
 
 template <typename T>
-void compute_crossentropy_gradient(const T* predictions, const T* targets, T* grad_output,
-                                   const size_t batch_size, const size_t num_classes, T epsilon,
-                                   cudaStream_t stream) {
+void compute_crossentropy_gradient_probs(const T* predictions, const int* labels, T* grad_output,
+                                         const size_t batch_size, const size_t num_classes,
+                                         T epsilon, cudaStream_t stream) {
   size_t total_elements = batch_size * num_classes;
   T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(batch_size);
 
@@ -544,27 +524,24 @@ void compute_crossentropy_gradient(const T* predictions, const T* targets, T* gr
   int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
 
   crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
-      predictions, targets, grad_output, total_elements, epsilon, inv_batch_size);
+      predictions, labels, grad_output, batch_size, num_classes, epsilon, inv_batch_size);
 
   cudaStreamSynchronize(stream);
 }
 
 template <typename T>
-void compute_logsoftmax_crossentropy_loss(const T* logits, const T* targets, float& loss,
-                                          const size_t batch_size, const size_t num_classes,
-                                          cudaStream_t stream) {
+void compute_crossentropy_loss_logits(const T* logits, const int* labels, float& loss,
+                                      const size_t batch_size, const size_t num_classes,
+                                      cudaStream_t stream) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t total_instances = batch_size;
 
-  // Allocate only per-instance loss values
   T* d_loss_values;
   cudaMallocAsync(&d_loss_values, total_instances * sizeof(T), stream);
 
-  // Launch fused kernel: one block per batch instance
   fused_logsoftmax_loss_kernel<T, 256>
-      <<<total_instances, 256, 0, stream>>>(logits, targets, d_loss_values, num_classes);
+      <<<total_instances, 256, 0, stream>>>(logits, labels, d_loss_values, num_classes);
 
-  // Reduce loss values to get final sum
   int block_size = 256;
   int grid_size = std::min(256, (int)((total_instances + block_size - 1) / block_size));
 
@@ -592,18 +569,17 @@ void compute_logsoftmax_crossentropy_loss(const T* logits, const T* targets, flo
 }
 
 template <typename T>
-void compute_logsoftmax_crossentropy_gradient(const T* logits, const T* targets, T* grad_output,
-                                              const size_t batch_size, const size_t num_classes,
-                                              cudaStream_t stream) {
+void compute_crossentropy_gradient_logits(const T* logits, const int* labels, T* grad_output,
+                                          const size_t batch_size, const size_t num_classes,
+                                          cudaStream_t stream) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t total_instances = batch_size;
   size_t total_elements = batch_size * num_classes;
   ComputeT inv_total_instances =
       static_cast<ComputeT>(1.0) / static_cast<ComputeT>(total_instances);
 
-  // Launch fused grad_output kernel: one block per batch instance
   fused_logsoftmax_gradient_kernel<T, 256><<<total_instances, 256, 0, stream>>>(
-      logits, targets, grad_output, total_elements, num_classes, inv_total_instances);
+      logits, labels, grad_output, total_elements, num_classes, inv_total_instances);
 
   cudaStreamSynchronize(stream);
 }
@@ -775,18 +751,18 @@ void compute_huber_gradient(const T* predictions, const T* targets, T* grad_outp
   cudaStreamSynchronize(stream);
 }
 
-#define INSTANTIATE_LOSS_OPS(T)                                                                   \
-  template void compute_crossentropy_loss<T>(const T* predictions, const T* targets, float& loss, \
-                                             const size_t batch_size, const size_t num_classes,   \
-                                             T epsilon, cudaStream_t stream);                     \
-  template void compute_crossentropy_gradient<T>(                                                 \
-      const T* predictions, const T* targets, T* grad_output, const size_t batch_size,            \
+#define INSTANTIATE(T)                                                                            \
+  template void compute_crossentropy_loss_probs<T>(                                               \
+      const T* predictions, const int* labels, float& loss, const size_t batch_size,              \
       const size_t num_classes, T epsilon, cudaStream_t stream);                                  \
-  template void compute_logsoftmax_crossentropy_loss<T>(                                          \
-      const T* logits, const T* targets, float& loss, const size_t batch_size,                    \
+  template void compute_crossentropy_gradient_probs<T>(                                           \
+      const T* predictions, const int* labels, T* grad_output, const size_t batch_size,           \
+      const size_t num_classes, T epsilon, cudaStream_t stream);                                  \
+  template void compute_crossentropy_loss_logits<T>(                                              \
+      const T* logits, const int* labels, float& loss, const size_t batch_size,                   \
       const size_t num_classes, cudaStream_t stream);                                             \
-  template void compute_logsoftmax_crossentropy_gradient<T>(                                      \
-      const T* logits, const T* targets, T* grad_output, const size_t batch_size,                 \
+  template void compute_crossentropy_gradient_logits<T>(                                          \
+      const T* logits, const int* labels, T* grad_output, const size_t batch_size,                \
       const size_t num_classes, cudaStream_t stream);                                             \
   template void compute_mse_loss<T>(const T* predictions, const T* targets, float& loss,          \
                                     const size_t batch_size, const size_t output_size,            \
@@ -807,11 +783,9 @@ void compute_huber_gradient(const T* predictions, const T* targets, T* grad_outp
                                           const size_t batch_size, const size_t output_size,      \
                                           T delta, cudaStream_t stream);
 
-INSTANTIATE_LOSS_OPS(fp16)
-INSTANTIATE_LOSS_OPS(bf16)
-INSTANTIATE_LOSS_OPS(float)
-INSTANTIATE_LOSS_OPS(double)
-#undef INSTANTIATE_LOSS_OPS
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace loss
 }  // namespace cuda

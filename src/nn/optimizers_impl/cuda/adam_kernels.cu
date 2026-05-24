@@ -129,17 +129,17 @@ void update_adam(T* params_data, const T* grads_data, T* m_data, T* v_data, cons
   CUDA_CHECK(cudaGetLastError());
 }
 
-#define INSTANTIATE_ADAM_KERNELS(T)                                                         \
+#define INSTANTIATE(T)                                                                      \
   template void update_adam<T>(                                                             \
       T * params_data, const T* grads_data, T* m_data, T* v_data, const size_t size,        \
       const float learning_rate, const float beta1, const float beta2, const float epsilon, \
       const float bias_correction1, const float bias_correction2, const float weight_decay, \
       const bool decouple_weight_decay, cudaStream_t stream);
-INSTANTIATE_ADAM_KERNELS(fp16)
-INSTANTIATE_ADAM_KERNELS(bf16)
-INSTANTIATE_ADAM_KERNELS(float)
-INSTANTIATE_ADAM_KERNELS(double)
-#undef INSTANTIATE_ADAM_KERNELS
+INSTANTIATE(fp16)
+INSTANTIATE(bf16)
+INSTANTIATE(float)
+INSTANTIATE(double)
+#undef INSTANTIATE
 
 }  // namespace adam
 }  // namespace cuda

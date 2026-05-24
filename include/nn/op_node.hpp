@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-
 #include "nn/io_node.hpp"
 #include "nn/layer.hpp"
 #include "nn/node.hpp"
@@ -17,16 +15,14 @@ public:
 
   void init() { layer_->init(); }
 
-  std::vector<ParamDescriptor> param_descriptors() const { return layer_->param_descriptors(); }
+  Vec<ParamDescriptor> param_descriptors() const { return layer_->param_descriptors(); }
 
-  void forward(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
-               size_t mb_id = 0) {
-    layer_->forward(inputs, outputs, mb_id);
+  Vec<Tensor> forward(const Vec<ConstTensor> &inputs, size_t mb_id = 0) {
+    return layer_->forward(inputs, mb_id);
   }
 
-  void backward(const std::vector<ConstTensor> &gradients, const std::vector<Tensor> &grad_inputs,
-                size_t mb_id = 0) {
-    layer_->backward(gradients, grad_inputs, mb_id);
+  Vec<Tensor> backward(const Vec<ConstTensor> &gradients, size_t mb_id = 0) {
+    return layer_->backward(gradients, mb_id);
   }
 
   void set_seed(size_t seed) { layer_->set_seed(seed); }

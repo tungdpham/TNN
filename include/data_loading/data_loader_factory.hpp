@@ -19,7 +19,8 @@ class DataLoaderFactory {
 public:
   /**
    * Create a pair of data loaders (train and val) for a given dataset type
-   * @param dataset_type Type of dataset (e.g., "mnist", "cifar10", "cifar100", "tiny_imagenet")
+   * @param dataset_type Type of dataset (e.g., "mnist", "cifar10", "cifar100", "tiny_imagenet",
+   * "imagenet100")
    * @param dataset_path Path to the dataset directory or file
    * @return DataLoaderPair containing the created loaders
    */
@@ -29,8 +30,8 @@ public:
   /**
    * Get list of available dataset types
    */
-  static std::vector<std::string> available_loaders() {
-    return {"mnist", "cifar10", "cifar100", "tiny_imagenet"};
+  static Vec<std::string> available_loaders() {
+    return {"mnist", "cifar10", "cifar100", "tiny_imagenet", "imagenet100"};
   }
 };
 

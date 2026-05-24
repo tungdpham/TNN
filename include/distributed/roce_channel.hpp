@@ -14,7 +14,9 @@
 
 namespace tnn {
 
-constexpr size_t ROCE_BUFFER_SIZE = 1 * 1024 * 1024;
+constexpr size_t ROCE_BUFFER_SIZE = 2 * 1024 * 1024;
+constexpr int ROCE_SQ_DEPTH = 32;
+constexpr int ROCE_RQ_DEPTH = 32;
 
 struct RoCEChannelInfo {
   uint16_t lid;
@@ -302,7 +304,7 @@ public:
   ibv_qp *qp = nullptr;
   Endpoint endpoint;
   uint32_t psn = 0;
-  std::vector<dptr *> recv_buffers;
+  Vec<dptr *> recv_buffers;
 
   std::mutex mutex;
   std::unordered_map<uint64_t, dptr *> pending_sends;

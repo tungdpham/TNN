@@ -13,11 +13,10 @@
 namespace tnn {
 struct WeightedPartitionerConfig {
   // weight (computing power) for each workers.
-  std::vector<int64_t> weights;
-  std::vector<size_t> in_shape;
+  Vec<int64_t> weights;
+  Vec<size_t> in_shape;
 
-  WeightedPartitionerConfig(const std::vector<int64_t> &worker_weights,
-                            const std::vector<size_t> &input_shape)
+  WeightedPartitionerConfig(const Vec<int64_t> &worker_weights, const Vec<size_t> &input_shape)
       : weights(worker_weights),
         in_shape(input_shape) {}
 };
@@ -29,16 +28,16 @@ struct WeightedPartitionerConfig {
 //       : Partitioner(config.weights.size()),
 //         config_(config) {}
 
-//   std::vector<SeqPartition> partition_model(const std::vector<Layer *> &layers) override {
+//   Vec<SeqPartition> partition_model(const Vec<Layer *> &layers) override {
 //     if (this->num_partitions_ == 0) {
 //       throw std::runtime_error("Number of partitions must be greater than zero");
 //     }
 //     if (layers.empty()) {
 //       throw std::runtime_error("Cannot partition an empty model");
 //     }
-//     std::vector<size_t> &in_shape = config_.in_shape;
-//     std::vector<SeqPartition> partitions;
-//     std::vector<uint64_t> flops_pre(
+//     Vec<size_t> &in_shape = config_.in_shape;
+//     Vec<SeqPartition> partitions;
+//     Vec<uint64_t> flops_pre(
 //         layers.size() + 1,
 //         0);  // index is shifted right by 1. 0th index is reserved for no layer
 
@@ -76,14 +75,14 @@ struct WeightedPartitionerConfig {
 //     return partitions;
 //   }
 
-//   std::vector<InputPartition> partition_input(const ConstTensor &input,
+//   Vec<InputPartition> partition_input(const ConstTensor &input,
 //                                               const ConstTensor &labels) override {
 //     if (!input || input->shape().empty()) {
 //       throw std::runtime_error("Input tensor is null or has empty shape");
 //     }
 //     size_t batch_size = input->dimension(0);
 //     // same config for every stage
-//     std::vector<InputPartition> input_partitions;
+//     Vec<InputPartition> input_partitions;
 //     input_partitions.push_back(InputPartition(0, batch_size));
 //     return input_partitions;
 //   }

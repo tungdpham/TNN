@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cmath>
 #include <iomanip>
 
@@ -8,34 +10,41 @@ namespace tnn {
 
 template <typename T>
   requires std::is_floating_point_v<T>
-void check_nan_and_inf(const T *data, size_t size, const std::string &tensor_name = "") {
+bool check_nan_and_inf(const T *data, size_t size, const std::string &tensor_name = "") {
+  bool has_nan_inf = false;
+  constexpr size_t lim = 100;
+  size_t count = 0;
   for (size_t i = 0; i < size; ++i) {
     if (std::isnan(data[i]) || std::isinf(data[i])) {
       std::cerr << "Tensor " << tensor_name << " contains NaN or Inf at index " << i << std::endl;
-      return;
+      count++;
+      if (count >= lim) {
+        return true;
+      }
+      has_nan_inf = true;
     }
   }
+  return has_nan_inf;
 }
 
 template <typename T>
-void check_nan_and_inf(const Tensor &tensor, const std::string &tensor_name = "") {
-  auto cpu_tensor = std::dynamic_pointer_cast<Tensor>(tensor.to_host());
+bool check_nan_and_inf(const ConstTensor &tensor, const std::string &tensor_name = "") {
+  auto cpu_tensor = tensor->to_host();
   size_t total_elements = cpu_tensor->size();
   T *data = cpu_tensor->data_ptr().template get<T>();
   if constexpr (std::is_floating_point_v<T>) {
-    check_nan_and_inf(data, total_elements, tensor_name);
+    return check_nan_and_inf(data, total_elements, tensor_name);
   } else {
     std::cerr << "Either type is not floating point or non-standard type, skipping NaN/Inf check "
                  "for tensor "
               << tensor_name << std::endl;
-    return;
+    return false;
   }
 }
 
-inline void check_nan_and_inf(const ConstTensor &tensor, const std::string &tensor_name = "") {
+inline bool check_nan_and_inf(const ConstTensor &tensor, const std::string &tensor_name = "") {
   DType_t dtype = tensor->data_type();
-  DISPATCH_DTYPE(dtype, T,
-                 check_nan_and_inf<T>(*std::dynamic_pointer_cast<Tensor>(tensor), tensor_name));
+  DISPATCH_DTYPE(dtype, T, return check_nan_and_inf<T>(tensor, tensor_name));
 }
 
 // Prints data density at ranges (2^-32, 2^-31, ..., 2^31, 2^32)
@@ -56,16 +65,15 @@ inline void print_data_distribution(const ConstTensor &tensor,
   // buckets[0] = values < 2^-32 (including zeros)
   // buckets[1..num_buckets] = values in [2^exp, 2^(exp+1))
   // buckets[num_buckets+1] = values >= 2^32
-  std::vector<size_t> buckets(num_buckets + 2, 0);
+  Vec<size_t> buckets(num_buckets + 2, 0);
 
   auto process_data = [&]<typename T>() {
-    auto typed_tensor = std::dynamic_pointer_cast<Tensor>(cpu_tensor);
-    if (!typed_tensor) {
+    if (!cpu_tensor) {
       throw std::runtime_error("Failed to cast tensor in print_data_distribution");
     }
 
-    T *data = typed_tensor->data_ptr().template get<T>();
-    size_t size = typed_tensor->size();
+    T *data = cpu_tensor->data_ptr().template get<T>();
+    size_t size = cpu_tensor->size();
 
     for (size_t i = 0; i < size; ++i) {
       T val = data[i];

@@ -14,6 +14,17 @@ if(ENABLE_CUDA)
     target_link_libraries(tnn_type PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
+# Macros module
+file(GLOB_RECURSE TNN_MACROS_SOURCES 
+    "macros/*.cpp"
+)
+add_library(tnn_macros STATIC ${TNN_MACROS_SOURCES})
+target_include_directories(tnn_macros PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(tnn_macros PUBLIC tnn_type)
+
 # CUDA module
 if(ENABLE_CUDA)
     file(GLOB_RECURSE TNN_CUDA_SOURCES 
@@ -36,6 +47,17 @@ if(ENABLE_CUDA)
     endif()
 endif()
 
+# Logging module
+file(GLOB_RECURSE TNN_LOGGING_SOURCES 
+    "logging/*.cpp"
+)
+add_library(tnn_logging STATIC ${TNN_LOGGING_SOURCES})
+target_include_directories(tnn_logging PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(tnn_logging PUBLIC spdlog::spdlog)
+
 # Device module
 file(GLOB_RECURSE TNN_DEVICE_SOURCES 
     "device/*.cpp"
@@ -49,6 +71,7 @@ target_link_libraries(tnn_device PUBLIC spdlog::spdlog)
 if(ENABLE_CUDA)
     target_link_libraries(tnn_device PUBLIC CUDA::cudart CUDA::cublas)
 endif()
+target_link_libraries(tnn_device PUBLIC tnn_type tnn_logging)
 
 # Threading module
 file(GLOB_RECURSE TNN_THREADING_SOURCES 
@@ -122,17 +145,6 @@ if(ENABLE_CUDA)
     target_link_libraries(tnn_tensor PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
-# Logging module
-file(GLOB_RECURSE TNN_LOGGING_SOURCES 
-    "logging/*.cpp"
-)
-add_library(tnn_logging STATIC ${TNN_LOGGING_SOURCES})
-target_include_directories(tnn_logging PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_link_libraries(tnn_logging PUBLIC spdlog::spdlog)
-
 # Utilities module
 file(GLOB_RECURSE TNN_UTILS_SOURCES 
     "utils/*.cpp"
@@ -193,6 +205,7 @@ target_include_directories(tnn_data_loading PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(tnn_data_loading PUBLIC tnn_utils tnn_tensor tnn_matrix tnn_type)
+target_link_libraries(tnn_data_loading PUBLIC nlohmann_json::nlohmann_json)
 
 # Data augmentation library
 file(GLOB_RECURSE TNN_DATA_AUGMENTATION_SOURCES
@@ -344,6 +357,7 @@ foreach(lib ${TNN_MODULES})
     link_tbb(PUBLIC ${lib})
     link_cuda(PUBLIC ${lib})
     link_mkl(PUBLIC ${lib})
+    link_dnnl(PUBLIC ${lib})
     link_openmp(PUBLIC ${lib})
 endforeach()
 
@@ -351,4 +365,5 @@ endforeach()
 link_tbb(PUBLIC tnn_lib)
 link_cuda(PUBLIC tnn_lib)
 link_mkl(PUBLIC tnn_lib)
+link_dnnl(PUBLIC tnn_lib)
 link_openmp(PUBLIC tnn_lib)

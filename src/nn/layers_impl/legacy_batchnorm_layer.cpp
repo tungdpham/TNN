@@ -13,6 +13,7 @@
 #include "device/task.hpp"
 #include "nn/layer.hpp"
 #include "nn/layers_impl/cpu/batchnorm_nchw_ops.hpp"
+#include "type/type.hpp"
 #ifdef USE_CUDA
 #include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
 #endif
@@ -41,8 +42,7 @@ void LegacyBatchNormLayer::init_impl() {
   dummy_var_gradients_->fill(0.0f);
 }
 
-void LegacyBatchNormLayer::forward_impl(const ConstTensor &input, const Tensor &output,
-                                        size_t mb_id) {
+Tensor LegacyBatchNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() < 3) {
     throw std::invalid_argument("BatchNorm: Input tensor must have at least 3 dimensions");
   }
@@ -50,16 +50,14 @@ void LegacyBatchNormLayer::forward_impl(const ConstTensor &input, const Tensor &
     throw std::invalid_argument("BatchNorm: Input channels must match num_features");
   }
 
-  def_forward(input, output, mb_id);
+  return def_forward(input, mb_id);
 }
 
-void LegacyBatchNormLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
-                                         size_t mb_id) {
-  def_backward(grad_output, grad_input, mb_id);
+Tensor LegacyBatchNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+  return def_backward(grad_output, mb_id);
 }
 
-void LegacyBatchNormLayer::def_forward(const ConstTensor &input, const Tensor &output,
-                                       size_t mb_id) {
+Tensor LegacyBatchNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
   size_t batch_size, channels, spatial_size;
   batch_size = input->dimension(0);
   channels = input->dimension(1);
@@ -69,61 +67,50 @@ void LegacyBatchNormLayer::def_forward(const ConstTensor &input, const Tensor &o
     throw std::invalid_argument("BatchNorm: Input channels must match num_features.");
   }
 
-  output->ensure(input->shape());
+  Tensor output = get_output_tensor(input->shape());
 
-  Tensor &norm = this->get_mutable_tensor(mb_id, "norm");
-  Tensor &batch_inv_std = this->get_mutable_tensor(mb_id, "inv_std");
-  Tensor &batch_mean = this->get_mutable_tensor(mb_id, "mean");
+  Tensor norm = this->get_cache_tensor(input->shape(), io_dtype_);
+  Tensor batch_inv_std = this->get_cache_tensor({num_features_}, io_dtype_);
+  Tensor batch_mean = this->get_cache_tensor({num_features_}, io_dtype_);
 
-  if (!norm)
-    norm = make_tensor<float>(input->shape(), this->device());
-  else
-    norm->ensure(input->shape());
-
-  if (!batch_inv_std)
-    batch_inv_std = make_tensor<float>({num_features_}, this->device());
-  else
-    batch_inv_std->ensure({num_features_});
-
-  if (!batch_mean)
-    batch_mean = make_tensor<float>({num_features_}, this->device());
-  else
-    batch_mean->ensure({num_features_});
+  set_mutable_cache(mb_id, "norm", norm);
+  set_mutable_cache(mb_id, "inv_std", batch_inv_std);
+  set_mutable_cache(mb_id, "mean", batch_mean);
 
   if (this->is_training_) {
-    DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward_fused, input, batch_mean, batch_inv_std,
-                                   running_mean_, running_var_, gamma_, beta_, output, norm,
-                                   batch_size, channels, spatial_size, this->flow_handle_);
+    DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward, input, batch_mean, batch_inv_std, running_mean_,
+                                   running_var_, gamma_, beta_, output, norm, batch_size, channels,
+                                   spatial_size, this->flow_handle_);
   } else {
-    DISPATCH_ON_3_DTYPES_TO_METHOD(compute_inference_output_impl, input, output, batch_size,
-                                   channels, spatial_size, this->flow_handle_);
+    DISPATCH_ON_3_DTYPES_TO_METHOD(run_inference_impl, input, output, batch_size, channels,
+                                   spatial_size, this->flow_handle_);
   }
+
+  return output;
 }
 
-void LegacyBatchNormLayer::def_backward(const ConstTensor &grad_output, const Tensor &grad_input,
-                                        size_t mb_id) {
-  const Tensor &norm = this->get_mutable_tensor(mb_id, "norm");
-  const Tensor &inv_std = this->get_mutable_tensor(mb_id, "inv_std");
-  const Tensor &batch_mean = this->get_mutable_tensor(mb_id, "mean");
-
-  if (!norm || !inv_std || !batch_mean) {
-    throw std::runtime_error("Missing cached tensors for backward pass in LegacyBatchNormLayer");
-  }
+Tensor LegacyBatchNormLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
+  const Tensor &norm = this->get_mutable_cache(mb_id, "norm");
+  const Tensor &inv_std = this->get_mutable_cache(mb_id, "inv_std");
 
   const size_t batch_size = grad_output->dimension(0);
   const size_t channels = grad_output->dimension(1);
   const size_t spatial_size = grad_output->stride(1);
 
-  grad_input->ensure(grad_output->shape());
-  DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward_fused, grad_output, norm, inv_std, gamma_,
-                                 gamma_gradients_, beta_gradients_, grad_input, batch_size,
-                                 channels, spatial_size, this->flow_handle_);
+  Tensor grad_input = get_output_tensor(grad_output->shape());
+  DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward, grad_output, norm, inv_std, gamma_, gamma_gradients_,
+                                 beta_gradients_, grad_input, batch_size, channels, spatial_size,
+                                 this->flow_handle_);
+
+  return grad_input;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyBatchNormLayer::compute_inference_output_impl(
-    const ConstTensor &input, const Tensor &output, size_t batch_size, size_t channels,
-    size_t spatial_size, flowHandle_t handle) {
+std::unique_ptr<Task> LegacyBatchNormLayer::run_inference_impl(const ConstTensor &input,
+                                                               const Tensor &output,
+                                                               size_t batch_size, size_t channels,
+                                                               size_t spatial_size,
+                                                               flowHandle_t handle) {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "LegacyBatchNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -143,73 +130,74 @@ std::unique_ptr<Task> LegacyBatchNormLayer::compute_inference_output_impl(
   }
 
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::batchnorm_nchw::compute_inference_output<IO_T>,
-                           input->data_as<IO_T>(), running_mean_->data_as<float>(),
-                           running_var_->data_as<float>(), gamma_->data_as<float>(),
-                           affine_ ? beta_->data_as<float>() : nullptr, output->data_as<IO_T>(),
-                           batch_size, channels, spatial_size, epsilon_, affine_);
+    return create_cpu_task(handle, cpu::batchnorm_nchw::run_inference<IO_T>, input->data_as<IO_T>(),
+                           running_mean_->data_as<float>(), running_var_->data_as<float>(),
+                           gamma_->data_as<float>(), affine_ ? beta_->data_as<float>() : nullptr,
+                           output->data_as<IO_T>(), batch_size, channels, spatial_size, epsilon_,
+                           affine_);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
     return create_cuda_task(
-        handle, cuda::batchnorm_nchw::compute_inference_output<IO_T>, input->data_as<IO_T>(),
+        handle, cuda::batchnorm_nchw::run_inference<IO_T>, input->data_as<IO_T>(),
         running_mean_->data_as<float>(), running_var_->data_as<float>(),
         affine_ ? gamma_->data_as<float>() : nullptr, affine_ ? beta_->data_as<float>() : nullptr,
         output->data_as<IO_T>(), batch_size, channels, spatial_size, epsilon_, affine_);
   }
 #endif
   else {
-    throw std::runtime_error("Unsupported device type for compute_inference_output");
+    throw std::runtime_error("Unsupported device type for run_inference");
   }
   return nullptr;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyBatchNormLayer::compute_inference_output(
-    const ConstTensor &input, const Tensor &output, size_t batch_size, size_t channels,
-    size_t spatial_size, flowHandle_t handle) {
-  return compute_inference_output_impl<IO_T, Param_T, Compute_T>(input, output, batch_size,
-                                                                 channels, spatial_size, handle);
+std::unique_ptr<Task> LegacyBatchNormLayer::run_inference(const ConstTensor &input,
+                                                          const Tensor &output, size_t batch_size,
+                                                          size_t channels, size_t spatial_size,
+                                                          flowHandle_t handle) {
+  return run_inference_impl<IO_T, Param_T, Compute_T>(input, output, batch_size, channels,
+                                                      spatial_size, handle);
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyBatchNormLayer::run_forward_fused(
+std::unique_ptr<Task> LegacyBatchNormLayer::run_forward(
     const ConstTensor &input, const Tensor &batch_mean, const Tensor &batch_inv_std,
     const Tensor &running_mean, const Tensor &running_var, const ConstTensor &gamma,
     const ConstTensor &beta, const Tensor &output, const Tensor &norm, size_t batch_size,
     size_t channels, size_t spatial_size, flowHandle_t handle) {
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::batchnorm_nchw::run_forward_fused<IO_T>,
-                           input->data_as<IO_T>(), batch_mean->data_as<float>(),
-                           batch_inv_std->data_as<float>(), running_mean->data_as<float>(),
-                           running_var->data_as<float>(), gamma->data_as<float>(),
-                           beta->data_as<float>(), output->data_as<IO_T>(), norm->data_as<float>(),
-                           batch_size, channels, spatial_size, momentum_, epsilon_, affine_);
+    return create_cpu_task(handle, cpu::batchnorm_nchw::run_forward<IO_T>, input->data_as<IO_T>(),
+                           batch_mean->data_as<float>(), batch_inv_std->data_as<float>(),
+                           running_mean->data_as<float>(), running_var->data_as<float>(),
+                           gamma->data_as<float>(), beta->data_as<float>(), output->data_as<IO_T>(),
+                           norm->data_as<float>(), batch_size, channels, spatial_size, momentum_,
+                           epsilon_, affine_);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, cuda::batchnorm_nchw::run_forward_fused<IO_T>,
-                            input->data_as<IO_T>(), batch_mean->data_as<float>(),
-                            batch_inv_std->data_as<float>(), running_mean->data_as<float>(),
-                            running_var->data_as<float>(), gamma->data_as<float>(),
-                            beta->data_as<float>(), output->data_as<IO_T>(), norm->data_as<float>(),
-                            batch_size, channels, spatial_size, momentum_, epsilon_, affine_);
+    return create_cuda_task(handle, cuda::batchnorm_nchw::run_forward<IO_T>, input->data_as<IO_T>(),
+                            batch_mean->data_as<float>(), batch_inv_std->data_as<float>(),
+                            running_mean->data_as<float>(), running_var->data_as<float>(),
+                            gamma->data_as<float>(), beta->data_as<float>(),
+                            output->data_as<IO_T>(), norm->data_as<float>(), batch_size, channels,
+                            spatial_size, momentum_, epsilon_, affine_);
   }
 #endif
   else {
-    throw std::runtime_error("Unsupported device type for run_forward_fused");
+    throw std::runtime_error("Unsupported device type for run_forward");
   }
   return nullptr;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyBatchNormLayer::run_backward_fused(
+std::unique_ptr<Task> LegacyBatchNormLayer::run_backward(
     const ConstTensor &grad_output, const ConstTensor &norm_input, const ConstTensor &inv_std,
     const ConstTensor &gamma, const Tensor &d_gamma, const Tensor &d_beta, const Tensor &grad_input,
     size_t batch_size, size_t channels, size_t spatial_size, flowHandle_t handle) {
   if (grad_output->device_type() == DeviceType::CPU) {
     return create_cpu_task(
-        handle, cpu::batchnorm_nchw::run_backward_fused<IO_T>, grad_output->data_as<IO_T>(),
+        handle, cpu::batchnorm_nchw::run_backward<IO_T>, grad_output->data_as<IO_T>(),
         norm_input->data_as<float>(), inv_std->data_as<float>(), gamma->data_as<float>(),
         d_gamma->data_as<float>(), d_beta->data_as<float>(), grad_input->data_as<IO_T>(),
         batch_size, channels, spatial_size, affine_);
@@ -217,14 +205,14 @@ std::unique_ptr<Task> LegacyBatchNormLayer::run_backward_fused(
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
     return create_cuda_task(
-        handle, cuda::batchnorm_nchw::run_backward_fused<IO_T>, grad_output->data_as<IO_T>(),
+        handle, cuda::batchnorm_nchw::run_backward<IO_T>, grad_output->data_as<IO_T>(),
         norm_input->data_as<float>(), inv_std->data_as<float>(), gamma->data_as<float>(),
         d_gamma->data_as<float>(), d_beta->data_as<float>(), grad_input->data_as<IO_T>(),
         batch_size, channels, spatial_size, affine_);
   }
 #endif
   else {
-    throw std::runtime_error("Unsupported device type for run_backward_fused");
+    throw std::runtime_error("Unsupported device type for run_backward");
   }
   return nullptr;
 }
@@ -240,8 +228,7 @@ LayerConfig LegacyBatchNormLayer::get_config() const {
   return config;
 }
 
-std::vector<size_t> LegacyBatchNormLayer::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+Vec<size_t> LegacyBatchNormLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
   return input_shape;
 }
 

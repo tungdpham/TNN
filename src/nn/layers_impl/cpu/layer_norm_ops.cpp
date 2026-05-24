@@ -8,8 +8,8 @@ namespace tnn {
 namespace cpu {
 namespace layer_norm {
 template <typename T>
-void layer_norm_forward(const T *input, T *output, const T *gamma, const T *beta, size_t batch_size,
-                        size_t channels, T epsilon) {
+void run_forward(const T *input, T *output, const T *gamma, const T *beta, size_t batch_size,
+                 size_t channels, T epsilon) {
   size_t batch_stride = channels;
 
   for (size_t n = 0; n < batch_size; ++n) {
@@ -41,9 +41,8 @@ void layer_norm_forward(const T *input, T *output, const T *gamma, const T *beta
 }
 
 template <typename T>
-void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T *grad_input,
-                         T *grad_gamma, T *grad_beta, size_t batch_size, size_t channels,
-                         T epsilon) {
+void run_backward(const T *grad_output, const T *input, const T *gamma, T *grad_input,
+                  T *grad_gamma, T *grad_beta, size_t batch_size, size_t channels, T epsilon) {
   size_t batch_stride = channels;
 
   for (size_t n = 0; n < batch_size; ++n) {
@@ -96,18 +95,16 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
   }
 }
 
-#define INSTANTIATE_LAYER_NORM(T)                                                               \
-  template void layer_norm_forward<T>(const T *input, T *output, const T *gamma, const T *beta, \
-                                      size_t batch_size, size_t channels, T epsilon);           \
-                                                                                                \
-  template void layer_norm_backward<T>(const T *grad_output, const T *input, const T *gamma,    \
-                                       T *grad_input, T *grad_gamma, T *grad_beta,              \
-                                       size_t batch_size, size_t channels, T epsilon);
-INSTANTIATE_LAYER_NORM(fp16)
-INSTANTIATE_LAYER_NORM(bf16)
-INSTANTIATE_LAYER_NORM(float)
-INSTANTIATE_LAYER_NORM(double)
-#undef INSTANTIATE_LAYER_NORM
+#define INSTANTIATE(T)                                                                         \
+  template void run_forward<T>(const T *input, T *output, const T *gamma, const T *beta,       \
+                               size_t batch_size, size_t channels, T epsilon);                 \
+                                                                                               \
+  template void run_backward<T>(const T *grad_output, const T *input, const T *gamma,          \
+                                T *grad_input, T *grad_gamma, T *grad_beta, size_t batch_size, \
+                                size_t channels, T epsilon);
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace layer_norm
 }  // namespace cpu

@@ -30,7 +30,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  string device_str = Env::get<string>("DEVICE_TYPE", "CPU");
+  string device_str = "CPU";
+  Env::get("DEVICE_TYPE", device_str);
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   cout << "Using device: " << (device_type == DeviceType::GPU ? "GPU" : "CPU") << endl;
 
@@ -65,7 +66,8 @@ int main(int argc, char **argv) {
   cout << "\n[PROMPT]: " << tokenizer.decode(current_tokens) << endl;
   cout << "\n[GENERATED]: " << flush;
 
-  GraphExecutor executor(graph, allocator);
+  auto ws_allocator = DELAllocatorV2::instance(device, defaultFlowHandle);
+  GraphExecutor executor(graph, ws_allocator);
 
   size_t num_to_generate = 50;
   for (size_t i = 0; i < num_to_generate; ++i) {
@@ -82,10 +84,10 @@ int main(int argc, char **argv) {
 
     Tensor output = make_tensor<float>();
     const InputPack inputs{
-        {"input", model_input},
+        {"input", &model_input},
     };
     OutputPack outputs{
-        {"output", output},
+        {"output", &output},
     };
 
     executor.forward(inputs, outputs);

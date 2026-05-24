@@ -11,6 +11,7 @@
 #include "data_loading/data_loader.hpp"
 #include "data_loading/regression_data_loader.hpp"
 #include "device/device_type.hpp"
+#include "nn/csv_logger.hpp"
 #include "nn/graph.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
@@ -37,16 +38,33 @@ inline void tbb_cleanup();
 
 constexpr int DEFAULT_EPOCH = 10;
 constexpr size_t DEFAULT_BATCH_SIZE = 32;
-constexpr float DEFAULT_LR_DECAY_FACTOR = 0.9f;
+constexpr float DEFAULT_LR_DECAY_FACTOR = 0.1f;
 constexpr size_t DEFAULT_LR_DECAY_INTERVAL = 5;  // in epochs
 constexpr int DEFAULT_PRINT_INTERVAL = 100;
 constexpr int64_t DEFAULT_NUM_THREADS = 8;  // Typical number of P-Cores on laptop CPUs
+
+struct LogMode {
+  bool log_loss = true;
+  bool log_accuracy = true;
+  bool log_precision = false;
+  bool log_recall = false;
+  bool log_f1_score = false;
+  bool log_perplexity = false;
+  bool log_top_k_accuracy = false;
+  bool log_mae = false;
+  bool log_mse = false;
+  bool log_rmse = false;
+};
 
 struct TrainingConfig {
   // Trainer params
   int epochs = 10;
   size_t batch_size = 32;
   int64_t max_steps = -1;  // -1 for no limit, otherwise max number of batches per epoch
+  //   "epoch" -> full dataloader epoch, then validation + epoch CSV summary.
+  //   "batch" -> fixed-step training loop for GPT/OpenWebText style runs.
+  //   "auto"  -> old behavior: epoch if max_steps == -1, batch otherwise.
+  std::string train_mode = "auto";
   float lr_initial = 0.001f;
   int gradient_accumulation_steps = 1;
   int progress_print_interval = 100;
@@ -63,6 +81,21 @@ struct TrainingConfig {
   DType_t io_dtype = DType_t::FP32;
   DType_t param_dtype = DType_t::FP32;
   DType_t compute_dtype = DType_t::FP32;
+  std::string log_dir = "logs";  // directory for CSV metric logs
+
+  // Ablation / experiment flags
+  // TNN_PREFETCH_DATA=1 overlaps get_batch(batch N+1) with compute of batch N.
+  bool prefetch_data = false;
+  size_t prefetch_depth = 2;
+
+  // TNN_ASYNC_PIPELINE is kept in config for experiment logging / runner selection.
+  // The current distributed Coordinator path still uses async_train_batch().
+  bool async_pipeline = true;
+
+  // TNN_AUGMENTATION controls random train augmentation in DataLoaderFactory.
+  bool augmentation = true;
+
+  LogMode log_mode;  // what metrics to log
 
   // Distributed params
   size_t num_microbatches = 2;
@@ -78,7 +111,8 @@ struct Result {
 };
 
 Result validate_model(Graph &graph, std::unique_ptr<BaseDataLoader> &val_loader,
-                      const std::unique_ptr<Loss> &criterion, const TrainingConfig &config);
+                      const std::unique_ptr<Loss> &criterion, const TrainingConfig &config,
+                      CsvLogger *logger = nullptr, int epoch = 0);
 
 void train_model(Graph &graph, std::unique_ptr<BaseDataLoader> &train_loader,
                  std::unique_ptr<BaseDataLoader> &val_loader, std::unique_ptr<Optimizer> &optimizer,

@@ -67,12 +67,12 @@ public:
     events_.push_back(event);
   }
 
-  std::vector<Event> &get_events() {
+  Vec<Event> &get_events() {
     std::lock_guard<std::mutex> lock(event_mutex_);
     return events_;
   }
 
-  const std::vector<Event> &get_events() const {
+  const Vec<Event> &get_events() const {
     std::lock_guard<std::mutex> lock(event_mutex_);
     return events_;
   }
@@ -102,7 +102,7 @@ public:
 
 private:
   mutable std::mutex event_mutex_;
-  std::vector<Event> events_;
+  Vec<Event> events_;
   mutable std::mutex start_mutex_;
   Clock::time_point profiler_start_time_;
 };
@@ -153,7 +153,7 @@ public:
     global_profiler_.sort(comp);
   }
 
-  static std::vector<Event> get_events() { return global_profiler_.get_events(); }
+  static Vec<Event> get_events() { return global_profiler_.get_events(); }
 };
 
 }  // namespace tnn

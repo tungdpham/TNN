@@ -32,16 +32,14 @@ signed main() {
   }
   Tensor input = make_tensor<float>({BATCH_SIZE, SEQ_LEN, EMBED_DIM}, getGPU());
   input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor full_attn_output = make_tensor<float>({BATCH_SIZE, SEQ_LEN, EMBED_DIM}, getGPU());
 
-  Tensor flash_attn_output = make_tensor<float>({BATCH_SIZE, SEQ_LEN, EMBED_DIM}, getGPU());
   // cold pass
-  attention_op.forward({input}, {full_attn_output});
-  flash_op.forward({input}, {flash_attn_output});
+  Tensor full_attn_output = attention_op.forward({input})[0];
+  Tensor flash_attn_output = flash_op.forward({input})[0];
 
   for (int i = 0; i < 10; ++i) {
     auto vanilla_start = std::chrono::high_resolution_clock::now();
-    attention_op.forward({input}, {full_attn_output});
+    full_attn_output = attention_op.forward({input})[0];
     attention_op.device().getFlow(defaultFlowHandle)->synchronize();
     auto vanilla_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> vanilla_duration = vanilla_end - vanilla_start;
@@ -50,7 +48,7 @@ signed main() {
 
   for (int i = 0; i < 10; ++i) {
     auto flash_start = std::chrono::high_resolution_clock::now();
-    flash_op.forward({input}, {flash_attn_output});
+    flash_attn_output = flash_op.forward({input})[0];
     flash_op.device().getFlow(defaultFlowHandle)->synchronize();
     auto flash_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> flash_duration = flash_end - flash_start;

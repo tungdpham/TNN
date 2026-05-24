@@ -1,0 +1,503 @@
+/*
+ * Copyright (c) 2025 Tung D. Pham
+ *
+ * This software is licensed under the MIT License. See the LICENSE file in the
+ * project root for the full license text.
+ */
+#pragma once
+
+#include <algorithm>
+#include <atomic>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <random>
+#include <string>
+
+#include "data_loading/image_data_loader.hpp"
+#include "tensor/tensor.hpp"
+#include "threading/thread_handler.hpp"
+
+// Include nlohmann/json for parsing Labels.json
+#include <nlohmann/json.hpp>
+
+// Forward declare stb_image functions
+extern "C" {
+unsigned char *stbi_load(const char *filename, int *x, int *y, int *channels_in_file,
+                         int desired_channels);
+void stbi_image_free(void *retval_from_stbi_load);
+unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *x, int *y,
+                                     int *channels_in_file, int desired_channels);
+}
+
+// Forward declare stb_image_resize functions
+extern "C" {
+unsigned char *stbir_resize_uint8_linear(const unsigned char *input_pixels, int input_w,
+                                         int input_h, int input_stride_in_bytes,
+                                         unsigned char *output_pixels, int output_w, int output_h,
+                                         int output_stride_in_bytes, int num_channels);
+}
+
+namespace imagenet100_constants {
+constexpr size_t IMAGE_HEIGHT = 224;
+constexpr size_t IMAGE_WIDTH = 224;
+constexpr size_t NUM_CLASSES = 100;
+constexpr size_t NUM_CHANNELS = 3;
+constexpr float NORMALIZATION_FACTOR = 255.0f;
+constexpr size_t IMAGE_SIZE = NUM_CHANNELS * IMAGE_HEIGHT * IMAGE_WIDTH;
+}  // namespace imagenet100_constants
+
+namespace tnn {
+/**
+ * ImageNet-100 data loader for JPEG format adapted for CNN (2D RGB images)
+ * NHWC format: (Batch, Height, Width, Channels)
+ *
+ * Uses lazy loading: only the file paths and labels are stored in memory.
+ * JPEG images are decoded and resized on-demand during get_batch, so the full
+ * pixel buffer is never resident in RAM.
+ *
+ * Dataset structure:
+ * - 100 classes
+ * - Training images split across train.X1, train.X2, train.X3, train.X4
+ * - Validation images in val.X
+ * - Images are resized to 224x224 RGB
+ * - Labels.json maps class IDs (wnids) to human-readable names
+ */
+class ImageNet100DataLoader : public ImageDataLoader {
+private:
+  // (image_path, class_index) — persistent storage per sample, shuffled directly in-place
+  Vec<std::pair<std::string, int>> sample_list_;
+  IAllocator &allocator_;
+
+  DType_t dtype_ = DType_t::FP32;
+  bool is_train_mode_ = true;
+
+  Vec<std::string> class_ids_;                           // WordNet IDs (wnids)
+  std::map<std::string, int> class_id_to_index_;         // Map wnid to class index
+  std::map<std::string, std::string> class_id_to_name_;  // Map wnid to human-readable name
+
+  template <typename T>
+  bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
+    if (this->current_index_ >= sample_list_.size()) return false;
+
+    const size_t actual_batch_size =
+        std::min(batch_size, sample_list_.size() - this->current_index_);
+
+    // NHWC format: (Batch, Height, Width, Channels)
+    batch_data = make_tensor<T>(
+        allocator_, {actual_batch_size, imagenet100_constants::IMAGE_HEIGHT,
+                     imagenet100_constants::IMAGE_WIDTH, imagenet100_constants::NUM_CHANNELS});
+    batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
+
+    T *batch_raw = batch_data->data_as<T>();
+    int *labels_raw = batch_labels->data_as<int>();
+    const size_t image_size = imagenet100_constants::IMAGE_SIZE;
+
+    parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
+      // Memory Optimization: Contiguous access patterns improve CPU cache prefetching performance
+      const size_t current_batch_offset = this->current_index_ + i;
+      const auto &[path, class_index] = sample_list_[current_batch_offset];
+
+      T *sample_dst = batch_raw + i * image_size;
+      bool success = false;
+
+      if constexpr (std::is_same_v<T, float>) {
+        // Load directly into the batch tensor's memory (HWC format)
+        success = load_jpeg_image(path, sample_dst);
+      } else {
+        dptr hwc_dptr = allocator_.allocate(image_size * sizeof(float));
+        float *hwc_buf = hwc_dptr.get<float>();
+        if (load_jpeg_image(path, hwc_buf)) {
+          for (size_t j = 0; j < image_size; ++j) {
+            sample_dst[j] = static_cast<T>(hwc_buf[j]);
+          }
+          success = true;
+        }
+      }
+
+      if (success) {
+        labels_raw[i] = class_index;
+      } else {
+        // Zero out failed sample and mark with sentinel label
+        for (size_t j = 0; j < image_size; ++j) {
+          sample_dst[j] = T(0);
+        }
+        labels_raw[i] = -1;  // Sentinel value for failed load
+      }
+    });
+
+    this->apply_augmentation(batch_data, batch_labels);
+    this->current_index_ += actual_batch_size;
+    return true;
+  }
+
+  /**
+   * Load class IDs and names from Labels.json
+   */
+  bool load_class_labels(const std::string &dataset_dir) {
+    std::string labels_file = dataset_dir + "/Labels.json";
+    std::ifstream file(labels_file);
+    if (!file.is_open()) {
+      std::cerr << "Error: Could not open " << labels_file << std::endl;
+      return false;
+    }
+
+    try {
+      nlohmann::json labels_json;
+      file >> labels_json;
+
+      class_ids_.clear();
+      class_id_to_index_.clear();
+      class_id_to_name_.clear();
+
+      int index = 0;
+      for (auto it = labels_json.begin(); it != labels_json.end(); ++it) {
+        std::string class_id = it.key();
+        std::string class_name = it.value().get<std::string>();
+
+        class_ids_.push_back(class_id);
+        class_id_to_index_[class_id] = index++;
+        class_id_to_name_[class_id] = class_name;
+      }
+
+      // Sort class IDs for consistent ordering
+      std::sort(class_ids_.begin(), class_ids_.end());
+
+      // Rebuild the index mapping after sorting
+      class_id_to_index_.clear();
+      for (size_t i = 0; i < class_ids_.size(); ++i) {
+        class_id_to_index_[class_ids_[i]] = static_cast<int>(i);
+      }
+
+      std::cout << "Loaded " << class_ids_.size() << " class labels from JSON" << std::endl;
+      return class_ids_.size() == imagenet100_constants::NUM_CLASSES;
+    } catch (const std::exception &e) {
+      std::cerr << "Error parsing Labels.json: " << e.what() << std::endl;
+      return false;
+    }
+  }
+
+  struct CropBox {
+    int x;
+    int y;
+    int w;
+    int h;
+  };
+
+  CropBox sample_random_resized_crop(int img_w, int img_h) const {
+    static std::atomic<uint32_t> global_seed_seq{42};
+    thread_local std::mt19937 rng(global_seed_seq.fetch_add(13, std::memory_order_relaxed));
+
+    std::uniform_real_distribution<float> scale_dist(0.08f, 1.0f);
+    std::uniform_real_distribution<float> ratio_dist(std::log(3.0f / 4.0f), std::log(4.0f / 3.0f));
+
+    const int area = img_w * img_h;
+    for (int attempt = 0; attempt < 10; ++attempt) {
+      const float target_area = scale_dist(rng) * static_cast<float>(area);
+      const float aspect = std::exp(ratio_dist(rng));
+      const int crop_w = static_cast<int>(std::round(std::sqrt(target_area * aspect)));
+      const int crop_h = static_cast<int>(std::round(std::sqrt(target_area / aspect)));
+
+      if (crop_w > 0 && crop_h > 0 && crop_w <= img_w && crop_h <= img_h) {
+        std::uniform_int_distribution<int> x_dist(0, img_w - crop_w);
+        std::uniform_int_distribution<int> y_dist(0, img_h - crop_h);
+        return {x_dist(rng), y_dist(rng), crop_w, crop_h};
+      }
+    }
+
+    const float in_ratio = static_cast<float>(img_w) / static_cast<float>(img_h);
+    int crop_w = img_w;
+    int crop_h = img_h;
+    if (in_ratio < 3.0f / 4.0f) {
+      crop_w = img_w;
+      crop_h = static_cast<int>(std::round(crop_w / (3.0f / 4.0f)));
+    } else if (in_ratio > 4.0f / 3.0f) {
+      crop_h = img_h;
+      crop_w = static_cast<int>(std::round(crop_h * (4.0f / 3.0f)));
+    }
+
+    crop_w = std::min(crop_w, img_w);
+    crop_h = std::min(crop_h, img_h);
+    return {std::max(0, (img_w - crop_w) / 2), std::max(0, (img_h - crop_h) / 2), crop_w, crop_h};
+  }
+
+  static void hwc_uint8_to_hwc_float_224(const unsigned char *img_224_hwc, float *image_data_ptr) {
+    // Direct HWC uint8 -> HWC float normalization, no layout change
+    for (size_t i = 0; i < imagenet100_constants::IMAGE_SIZE; ++i) {
+      image_data_ptr[i] = img_224_hwc[i] / imagenet100_constants::NORMALIZATION_FACTOR;
+    }
+  }
+
+  /**
+   * Load a JPEG image and apply torchvision-like spatial preprocessing.
+   *
+   * Train:
+   *   RandomResizedCrop(224) from the original decoded JPEG.
+   *
+   * Val:
+   *   Resize(short_side=256) preserving aspect ratio, then CenterCrop(224).
+   *
+   * The returned float buffer is HWC, [0,1], 224x224.
+   */
+  bool load_jpeg_image(const std::string &image_path, float *image_data_ptr) {
+    int width, height, channels;
+    unsigned char *img = stbi_load(image_path.c_str(), &width, &height, &channels, 3);
+
+    if (!img) {
+      std::cerr << "Error loading image: " << image_path << std::endl;
+      return false;
+    }
+
+    constexpr int out_h = static_cast<int>(imagenet100_constants::IMAGE_HEIGHT);
+    constexpr int out_w = static_cast<int>(imagenet100_constants::IMAGE_WIDTH);
+    constexpr int resize_short_side = 256;
+
+    dptr crop_resize_dptr = allocator_.allocate(out_h * out_w * 3);
+    unsigned char *out224 = crop_resize_dptr.get<unsigned char>();
+
+    if (is_train_mode_) {
+      const CropBox crop = sample_random_resized_crop(width, height);
+      const unsigned char *crop_src = img + (crop.y * width + crop.x) * 3;
+      unsigned char *result = stbir_resize_uint8_linear(crop_src, crop.w, crop.h, width * 3, out224,
+                                                        out_w, out_h, 0, 3);
+      stbi_image_free(img);
+
+      if (!result) {
+        std::cerr << "Error RandomResizedCrop resizing image: " << image_path << std::endl;
+        return false;
+      }
+
+      hwc_uint8_to_hwc_float_224(out224, image_data_ptr);
+      return true;
+    }
+
+    int resized_w;
+    int resized_h;
+    if (height <= width) {
+      resized_h = resize_short_side;
+      resized_w = static_cast<int>(
+          std::round(static_cast<float>(width) * resize_short_side / static_cast<float>(height)));
+    } else {
+      resized_w = resize_short_side;
+      resized_h = static_cast<int>(
+          std::round(static_cast<float>(height) * resize_short_side / static_cast<float>(width)));
+    }
+
+    resized_w = std::max(resized_w, out_w);
+    resized_h = std::max(resized_h, out_h);
+
+    dptr resized_dptr =
+        allocator_.allocate(static_cast<size_t>(resized_h) * static_cast<size_t>(resized_w) * 3);
+    unsigned char *resized = resized_dptr.get<unsigned char>();
+
+    unsigned char *resize_result =
+        stbir_resize_uint8_linear(img, width, height, 0, resized, resized_w, resized_h, 0, 3);
+    stbi_image_free(img);
+
+    if (!resize_result) {
+      std::cerr << "Error validation Resize(256) image: " << image_path << std::endl;
+      return false;
+    }
+
+    const int crop_x = std::max(0, (resized_w - out_w) / 2);
+    const int crop_y = std::max(0, (resized_h - out_h) / 2);
+
+    for (int h = 0; h < out_h; ++h) {
+      const unsigned char *src_row = resized + ((crop_y + h) * resized_w + crop_x) * 3;
+      unsigned char *dst_row = out224 + h * out_w * 3;
+      std::copy(src_row, src_row + out_w * 3, dst_row);
+    }
+
+    hwc_uint8_to_hwc_float_224(out224, image_data_ptr);
+    return true;
+  }
+
+  /**
+   * Enumerate training images from directory structure and build the sample list.
+   * Training images are split across train.X1, train.X2, train.X3, train.X4
+   * No pixel data is loaded here — images are decoded on-demand in get_batch.
+   */
+  bool load_train_data(const std::string &dataset_dir) {
+    Vec<std::string> train_dirs = {"train.X1", "train.X2", "train.X3", "train.X4"};
+
+    for (const auto &train_subdir : train_dirs) {
+      std::string train_dir = dataset_dir + "/" + train_subdir;
+
+      if (!std::filesystem::exists(train_dir)) {
+        std::cerr << "Warning: Training directory not found: " << train_dir << std::endl;
+        continue;
+      }
+
+      for (const auto &class_id : class_ids_) {
+        std::string class_dir = train_dir + "/" + class_id;
+
+        if (!std::filesystem::exists(class_dir)) {
+          // Not all classes may be in each training subdirectory
+          continue;
+        }
+
+        int class_index = class_id_to_index_[class_id];
+
+        for (const auto &entry : std::filesystem::directory_iterator(class_dir)) {
+          if (entry.path().extension() == ".JPEG" || entry.path().extension() == ".jpeg") {
+            sample_list_.emplace_back(entry.path().string(), class_index);
+          }
+        }
+      }
+    }
+
+    std::cout << "Indexed " << sample_list_.size() << " training images (lazy)" << std::endl;
+    return !sample_list_.empty();
+  }
+
+  /**
+   * Enumerate validation images from val.X directory.
+   * No pixel data is loaded here — images are decoded on-demand in get_batch.
+   */
+  bool load_val_data(const std::string &dataset_dir) {
+    std::string val_dir = dataset_dir + "/val.X";
+
+    if (!std::filesystem::exists(val_dir)) {
+      std::cerr << "Error: Validation directory not found: " << val_dir << std::endl;
+      return false;
+    }
+
+    for (const auto &class_id : class_ids_) {
+      std::string class_dir = val_dir + "/" + class_id;
+
+      if (!std::filesystem::exists(class_dir)) {
+        std::cerr << "Warning: Validation class directory not found: " << class_dir << std::endl;
+        continue;
+      }
+
+      int class_index = class_id_to_index_[class_id];
+
+      for (const auto &entry : std::filesystem::directory_iterator(class_dir)) {
+        if (entry.path().extension() == ".JPEG" || entry.path().extension() == ".jpeg") {
+          sample_list_.emplace_back(entry.path().string(), class_index);
+        }
+      }
+    }
+
+    std::cout << "Indexed " << sample_list_.size() << " validation images (lazy)" << std::endl;
+    return !sample_list_.empty();
+  }
+
+public:
+  explicit ImageNet100DataLoader(DType_t dtype = DType_t::FP32)
+      : ImageDataLoader(),
+        allocator_(PoolAllocator::instance(getHost(), defaultFlowHandle)),
+        dtype_(dtype) {
+    sample_list_.reserve(150000);  // ImageNet-100 has ~130k training images
+  }
+
+  virtual ~ImageNet100DataLoader() = default;
+
+  /**
+   * Load ImageNet-100 data.
+   * Enumerates image paths and labels only — no pixel data is loaded here.
+   * @param source Path to dataset directory containing train.X1-X4/, val.X/, Labels.json
+   * @param is_train If true, index training data; if false, index validation data
+   */
+  bool load_data(const std::string &source, bool is_train = true) {
+    sample_list_.clear();
+    is_train_mode_ = is_train;
+
+    if (!load_class_labels(source)) return false;
+
+    bool success = is_train ? load_train_data(source) : load_val_data(source);
+
+    if (success) {
+      this->current_index_ = 0;
+      std::cout << "Total indexed: " << sample_list_.size() << " samples" << std::endl;
+    }
+
+    return success;
+  }
+
+  bool load_data(const std::string &source) override { return load_data(source, true); }
+
+  bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
+    DISPATCH_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
+  }
+
+  void reset() override { this->current_index_ = 0; }
+
+  /**
+   * Shuffle the sample list data array directly to retain serial caching.
+   */
+  void shuffle() override {
+    if (sample_list_.empty()) return;
+
+    // Explicit, localized isolated engine setup for the shuffling phase
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(sample_list_.begin(), sample_list_.end(), g);
+
+    this->current_index_ = 0;
+  }
+
+  size_t size() const override { return sample_list_.size(); }
+
+  Vec<size_t> get_data_shape() const override {
+    return {imagenet100_constants::IMAGE_HEIGHT, imagenet100_constants::IMAGE_WIDTH,
+            imagenet100_constants::NUM_CHANNELS};
+  }
+
+  int get_num_classes() const override {
+    return static_cast<int>(imagenet100_constants::NUM_CLASSES);
+  }
+
+  Vec<std::string> get_class_names() const override {
+    Vec<std::string> names;
+    names.reserve(class_ids_.size());
+    for (const auto &class_id : class_ids_) {
+      auto it = class_id_to_name_.find(class_id);
+      names.push_back(it != class_id_to_name_.end() ? it->second : class_id);
+    }
+    return names;
+  }
+
+  Vec<std::string> get_class_ids() const { return class_ids_; }
+
+  void print_data_stats() const override {
+    if (sample_list_.empty()) {
+      std::cout << "No data indexed" << std::endl;
+      return;
+    }
+
+    Vec<int> label_counts(imagenet100_constants::NUM_CLASSES, 0);
+    for (const auto &[path, label] : sample_list_) {
+      if (label >= 0 && label < static_cast<int>(imagenet100_constants::NUM_CLASSES)) {
+        label_counts[label]++;
+      }
+    }
+
+    std::cout << "ImageNet-100 Dataset Statistics (NHWC format, lazy-loaded):" << std::endl;
+    std::cout << "Total samples: " << sample_list_.size() << std::endl;
+    std::cout << "Image shape: " << imagenet100_constants::IMAGE_HEIGHT << "x"
+              << imagenet100_constants::IMAGE_WIDTH << "x" << imagenet100_constants::NUM_CHANNELS
+              << std::endl;
+    std::cout << "Number of classes: " << imagenet100_constants::NUM_CLASSES << std::endl;
+    std::cout << "Class distribution (first 10 classes):" << std::endl;
+    for (int i = 0; i < std::min(10, static_cast<int>(class_ids_.size())); ++i) {
+      std::string display_name = class_ids_[i];
+      auto it = class_id_to_name_.find(display_name);
+      if (it != class_id_to_name_.end()) display_name = it->second;
+      std::cout << "  Class " << i << " (" << class_ids_[i] << " - " << display_name
+                << "): " << label_counts[i] << " samples" << std::endl;
+    }
+  }
+
+  static void create(const std::string &data_path, ImageNet100DataLoader &train_loader,
+                     ImageNet100DataLoader &val_loader) {
+    if (!train_loader.load_data(data_path, true)) {
+      throw std::runtime_error("Failed to index training data!");
+    }
+    if (!val_loader.load_data(data_path, false)) {
+      throw std::runtime_error("Failed to index validation data!");
+    }
+  }
+};
+}  // namespace tnn

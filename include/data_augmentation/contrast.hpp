@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <random>
+#include <utility>
+#include <vector>
 
 #include "augmentation.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -18,7 +21,7 @@ public:
     this->name_ = "Contrast";
   }
 
-  void apply(const Tensor &data, const Tensor &labels) override {
+  void apply(Tensor &data, Tensor &labels) override {
     DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -31,7 +34,7 @@ private:
   float contrast_range_;
 
   template <typename T>
-  void apply_impl(const Tensor &data, const Tensor &labels) {
+  void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
     std::uniform_real_distribution<float> contrast_dist(1.0f - contrast_range_,
                                                         1.0f + contrast_range_);
@@ -42,16 +45,22 @@ private:
     const size_t spatial_size = data->stride(0);
     T *ptr = data->data_as<T>();
 
+    // Pre-compute per-batch random decisions sequentially to avoid data races
+    std::vector<std::pair<bool, float>> decisions(batch_size);
     for (size_t b = 0; b < batch_size; ++b) {
-      if (prob_dist(this->rng_) < probability_) {
-        float contrast_factor = contrast_dist(this->rng_);
+      bool apply = prob_dist(this->rng_) < probability_;
+      decisions[b] = {apply, apply ? contrast_dist(this->rng_) : 1.0f};
+    }
 
+    parallel_for<size_t>(0, batch_size, [&](size_t b) {
+      if (decisions[b].first) {
+        const float contrast_factor = decisions[b].second;
         for (size_t i = 0; i < spatial_size; ++i) {
           size_t idx = b * spatial_size + i;
           ptr[idx] = std::clamp(static_cast<float>(ptr[idx]) * contrast_factor, 0.0f, 1.0f);
         }
       }
-    }
+    });
   }
 };
 

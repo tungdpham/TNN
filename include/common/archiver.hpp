@@ -134,7 +134,7 @@ void archive(Archiver& archiver, std::string& str) {
 }
 
 template <typename Archiver>
-void archive(Archiver& archiver, const std::vector<size_t>& vec) {
+void archive(Archiver& archiver, const Vec<size_t>& vec) {
   archiver(static_cast<uint64_t>(vec.size()));
   if (!vec.empty()) {
     archiver(make_blob(vec.data(), vec.size(), getHost()));
@@ -142,7 +142,7 @@ void archive(Archiver& archiver, const std::vector<size_t>& vec) {
 }
 
 template <typename Archiver>
-void archive(Archiver& archiver, std::vector<size_t>& vec) {
+void archive(Archiver& archiver, Vec<size_t>& vec) {
   uint64_t vec_size = vec.size();
   archiver(vec_size);
   vec.resize(vec_size);

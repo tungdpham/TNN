@@ -1,8 +1,11 @@
 #pragma once
 
 #include <random>
+#include <tuple>
+#include <vector>
 
 #include "augmentation.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -17,7 +20,7 @@ public:
     this->name_ = "RandomCrop";
   }
 
-  void apply(const Tensor &data, const Tensor &labels) override {
+  void apply(Tensor &data, Tensor &labels) override {
     DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -30,7 +33,7 @@ private:
   int padding_;
 
   template <typename T>
-  void apply_impl(const Tensor &data, const Tensor &labels) {
+  void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
 
     const auto shape = data->shape();
@@ -43,20 +46,29 @@ private:
 
     std::uniform_int_distribution<int> crop_dist(0, 2 * padding_);
 
+    // Pre-compute per-batch random decisions sequentially to avoid data races
+    std::vector<std::tuple<bool, int, int>> decisions(batch_size);
     for (size_t b = 0; b < batch_size; ++b) {
       if (prob_dist(this->rng_) < probability_) {
-        int start_x = crop_dist(this->rng_);
-        int start_y = crop_dist(this->rng_);
-        apply_crop<T>(data, b, height, width, channels, start_x, start_y);
+        decisions[b] = {true, crop_dist(this->rng_), crop_dist(this->rng_)};
+      } else {
+        decisions[b] = {false, 0, 0};
       }
     }
+
+    parallel_for<size_t>(0, batch_size, [&](size_t b) {
+      if (std::get<0>(decisions[b])) {
+        apply_crop<T>(data, b, height, width, channels, std::get<1>(decisions[b]),
+                      std::get<2>(decisions[b]));
+      }
+    });
   }
 
   template <typename T>
   void apply_crop(const Tensor &data, size_t batch_idx, size_t height, size_t width,
                   size_t channels, int start_x, int start_y) {
     const size_t padded_size = width + 2 * padding_;
-    Tensor padded = make_tensor<T>(std::vector<size_t>{1, padded_size, padded_size, channels});
+    Tensor padded = make_tensor<T>({1, padded_size, padded_size, channels});
 
     padded->fill(0.0);
 

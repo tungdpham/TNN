@@ -13,6 +13,7 @@
 
 #include "common/config.hpp"
 #include "device/del_allocator_v2.hpp"
+#include "device/engine.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
@@ -21,7 +22,7 @@ using LayerConfig = TConfig;
 
 struct ParamDescriptor {
   DType_t dtype;  // data type of the parameter
-  std::vector<size_t> shape;
+  Vec<size_t> shape;
   Tensor *data_ptr;  // pointer to the actual param
   Tensor *grad_ptr;  // pointer to the actual grad_output
 };
@@ -30,8 +31,10 @@ inline size_t get_shapes_bytes(const Vec<Vec<size_t>> &shapes, DType_t dtype) {
   size_t total_bytes = 0;
   size_t dtype_size = get_dtype_size(dtype);
   for (const auto &shape : shapes) {
-    total_bytes +=
+    size_t shape_bytes =
         std::accumulate(shape.begin(), shape.end(), dtype_size, std::multiplies<size_t>());
+    shape_bytes = align_up(shape_bytes, 256);
+    total_bytes += shape_bytes;
   }
   return total_bytes;
 }
@@ -46,11 +49,12 @@ public:
 
   virtual ~Layer() = default;
 
+  void set_engine_type(EngineType engine_type);
+  EngineType get_engine_type() const;
+
   void init();
-  void forward(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
-               size_t mb_id = 0);
-  void backward(const std::vector<ConstTensor> &grad_outputs,
-                const std::vector<Tensor> &grad_inputs, size_t mb_id = 0);
+  Vec<Tensor> forward(const Vec<ConstTensor> &inputs, size_t mb_id = 0);
+  Vec<Tensor> backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0);
 
   // Note: have to call init again after changing param dtype
   Layer &set_allocator(DELAllocatorV2 &allocator);
@@ -68,33 +72,25 @@ public:
   bool is_training() const;
 
   virtual Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const = 0;
-  // amount of cached bytes for forward pass (e.g., for input activations needed in backward)
-  virtual size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const = 0;
-  // peak workspace that this layer needs to materialize in order to produce output in forward pass
-  // (e.g., can be workspace + output bytes)
-  virtual size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const = 0;
-  // similar to fwd workspace but for inference (e.g., can be smaller if formula is less demanding)
-  virtual size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const = 0;
-  // peak workspace that this layer needs to materialize in order to produce input gradients in
-  // backward pass
-  // (e.g., can be workspace + input bytes)
-  virtual size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const = 0;
   std::string name() const { return name_; }
   void save_state(std::ofstream &file);
-  virtual std::vector<ParamDescriptor> param_descriptors() { return {}; }
+  virtual Vec<ParamDescriptor> param_descriptors() { return {}; }
   virtual std::string type() const = 0;
   virtual LayerConfig get_config() const = 0;
+
+  Vec<Tensor> parameters();
+  Vec<Tensor> gradients();
+  void clear_cache(size_t mb_id);
+
   const Device &device() const {
     if (!allocator_) {
-      throw std::runtime_error("Allocator is not set");
+      throw std::runtime_error("Layer: Allocator is not set to get device.");
     }
     return allocator_->device();
   }
 
-  std::vector<Tensor> parameters();
-  std::vector<Tensor> gradients();
-
 protected:
+  virtual void on_set_engine_type(EngineType engine_type) {}
   virtual void init_impl() {}
   virtual void on_set_allocator(DELAllocatorV2 &allocator) {}
   virtual void on_set_flow_handle(flowHandle_t handle) {}
@@ -103,20 +99,19 @@ protected:
   virtual void on_set_io_dtype(DType_t dtype) {}
   virtual void on_set_param_dtype(DType_t dtype) {}
   virtual void on_set_compute_dtype(DType_t dtype) {}
-  virtual void forward_impl(const std::vector<ConstTensor> &inputs,
-                            const std::vector<Tensor> &outputs, size_t mb_id) = 0;
-  virtual void backward_impl(const std::vector<ConstTensor> &grad_outputs,
-                             const std::vector<Tensor> &grad_inputs, size_t mb_id) = 0;
+  virtual Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) = 0;
+  virtual Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) = 0;
 
 protected:
   bool initialized_ = false;
+  EngineType engine_type_ = EngineType::UNKNOWN;
   DELAllocatorV2 *allocator_ = nullptr;
   bool is_training_ = true;
+  bool is_fwd_ = false;
   bool use_seed_ = false;
   unsigned long long srand_seed_ = 0;
-  std::map<std::pair<size_t, std::string>, Tensor> mutable_tensors_;
-  // for immutable cache (e.g., inputs)
-  std::map<std::pair<size_t, std::string>, ConstTensor> cached_tensors_;
+  std::map<std::pair<size_t, std::string>, ConstTensor> immutable_cache_;
+  std::map<std::pair<size_t, std::string>, Tensor> mutable_cache_;
   flowHandle_t flow_handle_;
   std::string name_;
   DType_t io_dtype_ = DType_t::FP32;       // data type for input/output tensors
@@ -124,13 +119,14 @@ protected:
   DType_t compute_dtype_ = DType_t::FP32;  // data type for internal computations
 
   // helpers
-  Tensor make_io_tensor(std::vector<size_t> shape);
-  Tensor make_compute_tensor(std::vector<size_t> shape);
-  ConstTensor &get_cached_tensor(size_t mb_id, const std::string &key);
-  Tensor &get_mutable_tensor(size_t mb_id, const std::string &key);
-  Tensor get_act();
-  Tensor get_workspace(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
-  void clear_cache(size_t mb_id);
+  void set_immutable_cache(size_t mb_id, const std::string &key, ConstTensor value);
+  ConstTensor &get_immutable_cache(size_t mb_id, const std::string &key);
+  void set_mutable_cache(size_t mb_id, const std::string &key, Tensor value);
+  Tensor &get_mutable_cache(size_t mb_id, const std::string &key);
+  Tensor get_tensor(const Vec<size_t> &shape, DType_t dtype);
+  Tensor get_output_tensor(const Vec<size_t> &shape);
+  Tensor get_cache_tensor(const Vec<size_t> &shape = {}, DType_t dtype = DType_t::FP32);
+  Tensor get_workspace(const Vec<size_t> &shape, DType_t dtype = DType_t::FP32);
 };
 
 #define DISPATCH_IO_DTYPE(method_name, ...)                                \

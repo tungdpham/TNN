@@ -8,14 +8,16 @@ You should have these dependencies for the main programs installed before buildi
 sudo apt install build-essential g++ make cmake git libtbb-dev wget libnuma-dev libibverbs-dev libfmt-dev
 ```
 
-### Install Intel MKL (Recommended for CPU usage)
+### Install Intel MKL and oneDNN (Recommended for CPU usage)
 ```bash
 # 1. Add oneAPI repository
 wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
 sudo apt update
+
 # 2. Install MKL
-sudo apt install intel-oneapi-mkl-devel
+sudo apt install intel-oneapi-mkl-devel intel-oneapi-dnnl-devel
+
 # 3. Source environment variables
 source /opt/intel/oneapi/setvars.sh
 ```

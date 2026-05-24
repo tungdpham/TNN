@@ -33,14 +33,14 @@ public:
   /**
    * Get feature normalization statistics (optional)
    */
-  virtual std::vector<float> get_feature_means() const { return {}; }
-  virtual std::vector<float> get_feature_stds() const { return {}; }
+  virtual Vec<float> get_feature_means() const { return {}; }
+  virtual Vec<float> get_feature_stds() const { return {}; }
 
   /**
    * Get target normalization statistics (optional)
    */
-  virtual std::vector<float> get_target_means() const { return {}; }
-  virtual std::vector<float> get_target_stds() const { return {}; }
+  virtual Vec<float> get_target_means() const { return {}; }
+  virtual Vec<float> get_target_stds() const { return {}; }
 };
 
 }  // namespace tnn

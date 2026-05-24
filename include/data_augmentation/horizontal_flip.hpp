@@ -1,8 +1,10 @@
 #pragma once
 
 #include <random>
+#include <vector>
 
 #include "augmentation.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -16,7 +18,7 @@ public:
     this->name_ = "HorizontalFlip";
   }
 
-  void apply(const Tensor &data, const Tensor &labels) override {
+  void apply(Tensor &data, Tensor &labels) override {
     DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -28,7 +30,7 @@ private:
   float probability_;
 
   template <typename T>
-  void apply_impl(const Tensor &data, const Tensor &labels) {
+  void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
     const auto shape = data->shape();
@@ -39,8 +41,14 @@ private:
     const size_t width = shape[2];
     const size_t channels = shape[3];
 
+    // Pre-compute per-batch apply flags sequentially to avoid data races
+    std::vector<bool> apply_flags(batch_size);
     for (size_t b = 0; b < batch_size; ++b) {
-      if (dist(this->rng_) < probability_) {
+      apply_flags[b] = dist(this->rng_) < probability_;
+    }
+
+    parallel_for<size_t>(0, batch_size, [&](size_t b) {
+      if (apply_flags[b]) {
         for (size_t h = 0; h < height; ++h) {
           for (size_t w = 0; w < width / 2; ++w) {
             for (size_t c = 0; c < channels; ++c) {
@@ -49,7 +57,7 @@ private:
           }
         }
       }
-    }
+    });
   }
 };
 

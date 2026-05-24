@@ -13,12 +13,11 @@
 
 namespace tnn {
 namespace cpu {
-
+namespace avgpool {
 template <typename T>
-void avgpool_forward(const T *input, T *output, size_t batch_size, size_t height, size_t width,
-                     size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,
-                     size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h,
-                     size_t output_w) {
+void run_forward(const T *input, T *output, size_t batch_size, size_t height, size_t width,
+                 size_t channels, size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,
+                 size_t pad_h, size_t pad_w, size_t output_h, size_t output_w) {
   // NHWC format: [batch, height, width, channels]
   for (size_t b = 0; b < batch_size; ++b) {
     for (size_t oh = 0; oh < output_h; ++oh) {
@@ -54,10 +53,9 @@ void avgpool_forward(const T *input, T *output, size_t batch_size, size_t height
 }
 
 template <typename T>
-void avgpool_backward(const T *grad_output, T *grad_input, size_t batch_size, size_t input_h,
-                      size_t input_w, size_t channels, size_t pool_h, size_t pool_w,
-                      size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h,
-                      size_t output_w) {
+void run_backward(const T *grad_output, T *grad_input, size_t batch_size, size_t input_h,
+                  size_t input_w, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,
+                  size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w) {
   // NHWC format: [batch, height, width, channels]
   // grad_input should already be zeroed
   for (size_t b = 0; b < batch_size; ++b) {
@@ -91,22 +89,20 @@ void avgpool_backward(const T *grad_output, T *grad_input, size_t batch_size, si
   }
 }
 
-#define INSTANTIATE_AVGPOOL(T)                                                                   \
-  template void avgpool_forward<T>(const T *input, T *output, size_t batch_size, size_t height,  \
-                                   size_t width, size_t channels, size_t pool_h, size_t pool_w,  \
-                                   size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w, \
-                                   size_t output_h, size_t output_w);                            \
-  template void avgpool_backward<T>(                                                             \
-      const T *grad_output, T *grad_input, size_t batch_size, size_t input_h, size_t input_w,    \
-      size_t channels, size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,           \
-      size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);
+#define INSTANTIATE(T)                                                                          \
+  template void run_forward<T>(const T *input, T *output, size_t batch_size, size_t height,     \
+                               size_t width, size_t channels, size_t pool_h, size_t pool_w,     \
+                               size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,    \
+                               size_t output_h, size_t output_w);                               \
+  template void run_backward<T>(const T *grad_output, T *grad_input, size_t batch_size,         \
+                                size_t input_h, size_t input_w, size_t channels, size_t pool_h, \
+                                size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,  \
+                                size_t pad_w, size_t output_h, size_t output_w);
 
-INSTANTIATE_AVGPOOL(fp16)
-INSTANTIATE_AVGPOOL(bf16)
-INSTANTIATE_AVGPOOL(float)
-INSTANTIATE_AVGPOOL(double)
+#include "macros/floating_type_instantiation.hpp"
 
-#undef INSTANTIATE_AVGPOOL
+#undef INSTANTIATE
 
+}  // namespace avgpool
 }  // namespace cpu
 }  // namespace tnn

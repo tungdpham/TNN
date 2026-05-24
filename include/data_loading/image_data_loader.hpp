@@ -20,8 +20,8 @@ public:
   /**
    * Get class names (optional)
    */
-  virtual std::vector<std::string> get_class_names() const {
-    std::vector<std::string> names;
+  virtual Vec<std::string> get_class_names() const {
+    Vec<std::string> names;
     int num_classes = get_num_classes();
     names.reserve(num_classes);
     for (int i = 0; i < num_classes; ++i) {

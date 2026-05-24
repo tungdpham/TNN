@@ -17,35 +17,9 @@ namespace layer_norm {
 
 namespace {
 
-// atomicAdd for double is not available on very old GPUs.
-__device__ inline double atomicAddCompat(double* address, double val) {
-#if __CUDA_ARCH__ >= 600
-  return atomicAdd(address, val);
-#else
-  unsigned long long int* address_as_ull = (unsigned long long int*)address;
-  unsigned long long int old = *address_as_ull, assumed;
-  do {
-    assumed = old;
-    old = atomicCAS(address_as_ull, assumed,
-                    __double_as_longlong(val + __longlong_as_double(assumed)));
-  } while (assumed != old);
-  return __longlong_as_double(old);
-#endif
-}
-
 template <typename T>
-__device__ inline T atomicAddT(T* address, T val) {
-  return atomicAdd(address, val);
-}
-
-template <>
-__device__ inline double atomicAddT<double>(double* address, double val) {
-  return atomicAddCompat(address, val);
-}
-
-template <typename T>
-__global__ void layer_norm_forward_kernel(const T* input, T* output, const T* gamma, const T* beta,
-                                          size_t channels, T epsilon) {
+__global__ void run_forward_kernel(const T* input, T* output, const T* gamma, const T* beta,
+                                   size_t channels, T epsilon) {
   const size_t n = static_cast<size_t>(blockIdx.x);
 
   const T* x = input + n * channels;
@@ -74,9 +48,9 @@ __global__ void layer_norm_forward_kernel(const T* input, T* output, const T* ga
 }
 
 template <typename T>
-__global__ void layer_norm_backward_kernel(const T* grad_output, const T* input, const T* gamma,
-                                           T* grad_input, T* grad_gamma, T* grad_beta,
-                                           size_t channels, T epsilon) {
+__global__ void run_backward_kernel(const T* grad_output, const T* input, const T* gamma,
+                                    T* grad_input, T* grad_gamma, T* grad_beta, size_t channels,
+                                    T epsilon) {
   const size_t n = static_cast<size_t>(blockIdx.x);
 
   const T* x = input + n * channels;
@@ -108,11 +82,13 @@ __global__ void layer_norm_backward_kernel(const T* grad_output, const T* input,
     sum_dl_dnorm += dl_dnorm;
     sum_dl_dnorm_x_hat += dl_dnorm * x_hat;
 
-    if (grad_gamma) {
-      atomicAddT(&grad_gamma[c], go[c] * x_hat);
-    }
-    if (grad_beta) {
-      atomicAddT(&grad_beta[c], go[c]);
+    if constexpr (std::is_floating_point<T>::value) {
+      if (grad_gamma) {
+        atomicAdd(&grad_gamma[c], go[c] * x_hat);
+      }
+      if (grad_beta) {
+        atomicAdd(&grad_beta[c], go[c]);
+      }
     }
   }
 
@@ -132,43 +108,41 @@ __global__ void layer_norm_backward_kernel(const T* grad_output, const T* input,
 }  // namespace
 
 template <typename T>
-void layer_norm_forward(const T* input, T* output, const T* gamma, const T* beta, size_t batch_size,
-                        size_t channels, T epsilon, cudaStream_t stream) {
+void run_forward(const T* input, T* output, const T* gamma, const T* beta, size_t batch_size,
+                 size_t channels, T epsilon, cudaStream_t stream) {
   if (batch_size == 0 || channels == 0) {
     return;
   }
   dim3 blocks(static_cast<unsigned int>(batch_size));
   dim3 threads(1);
-  layer_norm_forward_kernel<T>
+  run_forward_kernel<T>
       <<<blocks, threads, 0, stream>>>(input, output, gamma, beta, channels, epsilon);
 }
 
 template <typename T>
-void layer_norm_backward(const T* grad_output, const T* input, const T* gamma, T* grad_input,
-                         T* grad_gamma, T* grad_beta, size_t batch_size, size_t channels, T epsilon,
-                         cudaStream_t stream) {
+void run_backward(const T* grad_output, const T* input, const T* gamma, T* grad_input,
+                  T* grad_gamma, T* grad_beta, size_t batch_size, size_t channels, T epsilon,
+                  cudaStream_t stream) {
   if (batch_size == 0 || channels == 0) {
     return;
   }
   dim3 blocks(static_cast<unsigned int>(batch_size));
   dim3 threads(1);
-  layer_norm_backward_kernel<T><<<blocks, threads, 0, stream>>>(
-      grad_output, input, gamma, grad_input, grad_gamma, grad_beta, channels, epsilon);
+  run_backward_kernel<T><<<blocks, threads, 0, stream>>>(grad_output, input, gamma, grad_input,
+                                                         grad_gamma, grad_beta, channels, epsilon);
 }
 
-#define INSTANTIATE_LAYER_NORM(T)                                                               \
-  template void layer_norm_forward<T>(const T* input, T* output, const T* gamma, const T* beta, \
-                                      size_t batch_size, size_t channels, T epsilon,            \
-                                      cudaStream_t stream);                                     \
-                                                                                                \
-  template void layer_norm_backward<T>(                                                         \
-      const T* grad_output, const T* input, const T* gamma, T* grad_input, T* grad_gamma,       \
-      T* grad_beta, size_t batch_size, size_t channels, T epsilon, cudaStream_t stream);
-INSTANTIATE_LAYER_NORM(fp16)
-INSTANTIATE_LAYER_NORM(bf16)
-INSTANTIATE_LAYER_NORM(float)
-INSTANTIATE_LAYER_NORM(double)
-#undef INSTANTIATE_LAYER_NORM
+#define INSTANTIATE(T)                                                                         \
+  template void run_forward<T>(const T* input, T* output, const T* gamma, const T* beta,       \
+                               size_t batch_size, size_t channels, T epsilon,                  \
+                               cudaStream_t stream);                                           \
+                                                                                               \
+  template void run_backward<T>(const T* grad_output, const T* input, const T* gamma,          \
+                                T* grad_input, T* grad_gamma, T* grad_beta, size_t batch_size, \
+                                size_t channels, T epsilon, cudaStream_t stream);
+#include "macros/floating_type_instantiation.hpp"
+
+#undef INSTANTIATE
 
 }  // namespace layer_norm
 }  // namespace cuda

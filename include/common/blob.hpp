@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <type_traits>
 
 #include "device/device.hpp"
 #include "device/device_manager.hpp"

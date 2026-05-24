@@ -79,6 +79,7 @@ install_manifest.txt
 *.data
 *.data.old
 /output_images/
+/plots/
 
 # model snapshots
 /model_snapshots/

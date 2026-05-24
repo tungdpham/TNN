@@ -23,15 +23,12 @@ void tanh_gradient(const T *input, const T *grad_output, T *grad_input, size_t s
   });
 }
 
-#define INSTANTIATE_TANH(T)                                      \
+#define INSTANTIATE(T)                                           \
   template void tanh<T>(const T *input, T *output, size_t size); \
   template void tanh_gradient<T>(const T *input, const T *grad_output, T *grad_input, size_t size);
+#include "macros/floating_type_instantiation.hpp"
 
-INSTANTIATE_TANH(fp16)
-INSTANTIATE_TANH(bf16)
-INSTANTIATE_TANH(float)
-INSTANTIATE_TANH(double)
-#undef INSTANTIATE_TANH
+#undef INSTANTIATE
 
 }  // namespace cpu
 }  // namespace tnn
