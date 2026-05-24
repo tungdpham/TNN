@@ -127,7 +127,7 @@ def plot_combined(tnn, torch_df, tnn_val, torch_val, out, double_column, xmax, y
     ax1.plot(torch_df["global_step"], torch_df["batch_loss_s"], label="PyTorch", color="#ff7f0e")
     ax1.set_xlabel("Training Step")
     ax1.set_ylabel("Rolling Loss")
-    ax1.set_title("(a) Training Loss Comparison")
+    ax1.set_title("(a) Training Loss")
     if xlim:
         ax1.set_xlim(xlim)
     if ymax is not None:
@@ -136,24 +136,17 @@ def plot_combined(tnn, torch_df, tnn_val, torch_val, out, double_column, xmax, y
     ax1.grid(True, which="major", linestyle="--", alpha=0.35)
     ax1.legend(frameon=True, loc="upper right")
 
-    # ── (b) Validation Perplexity ────────────────────────────────────────────
-    if tnn_val is not None and torch_val is not None and \
-            "val_perplexity" in tnn_val.columns and "val_perplexity" in torch_val.columns:
-        ax2.plot(tnn_val["epoch"], tnn_val["val_perplexity"],
-                 label="TNN", color="#1f77b4", marker="o", markersize=4)
-        ax2.plot(torch_val["epoch"], torch_val["val_perplexity"],
-                 label="PyTorch", color="#ff7f0e", marker="s", markersize=4)
-        ax2.set_xlabel("Epoch")
-        ax2.set_ylabel("Perplexity")
-        ax2.set_title("(b) Validation Perplexity")
-        ax2.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-        ax2.minorticks_on()
-        ax2.grid(True, which="major", linestyle="--", alpha=0.35)
-        ax2.legend(frameon=True, loc="upper right")
-    else:
-        ax2.text(0.5, 0.5, "Validation data\nnot available",
-                 ha="center", va="center", transform=ax2.transAxes)
-        ax2.set_title("(b) Validation Perplexity")
+    # ── (b) Training Perplexity ──────────────────────────────────────────────
+    ax2.plot(tnn["global_step"], tnn["train_perplexity_s"], label="TNN", color="#1f77b4")
+    ax2.plot(torch_df["global_step"], torch_df["train_perplexity_s"], label="PyTorch", color="#ff7f0e")
+    ax2.set_xlabel("Training Step")
+    ax2.set_ylabel("Perplexity")
+    ax2.set_title("(b) Training Perplexity")
+    if xlim:
+        ax2.set_xlim(xlim)
+    ax2.minorticks_on()
+    ax2.grid(True, which="major", linestyle="--", alpha=0.35)
+    ax2.legend(frameon=True, loc="upper right")
 
     # ── (c) TFLOPS ───────────────────────────────────────────────────────────
     if "tflops" in tnn.columns and "tflops" in torch_df.columns:
@@ -199,6 +192,8 @@ def add_smoothed_columns(df, smooth_k):
     df = df.copy()
     df["batch_loss_s"] = smooth(df["batch_loss"], smooth_k)
     df["avg_loss_s"] = smooth(df["avg_loss"], smooth_k)
+    df["train_perplexity"] = np.exp(df["avg_loss"])
+    df["train_perplexity_s"] = smooth(df["train_perplexity"], smooth_k)
     if "tflops" in df.columns:
         df["tflops_s"] = smooth(df["tflops"], smooth_k)
     if "tokens_per_sec" in df.columns:
