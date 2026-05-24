@@ -7,11 +7,11 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
-#include <numeric>
 #include <random>
 #include <string>
 
@@ -66,10 +66,8 @@ namespace tnn {
  */
 class ImageNet100DataLoader : public ImageDataLoader {
 private:
-  // (image_path, class_index) — the only persistent storage per sample
+  // (image_path, class_index) — persistent storage per sample, shuffled directly in-place
   Vec<std::pair<std::string, int>> sample_list_;
-  // Access order — shuffled in-place; current_index_ indexes into this
-  Vec<size_t> access_order_;
   IAllocator &allocator_;
 
   DType_t dtype_ = DType_t::FP32;
@@ -81,10 +79,10 @@ private:
 
   template <typename T>
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
-    if (this->current_index_ >= access_order_.size()) return false;
+    if (this->current_index_ >= sample_list_.size()) return false;
 
     const size_t actual_batch_size =
-        std::min(batch_size, access_order_.size() - this->current_index_);
+        std::min(batch_size, sample_list_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
     batch_data = make_tensor<T>(
@@ -97,8 +95,9 @@ private:
     const size_t image_size = imagenet100_constants::IMAGE_SIZE;
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
-      const size_t sample_idx = access_order_[this->current_index_ + i];
-      const auto &[path, class_index] = sample_list_[sample_idx];
+      // Memory Optimization: Contiguous access patterns improve CPU cache prefetching performance
+      const size_t current_batch_offset = this->current_index_ + i;
+      const auto &[path, class_index] = sample_list_[current_batch_offset];
 
       T *sample_dst = batch_raw + i * image_size;
       bool success = false;
@@ -187,7 +186,9 @@ private:
   };
 
   CropBox sample_random_resized_crop(int img_w, int img_h) const {
-    thread_local std::mt19937 rng(std::random_device{}());
+    static std::atomic<uint32_t> global_seed_seq{42};
+    thread_local std::mt19937 rng(global_seed_seq.fetch_add(13, std::memory_order_relaxed));
+
     std::uniform_real_distribution<float> scale_dist(0.08f, 1.0f);
     std::uniform_real_distribution<float> ratio_dist(std::log(3.0f / 4.0f), std::log(4.0f / 3.0f));
 
@@ -408,11 +409,8 @@ public:
     bool success = is_train ? load_train_data(source) : load_val_data(source);
 
     if (success) {
-      const size_t n = sample_list_.size();
-      access_order_.resize(n);
-      std::iota(access_order_.begin(), access_order_.end(), 0);
       this->current_index_ = 0;
-      std::cout << "Total indexed: " << n << " samples" << std::endl;
+      std::cout << "Total indexed: " << sample_list_.size() << " samples" << std::endl;
     }
 
     return success;
@@ -427,11 +425,16 @@ public:
   void reset() override { this->current_index_ = 0; }
 
   /**
-   * Shuffle the access order without touching any pixel data.
+   * Shuffle the sample list data array directly to retain serial caching.
    */
   void shuffle() override {
-    if (access_order_.empty()) return;
-    access_order_ = this->generate_shuffled_indices(access_order_.size());
+    if (sample_list_.empty()) return;
+
+    // Explicit, localized isolated engine setup for the shuffling phase
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(sample_list_.begin(), sample_list_.end(), g);
+
     this->current_index_ = 0;
   }
 
