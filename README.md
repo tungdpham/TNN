@@ -1,14 +1,17 @@
 # Getting Started
 
 ## Dependencies
+
 You should have these dependencies for the main programs installed before building. Other dependencies and open-source frameworks are fetched directly from their repository for proper licensing and up-to-date builds.
 
 ### Install Required Packages
+
 ```bash
 sudo apt install build-essential g++ make cmake git libtbb-dev wget libnuma-dev libibverbs-dev libfmt-dev
 ```
 
-### Install Intel MKL and oneDNN (Recommended for CPU usage)
+### Install Intel MKL (Recommended for CPU usage)
+
 ```bash
 # 1. Add oneAPI repository
 wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg
@@ -23,10 +26,13 @@ source /opt/intel/oneapi/setvars.sh
 ```
 
 ### Install CUDA (13.0) and cuDNN (9.17+)
+
 For installing these two dependencies, you need to follow the guide from NVIDIA page.
 
 ## Build Instructions
+
 ### Option 1: Using the build script (Recommended)
+
 ```bash
 # Add executable permission to build script
 chmod +x ./build.sh
@@ -51,6 +57,7 @@ chmod +x ./build.sh
 ```
 
 ### Option 2: Manual CMake commands
+
 ```bash
 # Create and enter build directory
 mkdir build && cd build
@@ -77,6 +84,7 @@ cmake --build . -j$(nproc)
 | `ENABLE_CUDA` | OFF | Enable CUDA support for GPUs |
 
 ## Prepraring Data
+
 Download the dataset needed before running the examples.
 
 - For MNIST dataset, download from [kaggle](https://www.kaggle.com/datasets/oddrationale/mnist-in-csv).
@@ -102,18 +110,20 @@ data/
 Alternatively, you change the path to data in the examples' code.
 
 # Running the examples
+
 There are two different ways to run the examples. For detailed instructions on how to run them see README in examples directory.
 
 ## Directly running them
-There are several preconfigured trainers for MNIST, CIFAR10, CIFAR100, and UJI IPS datasets. You should see them in bin/ after building successfully. 
 
 For Linux with GCC
 ```bash
 # To run any of them
 ./bin/{executable_name}
 
-# Example: 
-./bin/mnist_cnn_trainer
+# Example (for single-model trainer):
+./bin/trainer  # change .env file (there is a .env.example in the)
+
+./bin/trainer --config ./configs/default_config.json # you can update these as you like 
 ```
 
 For Windows with MSVC, you should see a Release/Debug folder inside bin/. if you are building optimized build, or Debug/ if you want to debug or profile the code.
