@@ -100,6 +100,11 @@ struct TrainingConfig {
   // Distributed params
   size_t num_microbatches = 2;
 
+  // Sub-configs (populated by load_from_json / load_from_env)
+  OptimizerConfig optimizer_config;
+  SchedulerConfig scheduler_config;
+  LossConfig loss_config;
+
   void print_config() const;
   void load_from_env();
   void load_from_json(const std::string &config_path);

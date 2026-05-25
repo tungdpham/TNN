@@ -47,6 +47,52 @@ static std::string normalize_train_mode(std::string mode) {
   return "auto";
 }
 
+static void parse_optimizer_json(const nlohmann::json &j, OptimizerConfig &cfg) {
+  cfg.type = j.value("type", cfg.type.empty() ? "adam" : cfg.type);
+  for (auto &[k, v] : j.items()) {
+    if (k == "type" || k == "name") continue;
+    if (v.is_boolean())
+      cfg.set(k, v.get<bool>());
+    else if (v.is_number())
+      cfg.set(k, v.get<float>());
+    else if (v.is_string())
+      cfg.set<string>(k, v.get<string>());
+  }
+}
+
+static void parse_scheduler_json(const nlohmann::json &j, SchedulerConfig &cfg) {
+  cfg.type = j.value("type", cfg.type.empty() ? "no_op" : cfg.type);
+  for (auto &[k, v] : j.items()) {
+    if (k == "type" || k == "name") continue;
+    if (v.is_boolean())
+      cfg.set(k, v.get<bool>());
+    else if (v.is_number_integer())
+      cfg.set(k, v.get<size_t>());
+    else if (v.is_number_float())
+      cfg.set(k, v.get<float>());
+    else if (v.is_string())
+      cfg.set<string>(k, v.get<string>());
+    else if (v.is_array()) {
+      vector<size_t> arr;
+      for (const auto &item : v) arr.push_back(item.get<size_t>());
+      cfg.set(k, arr);
+    }
+  }
+}
+
+static void parse_loss_json(const nlohmann::json &j, LossConfig &cfg) {
+  cfg.type = j.value("type", cfg.type.empty() ? "logsoftmax_crossentropy" : cfg.type);
+  for (auto &[k, v] : j.items()) {
+    if (k == "type" || k == "name") continue;
+    if (v.is_boolean())
+      cfg.set(k, v.get<bool>());
+    else if (v.is_number())
+      cfg.set(k, v.get<double>());
+    else if (v.is_string())
+      cfg.set<string>(k, v.get<string>());
+  }
+}
+
 void TrainingConfig::print_config() const {
   cout << "Training Configuration:" << endl;
   cout << "  Epochs: " << epochs << endl;
@@ -70,6 +116,9 @@ void TrainingConfig::print_config() const {
   cout << "  Prefetch Depth: " << prefetch_depth << endl;
   cout << "  Async Pipeline Flag: " << (async_pipeline ? "Yes" : "No") << endl;
   cout << "  Augmentation: " << (augmentation ? "Yes" : "No") << endl;
+  cout << "  Optimizer Type: " << optimizer_config.type << endl;
+  cout << "  Scheduler Type: " << scheduler_config.type << endl;
+  cout << "  Loss Type: " << loss_config.type << endl;
 }
 
 void TrainingConfig::load_from_env() {
@@ -134,6 +183,10 @@ void TrainingConfig::load_from_env() {
   Env::get("LOG_MAE", log_mode.log_mae);
   Env::get("LOG_MSE", log_mode.log_mse);
   Env::get("LOG_RMSE", log_mode.log_rmse);
+
+  Env::get<string>("OPTIMIZER_TYPE", optimizer_config.type);
+  Env::get<string>("SCHEDULER_TYPE", scheduler_config.type);
+  Env::get<string>("LOSS_TYPE", loss_config.type);
 }
 
 void TrainingConfig::load_from_json(const string &config_path) {
@@ -201,6 +254,9 @@ void TrainingConfig::load_from_json(const string &config_path) {
     log_mode.log_mse = log_config.value("log_mse", log_mode.log_mse);
     log_mode.log_rmse = log_config.value("log_rmse", log_mode.log_rmse);
   }
+  if (config.contains("optimizer")) parse_optimizer_json(config["optimizer"], optimizer_config);
+  if (config.contains("scheduler")) parse_scheduler_json(config["scheduler"], scheduler_config);
+  if (config.contains("loss")) parse_loss_json(config["loss"], loss_config);
 }
 
 static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,

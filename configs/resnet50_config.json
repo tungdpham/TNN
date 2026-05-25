@@ -10,10 +10,10 @@
   "print_layer_memory_usage": false,
   "num_microbatches": 2,
   "device_type": "GPU",
-  "model_name": "cifar10_resnet9",
+  "model_name": "resnet50_imagenet100",
   "model_path": "",
-  "dataset_name": "cifar10",
-  "dataset_path": "data/cifar-10-batches-bin",
+  "dataset_name": "imagenet100",
+  "dataset_path": "data/imagenet-100",
   "io_dtype": "FP32",
   "param_dtype": "FP32",
   "compute_dtype": "FP32",
@@ -23,12 +23,12 @@
     "beta1": 0.9,
     "beta2": 0.999,
     "epsilon": 1e-8,
-    "weight_decay": 0.0,
+    "weight_decay": 3e-4,
     "decouple_weight_decay": false
   },
   "scheduler": {
     "type": "warmup_cosine_annealing",
-    "base_lr": 0.0005,
+    "base_lr": 0.00,
     "T_max": 10,
     "eta_min": 0.0
   },
