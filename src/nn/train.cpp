@@ -327,22 +327,21 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
     int batch_corrects = compute_class_corrects(predictions, device_labels);
     total_corrects += batch_corrects;
 
-    // Compute additional metrics before freeing predictions
-    std::unordered_map<std::string, double> batch_metrics;
+    std::unordered_map<std::string, double> step_metrics;
     if (config.log_mode.log_precision) {
-      batch_metrics["precision"] = compute_precision(predictions, device_labels);
+      step_metrics["precision"] = compute_precision(predictions, device_labels);
     }
     if (config.log_mode.log_recall) {
-      batch_metrics["recall"] = compute_recall(predictions, device_labels);
+      step_metrics["recall"] = compute_recall(predictions, device_labels);
     }
     if (config.log_mode.log_f1_score) {
-      batch_metrics["f1_score"] = compute_f1_score(predictions, device_labels);
+      step_metrics["f1_score"] = compute_f1_score(predictions, device_labels);
     }
     if (config.log_mode.log_perplexity) {
-      batch_metrics["perplexity"] = std::exp(static_cast<double>(loss));
+      step_metrics["perplexity"] = std::exp(static_cast<double>(loss));
     }
     if (config.log_mode.log_top_k_accuracy) {
-      batch_metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_labels, 5);
+      step_metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_labels, 5);
     }
 
     Tensor loss_gradient = make_tensor(mem_pool, batch_data->data_type(), predictions->shape());
@@ -382,25 +381,25 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
       double batch_acc_pct = total_class_num > 0 ? (total_corrects * 100.0 / total_class_num) : 0.0;
 
       if (config.log_mode.log_loss) {
-        batch_metrics["loss"] = loss;
+        step_metrics["loss"] = loss;
       }
       if (config.log_mode.log_accuracy) {
-        batch_metrics["accuracy_pct"] = batch_acc_pct;
+        step_metrics["accuracy_pct"] = batch_acc_pct;
       }
-      batch_metrics["time_ms"] = batch_duration.count();
+      step_metrics["time_ms"] = batch_duration.count();
 
-      logger.log_batch(epoch, num_batches, batch_metrics);
+      logger.log_train_step(epoch, num_batches, step_metrics);
     }
 
     if (num_batches % config.progress_print_interval == 0) {
       cout << "Batch ID: " << num_batches << ", Batch's Loss: " << fixed << setprecision(4) << loss
            << ", Cumulative Accuracy: " << setprecision(2)
            << (total_corrects * 100.0 / total_class_num) << "%";
-      if (config.log_mode.log_f1_score && batch_metrics.count("f1_score")) {
-        cout << ", F1: " << setprecision(4) << batch_metrics["f1_score"];
+      if (config.log_mode.log_f1_score && step_metrics.count("f1_score")) {
+        cout << ", F1: " << setprecision(4) << step_metrics["f1_score"];
       }
-      if (config.log_mode.log_perplexity && batch_metrics.count("perplexity")) {
-        cout << ", PPL: " << setprecision(2) << batch_metrics["perplexity"];
+      if (config.log_mode.log_perplexity && step_metrics.count("perplexity")) {
+        cout << ", PPL: " << setprecision(2) << step_metrics["perplexity"];
       }
       cout << ", Batch Time: " << batch_duration.count() << "ms" << endl;
     }
@@ -557,21 +556,22 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       int corrects = compute_class_corrects(predictions, device_labels);
 
       // Compute additional metrics before freeing predictions
-      std::unordered_map<std::string, double> batch_metrics;
+      std::unordered_map<std::string, double> train_step_metrics;
       if (config.log_mode.log_precision) {
-        batch_metrics["precision"] = compute_precision(predictions, device_labels);
+        train_step_metrics["precision"] = compute_precision(predictions, device_labels);
       }
       if (config.log_mode.log_recall) {
-        batch_metrics["recall"] = compute_recall(predictions, device_labels);
+        train_step_metrics["recall"] = compute_recall(predictions, device_labels);
       }
       if (config.log_mode.log_f1_score) {
-        batch_metrics["f1_score"] = compute_f1_score(predictions, device_labels);
+        train_step_metrics["f1_score"] = compute_f1_score(predictions, device_labels);
       }
       if (config.log_mode.log_perplexity) {
-        batch_metrics["perplexity"] = std::exp(static_cast<double>(loss));
+        train_step_metrics["perplexity"] = std::exp(static_cast<double>(loss));
       }
       if (config.log_mode.log_top_k_accuracy) {
-        batch_metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_labels, 5);
+        train_step_metrics["top_k_accuracy"] =
+            compute_top_k_accuracy(predictions, device_labels, 5);
       }
 
       Tensor loss_gradient = make_tensor(mem_pool, batch_data->data_type(), predictions->shape());
@@ -612,24 +612,24 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       // Log batch metrics for benchmarking.
       {
         if (config.log_mode.log_loss) {
-          batch_metrics["loss"] = loss;
+          train_step_metrics["loss"] = loss;
         }
         if (config.log_mode.log_accuracy) {
-          batch_metrics["accuracy_pct"] = batch_acc_pct;
+          train_step_metrics["accuracy_pct"] = batch_acc_pct;
         }
-        batch_metrics["time_ms"] = batch_duration.count();
+        train_step_metrics["time_ms"] = batch_duration.count();
 
-        logger.log_batch(1, steps, batch_metrics);
+        logger.log_train_step(1, steps, train_step_metrics);
       }
 
       if (steps % config.progress_print_interval == 0) {
         cout << "Batch ID: " << steps << ", Batch's Loss: " << fixed << setprecision(4) << loss
              << ", Batch's Accuracy: " << setprecision(2) << batch_acc_pct << "%";
-        if (config.log_mode.log_f1_score && batch_metrics.count("f1_score")) {
-          cout << ", F1: " << setprecision(4) << batch_metrics["f1_score"];
+        if (config.log_mode.log_f1_score && train_step_metrics.count("f1_score")) {
+          cout << ", F1: " << setprecision(4) << train_step_metrics["f1_score"];
         }
-        if (config.log_mode.log_perplexity && batch_metrics.count("perplexity")) {
-          cout << ", PPL: " << setprecision(2) << batch_metrics["perplexity"];
+        if (config.log_mode.log_perplexity && train_step_metrics.count("perplexity")) {
+          cout << ", PPL: " << setprecision(2) << train_step_metrics["perplexity"];
         }
         cout << ", Batch Time: " << batch_duration.count() << "ms" << endl;
       }
@@ -742,7 +742,7 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
         metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_batch_labels, 5);
       }
 
-      logger->log_val_batch(epoch, val_batches, metrics);
+      logger->log_val_step(epoch, val_batches, metrics);
     }
   }
 

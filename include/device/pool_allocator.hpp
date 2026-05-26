@@ -101,10 +101,8 @@ private:
     auto it = free_blocks_.lower_bound(size);
     if (it != free_blocks_.end()) {
       device_storage *block = it->second;
-      if (block->capacity() <= size * 4) {
-        free_blocks_.erase(it);
-        return block;
-      }
+      free_blocks_.erase(it);
+      return block;
     }
 #ifndef NDEBUG
     std::cout << "PoolAllocator: Allocating new buffer of size " << size << " bytes.\n";

@@ -1,6 +1,6 @@
 {
   "epochs": 20,
-  "batch_size": 128,
+  "batch_size": 256,
   "max_steps": -1,
   "gradient_accumulation_steps": 1,
   "progress_print_interval": 100,
