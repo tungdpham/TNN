@@ -69,12 +69,6 @@ CsvLogger::CsvLogger(const std::string &model_name, const std::string &log_dir,
     epoch_header << epoch_metrics_[i];
   }
 
-  if (const char *dbg = std::getenv("TNN_DEBUG_CSV")) {
-    if (std::string(dbg) != "0") {
-      std::cout << "[CSVDBG][constructor_batch_header] " << train_step_header.str() << std::endl;
-    }
-  }
-
   train_step_logger_.info(train_step_header.str());
   val_step_logger_.info(val_step_header.str());
   epoch_logger_.info(epoch_header.str());
@@ -88,22 +82,6 @@ void CsvLogger::log_train_step(int epoch, int step,
                                const std::unordered_map<std::string, double> &metrics) {
   std::ostringstream row;
   row << epoch << "," << step << "," << get_timestamp_ms();
-
-  if (const char *dbg = std::getenv("TNN_DEBUG_CSV")) {
-    if (std::string(dbg) != "0" && step <= 5) {
-      std::cout << "[CSVDBG][batch_header] step=" << step;
-      for (const auto &h : train_step_metrics_) {
-        std::cout << " [" << h << "]";
-      }
-      std::cout << std::endl;
-
-      std::cout << "[CSVDBG][metric_keys] step=" << step;
-      for (const auto &kv : metrics) {
-        std::cout << " [" << kv.first << "=" << kv.second << "]";
-      }
-      std::cout << std::endl;
-    }
-  }
 
   for (size_t i = 3; i < train_step_metrics_.size(); ++i) {
     row << ",";
