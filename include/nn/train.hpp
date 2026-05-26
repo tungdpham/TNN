@@ -36,26 +36,6 @@ enum class TrainingMode { CLASSIFICATION = 0, REGRESSION = 1, CUSTOM = 2 };
 inline void tbb_cleanup();
 #endif
 
-constexpr int DEFAULT_EPOCH = 10;
-constexpr size_t DEFAULT_BATCH_SIZE = 32;
-constexpr float DEFAULT_LR_DECAY_FACTOR = 0.1f;
-constexpr size_t DEFAULT_LR_DECAY_INTERVAL = 5;  // in epochs
-constexpr int DEFAULT_PRINT_INTERVAL = 100;
-constexpr int64_t DEFAULT_NUM_THREADS = 8;  // Typical number of P-Cores on laptop CPUs
-
-struct LogMode {
-  bool log_loss = true;
-  bool log_accuracy = true;
-  bool log_precision = false;
-  bool log_recall = false;
-  bool log_f1_score = false;
-  bool log_perplexity = false;
-  bool log_top_k_accuracy = false;
-  bool log_mae = false;
-  bool log_mse = false;
-  bool log_rmse = false;
-};
-
 struct TrainingConfig {
   // Trainer params
   int epochs = 10;
@@ -83,24 +63,15 @@ struct TrainingConfig {
   DType_t compute_dtype = DType_t::FP32;
   std::string log_dir = "logs";  // directory for CSV metric logs
 
-  // Ablation / experiment flags
-  // TNN_PREFETCH_DATA=1 overlaps get_batch(batch N+1) with compute of batch N.
   bool prefetch_data = false;
   size_t prefetch_depth = 2;
-
-  // TNN_ASYNC_PIPELINE is kept in config for experiment logging / runner selection.
-  // The current distributed Coordinator path still uses async_train_batch().
   bool async_pipeline = true;
-
-  // TNN_AUGMENTATION controls random train augmentation in DataLoaderFactory.
   bool augmentation = true;
 
   LogMode log_mode;  // what metrics to log
 
-  // Distributed params
   size_t num_microbatches = 2;
 
-  // Sub-configs (populated by load_from_json / load_from_env)
   OptimizerConfig optimizer_config;
   SchedulerConfig scheduler_config;
   LossConfig loss_config;

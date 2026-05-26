@@ -114,7 +114,7 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
       }
       metrics["time_ms"] = time_ms;
 
-      logger.log_batch(epoch, static_cast<int>(batch_index + 1), metrics);
+      logger.log_train_step(epoch, static_cast<int>(batch_index + 1), metrics);
     }
 
     if ((batch_index + 1) % config.progress_print_interval == 0) {
@@ -181,7 +181,7 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
       if (config.log_mode.log_perplexity) {
         metrics["perplexity"] = std::exp(static_cast<double>(val_loss));
       }
-      logger.log_val_batch(epoch, val_batches, metrics);
+      logger.log_val_step(epoch, val_batches, metrics);
     }
   }
 
@@ -290,7 +290,7 @@ inline void train_semi_async_step(Coordinator &coordinator,
 
       metrics["time_ms"] = time_ms;
 
-      logger.log_batch(1, step + 1, metrics);
+      logger.log_train_step(1, step + 1, metrics);
     }
 
     if ((step + 1) % config.progress_print_interval == 0) {
