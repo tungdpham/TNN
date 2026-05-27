@@ -12,6 +12,7 @@
 #include <unordered_map>
 
 #include "device/task.hpp"
+#include "nn/graph_api.hpp"
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
@@ -28,11 +29,6 @@ private:
 
   // Cache input shapes and forward pass data for backward
   std::unordered_map<size_t, Vec<size_t>> micro_batch_q_shapes_;
-  std::unordered_map<size_t, ConstTensor> micro_batch_q_cache_;
-  std::unordered_map<size_t, ConstTensor> micro_batch_k_cache_;
-  std::unordered_map<size_t, ConstTensor> micro_batch_v_cache_;
-  std::unordered_map<size_t, Tensor> micro_batch_stats_cache_;
-
 #ifdef USE_CUDNN
   std::unordered_map<size_t, void *> fe_handle_cache_;  // feHandle_t*
   std::unordered_map<size_t, void *> stats_cache_;      // AttentionStats*
@@ -76,6 +72,23 @@ public:
   LayerConfig get_config() const override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
   Vec<ParamDescriptor> param_descriptors() override { return {}; }
+
+  graph_api_v2::Node operator()(const graph_api_v2::Node &q, const graph_api_v2::Node &k,
+                                const graph_api_v2::Node &v) {
+    if (!q || !k || !v) {
+      throw std::runtime_error("Input nodes cannot be null");
+    }
+    graph_api_v2::Graph *graph = q->graph();
+    if (graph != k->graph() || graph != v->graph()) {
+      throw std::runtime_error("All input nodes must belong to the same graph");
+    }
+    graph_api_v2::Node output = graph->make_node();
+
+    std::shared_ptr<Layer> self = shared_from_this();
+
+    graph->add_edge(self, {q, k, v}, {output});
+    return output;
+  }
 
   static std::unique_ptr<SDPALayer> create_from_config(const LayerConfig &config);
 };

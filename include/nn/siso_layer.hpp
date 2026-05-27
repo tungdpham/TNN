@@ -1,5 +1,6 @@
 #pragma once
 
+#include "nn/graph_api.hpp"
 #include "nn/layer.hpp"
 
 namespace tnn {
@@ -20,6 +21,19 @@ public:
   }
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
+
+  graph_api_v2::Node operator()(const graph_api_v2::Node &input) {
+    if (!input) {
+      throw std::runtime_error("Input node is null");
+    }
+    graph_api_v2::Graph *graph = input->graph();
+    graph_api_v2::Node output = graph->make_node();
+
+    std::shared_ptr<Layer> self = shared_from_this();
+
+    graph->add_edge(self, {input}, {output});
+    return output;
+  }
 
 protected:
   virtual Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) = 0;

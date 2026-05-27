@@ -305,24 +305,6 @@ public:
     return *this;
   }
 
-  LayerBuilder &broadcast_m_seq(Vec<std::unique_ptr<Sequential>> paths,
-                                std::unique_ptr<Layer> join_layer, const std::string &name = "") {
-    auto broadcast_layer = std::make_unique<MBroadcastLayer>(paths.size());
-    auto m_seq_layer = std::make_unique<MSequential>(
-        std::move(paths), std::move(join_layer),
-        name.empty() ? "mseq_" + std::to_string(layers_.size()) : name);
-
-    Vec<std::unique_ptr<Layer>> wrapper_layers;
-    wrapper_layers.push_back(std::move(broadcast_layer));
-    wrapper_layers.push_back(std::move(m_seq_layer));
-
-    auto layer = std::make_unique<Sequential>(
-        std::move(wrapper_layers),
-        name.empty() ? "mseq_wrapper_" + std::to_string(layers_.size()) : name);
-    layers_.push_back(std::move(layer));
-    return *this;
-  }
-
   LayerBuilder &residual_block(Vec<std::unique_ptr<Layer>> main_path,
                                Vec<std::unique_ptr<Layer>> shortcut_path,
                                const std::string &activation, const std::string &name = "") {

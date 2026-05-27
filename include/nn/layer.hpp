@@ -41,7 +41,7 @@ inline size_t get_shapes_bytes(const Vec<Vec<size_t>> &shapes, DType_t dtype) {
 
 // Single input/output layer interface. Can be easily extended to multiple inputs/outputs later if
 // needed.
-class Layer {
+class Layer : public virtual std::enable_shared_from_this<Layer> {
 public:
   Layer() = default;
   Layer(const std::string &name)
