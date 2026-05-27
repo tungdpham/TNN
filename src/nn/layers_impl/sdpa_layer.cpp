@@ -121,9 +121,9 @@ Vec<Tensor> SDPALayer::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id
   // Cache for backward
   if (this->is_training_) {
     micro_batch_q_shapes_[mb_id] = q_shape;
-    micro_batch_q_cache_[mb_id] = q;
-    micro_batch_k_cache_[mb_id] = k;
-    micro_batch_v_cache_[mb_id] = v;
+    this->set_immutable_cache(mb_id, "q", q);
+    this->set_immutable_cache(mb_id, "k", k);
+    this->set_immutable_cache(mb_id, "v", v);
   }
 
 #ifdef USE_CUDNN
@@ -158,9 +158,9 @@ Vec<Tensor> SDPALayer::backward_impl(const Vec<ConstTensor> &grad_outputs, size_
   const size_t seq_len = q_shape[2];
   const size_t head_dim = q_shape[3];
 
-  const ConstTensor &q = micro_batch_q_cache_[mb_id];
-  const ConstTensor &k = micro_batch_k_cache_[mb_id];
-  const ConstTensor &v = micro_batch_v_cache_[mb_id];
+  const ConstTensor &q = this->get_immutable_cache(mb_id, "q");
+  const ConstTensor &k = this->get_immutable_cache(mb_id, "k");
+  const ConstTensor &v = this->get_immutable_cache(mb_id, "v");
 
   // Allocate gradient tensors
   Tensor grad_q = get_workspace(q_shape, this->io_dtype_);
@@ -180,10 +180,6 @@ Vec<Tensor> SDPALayer::backward_impl(const Vec<ConstTensor> &grad_outputs, size_
     cudnn_backward(q, k, v, output, grad_output, grad_q, grad_k, grad_v, mb_id);
     // Clear cached data
     micro_batch_q_shapes_.erase(mb_id);
-    micro_batch_q_cache_.erase(mb_id);
-    micro_batch_k_cache_.erase(mb_id);
-    micro_batch_v_cache_.erase(mb_id);
-    micro_batch_stats_cache_.erase(mb_id);
     return {grad_q, grad_k, grad_v};
   }
 #endif
@@ -194,10 +190,6 @@ Vec<Tensor> SDPALayer::backward_impl(const Vec<ConstTensor> &grad_outputs, size_
 
   // Clear cached data
   micro_batch_q_shapes_.erase(mb_id);
-  micro_batch_q_cache_.erase(mb_id);
-  micro_batch_k_cache_.erase(mb_id);
-  micro_batch_v_cache_.erase(mb_id);
-  micro_batch_stats_cache_.erase(mb_id);
 
   return {grad_q, grad_k, grad_v};
 }
@@ -310,7 +302,7 @@ void SDPALayer::cudnn_forward(const ConstTensor &q, const ConstTensor &k, const 
 
   // Cache output for backward if training
   if (this->is_training_) {
-    micro_batch_stats_cache_[mb_id] = stats_tensor;
+    this->set_mutable_cache(mb_id, "stats", stats_tensor);
   }
 
   // Call cuDNN flash attention forward
@@ -334,7 +326,7 @@ void SDPALayer::cudnn_backward(const ConstTensor &q, const ConstTensor &k, const
   auto *fe_handle =
       static_cast<cuda::cudnn_flash_attention::feHandle_t *>(fe_handle_cache_[shape_key]);
   auto &stats = *static_cast<AttentionStats *>(stats_cache_[shape_key]);
-  auto &stats_tensor = micro_batch_stats_cache_[mb_id];
+  auto &stats_tensor = this->get_mutable_cache(mb_id, "stats");
 
   // Allocate workspace
   Tensor workspace = this->get_workspace({stats.bwd_workspace_size});

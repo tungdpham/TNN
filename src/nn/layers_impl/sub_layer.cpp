@@ -1,0 +1,78 @@
+/*
+ * Copyright (c) 2025 Tung D. Pham
+ *
+ * This software is licensed under the MIT License. See the LICENSE file in the
+ * project root for the full license text.
+ */
+#include "nn/layers_impl/sub_layer.hpp"
+
+#include <stdexcept>
+
+#include "ops/ops.hpp"
+#include "type/type.hpp"
+
+namespace tnn {
+
+Vec<Vec<size_t>> SubLayer::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
+  if (input_shapes.size() != 2) {
+    throw std::runtime_error("SubLayer: expected exactly 2 inputs");
+  }
+  if (input_shapes[0] != input_shapes[1]) {
+    throw std::runtime_error("SubLayer: both inputs must have the same shape");
+  }
+  return {input_shapes[0]};
+}
+
+Vec<Tensor> SubLayer::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+  if (inputs.size() != 2) {
+    throw std::runtime_error("SubLayer: expected exactly 2 inputs");
+  }
+  const ConstTensor &a = inputs[0];
+  const ConstTensor &b = inputs[1];
+
+  if (a->shape() != b->shape()) {
+    throw std::runtime_error("SubLayer: both inputs must have the same shape");
+  }
+
+  Tensor output = get_output_tensor(a->shape());
+  const size_t n = a->size();
+
+  DISPATCH_DTYPE(a->data_type(), T, {
+    ops::sub<T>(a->data_ptr(), b->data_ptr(), output->data_ptr(), n, this->flow_handle_);
+  });
+
+  return {output};
+}
+
+Vec<Tensor> SubLayer::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+  if (grad_outputs.size() != 1) {
+    throw std::runtime_error("SubLayer: expected exactly 1 grad output");
+  }
+  const ConstTensor &grad_out = grad_outputs[0];
+  const size_t n = grad_out->size();
+
+  // grad_a = grad_out, grad_b = -grad_out
+  Tensor grad_a = get_workspace(grad_out->shape(), this->io_dtype_);
+  Tensor grad_b = get_workspace(grad_out->shape(), this->io_dtype_);
+
+  DISPATCH_DTYPE(grad_out->data_type(), T, {
+    ops::copy<T>(grad_out->data_ptr(), grad_a->data_ptr(), n, this->flow_handle_);
+    ops::mul_scalar<T>(grad_out->data_ptr(), static_cast<T>(-1), grad_b->data_ptr(), n,
+                       this->flow_handle_);
+  });
+
+  return {grad_a, grad_b};
+}
+
+LayerConfig SubLayer::get_config() const {
+  LayerConfig config;
+  config.type = TYPE_NAME;
+  config.name = this->name_;
+  return config;
+}
+
+std::unique_ptr<SubLayer> SubLayer::create_from_config(const LayerConfig &config) {
+  return std::make_unique<SubLayer>(config.name.empty() ? "sub" : config.name);
+}
+
+}  // namespace tnn

@@ -46,6 +46,11 @@ class TransposeLayer;
 class Sequential;
 class MSequential;
 
+class AddLayer;
+class SubLayer;
+class MulLayer;
+class DivLayer;
+
 }  // namespace tnn
 
 // Wrapper to include all layer implementations
@@ -75,11 +80,13 @@ class MSequential;
 #include "nn/blocks_impl/flash_attention_block.hpp"
 #include "nn/blocks_impl/msequential.hpp"
 #include "nn/blocks_impl/sequential.hpp"
+#include "nn/layers_impl/add_layer.hpp"
+#include "nn/layers_impl/div_layer.hpp"
 #include "nn/layers_impl/identity_layer.hpp"
 #include "nn/layers_impl/legacy_conv2d_layer.hpp"
 #include "nn/layers_impl/legacy_dense_layer.hpp"
-#include "nn/layers_impl/mbroadcast_layer.hpp"
-#include "nn/layers_impl/n_ary_layer.hpp"
+#include "nn/layers_impl/mul_layer.hpp"
+#include "nn/layers_impl/sub_layer.hpp"
 
 namespace tnn {
 
@@ -152,9 +159,10 @@ public:
     register_layer_type<FlashAttentionBlock>();
     register_layer_type<Sequential>();
     register_layer_type<MSequential>();
-    register_layer_type<MBroadcastLayer>();
     register_layer_type<AddLayer>();
     register_layer_type<SubLayer>();
+    register_layer_type<MulLayer>();
+    register_layer_type<DivLayer>();
   }
 
   static Vec<std::string> available_types() {

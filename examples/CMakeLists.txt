@@ -26,3 +26,4 @@ create_executable(gpt2_inference.cpp LIBS tnn_nn)
 # Test executables
 create_executable(graph_test.cpp LIBS tnn_nn)
 create_executable(test_del.cpp LIBS tnn_device)
+create_executable(graph_api_v2_test.cpp LIBS tnn_nn)
