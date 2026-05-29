@@ -74,7 +74,7 @@ Sequential create_cifar10_vgg(DType_t io_dtype_ = DType_t::FP32) {
 Sequential create_cifar10_resnet9(DType_t io_dtype_ = DType_t::FP32) {
   auto layers = LayerBuilder({{3, 32, 32}})
                     .dtype(io_dtype_)
-                    // Layer 1: 3 -> 64 -> 128 channels, 32x32 -> 16x16
+                    // LayerImpl 1: 3 -> 64 -> 128 channels, 32x32 -> 16x16
                     .legacy_conv2d(64, 3, 3, 1, 1, 1, 1, false, "conv1")
                     .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn1")
                     .legacy_conv2d(128, 3, 3, 1, 1, 1, 1, false, "conv2")
@@ -82,13 +82,13 @@ Sequential create_cifar10_resnet9(DType_t io_dtype_ = DType_t::FP32) {
                     .legacy_maxpool2d(2, 2, 2, 2, 0, 0, "pool1")  // 32x32 -> 16x16
                     .legacy_basic_residual_block(128, 128, 1, "res_block1")
                     .legacy_basic_residual_block(128, 128, 1, "res_block2")
-                    // Layer 2: 128 -> 256 channels, 16x16 -> 8x8
+                    // LayerImpl 2: 128 -> 256 channels, 16x16 -> 8x8
                     .legacy_conv2d(256, 3, 3, 1, 1, 1, 1, false, "conv3")
                     .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn3")
                     .legacy_maxpool2d(2, 2, 2, 2, 0, 0, "pool2")  // 16x16 -> 8x8
                     .legacy_basic_residual_block(256, 256, 1, "res_block3")
                     .legacy_basic_residual_block(256, 256, 1, "res_block4")
-                    // Layer 3: 256 -> 512 channels, 8x8 -> 4x4
+                    // LayerImpl 3: 256 -> 512 channels, 8x8 -> 4x4
                     .legacy_conv2d(512, 3, 3, 1, 1, 1, 1, false, "conv4")
                     .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn4")
                     .legacy_maxpool2d(2, 2, 2, 2, 0, 0, "pool3")  // 8x8 -> 4x4
@@ -108,16 +108,16 @@ Sequential create_cifar100_resnet18(DType_t io_dtype_ = DType_t::FP32) {
                     .legacy_conv2d(32, 3, 3, 1, 1, 1, 1, false, "conv1")
                     .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn1")
                     .legacy_maxpool2d(2, 2, 2, 2, 0, 0, "maxpool")
-                    // Layer 1: 64 channels
+                    // LayerImpl 1: 64 channels
                     .legacy_basic_residual_block(32, 64, 1, "layer1_block1")
                     .legacy_basic_residual_block(64, 64, 1, "layer1_block2")
-                    // Layer 2: 128 channels with stride 2
+                    // LayerImpl 2: 128 channels with stride 2
                     .legacy_basic_residual_block(64, 128, 2, "layer2_block1")
                     .legacy_basic_residual_block(128, 128, 1, "layer2_block2")
-                    // Layer 3: 128 channels with stride 2
+                    // LayerImpl 3: 128 channels with stride 2
                     .legacy_basic_residual_block(128, 256, 2, "layer3_block1")
                     .legacy_basic_residual_block(256, 256, 1, "layer3_block2")
-                    // Layer 4: 256 channels with stride 2
+                    // LayerImpl 4: 256 channels with stride 2
                     .legacy_basic_residual_block(256, 512, 2, "layer4_block1")
                     .legacy_basic_residual_block(512, 512, 1, "layer4_block2")
                     // Global average pooling and classifier
@@ -165,16 +165,16 @@ Sequential create_tiny_imagenet_resnet18(DType_t io_dtype_ = DType_t::FP32) {
                     .legacy_conv2d(32, 3, 3, 1, 1, 1, 1, false, "conv1")
                     .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn1")
                     .legacy_maxpool2d(2, 2, 2, 2, 0, 0, "maxpool")
-                    // Layer 1: 64 channels
+                    // LayerImpl 1: 64 channels
                     .legacy_basic_residual_block(32, 64, 1, "layer1_block1")
                     .legacy_basic_residual_block(64, 64, 1, "layer1_block2")
-                    // Layer 2: 128 channels with stride 2
+                    // LayerImpl 2: 128 channels with stride 2
                     .legacy_basic_residual_block(64, 128, 2, "layer2_block1")
                     .legacy_basic_residual_block(128, 128, 1, "layer2_block2")
-                    // Layer 3: 128 channels with stride 2
+                    // LayerImpl 3: 128 channels with stride 2
                     .legacy_basic_residual_block(128, 256, 2, "layer3_block1")
                     .legacy_basic_residual_block(256, 256, 1, "layer3_block2")
-                    // Layer 4: 256 channels with stride 2
+                    // LayerImpl 4: 256 channels with stride 2
                     .legacy_basic_residual_block(256, 512, 2, "layer4_block1")
                     .legacy_basic_residual_block(512, 512, 1, "layer4_block2")
                     // Global average pooling and classifier
@@ -222,23 +222,23 @@ Sequential create_tiny_imagenet_resnet50(DType_t io_dtype_ = DType_t::FP32) {
                     .legacy_conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
                     .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn1")
                     .legacy_maxpool2d(3, 3, 2, 2, 1, 1, "maxpool")
-                    // Layer 1: 64 channels, 3 bottleneck blocks
+                    // LayerImpl 1: 64 channels, 3 bottleneck blocks
                     .legacy_bottleneck_residual_block(64, 64, 256, 1, "layer1_block1")
                     .legacy_bottleneck_residual_block(256, 64, 256, 1, "layer1_block2")
                     .legacy_bottleneck_residual_block(256, 64, 256, 1, "layer1_block3")
-                    // Layer 2: 128 channels, 4 bottleneck blocks with stride 2
+                    // LayerImpl 2: 128 channels, 4 bottleneck blocks with stride 2
                     .legacy_bottleneck_residual_block(256, 128, 512, 2, "layer2_block1")
                     .legacy_bottleneck_residual_block(512, 128, 512, 1, "layer2_block2")
                     .legacy_bottleneck_residual_block(512, 128, 512, 1, "layer2_block3")
                     .legacy_bottleneck_residual_block(512, 128, 512, 1, "layer2_block4")
-                    // Layer 3: 256 channels, 6 bottleneck blocks with stride 2
+                    // LayerImpl 3: 256 channels, 6 bottleneck blocks with stride 2
                     .legacy_bottleneck_residual_block(512, 256, 1024, 2, "layer3_block1")
                     .legacy_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block2")
                     .legacy_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block3")
                     .legacy_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block4")
                     .legacy_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block5")
                     .legacy_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block6")
-                    // Layer 4: 512 channels, 3 bottleneck blocks with stride 2
+                    // LayerImpl 4: 512 channels, 3 bottleneck blocks with stride 2
                     .legacy_bottleneck_residual_block(1024, 512, 2048, 2, "layer4_block1")
                     .legacy_bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block2")
                     .legacy_bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3")
@@ -256,23 +256,23 @@ Sequential create_resnet50_imagenet(DType_t io_dtype_ = DType_t::FP32) {
                     .legacy_conv2d(64, 7, 7, 2, 2, 3, 3, true, "conv1")
                     .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn1")
                     .legacy_maxpool2d(3, 3, 2, 2, 1, 1, "maxpool")
-                    // Layer 1: 64 channels, 3 bottleneck blocks
+                    // LayerImpl 1: 64 channels, 3 bottleneck blocks
                     .legacy_bottleneck_residual_block(64, 64, 256, 1, "layer1_block1")
                     .legacy_bottleneck_residual_block(256, 64, 256, 1, "layer1_block2")
                     .legacy_bottleneck_residual_block(256, 64, 256, 1, "layer1_block3")
-                    // Layer 2: 128 channels, 4 bottleneck blocks with stride 2
+                    // LayerImpl 2: 128 channels, 4 bottleneck blocks with stride 2
                     .legacy_bottleneck_residual_block(256, 128, 512, 2, "layer2_block1")
                     .legacy_bottleneck_residual_block(512, 128, 512, 1, "layer2_block2")
                     .legacy_bottleneck_residual_block(512, 128, 512, 1, "layer2_block3")
                     .legacy_bottleneck_residual_block(512, 128, 512, 1, "layer2_block4")
-                    // Layer 3: 256 channels, 6 bottleneck blocks with stride 2
+                    // LayerImpl 3: 256 channels, 6 bottleneck blocks with stride 2
                     .legacy_bottleneck_residual_block(512, 256, 1024, 2, "layer3_block1")
                     .legacy_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block2")
                     .legacy_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block3")
                     .legacy_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block4")
                     .legacy_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block5")
                     .legacy_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block6")
-                    // Layer 4: 512 channels, 3 bottleneck blocks with stride 2
+                    // LayerImpl 4: 512 channels, 3 bottleneck blocks with stride 2
                     .legacy_bottleneck_residual_block(1024, 512, 2048, 2, "layer4_block1")
                     .legacy_bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block2")
                     .legacy_bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3")

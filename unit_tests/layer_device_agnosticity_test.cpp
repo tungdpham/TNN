@@ -106,13 +106,13 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerForwardBasic) {
   const size_t pad_w = 1;
 
   auto cpu_layer_layer =
-      std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
+      std::make_unique<LegacyConv2DLayerImpl>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                           stride_w, pad_h, pad_w, true, "cpu_conv");
-  LegacyConv2DLayer *cpu_layer = cpu_layer_layer.get();
+  LegacyConv2DLayerImpl *cpu_layer = cpu_layer_layer.get();
   auto gpu_layer_layer =
-      std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
+      std::make_unique<LegacyConv2DLayerImpl>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                           stride_w, pad_h, pad_w, true, "gpu_conv");
-  LegacyConv2DLayer *gpu_layer = gpu_layer_layer.get();
+  LegacyConv2DLayerImpl *gpu_layer = gpu_layer_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -135,7 +135,7 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerForwardBasic) {
   auto cpu_output = cpu_layer->forward({input})[0];
   auto gpu_output = gpu_layer->forward({input})[0];
 
-  compareTensors(cpu_output, gpu_output, 1e-3f, "LegacyConv2DLayer Forward:");
+  compareTensors(cpu_output, gpu_output, 1e-3f, "LegacyConv2DLayerImpl Forward:");
 }
 
 TEST_F(LayerIntegrationTest, LegacyConv2DLayerBackwardBasic) {
@@ -152,13 +152,13 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerBackwardBasic) {
   const size_t pad_w = 1;
 
   auto cpu_layer_layer =
-      std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
+      std::make_unique<LegacyConv2DLayerImpl>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                           stride_w, pad_h, pad_w, true, "cpu_conv");
-  LegacyConv2DLayer *cpu_layer = cpu_layer_layer.get();
+  LegacyConv2DLayerImpl *cpu_layer = cpu_layer_layer.get();
   auto gpu_layer_layer =
-      std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
+      std::make_unique<LegacyConv2DLayerImpl>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                           stride_w, pad_h, pad_w, true, "gpu_conv");
-  LegacyConv2DLayer *gpu_layer = gpu_layer_layer.get();
+  LegacyConv2DLayerImpl *gpu_layer = gpu_layer_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -188,14 +188,14 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerBackwardBasic) {
   auto gpu_grad_input = gpu_layer->backward({grad_output})[0];
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f,
-                 "LegacyConv2DLayer Backward Input Gradient:");
+                 "LegacyConv2DLayerImpl Backward Input Gradient:");
 
   compareTensors(cpu_layer->gradients()[0], gpu_layer->gradients()[0], 1e-2f,
-                 "LegacyConv2DLayer Backward Weight Gradient:");
+                 "LegacyConv2DLayerImpl Backward Weight Gradient:");
 
   if (cpu_layer->gradients().size() > 1) {
     compareTensors(cpu_layer->gradients()[1], gpu_layer->gradients()[1], 1e-2f,
-                   "LegacyConv2DLayer Backward Bias Gradient:");
+                   "LegacyConv2DLayerImpl Backward Bias Gradient:");
   }
 }
 
@@ -213,13 +213,13 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerStridedConvolution) {
   const size_t pad_w = 2;
 
   auto cpu_layer_layer =
-      std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
+      std::make_unique<LegacyConv2DLayerImpl>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                           stride_w, pad_h, pad_w, false, "cpu_conv_strided");
-  LegacyConv2DLayer *cpu_layer = cpu_layer_layer.get();
+  LegacyConv2DLayerImpl *cpu_layer = cpu_layer_layer.get();
   auto gpu_layer_layer =
-      std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
+      std::make_unique<LegacyConv2DLayerImpl>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                           stride_w, pad_h, pad_w, false, "gpu_conv_strided");
-  LegacyConv2DLayer *gpu_layer = gpu_layer_layer.get();
+  LegacyConv2DLayerImpl *gpu_layer = gpu_layer_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -239,16 +239,16 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerStridedConvolution) {
   auto cpu_output = cpu_layer->forward({input})[0];
   auto gpu_output = gpu_layer->forward({input})[0];
 
-  compareTensors(cpu_output, gpu_output, 1e-3f, "LegacyConv2DLayer Strided Forward:");
+  compareTensors(cpu_output, gpu_output, 1e-3f, "LegacyConv2DLayerImpl Strided Forward:");
 
   Tensor grad_output = make_tensor<float>(cpu_output->shape(), getHost());
   grad_output->fill_random_uniform(1.0f);
 
   auto cpu_grad_input = cpu_layer->backward({grad_output})[0];
   auto gpu_grad_input = gpu_layer->backward({grad_output})[0];
-  compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "LegacyConv2DLayer Strided Backward:");
+  compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "LegacyConv2DLayerImpl Strided Backward:");
   compareTensors(cpu_layer->gradients()[0], gpu_layer->gradients()[0], 1e-2f,
-                 "LegacyConv2DLayer Strided Weight Gradient:");
+                 "LegacyConv2DLayerImpl Strided Weight Gradient:");
 }
 
 TEST_F(LayerIntegrationTest, DenseLayerForwardBasic) {
@@ -257,11 +257,11 @@ TEST_F(LayerIntegrationTest, DenseLayerForwardBasic) {
   const size_t output_features = 64;
 
   auto cpu_layer_layer =
-      std::make_unique<DenseLayer>(input_features, output_features, true, "cpu_dense");
-  DenseLayer *cpu_layer = cpu_layer_layer.get();
+      std::make_unique<DenseLayerImpl>(input_features, output_features, true, "cpu_dense");
+  DenseLayerImpl *cpu_layer = cpu_layer_layer.get();
   auto gpu_layer_layer =
-      std::make_unique<DenseLayer>(input_features, output_features, true, "gpu_dense");
-  DenseLayer *gpu_layer = gpu_layer_layer.get();
+      std::make_unique<DenseLayerImpl>(input_features, output_features, true, "gpu_dense");
+  DenseLayerImpl *gpu_layer = gpu_layer_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -284,7 +284,7 @@ TEST_F(LayerIntegrationTest, DenseLayerForwardBasic) {
   auto cpu_output = cpu_layer->forward({input})[0];
   auto gpu_output = gpu_layer->forward({input})[0];
 
-  compareTensors(cpu_output, gpu_output, 1e-3f, "DenseLayer Forward:");
+  compareTensors(cpu_output, gpu_output, 1e-3f, "DenseLayerImpl Forward:");
 }
 
 TEST_F(LayerIntegrationTest, DenseLayerBackwardBasic) {
@@ -293,11 +293,11 @@ TEST_F(LayerIntegrationTest, DenseLayerBackwardBasic) {
   const size_t output_features = 64;
 
   auto cpu_layer_layer =
-      std::make_unique<DenseLayer>(input_features, output_features, true, "cpu_dense");
-  DenseLayer *cpu_layer = cpu_layer_layer.get();
+      std::make_unique<DenseLayerImpl>(input_features, output_features, true, "cpu_dense");
+  DenseLayerImpl *cpu_layer = cpu_layer_layer.get();
   auto gpu_layer_layer =
-      std::make_unique<DenseLayer>(input_features, output_features, true, "gpu_dense");
-  DenseLayer *gpu_layer = gpu_layer_layer.get();
+      std::make_unique<DenseLayerImpl>(input_features, output_features, true, "gpu_dense");
+  DenseLayerImpl *gpu_layer = gpu_layer_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -326,13 +326,13 @@ TEST_F(LayerIntegrationTest, DenseLayerBackwardBasic) {
   auto cpu_grad_input = cpu_layer->backward({grad_output})[0];
   auto gpu_grad_input = gpu_layer->backward({grad_output})[0];
 
-  compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "DenseLayer Backward Input Gradient:");
+  compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "DenseLayerImpl Backward Input Gradient:");
   compareTensors(cpu_layer->gradients()[0], gpu_layer->gradients()[0], 1e-2f,
-                 "DenseLayer Backward Weight Gradient:");
+                 "DenseLayerImpl Backward Weight Gradient:");
 
   if (cpu_layer->gradients().size() > 1) {
     compareTensors(cpu_layer->gradients()[1], gpu_layer->gradients()[1], 1e-2f,
-                   "DenseLayer Backward Bias Gradient:");
+                   "DenseLayerImpl Backward Bias Gradient:");
   }
 }
 
@@ -342,11 +342,11 @@ TEST_F(LayerIntegrationTest, DenseLayerLargeMatrix) {
   const size_t output_features = 256;
 
   auto cpu_layer_layer =
-      std::make_unique<DenseLayer>(input_features, output_features, false, "cpu_dense_large");
-  DenseLayer *cpu_layer = cpu_layer_layer.get();
+      std::make_unique<DenseLayerImpl>(input_features, output_features, false, "cpu_dense_large");
+  DenseLayerImpl *cpu_layer = cpu_layer_layer.get();
   auto gpu_layer_layer =
-      std::make_unique<DenseLayer>(input_features, output_features, false, "gpu_dense_large");
-  DenseLayer *gpu_layer = gpu_layer_layer.get();
+      std::make_unique<DenseLayerImpl>(input_features, output_features, false, "gpu_dense_large");
+  DenseLayerImpl *gpu_layer = gpu_layer_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -366,14 +366,14 @@ TEST_F(LayerIntegrationTest, DenseLayerLargeMatrix) {
   auto cpu_output = cpu_layer->forward({input})[0];
   auto gpu_output = gpu_layer->forward({input})[0];
 
-  compareTensors(cpu_output, gpu_output, 1e-3f, "DenseLayer Large Forward:");
+  compareTensors(cpu_output, gpu_output, 1e-3f, "DenseLayerImpl Large Forward:");
 
   Tensor grad_output = make_tensor<float>({batch_size, output_features}, getHost());
   grad_output->fill_random_uniform(1.0f);
 
   auto cpu_grad_input = cpu_layer->backward({grad_output})[0];
   auto gpu_grad_input = gpu_layer->backward({grad_output})[0];
-  compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "DenseLayer Large Backward:");
+  compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "DenseLayerImpl Large Backward:");
 }
 
 TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerForwardBasic) {
@@ -388,12 +388,12 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerForwardBasic) {
   const size_t pad_h = 0;
   const size_t pad_w = 0;
 
-  auto cpu_layer_layer = std::make_unique<LegacyMaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w,
+  auto cpu_layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w,
                                                                 pad_h, pad_w, "cpu_maxpool");
-  LegacyMaxPool2DLayer *cpu_layer = cpu_layer_layer.get();
-  auto gpu_layer_layer = std::make_unique<LegacyMaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w,
+  LegacyMaxPool2DLayerImpl *cpu_layer = cpu_layer_layer.get();
+  auto gpu_layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w,
                                                                 pad_h, pad_w, "gpu_maxpool");
-  LegacyMaxPool2DLayer *gpu_layer = gpu_layer_layer.get();
+  LegacyMaxPool2DLayerImpl *gpu_layer = gpu_layer_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -411,7 +411,7 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerForwardBasic) {
   auto cpu_output = cpu_layer->forward({input})[0];
   auto gpu_output = gpu_layer->forward({input})[0];
 
-  compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayer Forward:");
+  compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayerImpl Forward:");
 }
 
 TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerBackwardBasic) {
@@ -426,12 +426,12 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerBackwardBasic) {
   const size_t pad_h = 0;
   const size_t pad_w = 0;
 
-  auto cpu_layer_layer = std::make_unique<LegacyMaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w,
+  auto cpu_layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w,
                                                                 pad_h, pad_w, "cpu_maxpool");
-  LegacyMaxPool2DLayer *cpu_layer = cpu_layer_layer.get();
-  auto gpu_layer_layer = std::make_unique<LegacyMaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w,
+  LegacyMaxPool2DLayerImpl *cpu_layer = cpu_layer_layer.get();
+  auto gpu_layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w,
                                                                 pad_h, pad_w, "gpu_maxpool");
-  LegacyMaxPool2DLayer *gpu_layer = gpu_layer_layer.get();
+  LegacyMaxPool2DLayerImpl *gpu_layer = gpu_layer_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -455,7 +455,7 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerBackwardBasic) {
   auto cpu_grad_input = cpu_layer->backward({grad_output})[0];
   auto gpu_grad_input = gpu_layer->backward({grad_output})[0];
 
-  compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f, "LegacyMaxPool2DLayer Backward:");
+  compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f, "LegacyMaxPool2DLayerImpl Backward:");
 }
 
 TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerWithPadding) {
@@ -470,12 +470,12 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerWithPadding) {
   const size_t pad_h = 1;
   const size_t pad_w = 1;
 
-  auto cpu_layer_layer = std::make_unique<LegacyMaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w,
+  auto cpu_layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w,
                                                                 pad_h, pad_w, "cpu_maxpool_pad");
-  LegacyMaxPool2DLayer *cpu_layer = cpu_layer_layer.get();
-  auto gpu_layer_layer = std::make_unique<LegacyMaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w,
+  LegacyMaxPool2DLayerImpl *cpu_layer = cpu_layer_layer.get();
+  auto gpu_layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w,
                                                                 pad_h, pad_w, "gpu_maxpool_pad");
-  LegacyMaxPool2DLayer *gpu_layer = gpu_layer_layer.get();
+  LegacyMaxPool2DLayerImpl *gpu_layer = gpu_layer_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -493,7 +493,7 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerWithPadding) {
   auto cpu_output = cpu_layer->forward({input})[0];
   auto gpu_output = gpu_layer->forward({input})[0];
 
-  compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayer Padded Forward:");
+  compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayerImpl Padded Forward:");
 
   Tensor grad_output = make_tensor<float>(cpu_output->shape(), getHost());
   grad_output->fill_random_uniform(2.0f);
@@ -501,7 +501,7 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerWithPadding) {
   auto cpu_grad_input = cpu_layer->backward({grad_output})[0];
   auto gpu_grad_input = gpu_layer->backward({grad_output})[0];
 
-  compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f, "LegacyMaxPool2DLayer Padded Backward:");
+  compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f, "LegacyMaxPool2DLayerImpl Padded Backward:");
 }
 
 TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerNonSquare) {
@@ -516,12 +516,12 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerNonSquare) {
   const size_t pad_h = 0;
   const size_t pad_w = 0;
 
-  auto cpu_layer_layer = std::make_unique<LegacyMaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w,
+  auto cpu_layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w,
                                                                 pad_h, pad_w, "cpu_maxpool_nonsq");
-  LegacyMaxPool2DLayer *cpu_layer = cpu_layer_layer.get();
-  auto gpu_layer_layer = std::make_unique<LegacyMaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w,
+  LegacyMaxPool2DLayerImpl *cpu_layer = cpu_layer_layer.get();
+  auto gpu_layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w,
                                                                 pad_h, pad_w, "gpu_maxpool_nonsq");
-  LegacyMaxPool2DLayer *gpu_layer = gpu_layer_layer.get();
+  LegacyMaxPool2DLayerImpl *gpu_layer = gpu_layer_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -539,7 +539,7 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerNonSquare) {
   auto cpu_output = cpu_layer->forward({input})[0];
   auto gpu_output = gpu_layer->forward({input})[0];
 
-  compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayer Non-square Forward:");
+  compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayerImpl Non-square Forward:");
 
   Tensor grad_output = make_tensor<float>(cpu_output->shape(), getHost());
   grad_output->fill_random_uniform(2.0f);
@@ -548,7 +548,7 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerNonSquare) {
   auto gpu_grad_input = gpu_layer->backward({grad_output})[0];
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f,
-                 "LegacyMaxPool2DLayer Non-square Backward:");
+                 "LegacyMaxPool2DLayerImpl Non-square Backward:");
 }
 
 TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
@@ -558,11 +558,11 @@ TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
   const size_t input_h = 16;
   const size_t input_w = 16;
 
-  auto cpu_conv_layer = std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, 3, 3, 1, 1,
+  auto cpu_conv_layer = std::make_unique<LegacyConv2DLayerImpl>(in_channels, out_channels, 3, 3, 1, 1,
                                                             1, 1, true, "cpu_conv");
-  LegacyConv2DLayer *cpu_conv = cpu_conv_layer.get();
-  auto cpu_pool_layer = std::make_unique<LegacyMaxPool2DLayer>(2, 2, 2, 2, 0, 0, "cpu_pool");
-  LegacyMaxPool2DLayer *cpu_pool = cpu_pool_layer.get();
+  LegacyConv2DLayerImpl *cpu_conv = cpu_conv_layer.get();
+  auto cpu_pool_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "cpu_pool");
+  LegacyMaxPool2DLayerImpl *cpu_pool = cpu_pool_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -570,11 +570,11 @@ TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
   cpu_builder.add_layer(std::move(cpu_pool_layer));
   Graph cpu_graph = cpu_builder.compile(cpu_allocator);
 
-  auto gpu_conv_layer = std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, 3, 3, 1, 1,
+  auto gpu_conv_layer = std::make_unique<LegacyConv2DLayerImpl>(in_channels, out_channels, 3, 3, 1, 1,
                                                             1, 1, true, "gpu_conv");
-  LegacyConv2DLayer *gpu_conv = gpu_conv_layer.get();
-  auto gpu_pool_layer = std::make_unique<LegacyMaxPool2DLayer>(2, 2, 2, 2, 0, 0, "gpu_pool");
-  LegacyMaxPool2DLayer *gpu_pool = gpu_pool_layer.get();
+  LegacyConv2DLayerImpl *gpu_conv = gpu_conv_layer.get();
+  auto gpu_pool_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "gpu_pool");
+  LegacyMaxPool2DLayerImpl *gpu_pool = gpu_pool_layer.get();
 
   auto &gpu_allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
   GraphBuilder gpu_builder;
@@ -618,12 +618,12 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
 
   const size_t flattened_size = input_h * input_w * out_channels;
 
-  auto cpu_conv_layer = std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, 3, 3, 1, 1,
+  auto cpu_conv_layer = std::make_unique<LegacyConv2DLayerImpl>(in_channels, out_channels, 3, 3, 1, 1,
                                                             1, 1, false, "cpu_conv");
-  LegacyConv2DLayer *cpu_conv = cpu_conv_layer.get();
+  LegacyConv2DLayerImpl *cpu_conv = cpu_conv_layer.get();
   auto cpu_dense_layer =
-      std::make_unique<DenseLayer>(flattened_size, dense_output, true, "cpu_dense");
-  DenseLayer *cpu_dense = cpu_dense_layer.get();
+      std::make_unique<DenseLayerImpl>(flattened_size, dense_output, true, "cpu_dense");
+  DenseLayerImpl *cpu_dense = cpu_dense_layer.get();
 
   auto &cpu_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder cpu_builder;
@@ -631,12 +631,12 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
   cpu_builder.add_layer(std::move(cpu_dense_layer));
   Graph cpu_graph = cpu_builder.compile(cpu_allocator);
 
-  auto gpu_conv_layer = std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, 3, 3, 1, 1,
+  auto gpu_conv_layer = std::make_unique<LegacyConv2DLayerImpl>(in_channels, out_channels, 3, 3, 1, 1,
                                                             1, 1, false, "gpu_conv");
-  LegacyConv2DLayer *gpu_conv = gpu_conv_layer.get();
+  LegacyConv2DLayerImpl *gpu_conv = gpu_conv_layer.get();
   auto gpu_dense_layer =
-      std::make_unique<DenseLayer>(flattened_size, dense_output, true, "gpu_dense");
-  DenseLayer *gpu_dense = gpu_dense_layer.get();
+      std::make_unique<DenseLayerImpl>(flattened_size, dense_output, true, "gpu_dense");
+  DenseLayerImpl *gpu_dense = gpu_dense_layer.get();
 
   auto &gpu_allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
   GraphBuilder gpu_builder;

@@ -61,8 +61,8 @@ public:
 
   // temporary: get layers from op nodes
   // need to refactor later if we want to support more complex graph structures
-  Vec<Layer*> get_layers() {
-    Vec<Layer*> layers;
+  Vec<LayerImpl*> get_layers() {
+    Vec<LayerImpl*> layers;
     for (auto& op_pair : op_nodes_) {
       OpNode& node = op_pair.second;
       Sequential* seq = dynamic_cast<Sequential*>(node.layer());
@@ -71,7 +71,7 @@ public:
         layers.insert(layers.end(), seq_layers.begin(), seq_layers.end());
         continue;
       } else {
-        Layer* layer = dynamic_cast<Layer*>(node.layer());
+        LayerImpl* layer = dynamic_cast<LayerImpl*>(node.layer());
         if (layer) layers.push_back(layer);
       }
     }

@@ -17,11 +17,11 @@
 
 namespace tnn {
 
-ReLULayer::ReLULayer(const std::string &name)
-    : StatelessLayer(name),
+ReLULayerImpl::ReLULayerImpl(const std::string &name)
+    : SISOLayerImpl(name),
       activation_(std::make_unique<ReLU>()) {}
 
-Tensor ReLULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor ReLULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   Tensor output = get_output_tensor(input->shape());
   const size_t num_elements = input->size();
 
@@ -47,7 +47,7 @@ Tensor ReLULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
     }
 #endif
     else {
-      throw std::runtime_error("ReLULayer: Unsupported device type");
+      throw std::runtime_error("ReLULayerImpl: Unsupported device type");
     }
   } else {
     // Inference mode: just apply activation
@@ -57,10 +57,10 @@ Tensor ReLULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor ReLULayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor ReLULayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &mask = this->get_mutable_cache(mb_id, "mask");
   if (!mask) {
-    throw std::runtime_error("No cached mask found for backward pass in ReLULayer");
+    throw std::runtime_error("No cached mask found for backward pass in ReLULayerImpl");
   }
 
   Tensor grad_input = get_output_tensor(grad_output->shape());
@@ -83,21 +83,21 @@ Tensor ReLULayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   }
 #endif
   else {
-    throw std::runtime_error("ReLULayer: Unsupported device type");
+    throw std::runtime_error("ReLULayerImpl: Unsupported device type");
   }
 
   return grad_input;
 }
 
-LayerConfig ReLULayer::get_config() const {
+LayerConfig ReLULayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
   return config;
 }
 
-std::unique_ptr<ReLULayer> ReLULayer::create_from_config(const LayerConfig &config) {
-  return std::make_unique<ReLULayer>(config.name);
+std::unique_ptr<ReLULayerImpl> ReLULayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_unique<ReLULayerImpl>(config.name);
 }
 
 }  // namespace tnn

@@ -80,7 +80,7 @@ private:
   std::unordered_map<const IONode*, Output> node_outputs_;
 
   void forward(const Edge& edge) {
-    Layer* layer = edge.op_node().layer();
+    LayerImpl* layer = edge.op_node().layer();
     Vec<Vec<size_t>> input_shapes;
     // gather inputs
     const Vec<const IONode*>& input_nodes = edge.producers();
@@ -105,7 +105,7 @@ private:
   }
 
   void backward(const Edge& edge) {
-    Layer* layer = edge.op_node().layer();
+    LayerImpl* layer = edge.op_node().layer();
     // gather upstream grad_output
     const Vec<const IONode*>& output_nodes = edge.consumers();
     Vec<ConstTensor> gradients;

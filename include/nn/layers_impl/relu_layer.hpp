@@ -10,12 +10,12 @@
 #include <string>
 
 #include "nn/activations_impl/relu.hpp"
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
 
-class ReLULayer : public StatelessLayer {
+class ReLULayerImpl : public SISOLayerImpl {
 private:
   std::unique_ptr<ReLU> activation_;
 
@@ -26,11 +26,11 @@ protected:
 public:
   static constexpr const char *TYPE_NAME = "relu";
 
-  explicit ReLULayer(const std::string &name = "relu");
+  explicit ReLULayerImpl(const std::string &name = "relu");
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<ReLULayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<ReLULayerImpl> create_from_config(const LayerConfig &config);
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;

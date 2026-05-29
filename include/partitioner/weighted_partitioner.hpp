@@ -28,7 +28,7 @@ struct WeightedPartitionerConfig {
 //       : Partitioner(config.weights.size()),
 //         config_(config) {}
 
-//   Vec<SeqPartition> partition_model(const Vec<Layer *> &layers) override {
+//   Vec<SeqPartition> partition_model(const Vec<LayerImpl *> &layers) override {
 //     if (this->num_partitions_ == 0) {
 //       throw std::runtime_error("Number of partitions must be greater than zero");
 //     }

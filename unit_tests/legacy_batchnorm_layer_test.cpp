@@ -20,7 +20,7 @@
 using namespace tnn;
 
 /**
- * Test fixture for LegacyBatchNormLayer validation tests.
+ * Test fixture for LegacyBatchNormLayerImpl validation tests.
  * These tests verify the mathematical correctness of batch normalization operations
  * including forward and backward passes in both training and inference modes.
  */
@@ -143,7 +143,7 @@ TEST_F(LegacyBatchNormLayerTest, BasicForwardPassTraining) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto bn_layer = std::make_unique<LegacyBatchNormLayer>(3, 1e-5f, 0.1f, false, "test_bn");
+  auto bn_layer = std::make_unique<LegacyBatchNormLayerImpl>(3, 1e-5f, 0.1f, false, "test_bn");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -169,7 +169,7 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassWithAffineTraining) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto bn_layer = std::make_unique<LegacyBatchNormLayer>(3, 1e-5f, 0.1f, true, "test_bn_affine");
+  auto bn_layer = std::make_unique<LegacyBatchNormLayerImpl>(3, 1e-5f, 0.1f, true, "test_bn_affine");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -198,7 +198,7 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassSingleChannel) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto bn_layer = std::make_unique<LegacyBatchNormLayer>(1, 1e-5f, 0.1f, false, "test_bn_single");
+  auto bn_layer = std::make_unique<LegacyBatchNormLayerImpl>(1, 1e-5f, 0.1f, false, "test_bn_single");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -222,7 +222,7 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassMultiBatch) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(2, 1e-5f, 0.1f, false, "test_bn_multibatch");
+      std::make_unique<LegacyBatchNormLayerImpl>(2, 1e-5f, 0.1f, false, "test_bn_multibatch");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -246,7 +246,7 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassLargeFeatures) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto bn_layer = std::make_unique<LegacyBatchNormLayer>(64, 1e-5f, 0.1f, true, "test_bn_large");
+  auto bn_layer = std::make_unique<LegacyBatchNormLayerImpl>(64, 1e-5f, 0.1f, true, "test_bn_large");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -271,7 +271,7 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassInference) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(3, 1e-5f, 0.1f, false, "test_bn_inference");
+      std::make_unique<LegacyBatchNormLayerImpl>(3, 1e-5f, 0.1f, false, "test_bn_inference");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -299,7 +299,7 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassInferenceWithAffine) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(2, 1e-5f, 0.1f, true, "test_bn_inference_affine");
+      std::make_unique<LegacyBatchNormLayerImpl>(2, 1e-5f, 0.1f, true, "test_bn_inference_affine");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -317,7 +317,7 @@ TEST_F(LegacyBatchNormLayerTest, BasicBackwardPass) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto bn_layer = std::make_unique<LegacyBatchNormLayer>(2, 1e-5f, 0.1f, false, "test_bn_backward");
+  auto bn_layer = std::make_unique<LegacyBatchNormLayerImpl>(2, 1e-5f, 0.1f, false, "test_bn_backward");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -344,7 +344,7 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassWithAffine) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(3, 1e-5f, 0.1f, true, "test_bn_backward_affine");
+      std::make_unique<LegacyBatchNormLayerImpl>(3, 1e-5f, 0.1f, true, "test_bn_backward_affine");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -377,7 +377,7 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassMultiBatch) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(2, 1e-5f, 0.1f, false, "test_bn_backward_multibatch");
+      std::make_unique<LegacyBatchNormLayerImpl>(2, 1e-5f, 0.1f, false, "test_bn_backward_multibatch");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -403,7 +403,7 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassZeroGradient) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(2, 1e-5f, 0.1f, true, "test_bn_backward_zero");
+      std::make_unique<LegacyBatchNormLayerImpl>(2, 1e-5f, 0.1f, true, "test_bn_backward_zero");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -428,8 +428,8 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassZeroGradient) {
 }
 
 TEST_F(LegacyBatchNormLayerTest, ComputeOutputShape) {
-  auto bn_layer = std::make_unique<LegacyBatchNormLayer>(16, 1e-5f, 0.1f, true, "test_bn_shape");
-  LegacyBatchNormLayer *layer = bn_layer.get();
+  auto bn_layer = std::make_unique<LegacyBatchNormLayerImpl>(16, 1e-5f, 0.1f, true, "test_bn_shape");
+  LegacyBatchNormLayerImpl *layer = bn_layer.get();
 
   Vec<size_t> input_shape = {4, 16, 32, 32};
   Vec<size_t> expected_shape = {4, 16, 32, 32};
@@ -440,8 +440,8 @@ TEST_F(LegacyBatchNormLayerTest, ComputeOutputShape) {
 }
 
 TEST_F(LegacyBatchNormLayerTest, GetConfig) {
-  auto bn_layer = std::make_unique<LegacyBatchNormLayer>(32, 1e-4f, 0.2f, true, "test_bn_config");
-  LegacyBatchNormLayer *layer = bn_layer.get();
+  auto bn_layer = std::make_unique<LegacyBatchNormLayerImpl>(32, 1e-4f, 0.2f, true, "test_bn_config");
+  LegacyBatchNormLayerImpl *layer = bn_layer.get();
 
   LayerConfig config = layer->get_config();
 
@@ -460,7 +460,7 @@ TEST_F(LegacyBatchNormLayerTest, CreateFromConfig) {
   config.set("momentum", 0.1f);
   config.set("affine", true);
 
-  auto layer = LegacyBatchNormLayer::create_from_config(config);
+  auto layer = LegacyBatchNormLayerImpl::create_from_config(config);
 
   EXPECT_NE(layer, nullptr);
   LayerConfig retrieved_config = layer->get_config();
@@ -469,8 +469,8 @@ TEST_F(LegacyBatchNormLayerTest, CreateFromConfig) {
 
 TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithAffine) {
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(16, 1e-5f, 0.1f, true, "test_bn_params_affine");
-  LegacyBatchNormLayer *layer = bn_layer.get();
+      std::make_unique<LegacyBatchNormLayerImpl>(16, 1e-5f, 0.1f, true, "test_bn_params_affine");
+  LegacyBatchNormLayerImpl *layer = bn_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
   builder.add_layer(std::move(bn_layer));
@@ -483,8 +483,8 @@ TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithAffine) {
 
 TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithoutAffine) {
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(16, 1e-5f, 0.1f, false, "test_bn_params_no_affine");
-  LegacyBatchNormLayer *layer = bn_layer.get();
+      std::make_unique<LegacyBatchNormLayerImpl>(16, 1e-5f, 0.1f, false, "test_bn_params_no_affine");
+  LegacyBatchNormLayerImpl *layer = bn_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
   builder.add_layer(std::move(bn_layer));
@@ -497,8 +497,8 @@ TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithoutAffine) {
 
 TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithAffine) {
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(16, 1e-5f, 0.1f, true, "test_bn_grads_affine");
-  LegacyBatchNormLayer *layer = bn_layer.get();
+      std::make_unique<LegacyBatchNormLayerImpl>(16, 1e-5f, 0.1f, true, "test_bn_grads_affine");
+  LegacyBatchNormLayerImpl *layer = bn_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
   builder.add_layer(std::move(bn_layer));
@@ -511,8 +511,8 @@ TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithAffine) {
 
 TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithoutAffine) {
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(16, 1e-5f, 0.1f, false, "test_bn_grads_no_affine");
-  LegacyBatchNormLayer *layer = bn_layer.get();
+      std::make_unique<LegacyBatchNormLayerImpl>(16, 1e-5f, 0.1f, false, "test_bn_grads_no_affine");
+  LegacyBatchNormLayerImpl *layer = bn_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
   builder.add_layer(std::move(bn_layer));
@@ -528,7 +528,7 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallBatch) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(3, 1e-5f, 0.1f, false, "test_bn_small_batch");
+      std::make_unique<LegacyBatchNormLayerImpl>(3, 1e-5f, 0.1f, false, "test_bn_small_batch");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -550,7 +550,7 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseLargeEpsilon) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(2, 1e-1f, 0.1f, false, "test_bn_large_epsilon");
+      std::make_unique<LegacyBatchNormLayerImpl>(2, 1e-1f, 0.1f, false, "test_bn_large_epsilon");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -569,7 +569,7 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallSpatialSize) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(4, 1e-5f, 0.1f, true, "test_bn_small_spatial");
+      std::make_unique<LegacyBatchNormLayerImpl>(4, 1e-5f, 0.1f, true, "test_bn_small_spatial");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -595,7 +595,7 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseLargeValues) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(2, 1e-5f, 0.1f, false, "test_bn_large_values");
+      std::make_unique<LegacyBatchNormLayerImpl>(2, 1e-5f, 0.1f, false, "test_bn_large_values");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -618,7 +618,7 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseNegativeValues) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto bn_layer = std::make_unique<LegacyBatchNormLayer>(2, 1e-5f, 0.1f, true, "test_bn_negative");
+  auto bn_layer = std::make_unique<LegacyBatchNormLayerImpl>(2, 1e-5f, 0.1f, true, "test_bn_negative");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -640,7 +640,7 @@ TEST_F(LegacyBatchNormLayerTest, NumericalStabilitySmallValues) {
   GraphBuilder builder;
 
   auto bn_layer =
-      std::make_unique<LegacyBatchNormLayer>(2, 1e-5f, 0.1f, false, "test_bn_small_values");
+      std::make_unique<LegacyBatchNormLayerImpl>(2, 1e-5f, 0.1f, false, "test_bn_small_values");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);
@@ -658,7 +658,7 @@ TEST_F(LegacyBatchNormLayerTest, NumericalStabilityMixedValues) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto bn_layer = std::make_unique<LegacyBatchNormLayer>(2, 1e-5f, 0.1f, true, "test_bn_mixed");
+  auto bn_layer = std::make_unique<LegacyBatchNormLayerImpl>(2, 1e-5f, 0.1f, true, "test_bn_mixed");
   auto &node = builder.add_layer(std::move(bn_layer));
 
   Graph graph = builder.compile(allocator);

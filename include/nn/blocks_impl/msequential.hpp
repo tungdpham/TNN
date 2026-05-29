@@ -24,7 +24,7 @@ namespace tnn {
 class MSequential : public Block {
 private:
   Vec<std::unique_ptr<Sequential>> sequences_;
-  std::unique_ptr<Layer> join_layer_;
+  std::unique_ptr<LayerImpl> join_layer_;
 
   // Cache for memory planning
   struct SequenceMemInfo {
@@ -45,8 +45,8 @@ private:
   SequenceMemInfo measure_sequence_memory(size_t seq_idx, ConstTensor input, size_t mb_id);
 
 protected:
-  Vec<Layer *> layers() override {
-    Vec<Layer *> layers;
+  Vec<LayerImpl *> layers() override {
+    Vec<LayerImpl *> layers;
     for (auto &seq : sequences_) {
       layers.push_back(seq.get());
     }
@@ -64,11 +64,12 @@ public:
    * Construct MSequential block
    *
    * @param sequences Vector of Sequential blocks (the parallel branches)
-   * @param join_layer Layer that accepts multiple inputs and produces single output
+   * @param join_layer LayerImpl that accepts multiple inputs and produces single output
    * @param name Block name
    */
   explicit MSequential(Vec<std::unique_ptr<Sequential>> sequences,
-                       std::unique_ptr<Layer> join_layer, const std::string &name = "msequential");
+                       std::unique_ptr<LayerImpl> join_layer,
+                       const std::string &name = "msequential");
 
   static constexpr const char *TYPE_NAME = "msequential";
 
@@ -79,7 +80,7 @@ public:
   void print_summary(const Vec<Vec<size_t>> &input_shapes) const;
 
   Vec<Sequential *> get_sequences();
-  Layer *get_join_layer();
+  LayerImpl *get_join_layer();
 
   LayerConfig get_config() const override;
   static std::unique_ptr<MSequential> create_from_config(const LayerConfig &config);

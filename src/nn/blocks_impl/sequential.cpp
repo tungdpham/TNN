@@ -64,7 +64,7 @@ Vec<Tensor> Sequential::backward_impl(const Vec<ConstTensor> &grad_outputs, size
   return grad_inputs;
 }
 
-Sequential::Sequential(Vec<std::unique_ptr<Layer>> layers, const std::string &name)
+Sequential::Sequential(Vec<std::unique_ptr<LayerImpl>> layers, const std::string &name)
     : Block(name) {
   for (auto &layer : layers) {
     layers_.emplace_back(std::move(layer));
@@ -103,7 +103,7 @@ void Sequential::print_summary(const Vec<size_t> &input_shape) const {
   std::cout << std::string(100, '=') << "\n";
   std::cout << "Model Summary: " << name_ << "\n";
   std::cout << std::string(100, '=') << "\n";
-  std::cout << std::left << std::setw(20) << "Layer (Type)" << std::setw(20) << "Input Shape"
+  std::cout << std::left << std::setw(20) << "LayerImpl (Type)" << std::setw(20) << "Input Shape"
             << std::setw(20) << "Output Shape" << "\n";
 
   Vec<size_t> current_shape = input_shape;
@@ -121,7 +121,7 @@ void Sequential::print_summary(const Vec<size_t> &input_shape) const {
   std::cout << std::string(100, '-') << "\n";
 }
 
-Vec<Layer *> Sequential::get_layers() { return this->layers(); }
+Vec<LayerImpl *> Sequential::get_layers() { return this->layers(); }
 
 LayerConfig Sequential::get_config() const {
   LayerConfig config;
@@ -137,7 +137,7 @@ LayerConfig Sequential::get_config() const {
 }
 
 std::unique_ptr<Sequential> Sequential::create_from_config(const LayerConfig &config) {
-  Vec<std::unique_ptr<Layer>> layers;
+  Vec<std::unique_ptr<LayerImpl>> layers;
   nlohmann::json layers_json = config.get<nlohmann::json>("layers", nlohmann::json::array());
   if (!layers_json.is_array()) {
     throw std::runtime_error("Sequential layer config 'layers' parameter must be an array");

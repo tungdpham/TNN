@@ -77,12 +77,12 @@ using OutputMap = InputMap;
 
 class EdgeImpl {
 public:
-  EdgeImpl(std::shared_ptr<Layer> layer, const Vec<Node> &inputs, const Vec<Node> &outputs)
+  EdgeImpl(std::shared_ptr<LayerImpl> layer, const Vec<Node> &inputs, const Vec<Node> &outputs)
       : layer_(layer),
         producers_(inputs),
         consumers_(outputs) {}
 
-  EdgeImpl(std::shared_ptr<Layer> layer, std::initializer_list<Node> inputs,
+  EdgeImpl(std::shared_ptr<LayerImpl> layer, std::initializer_list<Node> inputs,
            std::initializer_list<Node> outputs)
       : layer_(layer),
         producers_(inputs),
@@ -97,7 +97,9 @@ public:
       }
       input_data.push_back(producer->data());
     }
-
+    std::cout << fmt::format("Forwarding layer: {}, with first input with shape: {}.",
+                             layer_->name(), input_data[0]->shape_str())
+              << std::endl;
     Vec<Tensor> output_data = layer_->forward(input_data);
 
     for (size_t i = 0; i < consumers_.size(); ++i) {
@@ -114,6 +116,10 @@ public:
       output_grads.push_back(consumer->grad());
     }
 
+    std::cout << fmt::format("Backwarding layer: {}, with first output grad with shape: {}.",
+                             layer_->name(), output_grads[0]->shape_str())
+              << std::endl;
+
     Vec<Tensor> input_grads = layer_->backward(output_grads);
 
     for (size_t i = 0; i < producers_.size(); ++i) {
@@ -123,10 +129,10 @@ public:
 
   const Vec<Node> &producers() const { return producers_; }
   const Vec<Node> &consumers() const { return consumers_; }
-  std::shared_ptr<Layer> layer() const { return layer_; }
+  std::shared_ptr<LayerImpl> layer() const { return layer_; }
 
 private:
-  std::shared_ptr<Layer> layer_;
+  std::shared_ptr<LayerImpl> layer_;
   Vec<Node> producers_;
   Vec<Node> consumers_;
 };
@@ -143,21 +149,21 @@ public:
   void compile(IAllocator &allocator) {
     sort();
     GraphContextDescriptor ctx_desc;
-    std::set<Layer *> unique_layers;
+    std::set<LayerImpl *> unique_layers;
     for (const auto &edge : edges_) {
-      Layer *layer_ptr = edge->layer().get();
+      LayerImpl *layer_ptr = edge->layer().get();
       if (unique_layers.count(layer_ptr) == 0) {
         unique_layers.insert(layer_ptr);
       }
     }
-    for (Layer *layer_ptr : unique_layers) {
+    for (LayerImpl *layer_ptr : unique_layers) {
       for (const auto &param_desc : layer_ptr->param_descriptors()) {
         ctx_desc.register_desc(param_desc);
       }
     }
     context_ = std::make_unique<GraphContext>(allocator, ctx_desc);
     auto ws_allocator = DELAllocatorV2::instance(context_->device(), defaultFlowHandle);
-    for (Layer *layer_ptr : unique_layers) {
+    for (LayerImpl *layer_ptr : unique_layers) {
       layer_ptr->set_engine_type(allocator.device().get_engine());
       layer_ptr->set_allocator(*ws_allocator);
       layer_ptr->init();
@@ -167,14 +173,14 @@ public:
   Vec<Node> nodes() const { return nodes_; }
   Vec<Edge> edges() const { return edges_; }
 
-  void add_edge(std::shared_ptr<Layer> layer, const Vec<Node> &producers,
+  void add_edge(std::shared_ptr<LayerImpl> layer, const Vec<Node> &producers,
                 const Vec<Node> &consumers) {
     Edge edge = std::make_shared<EdgeImpl>(layer, producers, consumers);
     edges_.push_back(edge);
     on_add_edge(edge);
   }
 
-  void add_edge(std::shared_ptr<Layer> layer, std::initializer_list<Node> producers,
+  void add_edge(std::shared_ptr<LayerImpl> layer, std::initializer_list<Node> producers,
                 std::initializer_list<Node> consumers) {
     Edge edge = std::make_shared<EdgeImpl>(layer, producers, consumers);
     edges_.push_back(edge);
@@ -377,35 +383,6 @@ private:
     }
   }
 };
-
-template <typename LayerType>
-class LayerRef {
-public:
-  LayerRef(std::shared_ptr<LayerType> layer)
-      : layer_(layer) {}
-
-  LayerType *operator->() const { return layer_.get(); }
-  LayerType &operator*() const { return *layer_; }
-
-  operator std::shared_ptr<LayerType>() const { return layer_; }
-  std::shared_ptr<LayerType> get() const { return layer_; }
-
-  template <typename... Args>
-  decltype(auto) operator()(Args &&...args) const {
-    if (!layer_) {
-      throw std::runtime_error("LayerRef: underlying shared_ptr is null");
-    }
-    return (*layer_)(std::forward<Args>(args)...);
-  }
-
-private:
-  std::shared_ptr<LayerType> layer_;
-};
-
-template <typename LayerType, typename... Args>
-auto make_layer(Args &&...args) -> LayerRef<LayerType> {
-  return LayerRef<LayerType>(std::make_shared<LayerType>(std::forward<Args>(args)...));
-}
 
 }  // namespace graph_api_v2
 }  // namespace tnn

@@ -10,12 +10,11 @@
 #include <string>
 
 #include "nn/activations_impl/base_activation.hpp"
-#include "nn/layer.hpp"
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 
 namespace tnn {
 
-class ActivationLayer : public StatelessLayer {
+class ActivationLayerImpl : public SISOLayerImpl {
 private:
   std::unique_ptr<ActivationFunction> activation_;
 
@@ -25,12 +24,12 @@ private:
 public:
   static constexpr const char *TYPE_NAME = "activation";
 
-  explicit ActivationLayer(std::unique_ptr<ActivationFunction> activation,
-                           const std::string &name = "activation");
+  explicit ActivationLayerImpl(std::unique_ptr<ActivationFunction> activation,
+                               const std::string &name = "activation");
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<ActivationLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<ActivationLayerImpl> create_from_config(const LayerConfig &config);
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 };
 

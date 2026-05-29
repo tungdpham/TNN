@@ -10,17 +10,17 @@
 #include <string>
 
 #include "nn/activations_impl/sigmoid.hpp"
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
 
 /**
- * Sigmoid Layer with output caching
+ * Sigmoid LayerImpl with output caching
  * Caches the output activation during forward pass for efficient gradient computation.
  * Sigmoid gradient: grad_input = grad_output * output * (1 - output)
  */
-class SigmoidLayer : public StatelessLayer {
+class SigmoidLayerImpl : public SISOLayerImpl {
 private:
   std::unique_ptr<Sigmoid> activation_;
 
@@ -31,11 +31,11 @@ protected:
 public:
   static constexpr const char *TYPE_NAME = "sigmoid";
 
-  explicit SigmoidLayer(const std::string &name = "sigmoid");
+  explicit SigmoidLayerImpl(const std::string &name = "sigmoid");
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<SigmoidLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<SigmoidLayerImpl> create_from_config(const LayerConfig &config);
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;

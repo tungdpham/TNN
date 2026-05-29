@@ -4,7 +4,7 @@
 #include "type/type.hpp"
 
 namespace tnn {
-class IdentityLayer : public Layer {
+class IdentityLayerImpl : public LayerImpl {
 private:
   void init_impl() override {
     // no-op
@@ -33,7 +33,7 @@ private:
   }
 
 public:
-  IdentityLayer(const std::string &name = "identity");
+  IdentityLayerImpl(const std::string &name = "identity");
 
   static constexpr const char *TYPE_NAME = "identity";
 
@@ -48,8 +48,8 @@ public:
     config.type = TYPE_NAME;
     return config;
   }
-  static std::unique_ptr<IdentityLayer> create_from_config(const LayerConfig &config) {
-    return std::make_unique<IdentityLayer>(config.name);
+  static std::unique_ptr<IdentityLayerImpl> create_from_config(const LayerConfig &config) {
+    return std::make_unique<IdentityLayerImpl>(config.name);
   }
 };
 }  // namespace tnn

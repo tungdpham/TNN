@@ -12,13 +12,12 @@
 #include <unordered_map>
 
 #include "device/task.hpp"
-#include "nn/layer.hpp"
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
 
-class AvgPool2DLayer : public StatelessLayer {
+class AvgPool2DLayerImpl : public SISOLayerImpl {
 private:
   size_t pool_h_;
   size_t pool_w_;
@@ -46,13 +45,13 @@ private:
 public:
   static constexpr const char *TYPE_NAME = "avgpool2d";
 
-  AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
+  AvgPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
                  size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "avgpool2d");
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  static std::unique_ptr<AvgPool2DLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<AvgPool2DLayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

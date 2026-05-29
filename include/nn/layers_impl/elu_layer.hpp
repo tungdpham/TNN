@@ -10,12 +10,12 @@
 #include <string>
 
 #include "nn/activations_impl/elu.hpp"
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
 
-class ELULayer : public StatelessLayer {
+class ELULayerImpl : public SISOLayerImpl {
 private:
   std::unique_ptr<ELU> activation_;
   float alpha_;
@@ -27,11 +27,11 @@ protected:
 public:
   static constexpr const char *TYPE_NAME = "elu";
 
-  explicit ELULayer(float alpha = 1.0f, const std::string &name = "elu");
+  explicit ELULayerImpl(float alpha = 1.0f, const std::string &name = "elu");
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<ELULayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<ELULayerImpl> create_from_config(const LayerConfig &config);
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;

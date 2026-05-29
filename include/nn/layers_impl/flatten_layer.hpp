@@ -10,12 +10,12 @@
 #include <string>
 #include <unordered_map>
 
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
 
-class FlattenLayer : public StatelessLayer {
+class FlattenLayerImpl : public SISOLayerImpl {
 private:
   std::unordered_map<size_t, Vec<size_t>> micro_batch_original_shapes_;
   int start_dim_;
@@ -25,14 +25,14 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  explicit FlattenLayer(int start_dim = 1, int end_dim = -1, const std::string &name = "flatten");
+  explicit FlattenLayerImpl(int start_dim = 1, int end_dim = -1, const std::string &name = "flatten");
 
   static constexpr const char *TYPE_NAME = "flatten";
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  static std::unique_ptr<FlattenLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<FlattenLayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

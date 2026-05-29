@@ -19,11 +19,11 @@ TEST_F(FP16Test, Dense) {
   auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto fp32_dense_layer = std::make_unique<DenseLayer>(128, 64, false, "fp32_dense");
+  auto fp32_dense_layer = std::make_unique<DenseLayerImpl>(128, 64, false, "fp32_dense");
   fp32_dense_layer->set_io_dtype(DType_t::FP32);
   auto &fp32_node = builder.add_layer(std::move(fp32_dense_layer));
 
-  auto fp16_dense_layer = std::make_unique<DenseLayer>(128, 64, false, "fp16_dense");
+  auto fp16_dense_layer = std::make_unique<DenseLayerImpl>(128, 64, false, "fp16_dense");
   fp16_dense_layer->set_io_dtype(DType_t::FP16);
   fp16_dense_layer->set_param_dtype(DType_t::FP16);
   auto &fp16_node = builder.add_layer(std::move(fp16_dense_layer));

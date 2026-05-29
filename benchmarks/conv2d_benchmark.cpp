@@ -12,11 +12,11 @@ signed main() {
   auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto conv_layer = make_unique<Conv2DLayer>(16, 128, 3, 3, 1, 1, 0, 0, true, "conv2d_test");
+  auto conv_layer = make_unique<Conv2DLayerImpl>(16, 128, 3, 3, 1, 1, 0, 0, true, "conv2d_test");
   auto &conv_node = builder.add_layer(std::move(conv_layer));
 
   auto legacy_layer =
-      make_unique<LegacyConv2DLayer>(16, 128, 3, 3, 1, 1, 0, 0, true, "legacy_conv2d_test");
+      make_unique<LegacyConv2DLayerImpl>(16, 128, 3, 3, 1, 1, 0, 0, true, "legacy_conv2d_test");
   auto &legacy_node = builder.add_layer(std::move(legacy_layer));
 
   Graph graph = builder.compile(allocator);

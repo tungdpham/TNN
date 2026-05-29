@@ -4,18 +4,21 @@
 #include "nn/layer.hpp"
 
 namespace tnn {
-class SISOLayer : virtual public Layer {
+class SISOLayerImpl : virtual public LayerImpl {
 public:
-  SISOLayer() = default;
+  SISOLayerImpl() = default;
+  SISOLayerImpl(const std::string &name)
+      : LayerImpl(name) {}
+
   Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) override {
     if (inputs.size() != 1) {
-      throw std::runtime_error("SISOLayer only supports single input");
+      throw std::runtime_error("SISOLayerImpl only supports single input");
     }
     return {forward_impl(inputs[0], mb_id)};
   }
   Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) override {
     if (grad_outputs.size() != 1) {
-      throw std::runtime_error("SISOLayer only supports single grad output");
+      throw std::runtime_error("SISOLayerImpl only supports single grad output");
     }
     return {backward_impl(grad_outputs[0], mb_id)};
   }
@@ -29,7 +32,7 @@ public:
     graph_api_v2::Graph *graph = input->graph();
     graph_api_v2::Node output = graph->make_node();
 
-    std::shared_ptr<Layer> self = shared_from_this();
+    std::shared_ptr<LayerImpl> self = shared_from_this();
 
     graph->add_edge(self, {input}, {output});
     return output;

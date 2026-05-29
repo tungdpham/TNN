@@ -20,15 +20,15 @@
 
 namespace tnn {
 
-LegacyBatchNormLayer::LegacyBatchNormLayer(size_t num_features, float epsilon, float momentum,
+LegacyBatchNormLayerImpl::LegacyBatchNormLayerImpl(size_t num_features, float epsilon, float momentum,
                                            bool affine, const std::string &name)
-    : ParameterizedLayer(name),
+    : SISOLayerImpl(name),
       num_features_(num_features),
       epsilon_(epsilon),
       momentum_(momentum),
       affine_(affine) {}
 
-void LegacyBatchNormLayer::init_impl() {
+void LegacyBatchNormLayerImpl::init_impl() {
   gamma_->fill(1.0f);
   beta_->fill(0.0f);
 
@@ -42,7 +42,7 @@ void LegacyBatchNormLayer::init_impl() {
   dummy_var_gradients_->fill(0.0f);
 }
 
-Tensor LegacyBatchNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor LegacyBatchNormLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() < 3) {
     throw std::invalid_argument("BatchNorm: Input tensor must have at least 3 dimensions");
   }
@@ -53,11 +53,11 @@ Tensor LegacyBatchNormLayer::forward_impl(const ConstTensor &input, size_t mb_id
   return def_forward(input, mb_id);
 }
 
-Tensor LegacyBatchNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor LegacyBatchNormLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   return def_backward(grad_output, mb_id);
 }
 
-Tensor LegacyBatchNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
+Tensor LegacyBatchNormLayerImpl::def_forward(const ConstTensor &input, size_t mb_id) {
   size_t batch_size, channels, spatial_size;
   batch_size = input->dimension(0);
   channels = input->dimension(1);
@@ -89,7 +89,7 @@ Tensor LegacyBatchNormLayer::def_forward(const ConstTensor &input, size_t mb_id)
   return output;
 }
 
-Tensor LegacyBatchNormLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
+Tensor LegacyBatchNormLayerImpl::def_backward(const ConstTensor &grad_output, size_t mb_id) {
   const Tensor &norm = this->get_mutable_cache(mb_id, "norm");
   const Tensor &inv_std = this->get_mutable_cache(mb_id, "inv_std");
 
@@ -106,17 +106,17 @@ Tensor LegacyBatchNormLayer::def_backward(const ConstTensor &grad_output, size_t
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyBatchNormLayer::run_inference_impl(const ConstTensor &input,
+std::unique_ptr<Task> LegacyBatchNormLayerImpl::run_inference_impl(const ConstTensor &input,
                                                                const Tensor &output,
                                                                size_t batch_size, size_t channels,
                                                                size_t spatial_size,
                                                                flowHandle_t handle) {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
-        "LegacyBatchNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
+        "LegacyBatchNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("LegacyBatchNormLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("LegacyBatchNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
   if (input->device_type() != output->device_type() ||
       input->device_type() != running_mean_->device_type() ||
@@ -152,7 +152,7 @@ std::unique_ptr<Task> LegacyBatchNormLayer::run_inference_impl(const ConstTensor
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyBatchNormLayer::run_inference(const ConstTensor &input,
+std::unique_ptr<Task> LegacyBatchNormLayerImpl::run_inference(const ConstTensor &input,
                                                           const Tensor &output, size_t batch_size,
                                                           size_t channels, size_t spatial_size,
                                                           flowHandle_t handle) {
@@ -161,7 +161,7 @@ std::unique_ptr<Task> LegacyBatchNormLayer::run_inference(const ConstTensor &inp
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyBatchNormLayer::run_forward(
+std::unique_ptr<Task> LegacyBatchNormLayerImpl::run_forward(
     const ConstTensor &input, const Tensor &batch_mean, const Tensor &batch_inv_std,
     const Tensor &running_mean, const Tensor &running_var, const ConstTensor &gamma,
     const ConstTensor &beta, const Tensor &output, const Tensor &norm, size_t batch_size,
@@ -191,7 +191,7 @@ std::unique_ptr<Task> LegacyBatchNormLayer::run_forward(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyBatchNormLayer::run_backward(
+std::unique_ptr<Task> LegacyBatchNormLayerImpl::run_backward(
     const ConstTensor &grad_output, const ConstTensor &norm_input, const ConstTensor &inv_std,
     const ConstTensor &gamma, const Tensor &d_gamma, const Tensor &d_beta, const Tensor &grad_input,
     size_t batch_size, size_t channels, size_t spatial_size, flowHandle_t handle) {
@@ -217,7 +217,7 @@ std::unique_ptr<Task> LegacyBatchNormLayer::run_backward(
   return nullptr;
 }
 
-LayerConfig LegacyBatchNormLayer::get_config() const {
+LayerConfig LegacyBatchNormLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -228,18 +228,18 @@ LayerConfig LegacyBatchNormLayer::get_config() const {
   return config;
 }
 
-Vec<size_t> LegacyBatchNormLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> LegacyBatchNormLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   return input_shape;
 }
 
-std::unique_ptr<LegacyBatchNormLayer> LegacyBatchNormLayer::create_from_config(
+std::unique_ptr<LegacyBatchNormLayerImpl> LegacyBatchNormLayerImpl::create_from_config(
     const LayerConfig &config) {
   size_t num_features = config.get<size_t>("num_features");
   float epsilon = config.get<float>("epsilon");
   float momentum = config.get<float>("momentum");
   bool affine = config.get<bool>("affine");
 
-  return std::make_unique<LegacyBatchNormLayer>(num_features, epsilon, momentum, affine,
+  return std::make_unique<LegacyBatchNormLayerImpl>(num_features, epsilon, momentum, affine,
                                                 config.name);
 }
 

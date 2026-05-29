@@ -51,7 +51,7 @@ TEST_F(PartitionerTest, NaivePipelineModelPartition) {
   NaivePipelinePartitioner partitioner(config);
 
   size_t num_partitions = 3;
-  vector<Layer *> layer_ptrs;
+  vector<LayerImpl *> layer_ptrs;
   for (const auto &layer : layers) {
     layer_ptrs.push_back(layer.get());
   }
@@ -93,7 +93,7 @@ TEST_F(PartitionerTest, NaiveDataModelPartition) {
   NaivePartitionerConfig config{{{1, 1, 1}}};
   NaiveDataPartitioner partitioner(config);
 
-  vector<Layer *> layer_ptrs;
+  vector<LayerImpl *> layer_ptrs;
   for (const auto &layer : layers) {
     layer_ptrs.push_back(layer.get());
   }
@@ -162,7 +162,7 @@ TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
 //   WeightedPartitionerConfig config{{{2, 1}, {64, 32, 32, 3}}};
 //   WeightedPipelinePartitioner partitioner(config);
 
-//   vector<Layer *> layer_ptrs;
+//   vector<LayerImpl *> layer_ptrs;
 //   for (const auto &layer : layers) {
 //     layer_ptrs.push_back(layer.get());
 //   }
@@ -192,7 +192,7 @@ TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
 //   WeightedPartitionerConfig config{{{1, 1, 1}, {64, 28, 28, 1}}};
 //   WeightedPipelinePartitioner partitioner(config);
 
-//   vector<Layer *> layer_ptrs;
+//   vector<LayerImpl *> layer_ptrs;
 //   for (const auto &layer : layers) {
 //     layer_ptrs.push_back(layer.get());
 //   }
@@ -222,7 +222,7 @@ TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
 //   WeightedPartitionerConfig config{{{4, 2, 2, 1}, {64, 32, 32, 3}}};
 //   WeightedPipelinePartitioner partitioner(config);
 
-//   vector<Layer *> layer_ptrs;
+//   vector<LayerImpl *> layer_ptrs;
 //   for (const auto &layer : layers) {
 //     layer_ptrs.push_back(layer.get());
 //   }
@@ -252,7 +252,7 @@ TEST_F(PartitionerTest, NaivePipelineEqualProportions) {
   NaivePartitionerConfig config{{{1, 1}}};
   NaivePipelinePartitioner partitioner(config);
 
-  vector<Layer *> layer_ptrs;
+  vector<LayerImpl *> layer_ptrs;
   for (const auto &layer : layers) {
     layer_ptrs.push_back(layer.get());
   }
@@ -274,7 +274,7 @@ TEST_F(PartitionerTest, NaivePipelineSinglePartition) {
   NaivePartitionerConfig config{{{1}}};
   NaivePipelinePartitioner partitioner(config);
 
-  vector<Layer *> layer_ptrs;
+  vector<LayerImpl *> layer_ptrs;
   for (const auto &layer : layers) {
     layer_ptrs.push_back(layer.get());
   }

@@ -11,11 +11,11 @@
 
 namespace tnn {
 
-GELULayer::GELULayer(const std::string &name)
-    : StatelessLayer(name),
+GELULayerImpl::GELULayerImpl(const std::string &name)
+    : SISOLayerImpl(name),
       activation_(std::make_unique<GELU>()) {}
 
-Tensor GELULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor GELULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (this->is_training_) {
     // Cache input for backward pass (GELU gradient requires input values)
     set_immutable_cache(mb_id, "input", input);
@@ -26,10 +26,10 @@ Tensor GELULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor GELULayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor GELULayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
-    throw std::runtime_error("No cached input found for backward pass in GELULayer");
+    throw std::runtime_error("No cached input found for backward pass in GELULayerImpl");
   }
 
   Tensor grad_input = get_output_tensor(input->shape());
@@ -37,15 +37,15 @@ Tensor GELULayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   return grad_input;
 }
 
-LayerConfig GELULayer::get_config() const {
+LayerConfig GELULayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
   return config;
 }
 
-std::unique_ptr<GELULayer> GELULayer::create_from_config(const LayerConfig &config) {
-  return std::make_unique<GELULayer>(config.name);
+std::unique_ptr<GELULayerImpl> GELULayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_unique<GELULayerImpl>(config.name);
 }
 
 }  // namespace tnn

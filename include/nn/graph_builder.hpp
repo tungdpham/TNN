@@ -20,7 +20,7 @@ public:
 
   size_t num_nodes() const { return op_nodes_.size() + io_nodes_.size(); }
 
-  OpNode& add_layer(std::unique_ptr<Layer> siso_layer) {
+  OpNode& add_layer(std::unique_ptr<LayerImpl> siso_layer) {
     std::string uid = "op_" + std::to_string(node_count_++);
     OpNode new_node(uid, std::move(siso_layer));
     auto& node = add_op_node(std::move(new_node));

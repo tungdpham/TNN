@@ -28,10 +28,10 @@ private:
   size_t head_dim_;
   bool is_causal_;
 
-  std::unique_ptr<DenseLayer> q_proj_;
-  std::unique_ptr<DenseLayer> k_proj_;
-  std::unique_ptr<DenseLayer> v_proj_;
-  std::unique_ptr<DenseLayer> out_proj_;
+  std::unique_ptr<DenseLayerImpl> q_proj_;
+  std::unique_ptr<DenseLayerImpl> k_proj_;
+  std::unique_ptr<DenseLayerImpl> v_proj_;
+  std::unique_ptr<DenseLayerImpl> out_proj_;
 
 #ifdef USE_CUDNN
   void build_graph(const Vec<size_t> &input_shape) const;
@@ -57,7 +57,7 @@ private:
 #endif
   mutable std::unordered_map<size_t, AttentionStats> stats_cache;
 
-  Vec<Layer *> layers() override {
+  Vec<LayerImpl *> layers() override {
     return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
   }
 

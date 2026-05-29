@@ -111,11 +111,11 @@ protected:
 
 TEST_F(ResidualBlockTest, IdentityShortcutForward) {
   // Create simple main path: single layer that multiplies by 2
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2x"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2x"));
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_residual");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "identity_residual");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -141,12 +141,12 @@ TEST_F(ResidualBlockTest, IdentityShortcutForward) {
 }
 
 TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_neg2x"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_neg2x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "identity_relu");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "relu", "identity_relu");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -170,12 +170,12 @@ TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
 }
 
 TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(2, 2, 1, 1, 1, 1, 0, 0, false, "scale_half"));
+      std::make_unique<LegacyConv2DLayerImpl>(2, 2, 1, 1, 1, 1, 0, 0, false, "scale_half"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_multichannel");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "identity_multichannel");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -206,12 +206,12 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
 }
 
 TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_multibatch");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "identity_multibatch");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -241,14 +241,14 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
 // Projection Shortcut Tests
 
 TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_half"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_half"));
 
   // Projection shortcut: 1x1 conv with scale 0.25
-  Vec<std::unique_ptr<Layer>> shortcut;
+  Vec<std::unique_ptr<LayerImpl>> shortcut;
   shortcut.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_quarter"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_quarter"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut),
                                                         "none", "projection_residual");
@@ -275,13 +275,13 @@ TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
 }
 
 TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_neg"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_neg"));
 
-  Vec<std::unique_ptr<Layer>> shortcut;
+  Vec<std::unique_ptr<LayerImpl>> shortcut;
   shortcut.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_short"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_short"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut),
                                                         "relu", "projection_relu");
@@ -310,12 +310,12 @@ TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
 // Backward Pass Tests
 
 TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2x"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "identity_backward");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "identity_backward");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -353,11 +353,11 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
 }
 
 TEST_F(ResidualBlockTest, ComputeOutputShape) {
-  Vec<std::unique_ptr<Layer>> main_path;
-  main_path.push_back(std::make_unique<LegacyConv2DLayer>(3, 3, 1, 1, 1, 1, 0, 0, false, "scale"));
+  Vec<std::unique_ptr<LayerImpl>> main_path;
+  main_path.push_back(std::make_unique<LegacyConv2DLayerImpl>(3, 3, 1, 1, 1, 1, 0, 0, false, "scale"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "test_shape");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "test_shape");
   ResidualBlock *residual = residual_layer.get();
 
   Vec<size_t> input_shape = {1, 3, 32, 32};
@@ -370,12 +370,12 @@ TEST_F(ResidualBlockTest, ComputeOutputShape) {
 // Edge Cases and Numerical Stability
 
 TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2x"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "zero_gradient");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "zero_gradient");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -399,12 +399,12 @@ TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
 }
 
 TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "large_values");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "large_values");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -428,12 +428,12 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
 }
 
 TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_neg"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_neg"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "negative_values");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "negative_values");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -457,12 +457,12 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
 }
 
 TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "small_values");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "small_values");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -486,12 +486,12 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
 }
 
 TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "backward_stability");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "backward_stability");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -519,14 +519,14 @@ TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
 // Multi-path and Complex Scenarios
 
 TEST_F(ResidualBlockTest, MultiLayerMainPath) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1"));
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "multi_layer");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "multi_layer");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -551,14 +551,14 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
 }
 
 TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1"));
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "none", "multi_layer_backward");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "none", "multi_layer_backward");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -587,12 +587,12 @@ TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
 }
 
 TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_zero"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_zero"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "relu_suppression");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "relu", "relu_suppression");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -616,12 +616,12 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
 }
 
 TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
-  Vec<std::unique_ptr<Layer>> main_path;
+  Vec<std::unique_ptr<LayerImpl>> main_path;
   main_path.push_back(
-      std::make_unique<LegacyConv2DLayer>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_zero"));
+      std::make_unique<LegacyConv2DLayerImpl>(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_zero"));
 
   auto residual_layer = std::make_unique<ResidualBlock>(
-      std::move(main_path), Vec<std::unique_ptr<Layer>>{}, "relu", "relu_suppression_bwd");
+      std::move(main_path), Vec<std::unique_ptr<LayerImpl>>{}, "relu", "relu_suppression_bwd");
   ResidualBlock *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;

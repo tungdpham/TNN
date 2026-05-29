@@ -9,12 +9,12 @@
 #include <memory>
 #include <string>
 
-#include "nn/layers_impl/parameterized_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
 
-class PositionalEmbeddingLayer : public ParameterizedLayer {
+class PositionalEmbeddingLayerImpl : public SISOLayerImpl {
 private:
   size_t embed_dim_;
   size_t seq_len_;
@@ -48,7 +48,7 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  explicit PositionalEmbeddingLayer(size_t embed_dim, size_t seq_len,
+  explicit PositionalEmbeddingLayerImpl(size_t embed_dim, size_t seq_len,
                                     const std::string &name = "pos_embedding");
 
   static constexpr const char *TYPE_NAME = "pos_embedding";
@@ -58,7 +58,7 @@ public:
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
 public:
-  static std::unique_ptr<PositionalEmbeddingLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<PositionalEmbeddingLayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

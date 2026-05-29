@@ -41,10 +41,10 @@ FlashAttentionBlock::FlashAttentionBlock(size_t embed_dim, size_t num_heads, boo
   }
   head_dim_ = embed_dim / num_heads;
 
-  q_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_q");
-  k_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_k");
-  v_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_v");
-  out_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_out");
+  q_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_q");
+  k_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_k");
+  v_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_v");
+  out_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_out");
 }
 
 FlashAttentionBlock::~FlashAttentionBlock() {

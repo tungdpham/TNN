@@ -15,27 +15,28 @@
 
 namespace tnn {
 
-void Layer::set_engine_type(EngineType engine_type) {
+void LayerImpl::set_engine_type(EngineType engine_type) {
   engine_type_ = engine_type;
   on_set_engine_type(engine_type);
 }
 
-EngineType Layer::get_engine_type() const { return engine_type_; }
+EngineType LayerImpl::get_engine_type() const { return engine_type_; }
 
-void Layer::init() {
+void LayerImpl::init() {
   if (initialized_) {
-    throw std::runtime_error("Cannot initalize Layer more than once. ");
+    throw std::runtime_error("Cannot initalize LayerImpl more than once. ");
   }
   if (engine_type_ == EngineType::UNKNOWN) {
-    throw std::runtime_error("Engine type must be set to a valid value before initializing Layer.");
+    throw std::runtime_error(
+        "Engine type must be set to a valid value before initializing LayerImpl.");
   }
   init_impl();
   initialized_ = true;
 }
 
-Vec<Tensor> Layer::forward(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> LayerImpl::forward(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (!initialized_) {
-    throw std::runtime_error("Layer must be initialized before calling forward");
+    throw std::runtime_error("LayerImpl must be initialized before calling forward");
   }
   is_fwd_ = true;
   Vec<ConstTensor> current_inputs;
@@ -52,9 +53,9 @@ Vec<Tensor> Layer::forward(const Vec<ConstTensor> &inputs, size_t mb_id) {
   return outputs;
 }
 
-Vec<Tensor> Layer::backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> LayerImpl::backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   if (!initialized_) {
-    throw std::runtime_error("Layer must be initialized before calling backward");
+    throw std::runtime_error("LayerImpl must be initialized before calling backward");
   }
   is_fwd_ = false;
   Vec<ConstTensor> current_grad_outputs;
@@ -72,62 +73,62 @@ Vec<Tensor> Layer::backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id) 
   return grad_inputs;
 }
 
-Layer &Layer::set_allocator(DELAllocatorV2 &allocator) {
+LayerImpl &LayerImpl::set_allocator(DELAllocatorV2 &allocator) {
   allocator_ = &allocator;
   on_set_allocator(allocator);
   return *this;
 }
 
-DELAllocatorV2 *Layer::get_allocator() const { return allocator_; }
+DELAllocatorV2 *LayerImpl::get_allocator() const { return allocator_; }
 
-Layer &Layer::set_flow_handle(flowHandle_t handle) {
+LayerImpl &LayerImpl::set_flow_handle(flowHandle_t handle) {
   flow_handle_ = handle;
   on_set_flow_handle(handle);
   return *this;
 }
 
-flowHandle_t Layer::get_flow_handle() const { return flow_handle_; }
+flowHandle_t LayerImpl::get_flow_handle() const { return flow_handle_; }
 
-Layer &Layer::set_io_dtype(DType_t dtype) {
+LayerImpl &LayerImpl::set_io_dtype(DType_t dtype) {
   io_dtype_ = dtype;
   on_set_io_dtype(dtype);
   return *this;
 }
 
-DType_t Layer::get_io_dtype() const { return io_dtype_; }
+DType_t LayerImpl::get_io_dtype() const { return io_dtype_; }
 
-Layer &Layer::set_param_dtype(DType_t dtype) {
+LayerImpl &LayerImpl::set_param_dtype(DType_t dtype) {
   param_dtype_ = dtype;
   on_set_param_dtype(dtype);
   return *this;
 }
 
-DType_t Layer::get_param_dtype() const { return param_dtype_; }
+DType_t LayerImpl::get_param_dtype() const { return param_dtype_; }
 
-Layer &Layer::set_compute_dtype(DType_t dtype) {
+LayerImpl &LayerImpl::set_compute_dtype(DType_t dtype) {
   compute_dtype_ = dtype;
   on_set_compute_dtype(dtype);
   return *this;
 }
 
-DType_t Layer::get_compute_dtype() const { return compute_dtype_; }
+DType_t LayerImpl::get_compute_dtype() const { return compute_dtype_; }
 
-Layer &Layer::set_seed(unsigned long long seed) {
+LayerImpl &LayerImpl::set_seed(unsigned long long seed) {
   use_seed_ = true;
   srand_seed_ = seed;
   on_set_seed(seed);
   return *this;
 }
 
-Layer &Layer::set_training(bool training) {
+LayerImpl &LayerImpl::set_training(bool training) {
   is_training_ = training;
   on_set_training(training);
   return *this;
 }
 
-bool Layer::is_training() const { return is_training_; }
+bool LayerImpl::is_training() const { return is_training_; }
 
-void Layer::save_state(std::ofstream &file) {
+void LayerImpl::save_state(std::ofstream &file) {
   auto config = get_config();
   nlohmann::json j = config.to_json();
   std::string j_str = j.dump();
@@ -141,7 +142,7 @@ void Layer::save_state(std::ofstream &file) {
   }
 }
 
-Vec<Tensor> Layer::parameters() {
+Vec<Tensor> LayerImpl::parameters() {
   Vec<Tensor> params;
   auto descs = this->param_descriptors();
   for (const auto &desc : descs) {
@@ -150,7 +151,7 @@ Vec<Tensor> Layer::parameters() {
   return params;
 }
 
-Vec<Tensor> Layer::gradients() {
+Vec<Tensor> LayerImpl::gradients() {
   Vec<Tensor> grads;
   auto descs = this->param_descriptors();
   for (const auto &desc : descs) {
@@ -159,36 +160,36 @@ Vec<Tensor> Layer::gradients() {
   return grads;
 }
 
-Tensor Layer::get_tensor(const Vec<size_t> &shape, DType_t dtype) {
+Tensor LayerImpl::get_tensor(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
   return make_tensor(dtype, shape, device());
 }
 
-void Layer::set_immutable_cache(size_t mb_id, const std::string &key, ConstTensor value) {
+void LayerImpl::set_immutable_cache(size_t mb_id, const std::string &key, ConstTensor value) {
   if (!is_training_) {
     return;  // no need to cache in inference mode
   }
   immutable_cache_[{mb_id, key}] = std::move(value);
 }
 
-ConstTensor &Layer::get_immutable_cache(size_t mb_id, const std::string &key) {
+ConstTensor &LayerImpl::get_immutable_cache(size_t mb_id, const std::string &key) {
   return immutable_cache_[{mb_id, key}];
 }
 
-void Layer::set_mutable_cache(size_t mb_id, const std::string &key, Tensor value) {
+void LayerImpl::set_mutable_cache(size_t mb_id, const std::string &key, Tensor value) {
   if (!is_training_) {
     return;  // no need to cache in inference mode
   }
   mutable_cache_[{mb_id, key}] = std::move(value);
 }
 
-Tensor &Layer::get_mutable_cache(size_t mb_id, const std::string &key) {
+Tensor &LayerImpl::get_mutable_cache(size_t mb_id, const std::string &key) {
   return mutable_cache_[{mb_id, key}];
 }
 
-Tensor Layer::get_output_tensor(const Vec<size_t> &shape) {
+Tensor LayerImpl::get_output_tensor(const Vec<size_t> &shape) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
@@ -196,7 +197,7 @@ Tensor Layer::get_output_tensor(const Vec<size_t> &shape) {
   return output_tensor;
 }
 
-Tensor Layer::get_cache_tensor(const Vec<size_t> &shape, DType_t dtype) {
+Tensor LayerImpl::get_cache_tensor(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
@@ -204,7 +205,7 @@ Tensor Layer::get_cache_tensor(const Vec<size_t> &shape, DType_t dtype) {
   return cache_tensor;
 }
 
-Tensor Layer::get_workspace(const Vec<size_t> &shape, DType_t dtype) {
+Tensor LayerImpl::get_workspace(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
@@ -212,7 +213,7 @@ Tensor Layer::get_workspace(const Vec<size_t> &shape, DType_t dtype) {
   return workspace_tensor;
 }
 
-void Layer::clear_cache(size_t mb_id) {
+void LayerImpl::clear_cache(size_t mb_id) {
   for (auto it = immutable_cache_.begin(); it != immutable_cache_.end();) {
     if (it->first.first == mb_id) {
       it = immutable_cache_.erase(it);

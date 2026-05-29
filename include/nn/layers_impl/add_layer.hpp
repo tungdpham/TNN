@@ -16,7 +16,7 @@
 namespace tnn {
 
 // Element-wise addition layer.
-class AddLayer : public Layer {
+class AddLayerImpl : public LayerImpl {
 protected:
   Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) override;
   Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) override;
@@ -24,7 +24,7 @@ protected:
 public:
   static constexpr const char *TYPE_NAME = "add";
 
-  explicit AddLayer(const std::string &name = "add") { this->name_ = name; }
+  explicit AddLayerImpl(const std::string &name = "add") { this->name_ = name; }
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
@@ -33,19 +33,19 @@ public:
 
   graph_api_v2::Node operator()(const graph_api_v2::Node &a, const graph_api_v2::Node &b) {
     if (!a || !b) {
-      throw std::runtime_error("AddLayer: input nodes cannot be null");
+      throw std::runtime_error("AddLayerImpl: input nodes cannot be null");
     }
     graph_api_v2::Graph *graph = a->graph();
     if (graph != b->graph()) {
-      throw std::runtime_error("AddLayer: both input nodes must belong to the same graph");
+      throw std::runtime_error("AddLayerImpl: both input nodes must belong to the same graph");
     }
     graph_api_v2::Node output = graph->make_node();
-    std::shared_ptr<Layer> self = shared_from_this();
+    std::shared_ptr<LayerImpl> self = shared_from_this();
     graph->add_edge(self, {a, b}, {output});
     return output;
   }
 
-  static std::unique_ptr<AddLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<AddLayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

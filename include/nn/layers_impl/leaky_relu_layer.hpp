@@ -10,12 +10,12 @@
 #include <string>
 
 #include "nn/activations_impl/leaky_relu.hpp"
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
 
-class LeakyReLULayer : public StatelessLayer {
+class LeakyReLULayerImpl : public SISOLayerImpl {
 private:
   std::unique_ptr<LeakyReLU> activation_;
   float negative_slope_;
@@ -27,11 +27,11 @@ protected:
 public:
   static constexpr const char *TYPE_NAME = "leaky_relu";
 
-  explicit LeakyReLULayer(float negative_slope = 0.01f, const std::string &name = "leaky_relu");
+  explicit LeakyReLULayerImpl(float negative_slope = 0.01f, const std::string &name = "leaky_relu");
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<LeakyReLULayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<LeakyReLULayerImpl> create_from_config(const LayerConfig &config);
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;

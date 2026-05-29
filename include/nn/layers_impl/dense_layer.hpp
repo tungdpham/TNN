@@ -7,7 +7,7 @@
 #pragma once
 
 #include "math/common/gemm.hpp"
-#include "parameterized_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 #ifdef USE_CUDNN
 #include "math/cuda/cudnn_gemm.hpp"
@@ -18,7 +18,7 @@
 
 namespace tnn {
 
-class DenseLayer : public ParameterizedLayer {
+class DenseLayerImpl : public SISOLayerImpl {
 private:
   size_t input_features_;
   size_t output_features_;
@@ -76,10 +76,10 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  DenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
+  DenseLayerImpl(size_t input_features, size_t output_features, bool use_bias = true,
              const std::string &name = "dense");
 
-  ~DenseLayer();
+  ~DenseLayerImpl();
 
   static constexpr const char *TYPE_NAME = "dense";
 
@@ -87,7 +87,7 @@ public:
   LayerConfig get_config() const override;
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<DenseLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<DenseLayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

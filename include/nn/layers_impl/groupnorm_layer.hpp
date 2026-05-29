@@ -9,12 +9,12 @@
 #include <memory>
 #include <string>
 
-#include "parameterized_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
 
-class GroupNormLayer : public ParameterizedLayer {
+class GroupNormLayerImpl : public SISOLayerImpl {
 private:
   size_t num_groups_;
   size_t num_channels_;
@@ -68,7 +68,7 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  GroupNormLayer(size_t num_groups, size_t num_channels, float epsilon = 1e-5f, bool affine = true,
+  GroupNormLayerImpl(size_t num_groups, size_t num_channels, float epsilon = 1e-5f, bool affine = true,
                  const std::string &name = "groupnorm");
 
   static constexpr const char *TYPE_NAME = "groupnorm";
@@ -77,7 +77,7 @@ public:
   LayerConfig get_config() const override;
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  static std::unique_ptr<GroupNormLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<GroupNormLayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

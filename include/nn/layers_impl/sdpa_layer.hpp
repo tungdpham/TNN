@@ -18,10 +18,10 @@
 
 namespace tnn {
 
-// Scaled Dot-Product Attention Layer
+// Scaled Dot-Product Attention LayerImpl
 // Accepts 3 inputs: Q (B,H,S,D), K (B,H,S,D), V (B,H,S,D)
 // Outputs: O (B,H,S,D)
-class SDPALayer : public Layer {
+class SDPALayerImpl : public LayerImpl {
 private:
   float attn_scale_;  // Attention scale factor (typically 1/sqrt(head_dim))
   bool is_causal_;    // Whether to apply causal masking
@@ -64,9 +64,9 @@ public:
   static constexpr const char *TYPE_NAME = "sdpa";
 
   // attn_scale typically = 1/sqrt(head_dim)
-  SDPALayer(float attn_scale = 1.0f, bool is_causal = false, const std::string &name = "sdpa");
+  SDPALayerImpl(float attn_scale = 1.0f, bool is_causal = false, const std::string &name = "sdpa");
 
-  ~SDPALayer() override;
+  ~SDPALayerImpl() override;
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
@@ -84,13 +84,13 @@ public:
     }
     graph_api_v2::Node output = graph->make_node();
 
-    std::shared_ptr<Layer> self = shared_from_this();
+    std::shared_ptr<LayerImpl> self = shared_from_this();
 
     graph->add_edge(self, {q, k, v}, {output});
     return output;
   }
 
-  static std::unique_ptr<SDPALayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<SDPALayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

@@ -17,11 +17,11 @@
 
 namespace tnn {
 
-ClassTokenLayer::ClassTokenLayer(size_t embed_dim, const std::string &name)
-    : ParameterizedLayer(name),
+ClassTokenLayerImpl::ClassTokenLayerImpl(size_t embed_dim, const std::string &name)
+    : SISOLayerImpl(name),
       embed_dim_(embed_dim) {}
 
-void ClassTokenLayer::init_impl() {
+void ClassTokenLayerImpl::init_impl() {
   float bound = static_cast<float>(1.0 / std::sqrt(static_cast<double>(embed_dim_)));
 
   if (this->use_seed_) {
@@ -34,19 +34,19 @@ void ClassTokenLayer::init_impl() {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> ClassTokenLayer::forward_task(const ConstTensor &input, const Tensor &output,
+std::unique_ptr<Task> ClassTokenLayerImpl::forward_task(const ConstTensor &input, const Tensor &output,
                                                     const ConstTensor &class_token,
                                                     size_t batch_size, size_t seq_len,
                                                     size_t embed_dim, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
-        "ClassTokenLayer mixed dtype dispatch not implemented (io/param/compute must match).");
+        "ClassTokenLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("ClassTokenLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("ClassTokenLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
   if (class_token->data_type() != dtype_of<Param_T>()) {
-    throw std::runtime_error("ClassTokenLayer class_token dtype mismatch with dispatch Param_T");
+    throw std::runtime_error("ClassTokenLayerImpl class_token dtype mismatch with dispatch Param_T");
   }
 
   if (get_engine_type() == EngineType::CPU) {
@@ -68,7 +68,7 @@ std::unique_ptr<Task> ClassTokenLayer::forward_task(const ConstTensor &input, co
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> ClassTokenLayer::backward_task(const ConstTensor &grad_output,
+std::unique_ptr<Task> ClassTokenLayerImpl::backward_task(const ConstTensor &grad_output,
                                                      const Tensor &grad_input,
                                                      const Tensor &class_token_gradients,
                                                      const ConstTensor &class_token,
@@ -76,14 +76,14 @@ std::unique_ptr<Task> ClassTokenLayer::backward_task(const ConstTensor &grad_out
                                                      size_t embed_dim, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
-        "ClassTokenLayer mixed dtype dispatch not implemented (io/param/compute must match).");
+        "ClassTokenLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
   if (grad_output->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("ClassTokenLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("ClassTokenLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
   if (class_token_gradients->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error(
-        "ClassTokenLayer class_token_gradients dtype mismatch with dispatch Param_T");
+        "ClassTokenLayerImpl class_token_gradients dtype mismatch with dispatch Param_T");
   }
 
   if (get_engine_type() == EngineType::CPU) {
@@ -106,17 +106,17 @@ std::unique_ptr<Task> ClassTokenLayer::backward_task(const ConstTensor &grad_out
   return nullptr;
 }
 
-Tensor ClassTokenLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor ClassTokenLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 3) {
     throw std::runtime_error(
-        "ClassTokenLayer: Input tensor must have 3 dimensions (Batch, Seq, Embed)");
+        "ClassTokenLayerImpl: Input tensor must have 3 dimensions (Batch, Seq, Embed)");
   }
   size_t batch_size = input->dimension(0);
   size_t seq_len = input->dimension(1);
   size_t embed_dim = input->dimension(2);
 
   if (embed_dim != embed_dim_) {
-    throw std::runtime_error("ClassTokenLayer: Input embed_dim must match layer embed_dim");
+    throw std::runtime_error("ClassTokenLayerImpl: Input embed_dim must match layer embed_dim");
   }
 
   Tensor output = get_output_tensor({batch_size, seq_len + 1, embed_dim});
@@ -127,10 +127,10 @@ Tensor ClassTokenLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor ClassTokenLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor ClassTokenLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   if (grad_output->dims() != 3) {
     throw std::runtime_error(
-        "ClassTokenLayer: Gradient tensor must have 3 dimensions (Batch, Seq, Embed)");
+        "ClassTokenLayerImpl: Gradient tensor must have 3 dimensions (Batch, Seq, Embed)");
   }
   size_t batch_size = grad_output->dimension(0);
   size_t seq_len_plus_1 = grad_output->dimension(1);
@@ -145,7 +145,7 @@ Tensor ClassTokenLayer::backward_impl(const ConstTensor &grad_output, size_t mb_
   return grad_input;
 }
 
-LayerConfig ClassTokenLayer::get_config() const {
+LayerConfig ClassTokenLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -153,9 +153,9 @@ LayerConfig ClassTokenLayer::get_config() const {
   return config;
 }
 
-Vec<size_t> ClassTokenLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> ClassTokenLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() < 3) {
-    throw std::runtime_error("ClassTokenLayer: Input shape must have at least 3 dimensions");
+    throw std::runtime_error("ClassTokenLayerImpl: Input shape must have at least 3 dimensions");
   }
   size_t batch_size = input_shape[0];
   size_t seq_len = input_shape[1];
@@ -163,9 +163,9 @@ Vec<size_t> ClassTokenLayer::compute_output_shape(const Vec<size_t> &input_shape
   return {batch_size, seq_len + 1, embed_dim};
 }
 
-std::unique_ptr<ClassTokenLayer> ClassTokenLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<ClassTokenLayerImpl> ClassTokenLayerImpl::create_from_config(const LayerConfig &config) {
   size_t embed_dim = config.get<size_t>("embed_dim");
-  return std::make_unique<ClassTokenLayer>(embed_dim, config.name);
+  return std::make_unique<ClassTokenLayerImpl>(embed_dim, config.name);
 }
 
 }  // namespace tnn

@@ -26,14 +26,14 @@
 
 namespace tnn {
 
-LayerNormLayer::LayerNormLayer(size_t normalized_shape, float epsilon, bool affine,
+LayerNormLayerImpl::LayerNormLayerImpl(size_t normalized_shape, float epsilon, bool affine,
                                const std::string &name)
-    : ParameterizedLayer(name),
+    : SISOLayerImpl(name),
       normalized_shape_(normalized_shape),
       epsilon_(epsilon),
       affine_(affine) {}
 
-LayerNormLayer::~LayerNormLayer() {
+LayerNormLayerImpl::~LayerNormLayerImpl() {
 #ifdef USE_CUDNN
   for (auto &pair : fe_handle_cache) {
     if (pair.second) {
@@ -45,7 +45,7 @@ LayerNormLayer::~LayerNormLayer() {
 #endif
 }
 
-void LayerNormLayer::init_impl() {
+void LayerNormLayerImpl::init_impl() {
   gamma_->fill(1.0f);
   beta_->fill(0.0f);
 
@@ -54,19 +54,19 @@ void LayerNormLayer::init_impl() {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LayerNormLayer::run_forward(const ConstTensor &input, const Tensor &output,
+std::unique_ptr<Task> LayerNormLayerImpl::run_forward(const ConstTensor &input, const Tensor &output,
                                                   const ConstTensor &gamma, const ConstTensor &beta,
                                                   size_t batch_size, size_t channels,
                                                   flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
-        "LayerNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
+        "LayerNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("LayerNormLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("LayerNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
   if (gamma && gamma->data_type() != dtype_of<Param_T>()) {
-    throw std::runtime_error("LayerNormLayer gamma dtype mismatch with dispatch Param_T");
+    throw std::runtime_error("LayerNormLayerImpl gamma dtype mismatch with dispatch Param_T");
   }
 
   if (get_engine_type() == EngineType::CPU) {
@@ -89,19 +89,19 @@ std::unique_ptr<Task> LayerNormLayer::run_forward(const ConstTensor &input, cons
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LayerNormLayer::run_backward(
+std::unique_ptr<Task> LayerNormLayerImpl::run_backward(
     const ConstTensor &grad_output, const ConstTensor &input, const ConstTensor &gamma,
     const Tensor &grad_input, const Tensor &gamma_gradients, const Tensor &beta_gradients,
     size_t batch_size, size_t channels, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
-        "LayerNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
+        "LayerNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
   if (grad_output->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("LayerNormLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("LayerNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
   if (gamma && gamma->data_type() != dtype_of<Param_T>()) {
-    throw std::runtime_error("LayerNormLayer gamma dtype mismatch with dispatch Param_T");
+    throw std::runtime_error("LayerNormLayerImpl gamma dtype mismatch with dispatch Param_T");
   }
 
   if (get_engine_type() == EngineType::CPU) {
@@ -130,7 +130,7 @@ std::unique_ptr<Task> LayerNormLayer::run_backward(
 }
 
 #ifdef USE_CUDNN
-void LayerNormLayer::build_graph(const Vec<size_t> &input_shape) const {
+void LayerNormLayerImpl::build_graph(const Vec<size_t> &input_shape) const {
   size_t batch_size = 1;
   for (size_t i = 0; i < input_shape.size() - 1; ++i) {
     batch_size *= input_shape[i];
@@ -153,16 +153,16 @@ void LayerNormLayer::build_graph(const Vec<size_t> &input_shape) const {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LayerNormLayer::cudnn_run_forward(
+std::unique_ptr<Task> LayerNormLayerImpl::cudnn_run_forward(
     cuda::cudnn_layer_norm::feHandle_t *fe_handle, LayerNormStats &stats, const ConstTensor &input,
     const Tensor &output, const ConstTensor &gamma, const ConstTensor &beta, const Tensor &mean,
     const Tensor &inv_variance, const Tensor &workspace, size_t batch_size, size_t channels,
     flowHandle_t handle) const {
   if (!std::is_same_v<IO_T, Param_T>) {
-    throw std::runtime_error("LayerNormLayer IO_T and Param_T must be the same type");
+    throw std::runtime_error("LayerNormLayerImpl IO_T and Param_T must be the same type");
   }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("LayerNormLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("LayerNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 
   return create_cuda_task(handle, cuda::cudnn_layer_norm::run_forward, fe_handle, stats,
@@ -172,17 +172,17 @@ std::unique_ptr<Task> LayerNormLayer::cudnn_run_forward(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LayerNormLayer::cudnn_run_backward(
+std::unique_ptr<Task> LayerNormLayerImpl::cudnn_run_backward(
     cuda::cudnn_layer_norm::feHandle_t *fe_handle, LayerNormStats &stats,
     const ConstTensor &grad_output, const ConstTensor &input, const ConstTensor &gamma,
     const Tensor &grad_input, const Tensor &gamma_gradients, const Tensor &beta_gradients,
     const ConstTensor &mean, const ConstTensor &inv_variance, const Tensor &workspace,
     size_t batch_size, size_t channels, flowHandle_t handle) const {
   if (!std::is_same_v<IO_T, Param_T>) {
-    throw std::runtime_error("LayerNormLayer IO_T and Param_T must be the same type");
+    throw std::runtime_error("LayerNormLayerImpl IO_T and Param_T must be the same type");
   }
   if (grad_output->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("LayerNormLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("LayerNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 
   return create_cuda_task(handle, cuda::cudnn_layer_norm::run_backward, fe_handle, stats,
@@ -192,7 +192,7 @@ std::unique_ptr<Task> LayerNormLayer::cudnn_run_backward(
                           beta_gradients ? beta_gradients->data() : nullptr, workspace->data());
 }
 
-Tensor LayerNormLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
+Tensor LayerNormLayerImpl::cudnn_forward(const ConstTensor &input, size_t mb_id) {
   if (this->is_training_) {
     set_immutable_cache(mb_id, "input", input);
   }
@@ -231,7 +231,7 @@ Tensor LayerNormLayer::cudnn_forward(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_id) {
+Tensor LayerNormLayerImpl::cudnn_backward(const ConstTensor &grad_output, size_t mb_id) {
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
@@ -259,7 +259,7 @@ Tensor LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_
   const Tensor &batch_invar = this->get_mutable_cache(mb_id, "batch_invar");
   if (!batch_mean || !batch_invar) {
     throw std::runtime_error(
-        "No cached batch statistics found for micro-batch ID in LayerNormLayer: " +
+        "No cached batch statistics found for micro-batch ID in LayerNormLayerImpl: " +
         std::to_string(mb_id));
   }
 
@@ -284,7 +284,7 @@ Tensor LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, size_t mb_
 }
 #endif
 
-Tensor LayerNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
+Tensor LayerNormLayerImpl::def_forward(const ConstTensor &input, size_t mb_id) {
   const auto &shape = input->shape();
   size_t last_dim = shape.back();
   size_t channels = last_dim;
@@ -301,7 +301,7 @@ Tensor LayerNormLayer::def_forward(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor LayerNormLayer::def_backward(const ConstTensor &grad_output, size_t mb_id) {
+Tensor LayerNormLayerImpl::def_backward(const ConstTensor &grad_output, size_t mb_id) {
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
@@ -324,7 +324,7 @@ Tensor LayerNormLayer::def_backward(const ConstTensor &grad_output, size_t mb_id
   return grad_input;
 }
 
-Tensor LayerNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor LayerNormLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (this->is_training_) {
     ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
     cached_input = input;
@@ -340,7 +340,7 @@ Tensor LayerNormLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   }
 }
 
-Tensor LayerNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor LayerNormLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
 #ifdef USE_CUDNN
   if (get_engine_type() == EngineType::CUDA) {
     return cudnn_backward(grad_output, mb_id);
@@ -351,7 +351,7 @@ Tensor LayerNormLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
   }
 }
 
-LayerConfig LayerNormLayer::get_config() const {
+LayerConfig LayerNormLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -361,11 +361,11 @@ LayerConfig LayerNormLayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<LayerNormLayer> LayerNormLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<LayerNormLayerImpl> LayerNormLayerImpl::create_from_config(const LayerConfig &config) {
   size_t normalized_shape = config.get<size_t>("normalized_shape");
   float epsilon = config.get<float>("epsilon", 1e-5f);
   bool affine = config.get<bool>("affine", true);
-  return std::make_unique<LayerNormLayer>(normalized_shape, epsilon, affine, config.name);
+  return std::make_unique<LayerNormLayerImpl>(normalized_shape, epsilon, affine, config.name);
 }
 
 }  // namespace tnn

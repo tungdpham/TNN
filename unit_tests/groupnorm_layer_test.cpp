@@ -20,7 +20,7 @@
 using namespace tnn;
 
 /**
- * Test fixture for GroupNormLayer validation tests.
+ * Test fixture for GroupNormLayerImpl validation tests.
  * These tests verify the mathematical correctness of group normalization operations
  * including forward and backward passes.
  */
@@ -160,7 +160,7 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
   GraphBuilder builder;
 
   auto layer_layer =
-      std::make_unique<GroupNormLayer>(num_groups, num_channels, 1e-5f, false, "test_gn");
+      std::make_unique<GroupNormLayerImpl>(num_groups, num_channels, 1e-5f, false, "test_gn");
   auto &node = builder.add_layer(std::move(layer_layer));
 
   Graph graph = builder.compile(allocator);
@@ -189,7 +189,7 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
   GraphBuilder builder;
 
   auto layer_layer =
-      std::make_unique<GroupNormLayer>(num_groups, num_channels, 1e-5f, true, "test_gn_affine");
+      std::make_unique<GroupNormLayerImpl>(num_groups, num_channels, 1e-5f, true, "test_gn_affine");
   auto &node = builder.add_layer(std::move(layer_layer));
 
   Graph graph = builder.compile(allocator);
@@ -223,7 +223,7 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
   GraphBuilder builder;
 
   auto layer_layer =
-      std::make_unique<GroupNormLayer>(num_groups, num_channels, 1e-5f, false, "test_gn_single");
+      std::make_unique<GroupNormLayerImpl>(num_groups, num_channels, 1e-5f, false, "test_gn_single");
   auto &node = builder.add_layer(std::move(layer_layer));
 
   Graph graph = builder.compile(allocator);
@@ -252,7 +252,7 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
   GraphBuilder builder;
 
   auto layer_layer =
-      std::make_unique<GroupNormLayer>(num_groups, num_channels, 1e-5f, false, "test_gn_instance");
+      std::make_unique<GroupNormLayerImpl>(num_groups, num_channels, 1e-5f, false, "test_gn_instance");
   auto &node = builder.add_layer(std::move(layer_layer));
 
   Graph graph = builder.compile(allocator);
@@ -281,7 +281,7 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   GraphBuilder builder;
 
   auto layer_layer =
-      std::make_unique<GroupNormLayer>(num_groups, num_channels, 1e-5f, true, "test_gn_backward");
+      std::make_unique<GroupNormLayerImpl>(num_groups, num_channels, 1e-5f, true, "test_gn_backward");
   auto &node = builder.add_layer(std::move(layer_layer));
 
   Graph graph = builder.compile(allocator);
@@ -322,14 +322,14 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
 
 TEST_F(GroupNormLayerTest, InvalidConfiguration) {
   EXPECT_THROW(
-      { auto layer_layer = std::make_unique<GroupNormLayer>(3, 5, 1e-5f, true, "invalid"); },
+      { auto layer_layer = std::make_unique<GroupNormLayerImpl>(3, 5, 1e-5f, true, "invalid"); },
       std::invalid_argument);
 }
 
 TEST_F(GroupNormLayerTest, ConfigurationRoundTrip) {
   size_t num_groups = 2;
   size_t num_channels = 6;
-  GroupNormLayer original(num_groups, num_channels, 1e-5f, true, "test_config");
+  GroupNormLayerImpl original(num_groups, num_channels, 1e-5f, true, "test_config");
 
   LayerConfig config = original.get_config();
   EXPECT_EQ(config.name, "test_config");
@@ -338,7 +338,7 @@ TEST_F(GroupNormLayerTest, ConfigurationRoundTrip) {
   EXPECT_FLOAT_EQ(config.get<float>("epsilon"), 1e-5f);
   EXPECT_TRUE(config.get<bool>("affine"));
 
-  auto restored = GroupNormLayer::create_from_config(config);
+  auto restored = GroupNormLayerImpl::create_from_config(config);
   EXPECT_NE(restored, nullptr);
   EXPECT_EQ(restored->type(), "groupnorm");
 }

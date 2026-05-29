@@ -12,13 +12,13 @@ using namespace std;
 signed main() {
   auto& allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
   GraphBuilder builder;
-  auto conv_layer = make_unique<Conv2DLayer>(3, 64, 3, 3, 1, 1, 1, 1, true, "conv2d_test");
+  auto conv_layer = make_unique<Conv2DLayerImpl>(3, 64, 3, 3, 1, 1, 1, 1, true, "conv2d_test");
   auto& conv_node = builder.add_layer(std::move(conv_layer));
 
-  auto bn_layer = make_unique<BatchNormLayer>(64, 1e-5f, 0.1, true, true, "batchnorm_test");
+  auto bn_layer = make_unique<BatchNormLayerImpl>(64, 1e-5f, 0.1, true, true, "batchnorm_test");
   auto& bn_node = builder.add_layer(std::move(bn_layer));
 
-  auto maxpool_layer = make_unique<MaxPool2DLayer>(2, 2, 2, 2, 0, 0, "maxpool_test");
+  auto maxpool_layer = make_unique<MaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "maxpool_test");
   auto& maxpool_node = builder.add_layer(std::move(maxpool_layer));
 
   Graph graph = builder.compile(allocator);

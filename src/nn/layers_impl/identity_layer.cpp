@@ -8,7 +8,7 @@
 
 namespace tnn {
 
-IdentityLayer::IdentityLayer(const std::string &name)
-    : Layer(name) {}
+IdentityLayerImpl::IdentityLayerImpl(const std::string &name)
+    : LayerImpl(name) {}
 
 }  // namespace tnn

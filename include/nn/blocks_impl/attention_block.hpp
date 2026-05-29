@@ -25,10 +25,10 @@ private:
   size_t head_dim_;
   bool is_causal_;
 
-  std::unique_ptr<DenseLayer> q_proj_;
-  std::unique_ptr<DenseLayer> k_proj_;
-  std::unique_ptr<DenseLayer> v_proj_;
-  std::unique_ptr<DenseLayer> out_proj_;
+  std::unique_ptr<DenseLayerImpl> q_proj_;
+  std::unique_ptr<DenseLayerImpl> k_proj_;
+  std::unique_ptr<DenseLayerImpl> v_proj_;
+  std::unique_ptr<DenseLayerImpl> out_proj_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_attention_forward(const ConstTensor &q, const ConstTensor &k,
@@ -44,7 +44,7 @@ private:
                                                    size_t batch_size, size_t seq_len,
                                                    flowHandle_t handle);
 
-  Vec<Layer *> layers() override {
+  Vec<LayerImpl *> layers() override {
     return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
   }
 

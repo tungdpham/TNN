@@ -17,11 +17,11 @@ constexpr float EPSILON = 1e-3f;
 signed main() {
   auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
   GraphBuilder builder;
-  auto dense_layer = make_unique<DenseLayer>(INPUT_FEATURES, OUTPUT_FEATURES, "dense_test");
+  auto dense_layer = make_unique<DenseLayerImpl>(INPUT_FEATURES, OUTPUT_FEATURES, "dense_test");
   auto &dense_op = builder.add_layer(std::move(dense_layer));
 
   auto legacy_layer =
-      make_unique<LegacyDenseLayer>(INPUT_FEATURES, OUTPUT_FEATURES, true, "legacy_dense_test");
+      make_unique<LegacyDenseLayerImpl>(INPUT_FEATURES, OUTPUT_FEATURES, true, "legacy_dense_test");
   auto &legacy_op = builder.add_layer(std::move(legacy_layer));
 
   Graph graph = builder.compile(allocator);

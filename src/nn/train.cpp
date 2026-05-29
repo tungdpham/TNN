@@ -108,8 +108,8 @@ void TrainingConfig::print_config() const {
                ? "None"
                : (profiler_type == ProfilerType::NORMAL ? "Normal" : "Cumulative"))
        << endl;
-  cout << "  Print Layer Profiling Info: " << (print_layer_profiling ? "Yes" : "No") << endl;
-  cout << "  Print Layer Memory Usage: " << (print_layer_memory_usage ? "Yes" : "No") << endl;
+  cout << "  Print LayerImpl Profiling Info: " << (print_layer_profiling ? "Yes" : "No") << endl;
+  cout << "  Print LayerImpl Memory Usage: " << (print_layer_memory_usage ? "Yes" : "No") << endl;
   cout << "  Number of Microbatches: " << num_microbatches << endl;
   cout << "  Device Type: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
   cout << "  Data Prefetch: " << (prefetch_data ? "Yes" : "No") << endl;
