@@ -44,8 +44,8 @@ LayerConfig GELULayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<GELULayerImpl> GELULayerImpl::create_from_config(const LayerConfig &config) {
-  return std::make_unique<GELULayerImpl>(config.name);
+std::shared_ptr<GELULayerImpl> GELULayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<GELULayerImpl>(config.name);
 }
 
 }  // namespace tnn

@@ -202,7 +202,7 @@ Vec<size_t> LegacyAvgPool2DLayerImpl::compute_output_shape(const Vec<size_t> &in
   return {batch_size, channels, output_h, output_w};
 }
 
-std::unique_ptr<LegacyAvgPool2DLayerImpl> LegacyAvgPool2DLayerImpl::create_from_config(
+std::shared_ptr<LegacyAvgPool2DLayerImpl> LegacyAvgPool2DLayerImpl::create_from_config(
     const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
@@ -211,7 +211,7 @@ std::unique_ptr<LegacyAvgPool2DLayerImpl> LegacyAvgPool2DLayerImpl::create_from_
   size_t pad_h = config.get<size_t>("pad_h");
   size_t pad_w = config.get<size_t>("pad_w");
 
-  return std::make_unique<LegacyAvgPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+  return std::make_shared<LegacyAvgPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                                                 config.name);
 }
 

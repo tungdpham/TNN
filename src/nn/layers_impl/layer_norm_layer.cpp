@@ -361,11 +361,11 @@ LayerConfig LayerNormLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<LayerNormLayerImpl> LayerNormLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<LayerNormLayerImpl> LayerNormLayerImpl::create_from_config(const LayerConfig &config) {
   size_t normalized_shape = config.get<size_t>("normalized_shape");
   float epsilon = config.get<float>("epsilon", 1e-5f);
   bool affine = config.get<bool>("affine", true);
-  return std::make_unique<LayerNormLayerImpl>(normalized_shape, epsilon, affine, config.name);
+  return std::make_shared<LayerNormLayerImpl>(normalized_shape, epsilon, affine, config.name);
 }
 
 }  // namespace tnn

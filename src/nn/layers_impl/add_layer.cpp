@@ -70,8 +70,8 @@ LayerConfig AddLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<AddLayerImpl> AddLayerImpl::create_from_config(const LayerConfig &config) {
-  return std::make_unique<AddLayerImpl>(config.name.empty() ? "add" : config.name);
+std::shared_ptr<AddLayerImpl> AddLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<AddLayerImpl>(config.name.empty() ? "add" : config.name);
 }
 
 }  // namespace tnn

@@ -77,7 +77,7 @@ private:
 
 public:
   DenseLayerImpl(size_t input_features, size_t output_features, bool use_bias = true,
-             const std::string &name = "dense");
+                 const std::string &name = "dense");
 
   ~DenseLayerImpl();
 
@@ -87,7 +87,17 @@ public:
   LayerConfig get_config() const override;
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<DenseLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<DenseLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class DenseLayer : public LayerRef<DenseLayerImpl> {
+public:
+  DenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
+             const std::string &name = "dense")
+      : LayerRef(
+            std::make_shared<DenseLayerImpl>(input_features, output_features, use_bias, name)) {}
+
+  using LayerRef<DenseLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

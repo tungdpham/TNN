@@ -63,8 +63,8 @@ LayerConfig TanhLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<TanhLayerImpl> TanhLayerImpl::create_from_config(const LayerConfig &config) {
-  return std::make_unique<TanhLayerImpl>(config.name);
+std::shared_ptr<TanhLayerImpl> TanhLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<TanhLayerImpl>(config.name);
 }
 
 }  // namespace tnn

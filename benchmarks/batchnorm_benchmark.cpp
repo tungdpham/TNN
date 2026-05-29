@@ -2,10 +2,10 @@
 #include <memory>
 
 #include "device/device_manager.hpp"
+#include "device/pool_allocator.hpp"
 #include "nn/activations_impl/relu.hpp"
-#include "nn/graph.hpp"
-#include "nn/graph_builder.hpp"
-#include "nn/layers_impl/activation_layer.hpp"
+#include "nn/graph_api.hpp"
+#include "nn/layers.hpp"
 #include "nn/layers_impl/batchnorm_layer.hpp"
 #include "nn/layers_impl/legacy_batchnorm_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -20,45 +20,37 @@ constexpr size_t WIDTH = 128;
 constexpr float EPSILON = 2e-2f;
 
 signed main() {
-  auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
-  GraphBuilder builder;
+  auto &device = getGPU();
+  auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
+
+  Graph graph;
+  auto input = graph.make_node("input");
 
   // fuse relu
-  auto bn_layer =
-      make_unique<BatchNormLayerImpl>(NUM_FEATURES, 1e-5f, 0.1f, true, true, "batchnorm_test");
-  auto &bn_node = builder.add_layer(std::move(bn_layer));
+  auto bn_layer = BatchNormLayer(NUM_FEATURES, 1e-5f, 0.1f, true, true, "batchnorm_test");
+  auto bn_output_node = bn_layer(input);
 
-  auto legacy_batchnorm_layer = make_unique<LegacyBatchNormLayerImpl>(
-      NUM_FEATURES, 1e-5f, 0.1f, true, "legacy_batchnorm_test");
-  auto relu_layer = make_unique<ActivationLayerImpl>(std::make_unique<ReLU>(), "relu_activation");
-  auto &legacy_bn_node = builder.add_layer(std::move(legacy_batchnorm_layer));
-  auto &relu_node = builder.add_layer(std::move(relu_layer));
+  auto legacy_batchnorm_layer =
+      LegacyBatchNormLayer(NUM_FEATURES, 1e-5f, 0.1f, true, "legacy_batchnorm_test");
+  auto legacy_bn_output = legacy_batchnorm_layer(input);
+  auto relu_layer = ActivationLayer(std::make_unique<ReLU>(), "relu_activation");
+  auto legacy_relu_output_node = relu_layer(legacy_bn_output);
 
-  // Connect bn_node with input and output
-  IONode &input_node = builder.io("input");
-  IONode &output_node = builder.io("output");
-  builder.add_edge({&input_node}, {&output_node}, bn_node);
+  graph.compile(allocator);
 
-  // Connect legacy_bn_node and relu_node in sequence
-  IONode &legacy_input_node = builder.io("legacy_input");
-  IONode &legacy_output_node = builder.io("relu_output");
-  IONode &legacy_intermediate = builder.io("legacy_bn_output");
-  builder.add_edge({&legacy_input_node}, {&legacy_intermediate}, legacy_bn_node);
-  builder.add_edge({&legacy_intermediate}, {&legacy_output_node}, relu_node);
-
-  Graph graph = builder.compile(allocator);
-
-  Tensor input = make_tensor<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, getGPU());
-  input->fill_random_normal(0.5f, 0.2f, 676767);
+  Tensor input_data = make_tensor<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, getGPU());
+  input_data->fill_random_normal(0.5f, 0.2f, 676767);
 
   // cold pass
-  Tensor output = bn_node.forward({input})[0];
+  Tensor output = bn_layer->forward({input_data})[0];
+  Tensor legacy_output = legacy_batchnorm_layer->forward({input_data})[0];
+  Tensor legacy_relu_output = relu_layer->forward({legacy_output})[0];
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    output = bn_node.forward({input})[0];
+    output = bn_layer->forward({input_data})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
@@ -73,20 +65,13 @@ signed main() {
   std::cout << "BatchNorm Average time per forward pass: " << duration.count() / passes << " ms"
             << std::endl;
 
-  Tensor legacy_input = make_tensor<float>({BATCH_SIZE, NUM_FEATURES, HEIGHT, WIDTH}, getGPU());
-  legacy_input->fill_random_normal(0.5f, 0.2f, 676767);
-
   // legacy batchnorm benchmark
-
-  // cold pass
-  Tensor legacy_output = legacy_bn_node.forward({legacy_input})[0];
-  Tensor legacy_relu_output = relu_node.forward({legacy_output})[0];
 
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    legacy_output = legacy_bn_node.forward({legacy_input})[0];
-    legacy_relu_output = relu_node.forward({legacy_output})[0];
+    legacy_output = legacy_batchnorm_layer->forward({input_data})[0];
+    legacy_relu_output = relu_layer->forward({legacy_output})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();

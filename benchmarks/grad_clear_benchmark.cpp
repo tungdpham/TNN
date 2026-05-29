@@ -1,28 +1,27 @@
 #include "device/device_manager.hpp"
 #include "nn/blocks_impl/sequential.hpp"
 #include "nn/example_models.hpp"
-#include "nn/graph.hpp"
-#include "nn/graph_builder.hpp"
-
+#include "nn/graph_api.hpp"
 using namespace tnn;
 using namespace std;
 
 signed main() {
   ExampleModels::register_defaults();
   auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
-  GraphBuilder builder;
 
-  Sequential temp_model = ExampleModels::create("gpt2_small");
-  auto model = std::make_unique<Sequential>(std::move(temp_model));
+  Sequential model = ExampleModels::create("gpt2_small");
   model->set_seed(123456);
-  auto &node = builder.add_layer(std::move(model));
-  Graph graph = builder.compile(allocator);
+  Graph graph;
+  auto input = graph.make_node("input");
+  auto output = model(input);
+  output->set_uid("output");
+  graph.compile(allocator);
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    auto grads = node.gradients();
+    auto grads = model->gradients();
     for (auto &grad : grads) {
       grad->fill(0.0);
     }
@@ -42,7 +41,7 @@ signed main() {
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    graph.context().zero_grads();
+    graph.context()->zero_grads();
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();

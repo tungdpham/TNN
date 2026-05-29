@@ -12,7 +12,7 @@
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/optimizers.hpp"
-#include "partitioner/naive_partitioner.hpp"
+#include "partitioner/graph_partitioner.hpp"
 #include "utils/env.hpp"
 
 using namespace tnn;
@@ -221,8 +221,7 @@ int main(int argc, char *argv[]) {
     split_ratios.push_back(static_cast<size_t>(std::stoi(token)));
   }
 
-  auto partitioner =
-      std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig(split_ratios));
+  auto partitioner = std::make_unique<GraphPartitioner>(split_ratios);
 
   CoordinatorConfig config{
       ParallelMode_t::PIPELINE, std::move(graph),        std::move(optimizer), std::move(scheduler),

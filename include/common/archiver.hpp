@@ -151,4 +151,24 @@ void archive(Archiver& archiver, Vec<size_t>& vec) {
   }
 }
 
+template <typename Archiver, typename T>
+  requires(!std::is_same_v<T, size_t>)
+void archive(Archiver& archiver, const Vec<T>& vec) {
+  archiver(static_cast<uint64_t>(vec.size()));
+  for (const auto& value : vec) {
+    archiver(value);
+  }
+}
+
+template <typename Archiver, typename T>
+  requires(!std::is_same_v<T, size_t>)
+void archive(Archiver& archiver, Vec<T>& vec) {
+  uint64_t vec_size = vec.size();
+  archiver(vec_size);
+  vec.resize(vec_size);
+  for (auto& value : vec) {
+    archiver(value);
+  }
+}
+
 }  // namespace tnn

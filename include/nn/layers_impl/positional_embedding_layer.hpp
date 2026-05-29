@@ -49,7 +49,7 @@ private:
 
 public:
   explicit PositionalEmbeddingLayerImpl(size_t embed_dim, size_t seq_len,
-                                    const std::string &name = "pos_embedding");
+                                        const std::string &name = "pos_embedding");
 
   static constexpr const char *TYPE_NAME = "pos_embedding";
 
@@ -58,7 +58,17 @@ public:
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
 public:
-  static std::unique_ptr<PositionalEmbeddingLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<PositionalEmbeddingLayerImpl> create_from_config(
+      const LayerConfig &config);
+};
+
+class PositionalEmbeddingLayer : public LayerRef<PositionalEmbeddingLayerImpl> {
+public:
+  explicit PositionalEmbeddingLayer(size_t embed_dim, size_t seq_len,
+                                    const std::string &name = "pos_embedding")
+      : LayerRef(std::make_shared<PositionalEmbeddingLayerImpl>(embed_dim, seq_len, name)) {}
+
+  using LayerRef<PositionalEmbeddingLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

@@ -233,7 +233,7 @@ Vec<size_t> MaxPool2DLayerImpl::compute_output_shape(const Vec<size_t> &input_sh
   return {batch_size, output_h, output_w, channels};
 }
 
-std::unique_ptr<MaxPool2DLayerImpl> MaxPool2DLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<MaxPool2DLayerImpl> MaxPool2DLayerImpl::create_from_config(const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
   size_t stride_h = config.get<size_t>("stride_h");
@@ -241,7 +241,7 @@ std::unique_ptr<MaxPool2DLayerImpl> MaxPool2DLayerImpl::create_from_config(const
   size_t pad_h = config.get<size_t>("pad_h");
   size_t pad_w = config.get<size_t>("pad_w");
 
-  return std::make_unique<MaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+  return std::make_shared<MaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                                           config.name);
 }
 

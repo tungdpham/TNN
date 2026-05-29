@@ -183,13 +183,13 @@ Vec<size_t> GroupNormLayerImpl::compute_output_shape(const Vec<size_t> &input_sh
   return input_shape;
 }
 
-std::unique_ptr<GroupNormLayerImpl> GroupNormLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<GroupNormLayerImpl> GroupNormLayerImpl::create_from_config(const LayerConfig &config) {
   size_t num_groups = config.get<size_t>("num_groups");
   size_t num_channels = config.get<size_t>("num_channels");
   float epsilon = config.get<float>("epsilon", 1e-5f);
   bool affine = config.get<bool>("affine");
 
-  return std::make_unique<GroupNormLayerImpl>(num_groups, num_channels, epsilon, affine, config.name);
+  return std::make_shared<GroupNormLayerImpl>(num_groups, num_channels, epsilon, affine, config.name);
 }
 
 }  // namespace tnn

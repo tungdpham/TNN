@@ -78,8 +78,8 @@ LayerConfig MulLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<MulLayerImpl> MulLayerImpl::create_from_config(const LayerConfig &config) {
-  return std::make_unique<MulLayerImpl>(config.name.empty() ? "mul" : config.name);
+std::shared_ptr<MulLayerImpl> MulLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<MulLayerImpl>(config.name.empty() ? "mul" : config.name);
 }
 
 }  // namespace tnn

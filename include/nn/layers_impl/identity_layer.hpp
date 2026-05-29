@@ -48,8 +48,16 @@ public:
     config.type = TYPE_NAME;
     return config;
   }
-  static std::unique_ptr<IdentityLayerImpl> create_from_config(const LayerConfig &config) {
-    return std::make_unique<IdentityLayerImpl>(config.name);
+  static std::shared_ptr<IdentityLayerImpl> create_from_config(const LayerConfig &config) {
+    return std::make_shared<IdentityLayerImpl>(config.name);
   }
+};
+
+class IdentityLayer : public LayerRef<IdentityLayerImpl> {
+public:
+  explicit IdentityLayer(const std::string &name = "identity")
+      : LayerRef(std::make_shared<IdentityLayerImpl>(name)) {}
+
+  using LayerRef<IdentityLayerImpl>::LayerRef;
 };
 }  // namespace tnn

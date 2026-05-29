@@ -39,7 +39,15 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  static std::unique_ptr<DropoutLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<DropoutLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class DropoutLayer : public LayerRef<DropoutLayerImpl> {
+public:
+  explicit DropoutLayer(float dropout_rate, const std::string &name = "dropout")
+      : LayerRef(std::make_shared<DropoutLayerImpl>(dropout_rate, name)) {}
+
+  using LayerRef<DropoutLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

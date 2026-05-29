@@ -44,7 +44,15 @@ public:
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<SliceLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<SliceLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class SliceLayer : public LayerRef<SliceLayerImpl> {
+public:
+  SliceLayer(size_t axis, size_t start, size_t length, const std::string &name = "slice")
+      : LayerRef(std::make_shared<SliceLayerImpl>(axis, start, length, name)) {}
+
+  using LayerRef<SliceLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

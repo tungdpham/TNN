@@ -95,8 +95,8 @@ LayerConfig DivLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<DivLayerImpl> DivLayerImpl::create_from_config(const LayerConfig &config) {
-  return std::make_unique<DivLayerImpl>(config.name.empty() ? "div" : config.name);
+std::shared_ptr<DivLayerImpl> DivLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<DivLayerImpl>(config.name.empty() ? "div" : config.name);
 }
 
 }  // namespace tnn

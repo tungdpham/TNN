@@ -1,7 +1,6 @@
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
-#include "nn/graph_builder.hpp"
 #include "nn/loss.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
@@ -19,7 +18,6 @@ signed main() {
   // Prioritize loading existing model, else create from available ones
   const auto &device = train_config.device_type == DeviceType::GPU ? getGPU(0) : getHost();
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
-  GraphBuilder builder;
 
   string dataset_name = "";
   Env::get("DATASET_NAME", dataset_name);

@@ -494,14 +494,14 @@ Vec<size_t> BatchNormLayerImpl::compute_output_shape(const Vec<size_t> &input_sh
   return input_shape;
 }
 
-std::unique_ptr<BatchNormLayerImpl> BatchNormLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<BatchNormLayerImpl> BatchNormLayerImpl::create_from_config(const LayerConfig &config) {
   size_t num_features = config.get<size_t>("num_features");
   float epsilon = config.get<float>("epsilon");
   float momentum = config.get<float>("momentum");
   bool affine = config.get<bool>("affine");
   bool use_relu = config.get<bool>("use_relu", false);
 
-  return std::make_unique<BatchNormLayerImpl>(num_features, epsilon, momentum, affine, use_relu,
+  return std::make_shared<BatchNormLayerImpl>(num_features, epsilon, momentum, affine, use_relu,
                                           config.name);
 }
 

@@ -5,7 +5,7 @@
 #include "device/device_manager.hpp"
 #include "nn/blocks_impl/attention_block.hpp"
 #include "nn/example_models.hpp"
-#include "nn/graph_builder.hpp"
+#include "nn/graph_api.hpp"
 #include "nn/layers.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
 #include "nn/loss.hpp"
@@ -24,21 +24,24 @@ TEST_F(BF16Test, Dense) {
   constexpr size_t input_dim = 32;
   constexpr size_t output_dim = 16;
   auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
-  GraphBuilder builder;
 
-  auto fp32_dense_layer = std::make_unique<DenseLayerImpl>(input_dim, output_dim, false, "fp32_dense");
+  auto fp32_dense_layer = DenseLayer(input_dim, output_dim, false, "fp32_dense");
   fp32_dense_layer->set_io_dtype(DType_t::FP32);
-  auto &fp32_node = builder.add_layer(std::move(fp32_dense_layer));
 
-  auto bf16_dense_layer = std::make_unique<DenseLayerImpl>(input_dim, output_dim, false, "bf16_dense");
+  auto bf16_dense_layer = DenseLayer(input_dim, output_dim, false, "bf16_dense");
   bf16_dense_layer->set_io_dtype(DType_t::BF16);
   bf16_dense_layer->set_param_dtype(DType_t::BF16);
-  auto &bf16_node = builder.add_layer(std::move(bf16_dense_layer));
 
-  Graph graph = builder.compile(allocator);
+  Graph graph;
+  Node input = graph.make_node("input");
+  Node fp32_output = fp32_dense_layer(input);
+  fp32_output->set_uid("fp32_output");
+  Node bf16_output = bf16_dense_layer(input);
+  bf16_output->set_uid("bf16_output");
+  graph.compile(allocator);
 
-  auto bf16_params = bf16_node.parameters();
-  auto fp32_params = fp32_node.parameters();
+  auto bf16_params = bf16_dense_layer->parameters();
+  auto fp32_params = fp32_dense_layer->parameters();
   for (size_t i = 0; i < bf16_params.size(); ++i) {
     bf16_params[i]->copy_to(fp32_params[i]);
   }
@@ -56,8 +59,8 @@ TEST_F(BF16Test, Dense) {
   Tensor input_fp32 = fp32_input->to_device(getGPU());
   Tensor input_bf16 = bf16_input->to_device(getGPU());
 
-  Tensor output_fp32 = fp32_node.forward({input_fp32})[0];
-  Tensor output_bf16 = bf16_node.forward({input_bf16})[0];
+  Tensor output_fp32 = fp32_dense_layer->forward({input_fp32})[0];
+  Tensor output_bf16 = bf16_dense_layer->forward({input_bf16})[0];
 
   Tensor cpu_output_fp32 = output_fp32->to_host();
   Tensor cpu_output_bf16 = output_bf16->to_host();
@@ -92,8 +95,8 @@ TEST_F(BF16Test, Dense) {
   auto gpu_gradient_fp32 = gradient_fp32->to_device(getGPU());
   auto gpu_gradient_bf16 = gradient_bf16->to_device(getGPU());
 
-  Tensor grad_input_bf16 = bf16_node.backward({gpu_gradient_bf16})[0];
-  Tensor grad_input_fp32 = fp32_node.backward({gpu_gradient_fp32})[0];
+  Tensor grad_input_bf16 = bf16_dense_layer->backward({gpu_gradient_bf16})[0];
+  Tensor grad_input_fp32 = fp32_dense_layer->backward({gpu_gradient_fp32})[0];
 
   Tensor cpu_grad_input_fp32 = grad_input_fp32->to_host();
   Tensor cpu_grad_input_bf16 = grad_input_bf16->to_host();
@@ -112,25 +115,24 @@ TEST_F(BF16Test, Attention) {
   constexpr size_t embed_dim = 16;
   constexpr size_t num_heads = 4;
   auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
-  GraphBuilder builder;
 
-  auto fp32_attention_layer =
-      std::make_unique<AttentionBlock>(embed_dim, num_heads, false, "fp32_attention");
-  AttentionBlock *fp32_attention = fp32_attention_layer.get();
-  fp32_attention->set_io_dtype(DType_t::FP32);
-  auto &fp32_node = builder.add_layer(std::move(fp32_attention_layer));
+  auto fp32_attention_layer = AttentionBlock(embed_dim, num_heads, false, "fp32_attention");
+  fp32_attention_layer->set_io_dtype(DType_t::FP32);
 
-  auto bf16_attention_layer =
-      std::make_unique<AttentionBlock>(embed_dim, num_heads, false, "bf16_attention");
-  AttentionBlock *bf16_attention = bf16_attention_layer.get();
-  bf16_attention->set_io_dtype(DType_t::BF16);
-  bf16_attention->set_param_dtype(DType_t::BF16);
-  auto &bf16_node = builder.add_layer(std::move(bf16_attention_layer));
+  auto bf16_attention_layer = AttentionBlock(embed_dim, num_heads, false, "bf16_attention");
+  bf16_attention_layer->set_io_dtype(DType_t::BF16);
+  bf16_attention_layer->set_param_dtype(DType_t::BF16);
 
-  Graph graph = builder.compile(allocator);
+  Graph graph;
+  Node input = graph.make_node("input");
+  Node fp32_output = fp32_attention_layer(input);
+  fp32_output->set_uid("fp32_output");
+  Node bf16_output = bf16_attention_layer(input);
+  bf16_output->set_uid("bf16_output");
+  graph.compile(allocator);
 
-  auto bf16_params = bf16_node.parameters();
-  auto fp32_params = fp32_node.parameters();
+  auto bf16_params = bf16_attention_layer->parameters();
+  auto fp32_params = fp32_attention_layer->parameters();
   for (size_t i = 0; i < bf16_params.size(); ++i) {
     Tensor cpu_bf16_param = bf16_params[i]->to_host();
     Tensor cpu_fp32_param = fp32_params[i]->to_host();
@@ -155,8 +157,8 @@ TEST_F(BF16Test, Attention) {
   Tensor input_fp32 = fp32_input->to_device(getGPU());
   Tensor input_bf16 = bf16_input->to_device(getGPU());
 
-  Tensor output_fp32 = fp32_attention->forward({input_fp32})[0];
-  Tensor output_bf16 = bf16_attention->forward({input_bf16})[0];
+  Tensor output_fp32 = fp32_attention_layer->forward({input_fp32})[0];
+  Tensor output_bf16 = bf16_attention_layer->forward({input_bf16})[0];
 
   Tensor cpu_output_fp32 = output_fp32->to_host();
   Tensor cpu_output_bf16 = output_bf16->to_host();
@@ -191,8 +193,8 @@ TEST_F(BF16Test, Attention) {
   auto gpu_gradient_fp32 = gradient_fp32->to_device(getGPU());
   auto gpu_gradient_bf16 = gradient_bf16->to_device(getGPU());
 
-  Tensor grad_input_bf16 = bf16_attention->backward({gpu_gradient_bf16})[0];
-  Tensor grad_input_fp32 = fp32_attention->backward({gpu_gradient_fp32})[0];
+  Tensor grad_input_bf16 = bf16_attention_layer->backward({gpu_gradient_bf16})[0];
+  Tensor grad_input_fp32 = fp32_attention_layer->backward({gpu_gradient_fp32})[0];
 
   Tensor cpu_grad_input_fp32 = grad_input_fp32->to_host();
   Tensor cpu_grad_input_bf16 = grad_input_bf16->to_host();

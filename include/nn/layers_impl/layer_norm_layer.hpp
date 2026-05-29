@@ -103,7 +103,7 @@ private:
 
 public:
   explicit LayerNormLayerImpl(size_t normalized_shape, float epsilon = 1e-5f, bool affine = true,
-                          const std::string &name = "layer_norm");
+                              const std::string &name = "layer_norm");
 
   ~LayerNormLayerImpl();
 
@@ -114,7 +114,16 @@ public:
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;
   }
-  static std::unique_ptr<LayerNormLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<LayerNormLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class LayerNormLayer : public LayerRef<LayerNormLayerImpl> {
+public:
+  explicit LayerNormLayer(size_t normalized_shape, float epsilon = 1e-5f, bool affine = true,
+                          const std::string &name = "layer_norm")
+      : LayerRef(std::make_shared<LayerNormLayerImpl>(normalized_shape, epsilon, affine, name)) {}
+
+  using LayerRef<LayerNormLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

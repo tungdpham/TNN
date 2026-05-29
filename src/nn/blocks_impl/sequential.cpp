@@ -23,7 +23,7 @@
 #include "type/type.hpp"
 
 namespace tnn {
-Vec<Tensor> Sequential::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> SequentialImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot forward through empty sequential model");
   }
@@ -44,7 +44,7 @@ Vec<Tensor> Sequential::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_i
   return current_outputs;
 }
 
-Vec<Tensor> Sequential::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> SequentialImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot backward through empty sequential model");
   }
@@ -64,14 +64,11 @@ Vec<Tensor> Sequential::backward_impl(const Vec<ConstTensor> &grad_outputs, size
   return grad_inputs;
 }
 
-Sequential::Sequential(Vec<std::unique_ptr<LayerImpl>> layers, const std::string &name)
-    : Block(name) {
-  for (auto &layer : layers) {
-    layers_.emplace_back(std::move(layer));
-  }
-}
+SequentialImpl::SequentialImpl(Vec<Layer> layers, const std::string &name)
+    : Block(name),
+      layers_(std::move(layers)) {}
 
-Vec<Vec<size_t>> Sequential::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
+Vec<Vec<size_t>> SequentialImpl::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   if (layers_.empty()) {
     return input_shapes;
   }
@@ -84,7 +81,7 @@ Vec<Vec<size_t>> Sequential::output_shapes(const Vec<Vec<size_t>> &input_shapes)
   return current_shapes;
 }
 
-void Sequential::print_summary(const Vec<size_t> &input_shape) const {
+void SequentialImpl::print_summary(const Vec<size_t> &input_shape) const {
   if (layers_.empty()) {
     std::cout << "Empty model.\n";
     return;
@@ -121,9 +118,9 @@ void Sequential::print_summary(const Vec<size_t> &input_shape) const {
   std::cout << std::string(100, '-') << "\n";
 }
 
-Vec<LayerImpl *> Sequential::get_layers() { return this->layers(); }
+Vec<LayerImpl *> SequentialImpl::get_layers() { return this->layers(); }
 
-LayerConfig Sequential::get_config() const {
+LayerConfig SequentialImpl::get_config() const {
   LayerConfig config;
   config.name = name_;
   config.type = TYPE_NAME;
@@ -136,8 +133,8 @@ LayerConfig Sequential::get_config() const {
   return config;
 }
 
-std::unique_ptr<Sequential> Sequential::create_from_config(const LayerConfig &config) {
-  Vec<std::unique_ptr<LayerImpl>> layers;
+std::shared_ptr<SequentialImpl> SequentialImpl::create_from_config(const LayerConfig &config) {
+  Vec<Layer> layers;
   nlohmann::json layers_json = config.get<nlohmann::json>("layers", nlohmann::json::array());
   if (!layers_json.is_array()) {
     throw std::runtime_error("Sequential layer config 'layers' parameter must be an array");
@@ -148,7 +145,7 @@ std::unique_ptr<Sequential> Sequential::create_from_config(const LayerConfig &co
     auto layer = LayerFactory::create(layer_config);
     layers.push_back(std::move(layer));
   }
-  return std::make_unique<Sequential>(std::move(layers), config.name);
+  return std::make_shared<SequentialImpl>(std::move(layers), config.name);
 }
 
 }  // namespace tnn

@@ -1,6 +1,7 @@
 #include "device/device_manager.hpp"
-#include "nn/graph.hpp"
-#include "nn/graph_builder.hpp"
+#include "device/pool_allocator.hpp"
+#include "nn/graph_api.hpp"
+#include "nn/layers.hpp"
 #include "nn/layers_impl/conv2d_layer.hpp"
 #include "nn/layers_impl/legacy_conv2d_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -9,29 +10,31 @@ using namespace tnn;
 using namespace std;
 
 signed main() {
-  auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
-  GraphBuilder builder;
+  auto &device = getGPU();
+  auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
 
-  auto conv_layer = make_unique<Conv2DLayerImpl>(16, 128, 3, 3, 1, 1, 0, 0, true, "conv2d_test");
-  auto &conv_node = builder.add_layer(std::move(conv_layer));
+  Graph graph;
+  auto input = graph.make_node("input");
 
-  auto legacy_layer =
-      make_unique<LegacyConv2DLayerImpl>(16, 128, 3, 3, 1, 1, 0, 0, true, "legacy_conv2d_test");
-  auto &legacy_node = builder.add_layer(std::move(legacy_layer));
+  auto conv_layer = Conv2DLayer(16, 128, 3, 3, 1, 1, 0, 0, true, "conv2d_test");
+  auto conv_output = conv_layer(input);
 
-  Graph graph = builder.compile(allocator);
+  auto legacy_layer = LegacyConv2DLayer(16, 128, 3, 3, 1, 1, 0, 0, true, "legacy_conv2d_test");
+  auto legacy_conv_output = legacy_layer(input);
 
-  Tensor input = make_tensor<float>({128, 224, 224, 16}, getGPU());
-  input->fill_random_normal(0.5f, 0.2f, 676767);
+  graph.compile(allocator);
+
+  Tensor input_data = make_tensor<float>({128, 224, 224, 16}, getGPU());
+  input_data->fill_random_normal(0.5f, 0.2f, 676767);
 
   // cold pass
-  Tensor output = conv_node.forward({input})[0];
+  Tensor output = conv_layer->forward({input_data})[0];
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    output = conv_node.forward({input})[0];
+    output = conv_layer->forward({input_data})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
@@ -50,11 +53,11 @@ signed main() {
   nchw_input->fill_random_normal(0.5f, 0.2f, 676767);
   // legacy conv2d benchmark
   // cold pass
-  Tensor nchw_output = legacy_node.forward({nchw_input})[0];
+  Tensor nchw_output = legacy_layer->forward({nchw_input})[0];
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    nchw_output = legacy_node.forward({nchw_input})[0];
+    nchw_output = legacy_layer->forward({nchw_input})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();

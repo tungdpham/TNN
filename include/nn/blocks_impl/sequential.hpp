@@ -12,17 +12,17 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include "nn/block.hpp"
+#include "nn/graph_api.hpp"
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
-class Sequential : public Block {
+class SequentialImpl : public Block {
 private:
-  Vec<std::unique_ptr<LayerImpl>> layers_;
+  Vec<Layer> layers_;
 
 protected:
   Vec<LayerImpl *> layers() override {
@@ -37,32 +37,15 @@ protected:
   Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) override;
 
 public:
-  explicit Sequential(Vec<std::unique_ptr<LayerImpl>> layers = {},
-                      const std::string &name = "sequential");
+  explicit SequentialImpl(Vec<Layer> layers = {}, const std::string &name = "sequential");
 
-  template <typename... LayerArgs,
-            typename = std::enable_if_t<
-                (sizeof...(LayerArgs) > 0) &&
-                (std::conjunction_v<std::is_base_of<LayerImpl, std::decay_t<LayerArgs>>...>)>>
-  explicit Sequential(LayerArgs &&...layers)
-      : Block("sequential") {
-    layers_.reserve(sizeof...(LayerArgs));
-    (layers_.emplace_back(
-         std::make_unique<std::decay_t<LayerArgs>>(std::forward<LayerArgs>(layers))),
-     ...);
-  }
+  explicit SequentialImpl(std::initializer_list<Layer> layers,
+                          const std::string &name = "sequential")
+      : SequentialImpl(Vec<Layer>(layers), name) {}
 
-  template <typename... LayerArgs,
-            typename = std::enable_if_t<
-                (sizeof...(LayerArgs) > 0) &&
-                (std::conjunction_v<std::is_base_of<LayerImpl, std::decay_t<LayerArgs>>...>)>>
-  explicit Sequential(const std::string &name, LayerArgs &&...layers)
-      : Block(name) {
-    layers_.reserve(sizeof...(LayerArgs));
-    (layers_.emplace_back(
-         std::make_unique<std::decay_t<LayerArgs>>(std::forward<LayerArgs>(layers))),
-     ...);
-  }
+  explicit SequentialImpl(Vec<std::shared_ptr<LayerImpl>> layers,
+                          const std::string &name = "sequential")
+      : SequentialImpl(Vec<Layer>(layers.begin(), layers.end()), name) {}
 
   static constexpr const char *TYPE_NAME = "sequential";
 
@@ -72,7 +55,31 @@ public:
   void print_summary(const Vec<size_t> &input_shape) const;
   Vec<LayerImpl *> get_layers();
   LayerConfig get_config() const override;
-  static std::unique_ptr<Sequential> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<SequentialImpl> create_from_config(const LayerConfig &config);
+
+  Node operator()(const Node &input) {
+    if (!input) {
+      throw std::runtime_error("Input node is null");
+    }
+    Graph *graph = input->graph();
+    Node output = graph->make_node();
+
+    std::shared_ptr<LayerImpl> self = shared_from_this();
+
+    graph->add_edge(self, {input}, {output});
+    return output;
+  }
+};
+
+class Sequential : public LayerRef<SequentialImpl> {
+public:
+  explicit Sequential(Vec<Layer> layers, const std::string &name = "sequential")
+      : LayerRef(std::make_shared<SequentialImpl>(std::move(layers), name)) {}
+
+  explicit Sequential(std::initializer_list<Layer> layers, const std::string &name = "sequential")
+      : Sequential(Vec<Layer>(layers), name) {}
+
+  using LayerRef<SequentialImpl>::LayerRef;
 };
 
 }  // namespace tnn

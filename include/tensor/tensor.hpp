@@ -7,7 +7,6 @@
 #pragma once
 
 #include <cassert>
-#include <fstream>
 #include <iostream>
 #include <memory>
 #include <numeric>
@@ -631,9 +630,9 @@ public:
     std::cout << std::endl;
   }
 
-  void save(std::ofstream &out) const {
-    if (!out.is_open()) {
-      throw std::runtime_error("File is not open for writing");
+  void save(std::ostream &out) const {
+    if (!out) {
+      throw std::runtime_error("Stream is not ready for writing");
     }
 
     // write dims, shape

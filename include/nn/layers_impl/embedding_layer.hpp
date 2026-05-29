@@ -53,7 +53,7 @@ private:
 
 public:
   EmbeddingLayerImpl(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",
-                 size_t padding_idx = static_cast<size_t>(-1));
+                     size_t padding_idx = static_cast<size_t>(-1));
 
   static constexpr const char *TYPE_NAME = "embedding";
 
@@ -61,7 +61,16 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
 
-  static std::unique_ptr<EmbeddingLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<EmbeddingLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class EmbeddingLayer : public LayerRef<EmbeddingLayerImpl> {
+public:
+  EmbeddingLayer(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",
+                 size_t padding_idx = static_cast<size_t>(-1))
+      : LayerRef(std::make_shared<EmbeddingLayerImpl>(vocab_size, embed_dim, name, padding_idx)) {}
+
+  using LayerRef<EmbeddingLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

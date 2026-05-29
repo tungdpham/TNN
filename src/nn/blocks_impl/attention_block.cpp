@@ -22,24 +22,23 @@
 
 namespace tnn {
 
-AttentionBlock::AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal,
-                               const std::string &name)
+AttentionBlockImpl::AttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal,
+                                       const std::string &name)
     : Block(name),
       embed_dim_(embed_dim),
       num_heads_(num_heads),
-      is_causal_(is_causal) {
+      is_causal_(is_causal),
+      q_proj_(embed_dim, embed_dim, true, name + "_q"),
+      k_proj_(embed_dim, embed_dim, true, name + "_k"),
+      v_proj_(embed_dim, embed_dim, true, name + "_v"),
+      out_proj_(embed_dim, embed_dim, true, name + "_out") {
   if (embed_dim % num_heads != 0) {
     throw std::invalid_argument("embed_dim must be divisible by num_heads");
   }
   head_dim_ = embed_dim / num_heads;
-
-  q_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_q");
-  k_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_k");
-  v_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_v");
-  out_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_out");
 }
 
-Vec<Tensor> AttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> AttentionBlockImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
   const ConstTensor &input = inputs[0];
   const auto &input_shape = input->shape();
 
@@ -63,7 +62,7 @@ Vec<Tensor> AttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, size_t 
   return out_proj_->forward({attn_out}, mb_id);
 }
 
-Vec<Tensor> AttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> AttentionBlockImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   const ConstTensor &grad_output = grad_outputs[0];
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
@@ -101,12 +100,12 @@ Vec<Tensor> AttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs, 
   return {grad_input};
 }
 
-Vec<Vec<size_t>> AttentionBlock::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
+Vec<Vec<size_t>> AttentionBlockImpl::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   return input_shapes;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> AttentionBlock::compute_attention_forward(
+std::unique_ptr<Task> AttentionBlockImpl::compute_attention_forward(
     const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const Tensor &output,
     size_t batch_size, size_t seq_len, flowHandle_t handle) {
   if (q->data_type() != dtype_of<IO_T>() || k->data_type() != dtype_of<IO_T>() ||
@@ -180,7 +179,7 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
+std::unique_ptr<Task> AttentionBlockImpl::compute_attention_backward(
     const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const ConstTensor &d_attn_out,
     const Tensor &dq, const Tensor &dk, const Tensor &dv, size_t batch_size, size_t seq_len,
     flowHandle_t handle) {
@@ -294,7 +293,7 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
   return nullptr;
 }
 
-LayerConfig AttentionBlock::get_config() const {
+LayerConfig AttentionBlockImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -304,11 +303,12 @@ LayerConfig AttentionBlock::get_config() const {
   return config;
 }
 
-std::unique_ptr<AttentionBlock> AttentionBlock::create_from_config(const LayerConfig &config) {
+std::shared_ptr<AttentionBlockImpl> AttentionBlockImpl::create_from_config(
+    const LayerConfig &config) {
   size_t embed_dim = config.get<size_t>("embed_dim");
   size_t num_heads = config.get<size_t>("num_heads");
   bool is_causal = config.get<bool>("is_causal", true);
-  return std::make_unique<AttentionBlock>(embed_dim, num_heads, is_causal, config.name);
+  return std::make_shared<AttentionBlockImpl>(embed_dim, num_heads, is_causal, config.name);
 }
 
 }  // namespace tnn

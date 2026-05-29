@@ -30,24 +30,23 @@
 namespace tnn {
 
 // Constructor
-FlashAttentionBlock::FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal,
-                                         const std::string &name)
+FlashAttentionBlockImpl::FlashAttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal,
+                                                 const std::string &name)
     : Block(name),
       embed_dim_(embed_dim),
       num_heads_(num_heads),
-      is_causal_(is_causal) {
+      is_causal_(is_causal),
+      q_proj_(embed_dim, embed_dim, true, name + "_q"),
+      k_proj_(embed_dim, embed_dim, true, name + "_k"),
+      v_proj_(embed_dim, embed_dim, true, name + "_v"),
+      out_proj_(embed_dim, embed_dim, true, name + "_out") {
   if (embed_dim % num_heads != 0) {
     throw std::invalid_argument("embed_dim must be divisible by num_heads");
   }
   head_dim_ = embed_dim / num_heads;
-
-  q_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_q");
-  k_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_k");
-  v_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_v");
-  out_proj_ = std::make_unique<DenseLayerImpl>(embed_dim, embed_dim, true, name + "_out");
 }
 
-FlashAttentionBlock::~FlashAttentionBlock() {
+FlashAttentionBlockImpl::~FlashAttentionBlockImpl() {
 #ifdef USE_CUDNN
   for (auto &kv : fe_handle_cache) {
     if (kv.second) {
@@ -58,7 +57,7 @@ FlashAttentionBlock::~FlashAttentionBlock() {
 #endif
 }
 
-Vec<Tensor> FlashAttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> FlashAttentionBlockImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
   const ConstTensor &input = inputs[0];
 
   if (input->dims() != 3) {
@@ -83,7 +82,7 @@ Vec<Tensor> FlashAttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, si
 }
 
 #ifdef USE_CUDNN
-void FlashAttentionBlock::build_graph(const Vec<size_t> &input_shape) const {
+void FlashAttentionBlockImpl::build_graph(const Vec<size_t> &input_shape) const {
   size_t batch_size = input_shape[0];
   size_t seq_len = input_shape[1];
   size_t shape_key = get_shape_hash({batch_size, num_heads_, seq_len, head_dim_});
@@ -105,7 +104,7 @@ void FlashAttentionBlock::build_graph(const Vec<size_t> &input_shape) const {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> FlashAttentionBlock::flash_attention_forward_task(
+std::unique_ptr<Task> FlashAttentionBlockImpl::flash_attention_forward_task(
     cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
     const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
     const Tensor &attn_heads, const Tensor &stats_tensor, const Tensor &workspace,
@@ -116,7 +115,7 @@ std::unique_ptr<Task> FlashAttentionBlock::flash_attention_forward_task(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> FlashAttentionBlock::flash_attention_backward_task(
+std::unique_ptr<Task> FlashAttentionBlockImpl::flash_attention_backward_task(
     cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
     const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
     const ConstTensor &attn_heads, const ConstTensor &grad_attn_heads,
@@ -129,7 +128,7 @@ std::unique_ptr<Task> FlashAttentionBlock::flash_attention_backward_task(
                           workspace->data());
 }
 
-Tensor FlashAttentionBlock::cudnn_forward(const ConstTensor &input, size_t mb_id) {
+Tensor FlashAttentionBlockImpl::cudnn_forward(const ConstTensor &input, size_t mb_id) {
   const auto &input_shape = input->shape();
   size_t batch_size = input_shape[0];
   size_t seq_len = input_shape[1];
@@ -197,7 +196,7 @@ Tensor FlashAttentionBlock::cudnn_forward(const ConstTensor &input, size_t mb_id
   return output;
 }
 
-Tensor FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, size_t mb_id) {
+Tensor FlashAttentionBlockImpl::cudnn_backward(const ConstTensor &grad_output, size_t mb_id) {
   const auto &grad_shape = grad_output->shape();
   size_t batch_size = grad_shape[0];
   size_t seq_len = grad_shape[1];
@@ -313,7 +312,8 @@ Tensor FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, size_
 }
 #endif
 
-Vec<Tensor> FlashAttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> FlashAttentionBlockImpl::backward_impl(const Vec<ConstTensor> &grad_outputs,
+                                                   size_t mb_id) {
   const ConstTensor &grad_output = grad_outputs[0];
 
 #ifdef USE_CUDNN
@@ -326,7 +326,7 @@ Vec<Tensor> FlashAttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outp
   }
 }
 
-LayerConfig FlashAttentionBlock::get_config() const {
+LayerConfig FlashAttentionBlockImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -335,16 +335,17 @@ LayerConfig FlashAttentionBlock::get_config() const {
   return config;
 }
 
-Vec<Vec<size_t>> FlashAttentionBlock::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
+Vec<Vec<size_t>> FlashAttentionBlockImpl::output_shapes(
+    const Vec<Vec<size_t>> &input_shapes) const {
   return input_shapes;
 }
 
-std::unique_ptr<FlashAttentionBlock> FlashAttentionBlock::create_from_config(
+std::shared_ptr<FlashAttentionBlockImpl> FlashAttentionBlockImpl::create_from_config(
     const LayerConfig &config) {
   size_t embed_dim = config.get<size_t>("embed_dim");
   size_t num_heads = config.get<size_t>("num_heads");
   bool is_causal = config.get<bool>("is_causal", true);
-  return std::make_unique<FlashAttentionBlock>(embed_dim, num_heads, is_causal, config.name);
+  return std::make_shared<FlashAttentionBlockImpl>(embed_dim, num_heads, is_causal, config.name);
 }
 
 }  // namespace tnn

@@ -480,7 +480,7 @@ Vec<size_t> Conv2DLayerImpl::compute_output_shape(const Vec<size_t> &input_shape
   return {batch_size, output_h, output_w, out_channels_};
 }
 
-std::unique_ptr<Conv2DLayerImpl> Conv2DLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<Conv2DLayerImpl> Conv2DLayerImpl::create_from_config(const LayerConfig &config) {
   size_t in_channels = config.get<size_t>("in_channels");
   size_t out_channels = config.get<size_t>("out_channels");
   size_t kernel_h = config.get<size_t>("kernel_h");
@@ -490,7 +490,7 @@ std::unique_ptr<Conv2DLayerImpl> Conv2DLayerImpl::create_from_config(const Layer
   size_t pad_h = config.get<size_t>("pad_h", 0);
   size_t pad_w = config.get<size_t>("pad_w", 0);
   bool use_bias = config.get<bool>("use_bias", true);
-  return std::make_unique<Conv2DLayerImpl>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
+  return std::make_shared<Conv2DLayerImpl>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                        stride_w, pad_h, pad_w, use_bias, config.name);
 }
 

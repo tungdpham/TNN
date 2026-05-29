@@ -68,8 +68,8 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  GroupNormLayerImpl(size_t num_groups, size_t num_channels, float epsilon = 1e-5f, bool affine = true,
-                 const std::string &name = "groupnorm");
+  GroupNormLayerImpl(size_t num_groups, size_t num_channels, float epsilon = 1e-5f,
+                     bool affine = true, const std::string &name = "groupnorm");
 
   static constexpr const char *TYPE_NAME = "groupnorm";
 
@@ -77,7 +77,17 @@ public:
   LayerConfig get_config() const override;
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  static std::unique_ptr<GroupNormLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<GroupNormLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class GroupNormLayer : public LayerRef<GroupNormLayerImpl> {
+public:
+  GroupNormLayer(size_t num_groups, size_t num_channels, float epsilon = 1e-5f, bool affine = true,
+                 const std::string &name = "groupnorm")
+      : LayerRef(std::make_shared<GroupNormLayerImpl>(num_groups, num_channels, epsilon, affine,
+                                                      name)) {}
+
+  using LayerRef<GroupNormLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

@@ -1,7 +1,7 @@
 #include "device/device_manager.hpp"
-#include "nn/graph.hpp"
-#include "nn/graph_builder.hpp"
-#include "nn/layers_impl/dense_layer.hpp"
+#include "device/pool_allocator.hpp"
+#include "nn/graph_api.hpp"
+#include "nn/layers.hpp"
 #include "nn/layers_impl/legacy_dense_layer.hpp"
 #include "nn/loss.hpp"
 #include "tensor/tensor.hpp"
@@ -15,34 +15,37 @@ constexpr size_t OUTPUT_FEATURES = 1024;
 constexpr float EPSILON = 1e-3f;
 
 signed main() {
-  auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
-  GraphBuilder builder;
-  auto dense_layer = make_unique<DenseLayerImpl>(INPUT_FEATURES, OUTPUT_FEATURES, "dense_test");
-  auto &dense_op = builder.add_layer(std::move(dense_layer));
+  auto &device = getGPU();
+  auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
 
-  auto legacy_layer =
-      make_unique<LegacyDenseLayerImpl>(INPUT_FEATURES, OUTPUT_FEATURES, true, "legacy_dense_test");
-  auto &legacy_op = builder.add_layer(std::move(legacy_layer));
+  Graph graph;
+  auto input = graph.make_node("input");
 
-  Graph graph = builder.compile(allocator);
+  auto dense_layer = DenseLayer(INPUT_FEATURES, OUTPUT_FEATURES, "dense_test");
+  auto dense_output = dense_layer(input);
 
-  auto current_params = dense_op.parameters();
-  auto legacy_params = legacy_op.parameters();
+  auto legacy_layer = LegacyDenseLayer(INPUT_FEATURES, OUTPUT_FEATURES, true, "legacy_dense_test");
+  auto legacy_dense_output = legacy_layer(input);
+
+  graph.compile(allocator);
+
+  auto current_params = dense_layer->parameters();
+  auto legacy_params = legacy_layer->parameters();
   for (size_t i = 0; i < current_params.size(); ++i) {
     current_params[i]->copy_to(legacy_params[i]);
   }
 
-  Tensor input = make_tensor<float>({128, INPUT_FEATURES}, getGPU());
-  input->fill_random_normal(0.5f, 0.2f, 676767);
+  Tensor input_data = make_tensor<float>({128, INPUT_FEATURES}, getGPU());
+  input_data->fill_random_normal(0.5f, 0.2f, 676767);
 
   // cold pass
-  Tensor current_output = dense_op.forward({input})[0];
+  Tensor current_output = dense_layer->forward({input_data})[0];
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    current_output = dense_op.forward({input})[0];
+    current_output = dense_layer->forward({input_data})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
@@ -58,11 +61,11 @@ signed main() {
 
   // legacy dense benchmark
   // cold pass
-  Tensor legacy_output = legacy_op.forward({input})[0];
+  Tensor legacy_output = legacy_layer->forward({input_data})[0];
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    legacy_output = legacy_op.forward({input})[0];
+    legacy_output = legacy_layer->forward({input_data})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();
@@ -103,14 +106,14 @@ signed main() {
   criterion->compute_gradient(current_output, target, grad);
 
   // cold pass
-  Tensor grad_input_current = dense_op.backward({grad})[0];
-  Tensor grad_input_legacy = legacy_op.backward({grad})[0];
+  Tensor grad_input_current = dense_layer->backward({grad})[0];
+  Tensor grad_input_legacy = legacy_layer->backward({grad})[0];
 
   for (int i = 0; i < passes; ++i) {
     // forward pass to have cached data
-    dense_op.forward({input});
+    dense_layer->forward({input_data});
     auto pass_start = std::chrono::high_resolution_clock::now();
-    grad_input_current = dense_op.backward({grad})[0];
+    grad_input_current = dense_layer->backward({grad})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();
@@ -122,9 +125,9 @@ signed main() {
 
   for (int i = 0; i < passes; ++i) {
     // forward pass to have cached data
-    legacy_op.forward({input});
+    legacy_layer->forward({input_data});
     auto pass_start = std::chrono::high_resolution_clock::now();
-    grad_input_legacy = legacy_op.backward({grad})[0];
+    grad_input_legacy = legacy_layer->backward({grad})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();
@@ -153,8 +156,8 @@ signed main() {
 
   // check wgrad
 
-  auto grad_weights_current = dense_op.gradients();
-  auto grad_weights_legacy = legacy_op.gradients();
+  auto grad_weights_current = dense_layer->gradients();
+  auto grad_weights_legacy = legacy_layer->gradients();
   for (size_t i = 0; i < grad_weights_current.size(); ++i) {
     auto cpu_grad_current = grad_weights_current[i]->to_host();
     auto cpu_grad_legacy = grad_weights_legacy[i]->to_host();

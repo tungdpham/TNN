@@ -46,9 +46,9 @@ LayerConfig ELULayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<ELULayerImpl> ELULayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<ELULayerImpl> ELULayerImpl::create_from_config(const LayerConfig &config) {
   float alpha = config.get<float>("alpha", 1.0f);
-  return std::make_unique<ELULayerImpl>(alpha, config.name);
+  return std::make_shared<ELULayerImpl>(alpha, config.name);
 }
 
 }  // namespace tnn

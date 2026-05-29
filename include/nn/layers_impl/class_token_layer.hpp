@@ -58,7 +58,15 @@ public:
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
 public:
-  static std::unique_ptr<ClassTokenLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<ClassTokenLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class ClassTokenLayer : public LayerRef<ClassTokenLayerImpl> {
+public:
+  explicit ClassTokenLayer(size_t embed_dim, const std::string &name = "class_token")
+      : LayerRef(std::make_shared<ClassTokenLayerImpl>(embed_dim, name)) {}
+
+  using LayerRef<ClassTokenLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

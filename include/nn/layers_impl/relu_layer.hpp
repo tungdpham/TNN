@@ -30,7 +30,7 @@ public:
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<ReLULayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<ReLULayerImpl> create_from_config(const LayerConfig &config);
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;

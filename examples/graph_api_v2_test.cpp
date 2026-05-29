@@ -19,10 +19,10 @@ std::shared_ptr<Graph> make_model_test() {
   auto input1 = graph->make_node("input1");
   auto input2 = graph->make_node("input2");
 
-  auto conv2d_1 = make_layer<Conv2DLayerImpl>(3, 32, 3, 3, 1, 1, 1, 1, false, "test_conv2d");
+  auto conv2d_1 = Conv2DLayer(3, 32, 3, 3, 1, 1, 1, 1, false, "test_conv2d");
   auto output1 = conv2d_1(input1);
 
-  auto conv2d_2 = make_layer<Conv2DLayerImpl>(3, 32, 3, 3, 1, 1, 1, 1, false, "test_conv2d_2");
+  auto conv2d_2 = Conv2DLayer(3, 32, 3, 3, 1, 1, 1, 1, false, "test_conv2d_2");
   auto output2 = conv2d_2(input2);
 
   auto output = output1 + output2;
@@ -39,17 +39,16 @@ std::shared_ptr<Graph> make_mnist_model() {
 
   auto input = graph->make_node("input");
 
-  auto conv2d_1 = make_layer<Conv2DLayerImpl>(1, 8, 5, 5, 1, 1, 0, 0, false, "conv1");
-  auto bn1 = make_layer<BatchNormLayerImpl>(8, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn1");
-  auto pool1 = make_layer<MaxPool2DLayerImpl>(3, 3, 3, 3, 0, 0, "pool1");
-  auto conv2d_2 = make_layer<Conv2DLayerImpl>(8, 16, 1, 1, 1, 1, 0, 0, false, "conv2_1x1");
-  auto bn2_1x1 =
-      make_layer<BatchNormLayerImpl>(16, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn2_1x1");
-  auto conv2d_3 = make_layer<Conv2DLayerImpl>(16, 48, 5, 5, 1, 1, 0, 0, false, "conv3");
-  auto bn3 = make_layer<BatchNormLayerImpl>(48, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn3");
-  auto pool2 = make_layer<MaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "pool2");
-  auto flatten = make_layer<FlattenLayerImpl>(1, -1, "flatten");
-  auto fc = make_layer<DenseLayerImpl>(192, 10, false, "output");
+  auto conv2d_1 = Conv2DLayer(1, 8, 5, 5, 1, 1, 0, 0, false, "conv1");
+  auto bn1 = BatchNormLayer(8, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn1");
+  auto pool1 = MaxPool2DLayer(3, 3, 3, 3, 0, 0, "pool1");
+  auto conv2d_2 = Conv2DLayer(8, 16, 1, 1, 1, 1, 0, 0, false, "conv2_1x1");
+  auto bn2_1x1 = BatchNormLayer(16, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn2_1x1");
+  auto conv2d_3 = Conv2DLayer(16, 48, 5, 5, 1, 1, 0, 0, false, "conv3");
+  auto bn3 = BatchNormLayer(48, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn3");
+  auto pool2 = MaxPool2DLayer(2, 2, 2, 2, 0, 0, "pool2");
+  auto flatten = FlattenLayer(1, -1, "flatten");
+  auto fc = DenseLayer(192, 10, false, "output");
 
   auto x = conv2d_1(input);
   x = bn1(x);
@@ -70,48 +69,46 @@ std::shared_ptr<Graph> make_mnist_model() {
   return graph;
 }
 
-LayerRef<ResidualBlock> make_basic_residual_block(
+LayerRef<ResidualBlockImpl> make_basic_residual_block(
     size_t in_channels, size_t out_channels, size_t stride = 1,
     const std::string &name = "basic_residual_block") {
-  auto main_seq = std::make_unique<Sequential>(
-      Conv2DLayerImpl(in_channels, out_channels, 3, 3, stride, stride, 1, 1, false, name + "_conv1"),
-      BatchNormLayerImpl(out_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn1"),
-      Conv2DLayerImpl(out_channels, out_channels, 3, 3, 1, 1, 1, 1, false, name + "_conv2"),
-      BatchNormLayerImpl(out_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn2"));
+  auto main_seq = Sequential(
+      {Conv2DLayer(in_channels, out_channels, 3, 3, stride, stride, 1, 1, false, name + "_conv1"),
+       BatchNormLayer(out_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn1"),
+       Conv2DLayer(out_channels, out_channels, 3, 3, 1, 1, 1, 1, false, name + "_conv2"),
+       BatchNormLayer(out_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn2")});
 
-  std::unique_ptr<Sequential> shortcut_seq = nullptr;
+  Sequential shortcut_seq;
   if (stride != 1 || in_channels != out_channels) {
-    shortcut_seq =
-        std::make_unique<Sequential>(Conv2DLayerImpl(in_channels, out_channels, 1, 1, stride, stride, 0,
-                                                 0, false, name + "_shortcut_conv"),
-                                     BatchNormLayerImpl(out_channels, dtype_eps(DType_t::FP32), 0.1f,
-                                                    true, true, name + "_shortcut_bn"));
+    shortcut_seq = Sequential({Conv2DLayer(in_channels, out_channels, 1, 1, stride, stride, 0, 0,
+                                           false, name + "_shortcut_conv"),
+                               BatchNormLayer(out_channels, dtype_eps(DType_t::FP32), 0.1f, true,
+                                              true, name + "_shortcut_bn")});
   }
 
-  return make_layer<ResidualBlock>(std::move(main_seq), std::move(shortcut_seq), name);
+  return make_layer<ResidualBlockImpl>(std::move(main_seq), std::move(shortcut_seq), name);
 }
 
-LayerRef<ResidualBlock> make_bottleneck_residual_block(
+LayerRef<ResidualBlockImpl> make_bottleneck_residual_block(
     size_t in_channels, size_t mid_channels, size_t out_channels, size_t stride = 1,
     const std::string &name = "bottleneck_residual_block") {
-  auto main_seq = std::make_unique<Sequential>(
-      Conv2DLayerImpl(in_channels, mid_channels, 1, 1, 1, 1, 0, 0, false, name + "_conv1"),
-      BatchNormLayerImpl(mid_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn1"),
-      Conv2DLayerImpl(mid_channels, mid_channels, 3, 3, stride, stride, 1, 1, false, name + "_conv2"),
-      BatchNormLayerImpl(mid_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn2"),
-      Conv2DLayerImpl(mid_channels, out_channels, 1, 1, 1, 1, 0, 0, false, name + "_conv3"),
-      BatchNormLayerImpl(out_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn3"));
+  auto main_seq = Sequential(
+      {Conv2DLayer(in_channels, mid_channels, 1, 1, 1, 1, 0, 0, false, name + "_conv1"),
+       BatchNormLayer(mid_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn1"),
+       Conv2DLayer(mid_channels, mid_channels, 3, 3, stride, stride, 1, 1, false, name + "_conv2"),
+       BatchNormLayer(mid_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn2"),
+       Conv2DLayer(mid_channels, out_channels, 1, 1, 1, 1, 0, 0, false, name + "_conv3"),
+       BatchNormLayer(out_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn3")});
 
-  std::unique_ptr<Sequential> shortcut_seq = nullptr;
+  Sequential shortcut_seq;
   if (stride != 1 || in_channels != out_channels) {
-    shortcut_seq =
-        std::make_unique<Sequential>(Conv2DLayerImpl(in_channels, out_channels, 1, 1, stride, stride, 0,
-                                                 0, false, name + "_shortcut_conv"),
-                                     BatchNormLayerImpl(out_channels, dtype_eps(DType_t::FP32), 0.1f,
-                                                    true, true, name + "_shortcut_bn"));
+    shortcut_seq = Sequential({Conv2DLayer(in_channels, out_channels, 1, 1, stride, stride, 0, 0,
+                                           false, name + "_shortcut_conv"),
+                               BatchNormLayer(out_channels, dtype_eps(DType_t::FP32), 0.1f, true,
+                                              true, name + "_shortcut_bn")});
   }
 
-  return make_layer<ResidualBlock>(std::move(main_seq), std::move(shortcut_seq), name);
+  return make_layer<ResidualBlockImpl>(std::move(main_seq), std::move(shortcut_seq), name);
 }
 
 std::shared_ptr<Graph> make_resnet50_model() {
@@ -120,9 +117,9 @@ std::shared_ptr<Graph> make_resnet50_model() {
   auto input = graph->make_node("input");
 
   // Initial convolution layer
-  auto conv1 = make_layer<Conv2DLayerImpl>(3, 64, 7, 7, 2, 2, 3, 3, true, "conv1");
-  auto bn1 = make_layer<BatchNormLayerImpl>(64, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn1");
-  auto maxpool = make_layer<MaxPool2DLayerImpl>(3, 3, 2, 2, 1, 1, "maxpool");
+  auto conv1 = Conv2DLayer(3, 64, 7, 7, 2, 2, 3, 3, true, "conv1");
+  auto bn1 = BatchNormLayer(64, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn1");
+  auto maxpool = MaxPool2DLayer(3, 3, 2, 2, 1, 1, "maxpool");
 
   // LayerImpl 1: 64 -> 256 (3 bottleneck blocks)
   auto layer1_block1 = make_bottleneck_residual_block(64, 64, 256, 1, "layer1_block1");
@@ -149,9 +146,9 @@ std::shared_ptr<Graph> make_resnet50_model() {
   auto layer4_block3 = make_bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3");
 
   // Global average pooling and classification head
-  auto avgpool = make_layer<AvgPool2DLayerImpl>(7, 7, 1, 1, 0, 0, "avgpool");
-  auto flatten = make_layer<FlattenLayerImpl>(1, -1, "flatten");
-  auto fc = make_layer<DenseLayerImpl>(2048, 1000, true, "fc");
+  auto avgpool = AvgPool2DLayer(7, 7, 1, 1, 0, 0, "avgpool");
+  auto flatten = FlattenLayer(1, -1, "flatten");
+  auto fc = DenseLayer(2048, 1000, true, "fc");
 
   // Forward pass
   auto x = conv1(input);

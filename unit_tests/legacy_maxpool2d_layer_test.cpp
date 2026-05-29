@@ -14,7 +14,7 @@
 
 #include "device/device_manager.hpp"
 #include "device/pool_allocator.hpp"
-#include "nn/graph_builder.hpp"
+#include "test_graph_utils.hpp"
 #include "tensor/tensor.hpp"
 
 using namespace tnn;
@@ -192,12 +192,10 @@ protected:
 // Forward Pass Tests
 
 TEST_F(LegacyMaxPool2DLayerTest, BasicForwardPass) {
-  auto layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_maxpool");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -218,13 +216,10 @@ TEST_F(LegacyMaxPool2DLayerTest, BasicForwardPass) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithStride) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(3, 3, 1, 1, 0, 0, "test_maxpool_stride");
+  auto layer_layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 0, 0, "test_maxpool_stride");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
   float *input_data = input->data_as<float>();
@@ -239,13 +234,10 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithStride) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithPadding) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(3, 3, 1, 1, 1, 1, "test_maxpool_padding");
+  auto layer_layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 1, 1, "test_maxpool_padding");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 3, 3}, getHost());
   float *input_data = input->data_as<float>();
@@ -262,13 +254,10 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithPadding) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassMultiChannel) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_maxpool_multichannel");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_multichannel");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 2, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -285,13 +274,10 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassMultiChannel) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassMultiBatch) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_maxpool_multibatch");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_multibatch");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({2, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -309,13 +295,10 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassMultiBatch) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassNonSquarePooling) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(3, 2, 2, 2, 0, 0, "test_maxpool_nonsquare");
+  auto layer_layer = LegacyMaxPool2DLayer(3, 2, 2, 2, 0, 0, "test_maxpool_nonsquare");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 6, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -332,13 +315,10 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassNonSquarePooling) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassUniformValues) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_maxpool_uniform");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_uniform");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   input->fill(5.0f);
@@ -356,13 +336,10 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassUniformValues) {
 // Backward Pass Tests
 
 TEST_F(LegacyMaxPool2DLayerTest, BasicBackwardPass) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_maxpool_backward");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_backward");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -385,13 +362,10 @@ TEST_F(LegacyMaxPool2DLayerTest, BasicBackwardPass) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardPassWithPadding) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(3, 3, 1, 1, 1, 1, "test_maxpool_backward_pad");
+  auto layer_layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 1, 1, "test_maxpool_backward_pad");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 3, 3}, getHost());
   float *input_data = input->data_as<float>();
@@ -411,13 +385,10 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassWithPadding) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardPassMultiChannel) {
-  auto layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0,
-                                                            "test_maxpool_backward_multichannel");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_backward_multichannel");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 2, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -438,13 +409,10 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassMultiChannel) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardPassMultiBatch) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_maxpool_backward_multibatch");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_backward_multibatch");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({2, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -465,13 +433,10 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassMultiBatch) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardPassVariableGradient) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 1, 1, 0, 0, "test_maxpool_backward_var");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 1, 1, 0, 0, "test_maxpool_backward_var");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 3, 3}, getHost());
   float *input_data = input->data_as<float>();
@@ -497,13 +462,10 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassVariableGradient) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardPassGradientRouting) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_maxpool_grad_routing");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_grad_routing");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -543,7 +505,7 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassGradientRouting) {
 // Configuration Tests
 
 TEST_F(LegacyMaxPool2DLayerTest, ComputeOutputShape) {
-  auto layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_maxpool_shape");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_shape");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
 
   Vec<size_t> input_shape = {2, 3, 8, 8};
@@ -555,8 +517,7 @@ TEST_F(LegacyMaxPool2DLayerTest, ComputeOutputShape) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ComputeOutputShapeWithPadding) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(3, 3, 1, 1, 1, 1, "test_maxpool_shape_pad");
+  auto layer_layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 1, 1, "test_maxpool_shape_pad");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
 
   Vec<size_t> input_shape = {1, 1, 5, 5};
@@ -568,8 +529,7 @@ TEST_F(LegacyMaxPool2DLayerTest, ComputeOutputShapeWithPadding) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, GetConfig) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(3, 4, 2, 1, 1, 2, "test_maxpool_config");
+  auto layer_layer = LegacyMaxPool2DLayer(3, 4, 2, 1, 1, 2, "test_maxpool_config");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
 
   LayerConfig config = layer->get_config();
@@ -602,13 +562,10 @@ TEST_F(LegacyMaxPool2DLayerTest, CreateFromConfig) {
 // Edge Cases
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseGlobalMaxPooling) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(4, 4, 1, 1, 0, 0, "test_global_maxpool");
+  auto layer_layer = LegacyMaxPool2DLayer(4, 4, 1, 1, 0, 0, "test_global_maxpool");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -626,12 +583,10 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseGlobalMaxPooling) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseZeroGradient) {
-  auto layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_zero_gradient");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_zero_gradient");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   input->fill(1.0f);
@@ -652,12 +607,10 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseZeroGradient) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseLargeValues) {
-  auto layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_large_values");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_large_values");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -672,13 +625,10 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseLargeValues) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseNegativeValues) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_negative_values");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_negative_values");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -702,12 +652,10 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseNegativeValues) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseMixedSignValues) {
-  auto layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_mixed_values");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_mixed_values");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -724,12 +672,10 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseMixedSignValues) {
 // Numerical Stability Tests
 
 TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilitySmallValues) {
-  auto layer_layer = std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_small_values");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_small_values");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -744,13 +690,10 @@ TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilitySmallValues) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardNumericalStability) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_backward_stability");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_backward_stability");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -769,13 +712,10 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardNumericalStability) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilityExtremeValues) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_extreme_values");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_extreme_values");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
   float *input_data = input->data_as<float>();
@@ -794,13 +734,10 @@ TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilityExtremeValues) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, MultipleForwardBackwardPasses) {
-  auto layer_layer =
-      std::make_unique<LegacyMaxPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_multiple_passes");
+  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_multiple_passes");
   LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  GraphBuilder builder;
-  builder.add_layer(std::move(layer_layer));
-  Graph graph = builder.compile(allocator);
+  auto graph = test::compile_single_layer(layer_layer, allocator);
 
   // First pass
   Tensor input1 = make_tensor<float>({1, 1, 4, 4}, getHost());

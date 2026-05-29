@@ -1,15 +1,17 @@
 #pragma once
 
 #include <initializer_list>
+#include <iosfwd>
+#include <iostream>
 #include <map>
 #include <queue>
+#include <set>
 
 #include "nn/graph_context.hpp"
 #include "nn/layer.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
-namespace graph_api_v2 {
 class NodeImpl;
 class EdgeImpl;
 class Graph;
@@ -66,6 +68,9 @@ public:
   auto cbegin() const noexcept { return inputs_.cbegin(); }
   auto cend() const noexcept { return inputs_.cend(); }
 
+  Tensor &operator[](const std::string &name) { return inputs_[name]; }
+  const Tensor &operator[](const std::string &name) const { return inputs_.at(name); }
+
   void set(const std::string &name, const Tensor &tensor) { inputs_[name] = tensor; }
   const Tensor &get(const std::string &name) const { return inputs_.at(name); }
   bool contains(const std::string &name) const { return inputs_.count(name) > 0; }
@@ -88,7 +93,7 @@ public:
         producers_(inputs),
         consumers_(outputs) {}
 
-  void forward() {
+  void forward(size_t mb_id = 0) {
     Vec<ConstTensor> input_data;
     for (const auto &producer : producers_) {
       // Accumulate data from producer to layer input
@@ -97,17 +102,13 @@ public:
       }
       input_data.push_back(producer->data());
     }
-    std::cout << fmt::format("Forwarding layer: {}, with first input with shape: {}.",
-                             layer_->name(), input_data[0]->shape_str())
-              << std::endl;
-    Vec<Tensor> output_data = layer_->forward(input_data);
-
+    Vec<Tensor> output_data = layer_->forward(input_data, mb_id);
     for (size_t i = 0; i < consumers_.size(); ++i) {
       consumers_[i]->set_data(output_data[i]);
     }
   }
 
-  void backward() {
+  void backward(size_t mb_id = 0) {
     Vec<ConstTensor> output_grads;
     for (const auto &consumer : consumers_) {
       if (!consumer->grad()) {
@@ -115,13 +116,7 @@ public:
       }
       output_grads.push_back(consumer->grad());
     }
-
-    std::cout << fmt::format("Backwarding layer: {}, with first output grad with shape: {}.",
-                             layer_->name(), output_grads[0]->shape_str())
-              << std::endl;
-
-    Vec<Tensor> input_grads = layer_->backward(output_grads);
-
+    Vec<Tensor> input_grads = layer_->backward(output_grads, mb_id);
     for (size_t i = 0; i < producers_.size(); ++i) {
       producers_[i]->set_grad(input_grads[i]);
     }
@@ -146,12 +141,17 @@ class Graph {
 public:
   Graph() = default;
 
+  void save_state(std::ostream &stream) const;
+  static Graph load_state(std::istream &stream, IAllocator &allocator);
+
   void compile(IAllocator &allocator) {
     sort();
     GraphContextDescriptor ctx_desc;
     std::set<LayerImpl *> unique_layers;
     for (const auto &edge : edges_) {
       LayerImpl *layer_ptr = edge->layer().get();
+      std::cout << fmt::format("Registering layer in graph context: {}", layer_ptr->name())
+                << std::endl;
       if (unique_layers.count(layer_ptr) == 0) {
         unique_layers.insert(layer_ptr);
       }
@@ -164,6 +164,7 @@ public:
     context_ = std::make_unique<GraphContext>(allocator, ctx_desc);
     auto ws_allocator = DELAllocatorV2::instance(context_->device(), defaultFlowHandle);
     for (LayerImpl *layer_ptr : unique_layers) {
+      std::cout << fmt::format("Initializing layer: {}", layer_ptr->name()) << std::endl;
       layer_ptr->set_engine_type(allocator.device().get_engine());
       layer_ptr->set_allocator(*ws_allocator);
       layer_ptr->init();
@@ -172,6 +173,7 @@ public:
 
   Vec<Node> nodes() const { return nodes_; }
   Vec<Edge> edges() const { return edges_; }
+  const Device &device() const { return context_->device(); }
 
   void add_edge(std::shared_ptr<LayerImpl> layer, const Vec<Node> &producers,
                 const Vec<Node> &consumers) {
@@ -267,7 +269,7 @@ public:
     nodes_ = std::move(sorted_nodes);
   }
 
-  OutputMap forward(InputMap &input_map) {
+  OutputMap forward(InputMap &input_map, size_t mb_id = 0) {
     std::map<std::string, Node> uid_to_node;
     for (const auto &node : nodes_) {
       uid_to_node[node->uid()] = node;
@@ -280,7 +282,7 @@ public:
       it->second->set_data(tensor);
     }
     for (auto it = edges_.begin(); it != edges_.end(); ++it) {
-      (*it)->forward();
+      (*it)->forward(mb_id);
     }
     OutputMap output_map;
     auto outputs = this->outputs();
@@ -290,7 +292,7 @@ public:
     return output_map;
   }
 
-  OutputMap backward(InputMap &output_grad_map) {
+  OutputMap backward(InputMap &output_grad_map, size_t mb_id = 0) {
     std::map<std::string, Node> uid_to_node;
     for (const auto &node : nodes_) {
       uid_to_node[node->uid()] = node;
@@ -303,7 +305,7 @@ public:
       it->second->set_grad(tensor);
     }
     for (auto it = edges_.rbegin(); it != edges_.rend(); ++it) {
-      (*it)->backward();
+      (*it)->backward(mb_id);
     }
     OutputMap input_grad_map;
     auto inputs = this->inputs();
@@ -318,6 +320,8 @@ public:
       uid = generate_uid();
     } else if (used_uids_.count(uid) > 0) {
       throw std::runtime_error("Duplicate node UID: " + uid);
+    } else {
+      used_uids_.insert(uid);
     }
     Node node = std::make_shared<NodeImpl>(this, uid);
     nodes_.push_back(node);
@@ -384,5 +388,4 @@ private:
   }
 };
 
-}  // namespace graph_api_v2
 }  // namespace tnn

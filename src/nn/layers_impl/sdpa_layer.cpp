@@ -339,7 +339,7 @@ void SDPALayerImpl::cudnn_backward(const ConstTensor &q, const ConstTensor &k, c
 }
 #endif
 
-std::unique_ptr<SDPALayerImpl> SDPALayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<SDPALayerImpl> SDPALayerImpl::create_from_config(const LayerConfig &config) {
   float attn_scale = 1.0f;
   bool is_causal = false;
   std::string name = "sdpa";
@@ -348,7 +348,7 @@ std::unique_ptr<SDPALayerImpl> SDPALayerImpl::create_from_config(const LayerConf
   is_causal = config.get<bool>("is_causal", false);
   name = config.name.empty() ? "sdpa" : config.name;
 
-  return std::make_unique<SDPALayerImpl>(attn_scale, is_causal, name);
+  return std::make_shared<SDPALayerImpl>(attn_scale, is_causal, name);
 }
 
 }  // namespace tnn

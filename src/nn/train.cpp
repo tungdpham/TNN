@@ -25,7 +25,6 @@
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/csv_logger.hpp"
-#include "nn/graph_executor.hpp"
 #include "nn/metrics.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "type/type.hpp"
@@ -45,6 +44,16 @@ static std::string normalize_train_mode(std::string mode) {
   std::cerr << "Warning: invalid TRAIN_MODE/TNN_TRAIN_MODE=\"" << mode
             << "\". Expected epoch, batch, or auto. Falling back to auto." << std::endl;
   return "auto";
+}
+
+static std::string training_artifact_name(const TrainingConfig &config) {
+  if (!config.model_name.empty()) {
+    return config.model_name;
+  }
+  if (!config.model_path.empty()) {
+    return std::filesystem::path(config.model_path).stem().string();
+  }
+  return "graph";
 }
 
 static void parse_optimizer_json(const nlohmann::json &j, OptimizerConfig &cfg) {
@@ -267,11 +276,9 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
   Tensor batch_data, batch_labels;
   const Device &model_device = graph.device();
   auto &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
-  auto ws_allocator = DELAllocatorV2::instance(model_device, defaultFlowHandle);
-  GraphExecutor executor(graph, ws_allocator);
 
   cout << "Starting training epoch..." << endl;
-  graph.set_training(true);
+  graph.set_mode(ExecutionMode::TRAIN);
   train_loader->shuffle();
   train_loader->reset();
 
@@ -301,18 +308,13 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
          (config.max_steps == -1 || num_batches < config.max_steps)) {
     auto batch_start = chrono::high_resolution_clock::now();
     ++num_batches;
+    Tensor device_input = batch_data->to_device(model_device);
     auto device_labels = batch_labels->to_device(model_device);
 
-    Tensor predictions = make_tensor(mem_pool, batch_data->data_type());
+    InputMap inputs{{"input", device_input}};
 
-    const InputPack inputs{
-        {"input", &batch_data},
-    };
-    OutputPack outputs{
-        {"output", &predictions},
-    };
-
-    executor.forward(inputs, outputs);
+    OutputMap outputs = graph.forward(inputs);
+    Tensor predictions = outputs.get("output");
 
     size_t batch_size = 1;
     for (size_t i = 0; i < predictions->dims() - 1; ++i) {
@@ -353,15 +355,8 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
       loss_gradient->mul_scalar(1.0 / config.gradient_accumulation_steps);
     }
 
-    Tensor backward_output = make_tensor(mem_pool, batch_data->data_type(), batch_data->shape());
-
-    const InputPack grad_inputs{
-        {"output", &loss_gradient},
-    };
-    OutputPack grad_outputs{
-        {"input", &backward_output},
-    };
-    executor.backward(grad_inputs, grad_outputs);
+    InputMap output_grads{{"output", loss_gradient}};
+    graph.backward(output_grads);
 
     auto batch_end = chrono::high_resolution_clock::now();
     auto batch_duration = chrono::duration_cast<chrono::milliseconds>(batch_end - batch_start);
@@ -422,7 +417,8 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
   ThreadWrapper thread_wrapper({config.num_threads});
 
   double best_val_accuracy = 0.0;
-  CsvLogger logger("tnn_" + graph.name(), config.log_dir, &config.log_mode);
+  const std::string artifact_name = training_artifact_name(config);
+  CsvLogger logger("tnn_" + artifact_name, config.log_dir, &config.log_mode);
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
@@ -442,7 +438,7 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
              << best_val_accuracy * 100.0 << "%" << endl;
         try {
           filesystem::create_directories("model_snapshots");
-          string filepath = "model_snapshots/" + graph.name();
+          string filepath = "model_snapshots/" + artifact_name;
           ofstream file(filepath, ios::binary);
           if (!file.is_open()) {
             throw runtime_error("Failed to open file: " + filepath);
@@ -491,17 +487,16 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 
   Tensor batch_data, batch_labels;
   cout << "Starting training epoch..." << endl;
-  graph.set_training(true);
+  graph.set_mode(ExecutionMode::TRAIN);
   train_loader->shuffle();
   train_loader->reset();
 
   const Device &model_device = graph.device();
   auto &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
-  auto ws_allocator = DELAllocatorV2::instance(model_device, defaultFlowHandle);
-  GraphExecutor executor(graph, ws_allocator);
 
   int grad_accum_counter = 0;
-  CsvLogger logger("tnn_" + graph.name(), config.log_dir, &config.log_mode);
+  const std::string artifact_name = training_artifact_name(config);
+  CsvLogger logger("tnn_" + artifact_name, config.log_dir, &config.log_mode);
 
   train_loader->reset();
   auto start_time = chrono::high_resolution_clock::now();
@@ -541,15 +536,11 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
         }
       }
       auto batch_start = chrono::high_resolution_clock::now();
-      Tensor predictions;
+      Tensor device_input = batch_data->to_device(model_device);
       Tensor device_labels = batch_labels->to_device(model_device);
-      const InputPack inputs{
-          {"input", &batch_data},
-      };
-      OutputPack outputs{
-          {"output", &predictions},
-      };
-      executor.forward(inputs, outputs);
+      InputMap inputs{{"input", device_input}};
+      OutputMap outputs = graph.forward(inputs);
+      Tensor predictions = outputs.get("output");
       float loss;
       criterion->compute_loss(predictions, device_labels, loss);
 
@@ -577,19 +568,11 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       Tensor loss_gradient = make_tensor(mem_pool, batch_data->data_type(), predictions->shape());
       criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
-      Tensor backward_output = make_tensor(mem_pool, batch_data->data_type(), batch_data->shape());
-      const InputPack grad_outputs{
-          {"output", &loss_gradient},
-      };
-      OutputPack grad_inputs{
-          {"input", &backward_output},
-      };
       if (config.gradient_accumulation_steps > 1) {
         loss_gradient->mul_scalar(1.0 / config.gradient_accumulation_steps);
       }
-      executor.backward(grad_outputs, grad_inputs);
-
-      backward_output = nullptr;  // free backward output buffer early
+      InputMap output_grads{{"output", loss_gradient}};
+      graph.backward(output_grads);
 
       auto batch_end = chrono::high_resolution_clock::now();
       auto batch_duration = chrono::duration_cast<chrono::milliseconds>(batch_end - batch_start);
@@ -643,7 +626,7 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
     // save model
     try {
       filesystem::create_directories("model_snapshots");
-      string filepath = "model_snapshots/" + graph.name();
+      string filepath = "model_snapshots/" + artifact_name;
       ofstream file(filepath, ios::binary);
       if (!file.is_open()) {
         throw runtime_error("Failed to open file: " + filepath);
@@ -661,7 +644,7 @@ void train_model(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
                  unique_ptr<BaseDataLoader> &val_loader, unique_ptr<Optimizer> &optimizer,
                  const unique_ptr<Loss> &criterion, unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config) {
-  optimizer->attach(graph.context());
+  optimizer->attach(*graph.context());
 
   cout << "Training batches: " << train_loader->size() / config.batch_size << endl;
   cout << "Validation batches: " << val_loader->size() / config.batch_size << endl;
@@ -681,12 +664,9 @@ void train_model(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
                       const unique_ptr<Loss> &criterion, const TrainingConfig &config,
                       CsvLogger *logger, int epoch) {
-  auto &mem_pool = PoolAllocator::instance(graph.device(), defaultFlowHandle);
-  auto ws_allocator = DELAllocatorV2::instance(graph.device(), defaultFlowHandle);
-  GraphExecutor executor(graph, ws_allocator);
   Tensor batch_data, batch_labels;
 
-  graph.set_training(false);
+  graph.set_mode(ExecutionMode::EVAL);
   val_loader->reset();
 
   cout << "Starting validation..." << endl;
@@ -699,14 +679,9 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
 
   while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
     Tensor device_input = batch_data->to_device(model_device);
-    const InputPack inputs{
-        {"input", &device_input},
-    };
-    Tensor predictions = make_tensor<float>(mem_pool, {});
-    OutputPack outputs{
-        {"output", &predictions},
-    };
-    executor.forward(inputs, outputs);
+    InputMap inputs{{"input", device_input}};
+    OutputMap outputs = graph.forward(inputs);
+    Tensor predictions = outputs.get("output");
 
     device_batch_labels = batch_labels->to_device(model_device);
     float loss;
