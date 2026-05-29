@@ -70,13 +70,135 @@ std::shared_ptr<Graph> make_mnist_model() {
   return graph;
 }
 
+LayerRef<ResidualBlock> make_basic_residual_block(
+    size_t in_channels, size_t out_channels, size_t stride = 1,
+    const std::string &name = "basic_residual_block") {
+  auto main_seq = std::make_unique<Sequential>(
+      Conv2DLayer(in_channels, out_channels, 3, 3, stride, stride, 1, 1, false, name + "_conv1"),
+      BatchNormLayer(out_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn1"),
+      Conv2DLayer(out_channels, out_channels, 3, 3, 1, 1, 1, 1, false, name + "_conv2"),
+      BatchNormLayer(out_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn2"));
+
+  std::unique_ptr<Sequential> shortcut_seq = nullptr;
+  if (stride != 1 || in_channels != out_channels) {
+    shortcut_seq =
+        std::make_unique<Sequential>(Conv2DLayer(in_channels, out_channels, 1, 1, stride, stride, 0,
+                                                 0, false, name + "_shortcut_conv"),
+                                     BatchNormLayer(out_channels, dtype_eps(DType_t::FP32), 0.1f,
+                                                    true, true, name + "_shortcut_bn"));
+  }
+
+  return make_layer<ResidualBlock>(std::move(main_seq), std::move(shortcut_seq), name);
+}
+
+LayerRef<ResidualBlock> make_bottleneck_residual_block(
+    size_t in_channels, size_t mid_channels, size_t out_channels, size_t stride = 1,
+    const std::string &name = "bottleneck_residual_block") {
+  auto main_seq = std::make_unique<Sequential>(
+      Conv2DLayer(in_channels, mid_channels, 1, 1, 1, 1, 0, 0, false, name + "_conv1"),
+      BatchNormLayer(mid_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn1"),
+      Conv2DLayer(mid_channels, mid_channels, 3, 3, stride, stride, 1, 1, false, name + "_conv2"),
+      BatchNormLayer(mid_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn2"),
+      Conv2DLayer(mid_channels, out_channels, 1, 1, 1, 1, 0, 0, false, name + "_conv3"),
+      BatchNormLayer(out_channels, dtype_eps(DType_t::FP32), 0.1f, true, true, name + "_bn3"));
+
+  std::unique_ptr<Sequential> shortcut_seq = nullptr;
+  if (stride != 1 || in_channels != out_channels) {
+    shortcut_seq =
+        std::make_unique<Sequential>(Conv2DLayer(in_channels, out_channels, 1, 1, stride, stride, 0,
+                                                 0, false, name + "_shortcut_conv"),
+                                     BatchNormLayer(out_channels, dtype_eps(DType_t::FP32), 0.1f,
+                                                    true, true, name + "_shortcut_bn"));
+  }
+
+  return make_layer<ResidualBlock>(std::move(main_seq), std::move(shortcut_seq), name);
+}
+
+std::shared_ptr<Graph> make_resnet50_model() {
+  auto graph = make_shared<Graph>();
+
+  auto input = graph->make_node("input");
+
+  // Initial convolution layer
+  auto conv1 = make_layer<Conv2DLayer>(3, 64, 7, 7, 2, 2, 3, 3, true, "conv1");
+  auto bn1 = make_layer<BatchNormLayer>(64, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn1");
+  auto maxpool = make_layer<MaxPool2DLayer>(3, 3, 2, 2, 1, 1, "maxpool");
+
+  // Layer 1: 64 -> 256 (3 bottleneck blocks)
+  auto layer1_block1 = make_bottleneck_residual_block(64, 64, 256, 1, "layer1_block1");
+  auto layer1_block2 = make_bottleneck_residual_block(256, 64, 256, 1, "layer1_block2");
+  auto layer1_block3 = make_bottleneck_residual_block(256, 64, 256, 1, "layer1_block3");
+
+  // Layer 2: 256 -> 512 (4 bottleneck blocks)
+  auto layer2_block1 = make_bottleneck_residual_block(256, 128, 512, 2, "layer2_block1");
+  auto layer2_block2 = make_bottleneck_residual_block(512, 128, 512, 1, "layer2_block2");
+  auto layer2_block3 = make_bottleneck_residual_block(512, 128, 512, 1, "layer2_block3");
+  auto layer2_block4 = make_bottleneck_residual_block(512, 128, 512, 1, "layer2_block4");
+
+  // Layer 3: 512 -> 1024 (6 bottleneck blocks)
+  auto layer3_block1 = make_bottleneck_residual_block(512, 256, 1024, 2, "layer3_block1");
+  auto layer3_block2 = make_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block2");
+  auto layer3_block3 = make_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block3");
+  auto layer3_block4 = make_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block4");
+  auto layer3_block5 = make_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block5");
+  auto layer3_block6 = make_bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block6");
+
+  // Layer 4: 1024 -> 2048 (3 bottleneck blocks)
+  auto layer4_block1 = make_bottleneck_residual_block(1024, 512, 2048, 2, "layer4_block1");
+  auto layer4_block2 = make_bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block2");
+  auto layer4_block3 = make_bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3");
+
+  // Global average pooling and classification head
+  auto avgpool = make_layer<AvgPool2DLayer>(7, 7, 1, 1, 0, 0, "avgpool");
+  auto flatten = make_layer<FlattenLayer>(1, -1, "flatten");
+  auto fc = make_layer<DenseLayer>(2048, 1000, true, "fc");
+
+  // Forward pass
+  auto x = conv1(input);
+  x = bn1(x);
+  x = maxpool(x);
+
+  // Layer 1
+  x = layer1_block1(x);
+  x = layer1_block2(x);
+  x = layer1_block3(x);
+
+  // Layer 2
+  x = layer2_block1(x);
+  x = layer2_block2(x);
+  x = layer2_block3(x);
+  x = layer2_block4(x);
+
+  // Layer 3
+  x = layer3_block1(x);
+  x = layer3_block2(x);
+  x = layer3_block3(x);
+  x = layer3_block4(x);
+  x = layer3_block5(x);
+  x = layer3_block6(x);
+
+  // Layer 4
+  x = layer4_block1(x);
+  x = layer4_block2(x);
+  x = layer4_block3(x);
+
+  // Classification head
+  x = avgpool(x);
+  x = flatten(x);
+  auto output = fc(x);
+  output->set_uid("output");
+
+  auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
+
+  graph->compile(allocator);
+
+  return graph;
+}
+
 signed main() {
   cout << "Testing Graph API v2" << endl;
 
   auto graph = make_mnist_model();
-
-  auto batch_data = make_tensor<float>({1, 64, 64, 3}, getGPU());
-  batch_data->fill(1.0f);  // Fill with dummy data
 
   auto [train_loader, val_loader] = DataLoaderFactory::create("mnist", "data/mnist");
   if (!train_loader || !val_loader) {
@@ -88,7 +210,7 @@ signed main() {
   Tensor data, labels;
 
   auto criterion = LossFactory::create_crossentropy(true, 1e-15);
-  auto optimizer = OptimizerFactory::create_adam(0.001f, 0.9f, 0.999f, 1e-8f, 1e-4f);
+  auto optimizer = OptimizerFactory::create_adam(0.001f, 0.9f, 0.999f);
 
   optimizer->attach(*graph->context());
 
@@ -97,6 +219,7 @@ signed main() {
     train_loader->shuffle();
     train_loader->reset();
 
+    graph->set_mode(ExecutionMode::TRAIN);
     int batch_idx = 0;
     // train
     while (train_loader->get_batch(256, data, labels)) {
@@ -130,6 +253,7 @@ signed main() {
       ++batch_idx;
     }
 
+    graph->set_mode(ExecutionMode::EVAL);
     val_loader->reset();
     // validation
     float total_val_loss = 0.0f;

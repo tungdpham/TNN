@@ -15,6 +15,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "nn/block.hpp"
 #include "nn/blocks_impl/sequential.hpp"
+#include "nn/graph_api.hpp"
 #include "nn/layer.hpp"
 
 namespace tnn {
@@ -69,5 +70,18 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   static std::unique_ptr<ResidualBlock> create_from_config(const LayerConfig &config);
+
+  graph_api_v2::Node operator()(const graph_api_v2::Node &input) {
+    if (!input) {
+      throw std::runtime_error("Input node is null");
+    }
+    graph_api_v2::Graph *graph = input->graph();
+    graph_api_v2::Node output = graph->make_node();
+
+    std::shared_ptr<Layer> self = shared_from_this();
+
+    graph->add_edge(self, {input}, {output});
+    return output;
+  }
 };
 }  // namespace tnn

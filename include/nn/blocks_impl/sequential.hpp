@@ -12,6 +12,8 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 #include "nn/block.hpp"
 #include "nn/layer.hpp"
@@ -37,6 +39,30 @@ protected:
 public:
   explicit Sequential(Vec<std::unique_ptr<Layer>> layers = {},
                       const std::string &name = "sequential");
+
+  template <typename... LayerArgs,
+            typename = std::enable_if_t<
+                (sizeof...(LayerArgs) > 0) &&
+                (std::conjunction_v<std::is_base_of<Layer, std::decay_t<LayerArgs>>...>)>>
+  explicit Sequential(LayerArgs &&...layers)
+      : Block("sequential") {
+    layers_.reserve(sizeof...(LayerArgs));
+    (layers_.emplace_back(
+         std::make_unique<std::decay_t<LayerArgs>>(std::forward<LayerArgs>(layers))),
+     ...);
+  }
+
+  template <typename... LayerArgs,
+            typename = std::enable_if_t<
+                (sizeof...(LayerArgs) > 0) &&
+                (std::conjunction_v<std::is_base_of<Layer, std::decay_t<LayerArgs>>...>)>>
+  explicit Sequential(const std::string &name, LayerArgs &&...layers)
+      : Block(name) {
+    layers_.reserve(sizeof...(LayerArgs));
+    (layers_.emplace_back(
+         std::make_unique<std::decay_t<LayerArgs>>(std::forward<LayerArgs>(layers))),
+     ...);
+  }
 
   static constexpr const char *TYPE_NAME = "sequential";
 
