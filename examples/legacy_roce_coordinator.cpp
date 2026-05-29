@@ -10,7 +10,7 @@
 #include "distributed/train.hpp"
 #include "nn/legacy/example_models.hpp"
 #include "nn/optimizers.hpp"
-#include "partitioner/naive_partitioner.hpp"
+#include "partitioner/graph_partitioner.hpp"
 #include "utils/env.hpp"
 
 using namespace tnn;
@@ -150,8 +150,7 @@ int main(int argc, char *argv[]) {
   auto local_worker = std::make_unique<RoCEWorker>(local_worker_endpoint,
                                                    train_config.device_type == DeviceType::GPU);
 
-  // initialize a partitioner with weights 2:1
-  auto partitioner = std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
+  auto partitioner = std::make_unique<GraphPartitioner>(Vec<size_t>{2, 1});
 
   CoordinatorConfig coord_config{
       ParallelMode_t::PIPELINE, std::move(graph),        std::move(optimizer), std::move(scheduler),

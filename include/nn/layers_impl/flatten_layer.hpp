@@ -25,14 +25,23 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  explicit FlattenLayerImpl(int start_dim = 1, int end_dim = -1, const std::string &name = "flatten");
+  explicit FlattenLayerImpl(int start_dim = 1, int end_dim = -1,
+                            const std::string &name = "flatten");
 
   static constexpr const char *TYPE_NAME = "flatten";
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  static std::unique_ptr<FlattenLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<FlattenLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class FlattenLayer : public LayerRef<FlattenLayerImpl> {
+public:
+  explicit FlattenLayer(int start_dim = 1, int end_dim = -1, const std::string &name = "flatten")
+      : LayerRef(std::make_shared<FlattenLayerImpl>(start_dim, end_dim, name)) {}
+
+  using LayerRef<FlattenLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

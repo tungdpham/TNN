@@ -114,8 +114,8 @@ public:
   static constexpr const char *TYPE_NAME = "conv2d";
 
   Conv2DLayerImpl(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
-              size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
-              bool use_bias = true, const std::string &name = "conv2d");
+                  size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
+                  bool use_bias = true, const std::string &name = "conv2d");
 
   ~Conv2DLayerImpl();
 
@@ -123,7 +123,19 @@ public:
   LayerConfig get_config() const override;
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<Conv2DLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<Conv2DLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class Conv2DLayer : public LayerRef<Conv2DLayerImpl> {
+public:
+  Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
+              size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
+              bool use_bias = true, const std::string &name = "conv2d")
+      : LayerRef(std::make_shared<Conv2DLayerImpl>(in_channels, out_channels, kernel_h, kernel_w,
+                                                   stride_h, stride_w, pad_h, pad_w, use_bias,
+                                                   name)) {}
+
+  using LayerRef<Conv2DLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

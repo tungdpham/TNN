@@ -84,10 +84,10 @@ Vec<size_t> FlattenLayerImpl::compute_output_shape(const Vec<size_t> &input_shap
   return output_shape;
 }
 
-std::unique_ptr<FlattenLayerImpl> FlattenLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<FlattenLayerImpl> FlattenLayerImpl::create_from_config(const LayerConfig &config) {
   int start_dim = config.get<int>("start_dim", 1);
   int end_dim = config.get<int>("end_dim", -1);
-  return std::make_unique<FlattenLayerImpl>(start_dim, end_dim, config.name);
+  return std::make_shared<FlattenLayerImpl>(start_dim, end_dim, config.name);
 }
 
 }  // namespace tnn

@@ -303,12 +303,12 @@ Vec<size_t> LegacyDenseLayerImpl::compute_output_shape(const Vec<size_t> &input_
   return out_shape;
 }
 
-std::unique_ptr<LegacyDenseLayerImpl> LegacyDenseLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<LegacyDenseLayerImpl> LegacyDenseLayerImpl::create_from_config(const LayerConfig &config) {
   size_t input_features = config.get<size_t>("input_features");
   size_t output_features = config.get<size_t>("output_features");
   bool use_bias = config.get<bool>("use_bias");
 
-  return std::make_unique<LegacyDenseLayerImpl>(input_features, output_features, use_bias, config.name);
+  return std::make_shared<LegacyDenseLayerImpl>(input_features, output_features, use_bias, config.name);
 }
 
 }  // namespace tnn

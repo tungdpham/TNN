@@ -10,10 +10,12 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <variant>
 
@@ -25,32 +27,28 @@
 #include "job.hpp"
 #include "message.hpp"
 #include "nn/blocks_impl/sequential.hpp"
-#include "nn/graph.hpp"
-#include "nn/graph_builder.hpp"
+#include "nn/graph_api.hpp"
 #include "nn/layers.hpp"
-#include "nn/op_node.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
 #include "tensor/tensor.hpp"
-#include "tensor/tensor_utils.hpp"
-#include "type/type.hpp"
 
 namespace tnn {
 
 class Worker {
 public:
-  explicit Worker(std::unique_ptr<Sequential> model, std::unique_ptr<Communicator> communicator)
+  explicit Worker(Sequential model, std::unique_ptr<Communicator> communicator,
+                  const Device &device = getHost())
       : communicator_(std::move(communicator)),
         should_stop_(true) {
-    GraphBuilder builder;
-    auto &node = builder.add_layer(std::move(model));
-    model_ = &node;
-    // Assume GPU for distributed worker for now
-    auto &allocator = PoolAllocator::instance(
-        DeviceManager::getInstance().getDevice(DeviceType::GPU), defaultFlowHandle);
-    graph_ = std::make_unique<Graph>(builder.compile(allocator));
+    graph_ = std::make_unique<Graph>();
+    auto input = graph_->make_node("input");
+    auto output = model(input);
+
+    auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
+    graph_->compile(allocator);
   }
 
   virtual ~Worker() { stop(); }
@@ -97,20 +95,16 @@ public:
   bool is_configured() const { return is_configured_; }
 
   void set_config(const StageConfig &config) {
-    // setup model, optimizer, criterion
-    LayerConfig model_config = config.model_config;
     auto &device = use_gpu_ ? getGPU() : getHost();
     auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
-    // this->graph_ = std::make_unique<Graph>();
-    GraphBuilder builder;
-    auto &node = builder.add_layer(Sequential::create_from_config(model_config));
-    this->model_ = &node;
-    // this->model_->set_seed(123456);
-    this->graph_ = std::make_unique<Graph>(builder.compile(allocator));
+    std::istringstream graph_stream(config.graph_state, std::ios::binary);
+    graph_ = std::make_unique<Graph>(Graph::load_state(graph_stream, allocator));
+    input_uids_ = config.input_uids;
+    output_uids_ = config.output_uids;
 
     OptimizerConfig optimizer_config = config.optimizer_config;
     this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
-    this->optimizer_->attach(this->graph_->context());
+    this->optimizer_->attach(*graph_->context());
 
     this->scheduler_ =
         SchedulerFactory::create_from_config(config.scheduler_config, this->optimizer_.get());
@@ -141,22 +135,30 @@ protected:
   virtual void process_message(Message &&message) {
     switch (message.header().command_type) {
       case CommandType::FORWARD_JOB: {
+        if (input_uids_.size() != 1 || output_uids_.size() != 1) {
+          throw std::runtime_error("Worker only supports single-input single-output stage graphs");
+        }
         const Job &forward_job = message.get<Job>();
-        auto outputs = this->model_->forward({forward_job.data}, forward_job.mb_id);
-        Job output(outputs[0], forward_job.mb_id);
+        InputMap inputs{{input_uids_.front(), forward_job.data}};
+        auto outputs = graph_->forward(inputs);
+        Job output(outputs[output_uids_.front()], forward_job.mb_id);
         message = Message(CommandType::FORWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), next_stage_endpoint_);
       } break;
       case CommandType::BACKWARD_JOB: {
+        if (input_uids_.size() != 1 || output_uids_.size() != 1) {
+          throw std::runtime_error("Worker only supports single-input single-output stage graphs");
+        }
         const Job &backward_job = message.get<Job>();
-        auto outputs = this->model_->backward({backward_job.data}, backward_job.mb_id);
+        InputMap output_grads{{output_uids_.front(), backward_job.data}};
+        auto outputs = graph_->backward(output_grads, backward_job.mb_id);
         if (prev_stage_endpoint_ == Endpoint::empty()) {
           // only send backward complete if there is no previous stage
           Message complete_msg(CommandType::BACKWARD_COMPLETE);
           communicator_->send_message(std::move(complete_msg), coordinator_endpoint_);
           break;
         }
-        Job output(outputs[0], backward_job.mb_id);
+        Job output(outputs[input_uids_.front()], backward_job.mb_id);
         message = Message(CommandType::BACKWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), prev_stage_endpoint_);
       } break;
@@ -175,11 +177,11 @@ protected:
       } break;
       case CommandType::TRAIN_MODE:
         std::cout << "Stage " << id_ << " switching to TRAIN mode." << std::endl;
-        this->model_->set_training(true);
+        this->graph_->set_mode(ExecutionMode::TRAIN);
         break;
       case CommandType::EVAL_MODE:
         std::cout << "Stage " << id_ << " switching to EVAL mode." << std::endl;
-        this->model_->set_training(false);
+        this->graph_->set_mode(ExecutionMode::EVAL);
         break;
       case CommandType::STATUS_REQUEST: {
         throw std::runtime_error("Not implemented yet");
@@ -214,19 +216,19 @@ protected:
         break;
       }
       case CommandType::PRINT_PROFILING:
-        if (model_) {
+        if (graph_) {
           Message outgoing_message(CommandType::PROFILING_PRINTED);
           communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
         } else {
-          std::cout << "Warning: No model available to print profiling data" << std::endl;
+          std::cout << "Warning: No graph available to print profiling data" << std::endl;
         }
         break;
       case CommandType::CLEAR_PROFILING:
-        if (model_) {
+        if (graph_) {
           Message outgoing_message(CommandType::PROFILING_CLEARED);
           communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
         } else {
-          std::cout << "Warning: No model available to clear profiling data" << std::endl;
+          std::cout << "Warning: No graph available to clear profiling data" << std::endl;
         }
         break;
       case CommandType::CONFIG_TRANSFER: {
@@ -275,7 +277,7 @@ protected:
           if (!file.is_open()) {
             throw std::runtime_error("Failed to open file: " + filepath);
           }
-          this->model_->save_state(file);
+          this->graph_->save_state(file);
           file.close();
           std::cout << "Model saved to " << filepath << std::endl;
         } catch (const std::exception &e) {
@@ -313,7 +315,6 @@ protected:
 
   bool use_gpu_;
   std::unique_ptr<Graph> graph_;
-  OpNode *model_;
   std::unique_ptr<Optimizer> optimizer_;
   std::unique_ptr<Scheduler> scheduler_;
   std::unique_ptr<Communicator> communicator_;
@@ -325,6 +326,8 @@ protected:
   Endpoint coordinator_endpoint_;
   Endpoint next_stage_endpoint_;
   Endpoint prev_stage_endpoint_;
+  Vec<std::string> input_uids_;
+  Vec<std::string> output_uids_;
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_configured_;
 

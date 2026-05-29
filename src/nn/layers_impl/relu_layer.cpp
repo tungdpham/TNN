@@ -96,8 +96,8 @@ LayerConfig ReLULayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<ReLULayerImpl> ReLULayerImpl::create_from_config(const LayerConfig &config) {
-  return std::make_unique<ReLULayerImpl>(config.name);
+std::shared_ptr<ReLULayerImpl> ReLULayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<ReLULayerImpl>(config.name);
 }
 
 }  // namespace tnn

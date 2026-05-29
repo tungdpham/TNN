@@ -50,12 +50,12 @@ Vec<size_t> ActivationLayerImpl::compute_output_shape(const Vec<size_t> &input_s
   return input_shape;
 }
 
-std::unique_ptr<ActivationLayerImpl> ActivationLayerImpl::create_from_config(
+std::shared_ptr<ActivationLayerImpl> ActivationLayerImpl::create_from_config(
     const LayerConfig &config) {
   std::string activation_name = config.get<std::string>("activation", "relu");
   ActivationFactory::register_defaults();
   auto activation = ActivationFactory::create(activation_name);
-  return std::make_unique<ActivationLayerImpl>(std::move(activation), config.name);
+  return std::make_shared<ActivationLayerImpl>(std::move(activation), config.name);
 }
 
 }  // namespace tnn

@@ -57,7 +57,8 @@ private:
 
 public:
   LegacyMaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,
-                       size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "maxpool2d");
+                           size_t pad_h = 0, size_t pad_w = 0,
+                           const std::string &name = "maxpool2d");
 
   static constexpr const char *TYPE_NAME = "legacy_maxpool2d";
 
@@ -66,7 +67,17 @@ public:
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<LegacyMaxPool2DLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<LegacyMaxPool2DLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class LegacyMaxPool2DLayer : public LayerRef<LegacyMaxPool2DLayerImpl> {
+public:
+  LegacyMaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,
+                       size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "maxpool2d")
+      : LayerRef(std::make_shared<LegacyMaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w,
+                                                            pad_h, pad_w, name)) {}
+
+  using LayerRef<LegacyMaxPool2DLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

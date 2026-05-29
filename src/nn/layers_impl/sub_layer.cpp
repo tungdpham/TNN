@@ -71,8 +71,8 @@ LayerConfig SubLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<SubLayerImpl> SubLayerImpl::create_from_config(const LayerConfig &config) {
-  return std::make_unique<SubLayerImpl>(config.name.empty() ? "sub" : config.name);
+std::shared_ptr<SubLayerImpl> SubLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<SubLayerImpl>(config.name.empty() ? "sub" : config.name);
 }
 
 }  // namespace tnn

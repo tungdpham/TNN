@@ -203,11 +203,11 @@ Vec<size_t> PositionalEmbeddingLayerImpl::compute_output_shape(const Vec<size_t>
   return input_shape;
 }
 
-std::unique_ptr<PositionalEmbeddingLayerImpl> PositionalEmbeddingLayerImpl::create_from_config(
+std::shared_ptr<PositionalEmbeddingLayerImpl> PositionalEmbeddingLayerImpl::create_from_config(
     const LayerConfig &config) {
   size_t embed_dim = config.get<size_t>("embed_dim");
   size_t seq_len = config.get<size_t>("seq_len");
-  return std::make_unique<PositionalEmbeddingLayerImpl>(embed_dim, seq_len, config.name);
+  return std::make_shared<PositionalEmbeddingLayerImpl>(embed_dim, seq_len, config.name);
 }
 
 }  // namespace tnn

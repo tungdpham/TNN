@@ -25,12 +25,12 @@ public:
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
 
-  graph_api_v2::Node operator()(const graph_api_v2::Node &input) {
+  Node operator()(const Node &input) {
     if (!input) {
       throw std::runtime_error("Input node is null");
     }
-    graph_api_v2::Graph *graph = input->graph();
-    graph_api_v2::Node output = graph->make_node();
+    Graph *graph = input->graph();
+    Node output = graph->make_node();
 
     std::shared_ptr<LayerImpl> self = shared_from_this();
 

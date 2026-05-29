@@ -132,12 +132,36 @@ protected:
 template <typename LayerType>
 class LayerRef {
 public:
+  using impl_type = LayerType;
+
+  template <typename>
+  friend class LayerRef;
+
+  LayerRef() = default;
+
   LayerRef(std::shared_ptr<LayerType> layer)
       : layer_(layer) {}
 
   template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, LayerType *>>>
   LayerRef(std::shared_ptr<U> layer)
       : layer_(std::move(layer)) {}
+
+  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, LayerType *>>>
+  LayerRef(const LayerRef<U> &other)
+      : layer_(std::static_pointer_cast<LayerType>(other.layer_)) {}
+
+  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, LayerType *>>>
+  LayerRef(LayerRef<U> &&other)
+      : layer_(std::static_pointer_cast<LayerType>(std::move(other.layer_))) {}
+
+  template <typename T, typename U = typename std::decay_t<T>::impl_type,
+            std::enable_if_t<std::is_convertible_v<U *, LayerType *> &&
+                                 std::is_base_of_v<LayerRef<U>, std::decay_t<T>> &&
+                                 !std::is_same_v<std::decay_t<T>, LayerRef<U>>,
+                             int> = 0>
+  LayerRef(T &&other)
+      : layer_(
+            std::static_pointer_cast<LayerType>(static_cast<const LayerRef<U> &>(other).layer_)) {}
 
   template <typename... Args>
   LayerRef(Args &&...args)
@@ -147,7 +171,28 @@ public:
   LayerType &operator*() const { return *layer_; }
 
   operator std::shared_ptr<LayerType>() const { return layer_; }
-  std::shared_ptr<LayerType> get() const { return layer_; }
+  LayerType *get() const { return layer_.get(); }
+  LayerType *release() { return layer_.release(); }
+
+  explicit operator bool() const { return layer_ != nullptr; }
+  bool operator!() const { return layer_ == nullptr; }
+
+  bool operator==(const LayerRef &other) const { return layer_ == other.layer_; }
+  bool operator!=(const LayerRef &other) const { return layer_ != other.layer_; }
+
+  template <typename U>
+  bool is() const {
+    return std::dynamic_pointer_cast<U>(layer_) != nullptr;
+  }
+
+  template <typename U>
+  auto as() const -> LayerRef<U> {
+    auto casted = std::dynamic_pointer_cast<U>(layer_);
+    if (!casted) {
+      throw std::runtime_error("LayerRef: incompatible layer cast");
+    }
+    return LayerRef<U>(std::move(casted));
+  }
 
   template <typename... Args>
   decltype(auto) operator()(Args &&...args) const {
@@ -157,8 +202,13 @@ public:
     return (*layer_)(std::forward<Args>(args)...);
   }
 
-private:
+protected:
   std::shared_ptr<LayerType> layer_;
+};
+
+class Layer : public LayerRef<LayerImpl> {
+public:
+  using LayerRef<LayerImpl>::LayerRef;
 };
 
 template <typename LayerType, typename... Args>

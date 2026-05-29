@@ -133,17 +133,27 @@ private:
 
 public:
   explicit BatchNormLayerImpl(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
-                          bool affine = true, bool use_relu = false,
-                          const std::string &name = "batchnorm");
+                              bool affine = true, bool use_relu = false,
+                              const std::string &name = "batchnorm");
   ~BatchNormLayerImpl() override;
 
   static constexpr const char *TYPE_NAME = "batchnorm";
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<BatchNormLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<BatchNormLayerImpl> create_from_config(const LayerConfig &config);
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
+};
+
+class BatchNormLayer : public LayerRef<BatchNormLayerImpl> {
+public:
+  BatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
+                 bool affine = true, bool use_relu = false, const std::string &name = "batchnorm")
+      : LayerRef(std::make_shared<BatchNormLayerImpl>(num_features, epsilon, momentum, affine,
+                                                      use_relu, name)) {}
+
+  using LayerRef<BatchNormLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

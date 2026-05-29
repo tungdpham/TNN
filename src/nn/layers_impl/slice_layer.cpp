@@ -133,11 +133,11 @@ LayerConfig SliceLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<SliceLayerImpl> SliceLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<SliceLayerImpl> SliceLayerImpl::create_from_config(const LayerConfig &config) {
   size_t axis = (size_t)config.get<int>("axis", 0);
   size_t start = (size_t)config.get<int>("start", 0);
   size_t length = (size_t)config.get<int>("length", 1);
-  return std::make_unique<SliceLayerImpl>(axis, start, length, config.name);
+  return std::make_shared<SliceLayerImpl>(axis, start, length, config.name);
 }
 
 }  // namespace tnn

@@ -84,9 +84,9 @@ LayerConfig LeakyReLULayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<LeakyReLULayerImpl> LeakyReLULayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<LeakyReLULayerImpl> LeakyReLULayerImpl::create_from_config(const LayerConfig &config) {
   float negative_slope = config.get<float>("negative_slope", 0.01f);
-  return std::make_unique<LeakyReLULayerImpl>(negative_slope, config.name);
+  return std::make_shared<LeakyReLULayerImpl>(negative_slope, config.name);
 }
 
 }  // namespace tnn

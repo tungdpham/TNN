@@ -9,7 +9,6 @@
 
 #include <gtest/gtest.h>
 
-#include <memory>
 #include <vector>
 
 #include "nn/layers.hpp"
@@ -27,7 +26,7 @@ TEST(AttentionBlockTest, ForwardPassCPU) {
   Tensor input = make_tensor<float>({batch_size, L, embed_dim}, getHost());
   input->fill_random_uniform(-1.0f, 1.0f);
 
-  auto attention = std::make_unique<AttentionBlock>(embed_dim, num_heads, "attn");
+  auto attention = AttentionBlock(embed_dim, num_heads, "attn");
   attention->init();
 
   Tensor output = attention->forward({input})[0];

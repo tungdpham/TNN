@@ -73,16 +73,15 @@ public:
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
   Vec<ParamDescriptor> param_descriptors() override { return {}; }
 
-  graph_api_v2::Node operator()(const graph_api_v2::Node &q, const graph_api_v2::Node &k,
-                                const graph_api_v2::Node &v) {
+  Node operator()(const Node &q, const Node &k, const Node &v) {
     if (!q || !k || !v) {
       throw std::runtime_error("Input nodes cannot be null");
     }
-    graph_api_v2::Graph *graph = q->graph();
+    Graph *graph = q->graph();
     if (graph != k->graph() || graph != v->graph()) {
       throw std::runtime_error("All input nodes must belong to the same graph");
     }
-    graph_api_v2::Node output = graph->make_node();
+    Node output = graph->make_node();
 
     std::shared_ptr<LayerImpl> self = shared_from_this();
 
@@ -90,7 +89,7 @@ public:
     return output;
   }
 
-  static std::unique_ptr<SDPALayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<SDPALayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

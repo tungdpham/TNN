@@ -89,8 +89,8 @@ LayerConfig TransposeLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<TransposeLayerImpl> TransposeLayerImpl::create_from_config(const LayerConfig &config) {
-  return std::make_unique<TransposeLayerImpl>(config.name);
+std::shared_ptr<TransposeLayerImpl> TransposeLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<TransposeLayerImpl>(config.name);
 }
 
 }  // namespace tnn

@@ -5,8 +5,7 @@
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
-#include "nn/graph.hpp"
-#include "nn/graph_builder.hpp"
+#include "nn/graph_api.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
@@ -50,7 +49,6 @@ signed main(int argc, char *argv[]) {
   // Prioritize loading existing model, else create from available ones
   const auto &device = DeviceManager::getInstance().getDevice(train_config.device_type);
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
-  GraphBuilder builder;
 
   if (train_config.dataset_name.empty()) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");

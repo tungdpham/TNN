@@ -24,8 +24,8 @@
 
 namespace tnn {
 
-MSequential::MSequential(Vec<std::unique_ptr<Sequential>> sequences,
-                         std::unique_ptr<LayerImpl> join_layer, const std::string &name)
+MSequentialImpl::MSequentialImpl(Vec<Sequential> sequences, Layer join_layer,
+                                 const std::string &name)
     : Block(name),
       sequences_(std::move(sequences)),
       join_layer_(std::move(join_layer)) {
@@ -37,8 +37,9 @@ MSequential::MSequential(Vec<std::unique_ptr<Sequential>> sequences,
   }
 }
 
-MSequential::SequenceMemInfo MSequential::measure_sequence_memory(size_t seq_idx, ConstTensor input,
-                                                                  size_t mb_id) {
+MSequentialImpl::SequenceMemInfo MSequentialImpl::measure_sequence_memory(size_t seq_idx,
+                                                                          ConstTensor input,
+                                                                          size_t mb_id) {
   const auto &seq = sequences_[seq_idx];
 
   size_t m_prev = allocator_->total_allocated();
@@ -71,7 +72,7 @@ MSequential::SequenceMemInfo MSequential::measure_sequence_memory(size_t seq_idx
   return info;
 }
 
-Vec<size_t> MSequential::compute_execution_order(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<size_t> MSequentialImpl::compute_execution_order(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (inputs.size() != sequences_.size()) {
     throw std::runtime_error(
         fmt::format("MSequential: Expected {} inputs, got {}", sequences_.size(), inputs.size()));
@@ -104,7 +105,7 @@ Vec<size_t> MSequential::compute_execution_order(const Vec<ConstTensor> &inputs,
  * @param outputs Output tensors from the join layer
  * @param mb_id Micro-batch ID
  */
-Vec<Tensor> MSequential::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> MSequentialImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (sequences_.empty()) {
     throw std::runtime_error("Cannot forward through empty MSequential model");
   }
@@ -146,7 +147,7 @@ Vec<Tensor> MSequential::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_
   return join_outputs;
 }
 
-Vec<Tensor> MSequential::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> MSequentialImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   if (sequences_.empty()) {
     throw std::runtime_error("Cannot backward through empty MSequential model");
   }
@@ -162,7 +163,7 @@ Vec<Tensor> MSequential::backward_impl(const Vec<ConstTensor> &grad_outputs, siz
   return grad_inputs;
 }
 
-Vec<Vec<size_t>> MSequential::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
+Vec<Vec<size_t>> MSequentialImpl::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   if (input_shapes.size() != sequences_.size()) {
     throw std::runtime_error(fmt::format("MSequential: Expected {} inputs, got {}",
                                          sequences_.size(), input_shapes.size()));
@@ -179,7 +180,7 @@ Vec<Vec<size_t>> MSequential::output_shapes(const Vec<Vec<size_t>> &input_shapes
   return join_layer_->output_shapes(sequence_output_shapes);
 }
 
-void MSequential::print_summary(const Vec<Vec<size_t>> &input_shapes) const {
+void MSequentialImpl::print_summary(const Vec<Vec<size_t>> &input_shapes) const {
   if (sequences_.empty()) {
     std::cout << "Empty MSequential model.\n";
     return;
@@ -227,8 +228,8 @@ void MSequential::print_summary(const Vec<Vec<size_t>> &input_shapes) const {
   std::cout << "Output shape: " << format_shape(final_output[0]) << "\n";
 }
 
-Vec<Sequential *> MSequential::get_sequences() {
-  Vec<Sequential *> seqs;
+Vec<SequentialImpl *> MSequentialImpl::get_sequences() {
+  Vec<SequentialImpl *> seqs;
   seqs.reserve(sequences_.size());
   for (auto &seq : sequences_) {
     seqs.push_back(seq.get());
@@ -236,9 +237,9 @@ Vec<Sequential *> MSequential::get_sequences() {
   return seqs;
 }
 
-LayerImpl *MSequential::get_join_layer() { return join_layer_.get(); }
+LayerImpl *MSequentialImpl::get_join_layer() { return join_layer_.get(); }
 
-LayerConfig MSequential::get_config() const {
+LayerConfig MSequentialImpl::get_config() const {
   LayerConfig config;
   config.name = name_;
   config.type = TYPE_NAME;
@@ -258,18 +259,18 @@ LayerConfig MSequential::get_config() const {
   return config;
 }
 
-std::unique_ptr<MSequential> MSequential::create_from_config(const LayerConfig &config) {
+std::shared_ptr<MSequentialImpl> MSequentialImpl::create_from_config(const LayerConfig &config) {
   nlohmann::json sequences_json = config.get<nlohmann::json>("sequences", nlohmann::json::array());
   if (!sequences_json.is_array()) {
     throw std::runtime_error("MSequential config 'sequences' parameter must be an array");
   }
 
-  Vec<std::unique_ptr<Sequential>> sequences;
+  Vec<Sequential> sequences;
   LayerFactory::register_defaults();
 
   for (const auto &seq_json : sequences_json) {
     LayerConfig seq_config = LayerConfig::from_json(seq_json);
-    auto seq = Sequential::create_from_config(seq_config);
+    auto seq = SequentialImpl::create_from_config(seq_config);
     sequences.push_back(std::move(seq));
   }
 
@@ -277,7 +278,8 @@ std::unique_ptr<MSequential> MSequential::create_from_config(const LayerConfig &
   LayerConfig join_config = LayerConfig::from_json(join_json);
   auto join_layer = LayerFactory::create(join_config);
 
-  return std::make_unique<MSequential>(std::move(sequences), std::move(join_layer), config.name);
+  return std::make_shared<MSequentialImpl>(std::move(sequences), std::move(join_layer),
+                                           config.name);
 }
 
 }  // namespace tnn

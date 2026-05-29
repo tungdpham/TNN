@@ -348,12 +348,12 @@ Vec<size_t> DenseLayerImpl::compute_output_shape(const Vec<size_t> &input_shape)
   return out_shape;
 }
 
-std::unique_ptr<DenseLayerImpl> DenseLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<DenseLayerImpl> DenseLayerImpl::create_from_config(const LayerConfig &config) {
   size_t input_features = config.get<size_t>("input_features");
   size_t output_features = config.get<size_t>("output_features");
   bool use_bias = config.get<bool>("use_bias");
 
-  return std::make_unique<DenseLayerImpl>(input_features, output_features, use_bias, config.name);
+  return std::make_shared<DenseLayerImpl>(input_features, output_features, use_bias, config.name);
 }
 
 }  // namespace tnn

@@ -9,7 +9,6 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
-#include <vector>
 
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"

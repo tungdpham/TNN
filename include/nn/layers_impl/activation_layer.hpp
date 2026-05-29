@@ -29,8 +29,17 @@ public:
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<ActivationLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<ActivationLayerImpl> create_from_config(const LayerConfig &config);
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
+};
+
+class ActivationLayer : public LayerRef<ActivationLayerImpl> {
+public:
+  ActivationLayer(std::unique_ptr<ActivationFunction> activation,
+                  const std::string &name = "activation")
+      : LayerRef(std::make_shared<ActivationLayerImpl>(std::move(activation), name)) {}
+
+  using LayerRef<ActivationLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

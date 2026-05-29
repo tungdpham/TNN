@@ -35,8 +35,8 @@ LayerConfig LinearLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<LinearLayerImpl> LinearLayerImpl::create_from_config(const LayerConfig &config) {
-  return std::make_unique<LinearLayerImpl>(config.name);
+std::shared_ptr<LinearLayerImpl> LinearLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<LinearLayerImpl>(config.name);
 }
 
 }  // namespace tnn

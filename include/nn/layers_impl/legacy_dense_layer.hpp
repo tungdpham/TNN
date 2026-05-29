@@ -79,7 +79,7 @@ private:
 
 public:
   LegacyDenseLayerImpl(size_t input_features, size_t output_features, bool use_bias = true,
-                   const std::string &name = "legacy_dense");
+                       const std::string &name = "legacy_dense");
 
   static constexpr const char *TYPE_NAME = "legacy_dense";
 
@@ -88,7 +88,17 @@ public:
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<LegacyDenseLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<LegacyDenseLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class LegacyDenseLayer : public LayerRef<LegacyDenseLayerImpl> {
+public:
+  LegacyDenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
+                   const std::string &name = "legacy_dense")
+      : LayerRef(std::make_shared<LegacyDenseLayerImpl>(input_features, output_features, use_bias,
+                                                        name)) {}
+
+  using LayerRef<LegacyDenseLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

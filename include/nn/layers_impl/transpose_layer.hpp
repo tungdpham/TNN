@@ -33,7 +33,15 @@ public:
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<TransposeLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<TransposeLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class TransposeLayer : public LayerRef<TransposeLayerImpl> {
+public:
+  explicit TransposeLayer(const std::string &name = "transpose")
+      : LayerRef(std::make_shared<TransposeLayerImpl>(name)) {}
+
+  using LayerRef<TransposeLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

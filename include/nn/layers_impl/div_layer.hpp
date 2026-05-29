@@ -31,21 +31,29 @@ public:
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
   Vec<ParamDescriptor> param_descriptors() override { return {}; }
 
-  graph_api_v2::Node operator()(const graph_api_v2::Node &a, const graph_api_v2::Node &b) {
+  Node operator()(const Node &a, const Node &b) {
     if (!a || !b) {
       throw std::runtime_error("DivLayerImpl: input nodes cannot be null");
     }
-    graph_api_v2::Graph *graph = a->graph();
+    Graph *graph = a->graph();
     if (graph != b->graph()) {
       throw std::runtime_error("DivLayerImpl: both input nodes must belong to the same graph");
     }
-    graph_api_v2::Node output = graph->make_node();
+    Node output = graph->make_node();
     std::shared_ptr<LayerImpl> self = shared_from_this();
     graph->add_edge(self, {a, b}, {output});
     return output;
   }
 
-  static std::unique_ptr<DivLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<DivLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class DivLayer : public LayerRef<DivLayerImpl> {
+public:
+  explicit DivLayer(const std::string &name = "div")
+      : LayerRef(std::make_shared<DivLayerImpl>(name)) {}
+
+  using LayerRef<DivLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

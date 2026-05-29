@@ -232,14 +232,14 @@ Vec<size_t> LegacyBatchNormLayerImpl::compute_output_shape(const Vec<size_t> &in
   return input_shape;
 }
 
-std::unique_ptr<LegacyBatchNormLayerImpl> LegacyBatchNormLayerImpl::create_from_config(
+std::shared_ptr<LegacyBatchNormLayerImpl> LegacyBatchNormLayerImpl::create_from_config(
     const LayerConfig &config) {
   size_t num_features = config.get<size_t>("num_features");
   float epsilon = config.get<float>("epsilon");
   float momentum = config.get<float>("momentum");
   bool affine = config.get<bool>("affine");
 
-  return std::make_unique<LegacyBatchNormLayerImpl>(num_features, epsilon, momentum, affine,
+  return std::make_shared<LegacyBatchNormLayerImpl>(num_features, epsilon, momentum, affine,
                                                 config.name);
 }
 

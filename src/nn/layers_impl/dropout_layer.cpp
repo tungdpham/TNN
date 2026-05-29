@@ -135,9 +135,9 @@ Vec<size_t> DropoutLayerImpl::compute_output_shape(const Vec<size_t> &input_shap
   return input_shape;
 }
 
-std::unique_ptr<DropoutLayerImpl> DropoutLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<DropoutLayerImpl> DropoutLayerImpl::create_from_config(const LayerConfig &config) {
   float dropout_rate = config.get<float>("dropout_rate");
-  return std::make_unique<DropoutLayerImpl>(dropout_rate, config.name);
+  return std::make_shared<DropoutLayerImpl>(dropout_rate, config.name);
 }
 
 }  // namespace tnn

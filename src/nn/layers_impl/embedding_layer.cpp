@@ -174,11 +174,11 @@ LayerConfig EmbeddingLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<EmbeddingLayerImpl> EmbeddingLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<EmbeddingLayerImpl> EmbeddingLayerImpl::create_from_config(const LayerConfig &config) {
   size_t vocab_size = config.get<size_t>("vocab_size");
   size_t embed_dim = config.get<size_t>("embed_dim");
   size_t padding_idx = config.get<size_t>("padding_idx", static_cast<size_t>(-1));
-  return std::make_unique<EmbeddingLayerImpl>(vocab_size, embed_dim, config.name, padding_idx);
+  return std::make_shared<EmbeddingLayerImpl>(vocab_size, embed_dim, config.name, padding_idx);
 }
 
 }  // namespace tnn

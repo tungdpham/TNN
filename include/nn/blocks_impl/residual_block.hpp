@@ -26,17 +26,16 @@ namespace tnn {
  * Supports both identity shortcuts (when input/output dimensions match)
  * and projection shortcuts (1x1 conv when dimensions differ).
  */
-class ResidualBlock : public Block {
+class ResidualBlockImpl : public Block {
 private:
-  std::unique_ptr<Sequential> main_path_;
-  std::unique_ptr<Sequential> shortcut_path_;
+  Sequential main_path_;
+  Sequential shortcut_path_;
   std::unique_ptr<ActivationFunction> final_activation_;
   std::unordered_map<size_t, Tensor> pre_activation_cache_;
-  std::unordered_map<size_t, Vec<Vec<size_t>>> input_shape_cache_;
   std::string activation_type_;
 
   Vec<LayerImpl *> layers() override {
-    Vec<LayerImpl *> all_layers{main_path_.get()};
+    Vec<LayerImpl *> all_layers = {main_path_.get()};
     if (shortcut_path_) {
       all_layers.push_back(shortcut_path_.get());
     }
@@ -54,35 +53,51 @@ public:
    * @param final_activation Activation applied after addition (e.g., "relu")
    * @param name LayerImpl name
    */
-  ResidualBlock(Vec<std::unique_ptr<LayerImpl>> main_path,
-                Vec<std::unique_ptr<LayerImpl>> shortcut_path,
-                const std::string &final_activation = "relu",
-                const std::string &name = "residual_block");
+  ResidualBlockImpl(Vec<Layer> main_path, Vec<Layer> shortcut_path,
+                    const std::string &final_activation = "relu",
+                    const std::string &name = "residual_block");
 
-  ResidualBlock(std::unique_ptr<Sequential> main_path, std::unique_ptr<Sequential> shortcut_path,
-                const std::string &final_activation = "relu",
-                const std::string &name = "residual_block");
+  ResidualBlockImpl(Sequential main_path, Sequential shortcut_path,
+                    const std::string &final_activation = "relu",
+                    const std::string &name = "residual_block");
 
-  ResidualBlock(const ResidualBlock &other);
+  ResidualBlockImpl(const ResidualBlockImpl &other);
 
   static constexpr const char *TYPE_NAME = "residual_block";
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<ResidualBlock> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<ResidualBlockImpl> create_from_config(const LayerConfig &config);
 
-  graph_api_v2::Node operator()(const graph_api_v2::Node &input) {
+  Node operator()(const Node &input) {
     if (!input) {
       throw std::runtime_error("Input node is null");
     }
-    graph_api_v2::Graph *graph = input->graph();
-    graph_api_v2::Node output = graph->make_node();
+    Graph *graph = input->graph();
+    Node output = graph->make_node();
 
     std::shared_ptr<LayerImpl> self = shared_from_this();
 
     graph->add_edge(self, {input}, {output});
     return output;
   }
+};
+
+class ResidualBlock : public LayerRef<ResidualBlockImpl> {
+public:
+  ResidualBlock(Vec<Layer> main_path, Vec<Layer> shortcut_path,
+                const std::string &final_activation = "relu",
+                const std::string &name = "residual_block")
+      : LayerRef(std::make_shared<ResidualBlockImpl>(std::move(main_path), std::move(shortcut_path),
+                                                     final_activation, name)) {}
+
+  ResidualBlock(Sequential main_path, Sequential shortcut_path,
+                const std::string &final_activation = "relu",
+                const std::string &name = "residual_block")
+      : LayerRef(std::make_shared<ResidualBlockImpl>(std::move(main_path), std::move(shortcut_path),
+                                                     final_activation, name)) {}
+
+  using LayerRef<ResidualBlockImpl>::LayerRef;
 };
 }  // namespace tnn

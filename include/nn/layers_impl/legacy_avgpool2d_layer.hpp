@@ -56,7 +56,8 @@ private:
 
 public:
   LegacyAvgPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
-                       size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "avgpool2d");
+                           size_t pad_h = 0, size_t pad_w = 0,
+                           const std::string &name = "avgpool2d");
 
   static constexpr const char *TYPE_NAME = "legacy_avgpool2d";
 
@@ -64,7 +65,17 @@ public:
   LayerConfig get_config() const override;
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  static std::unique_ptr<LegacyAvgPool2DLayerImpl> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<LegacyAvgPool2DLayerImpl> create_from_config(const LayerConfig &config);
+};
+
+class LegacyAvgPool2DLayer : public LayerRef<LegacyAvgPool2DLayerImpl> {
+public:
+  LegacyAvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
+                       size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "avgpool2d")
+      : LayerRef(std::make_shared<LegacyAvgPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w,
+                                                            pad_h, pad_w, name)) {}
+
+  using LayerRef<LegacyAvgPool2DLayerImpl>::LayerRef;
 };
 
 }  // namespace tnn

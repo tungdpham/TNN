@@ -1,301 +1,89 @@
 #include <gtest/gtest.h>
 
+#include <stdexcept>
+#include <vector>
+
+#include "nn/graph_api.hpp"
 #include "nn/layers.hpp"
-#include "partitioner/naive_partitioner.hpp"
-#include "tensor/tensor_factory.hpp"
-#include "type/type.hpp"
+#include "partitioner/graph_partitioner.hpp"
 
 using namespace tnn;
-using namespace std;
 
-/**
- * Test fixture for Partitioner validation tests.
- * These tests verify the correctness of different partitioning strategies
- * including naive and weighted partitioning.
- */
-class PartitionerTest : public ::testing::Test {
-protected:
-  static void SetUpTestSuite() {
-    { initializeDefaultDevices(); }
-  }
+namespace {
 
-  void SetUp() override {
-    {}
-  }
-};
+Graph build_linear_graph() {
+  Graph graph;
 
-TEST_F(PartitionerTest, NaivePipelineModelPartition) {
-  auto layers = LayerBuilder({{224, 224, 3}})
-                    .conv2d(64, 3, 3, 1, 1, 0, 0)
-                    .batchnorm(1e-5, 0.1f, true, SBool::TRUE)
-                    .maxpool2d(2, 2, 2, 2, 0, 0)
-                    .basic_residual_block(64, 128)
-                    .basic_residual_block(128, 256)
-                    .basic_residual_block(256, 256)
-                    .maxpool2d(2, 2, 2, 2, 0, 0)
-                    .conv2d(512, 3, 3, 1, 1)
-                    .batchnorm()
-                    .conv2d(512, 3, 3, 1, 1)
-                    .batchnorm()
-                    .maxpool2d(2, 2, 2, 2, 0, 0)
-                    .basic_residual_block(512, 512)
-                    .basic_residual_block(512, 512)
-                    .maxpool2d(2, 2, 2, 2, 0, 0)
-                    .avgpool2d(7, 7, 1, 1, 0, 0)
-                    .flatten()
-                    .dense(4096)
-                    .dense(1000)
-                    .build();
+  Node input = graph.make_node("input");
+  Node hidden_a = DenseLayer(8, 8, false, "dense_a")(input);
+  hidden_a->set_uid("hidden_a");
+  Node hidden_b = DenseLayer(8, 8, false, "dense_b")(hidden_a);
+  hidden_b->set_uid("hidden_b");
+  Node hidden_c = DenseLayer(8, 8, false, "dense_c")(hidden_b);
+  hidden_c->set_uid("hidden_c");
+  Node output = DenseLayer(8, 8, false, "dense_d")(hidden_c);
+  output->set_uid("output");
 
-  NaivePartitionerConfig config{{{4, 3, 2}}};
-  NaivePipelinePartitioner partitioner(config);
-
-  size_t num_partitions = 3;
-  vector<LayerImpl *> layer_ptrs;
-  for (const auto &layer : layers) {
-    layer_ptrs.push_back(layer.get());
-  }
-
-  auto partitions = partitioner.partition_model(layer_ptrs);
-
-  size_t current_layer = 0;
-  for (const auto &part : partitions) {
-    EXPECT_EQ(part.start_offset, current_layer);
-    current_layer += part.length;
-  }
-  EXPECT_EQ(current_layer, layers.size());
-
-  EXPECT_EQ(partitions.size(), num_partitions);
+  return graph;
 }
 
-TEST_F(PartitionerTest, NaivePipelineInputPartition) {
-  NaivePartitionerConfig config{{{1, 1}}};
-  NaivePipelinePartitioner partitioner(config);
+Graph build_branched_graph() {
+  Graph graph;
 
-  auto input = make_tensor(DType_t::FP32, {{32, 224, 224, 3}});
-  auto labels = make_tensor(DType_t::FP32, {{32, 1000}});
+  Node input = graph.make_node("input");
+  Node left = DenseLayer(8, 8, false, "left_dense")(input);
+  left->set_uid("left");
+  Node right = DenseLayer(8, 8, false, "right_dense")(input);
+  right->set_uid("right");
+  Node merged = AddLayer("merge")(left, right);
+  merged->set_uid("merged");
+  Node output = DenseLayer(8, 8, false, "tail_dense")(merged);
+  output->set_uid("output");
 
-  auto input_partitions = partitioner.partition_input(input, labels);
-
-  EXPECT_EQ(input_partitions.size(), 1);
-  EXPECT_EQ(input_partitions[0].start_offset, 0);
-  EXPECT_EQ(input_partitions[0].length, 32);
+  return graph;
 }
 
-TEST_F(PartitionerTest, NaiveDataModelPartition) {
-  auto layers = LayerBuilder({{224, 224, 3}})
-                    .conv2d(64, 3, 3, 1, 1)
-                    .batchnorm()
-                    .maxpool2d(2, 2, 2, 2, 0, 0)
-                    .dense(1000)
-                    .build();
+}  // namespace
 
-  NaivePartitionerConfig config{{{1, 1, 1}}};
-  NaiveDataPartitioner partitioner(config);
+TEST(GraphPartitionerTest, SplitsLinearGraphIntoRequestedLayerCounts) {
+  Graph graph = build_linear_graph();
+  GraphPartitioner partitioner({1, 3});
 
-  vector<LayerImpl *> layer_ptrs;
-  for (const auto &layer : layers) {
-    layer_ptrs.push_back(layer.get());
-  }
+  std::vector<GraphPartition> partitions = partitioner.partition(graph);
 
-  auto partitions = partitioner.partition_model(layer_ptrs);
+  ASSERT_EQ(partitions.size(), 2);
+  EXPECT_EQ(partitions[0].start_layer, 0);
+  EXPECT_EQ(partitions[0].layer_count, 1);
+  EXPECT_EQ(partitions[0].graph.edges().size(), 1);
+  EXPECT_EQ(partitions[0].input_uids, (std::vector<std::string>{"input"}));
+  EXPECT_EQ(partitions[0].output_uids, (std::vector<std::string>{"hidden_a"}));
 
-  EXPECT_EQ(partitions.size(), 1);
-  EXPECT_EQ(partitions[0].start_offset, 0);
-  EXPECT_EQ(partitions[0].length, layers.size());
+  EXPECT_EQ(partitions[1].start_layer, 1);
+  EXPECT_EQ(partitions[1].layer_count, 3);
+  EXPECT_EQ(partitions[1].graph.edges().size(), 3);
+  EXPECT_EQ(partitions[1].input_uids, (std::vector<std::string>{"hidden_a"}));
+  EXPECT_EQ(partitions[1].output_uids, (std::vector<std::string>{"output"}));
 }
 
-TEST_F(PartitionerTest, NaiveDataInputPartition) {
-  NaivePartitionerConfig config{{{2, 3, 1}}};
-  NaiveDataPartitioner partitioner(config);
+TEST(GraphPartitionerTest, PreservesBoundaryNodesForBranchedGraph) {
+  Graph graph = build_branched_graph();
+  GraphPartitioner partitioner({2, 2});
 
-  auto input = make_tensor(DType_t::FP32, {{60, 224, 224, 3}});
-  auto labels = make_tensor(DType_t::FP32, {{60, 1000}});
+  std::vector<GraphPartition> partitions = partitioner.partition(graph);
 
-  auto input_partitions = partitioner.partition_input(input, labels);
+  ASSERT_EQ(partitions.size(), 2);
+  EXPECT_EQ(partitions[0].graph.edges().size(), 2);
+  EXPECT_EQ(partitions[0].input_uids, (std::vector<std::string>{"input"}));
+  EXPECT_EQ(partitions[0].output_uids, (std::vector<std::string>{"left", "right"}));
 
-  EXPECT_EQ(input_partitions.size(), 3);
-
-  size_t current_idx = 0;
-  for (const auto &part : input_partitions) {
-    EXPECT_EQ(part.start_offset, current_idx);
-    current_idx += part.length;
-  }
-  EXPECT_EQ(current_idx, 60);
-
-  EXPECT_EQ(input_partitions[0].length, 20);
-  EXPECT_EQ(input_partitions[1].length, 30);
-  EXPECT_EQ(input_partitions[2].length, 10);
+  EXPECT_EQ(partitions[1].graph.edges().size(), 2);
+  EXPECT_EQ(partitions[1].input_uids, (std::vector<std::string>{"left", "right"}));
+  EXPECT_EQ(partitions[1].output_uids, (std::vector<std::string>{"output"}));
 }
 
-TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
-  NaivePartitionerConfig config{{{1, 1, 1}}};
-  NaiveDataPartitioner partitioner(config);
+TEST(GraphPartitionerTest, RejectsPartitionSizesThatDoNotMatchLayerCount) {
+  Graph graph = build_linear_graph();
+  GraphPartitioner partitioner({2, 1});
 
-  auto input = make_tensor(DType_t::FP32, {{10, 224, 224, 3}});
-  auto labels = make_tensor(DType_t::FP32, {{10, 1000}});
-
-  auto input_partitions = partitioner.partition_input(input, labels);
-
-  EXPECT_EQ(input_partitions.size(), 3);
-
-  size_t total = 0;
-  for (const auto &part : input_partitions) {
-    total += part.length;
-  }
-  EXPECT_EQ(total, 10);
-}
-
-// TEST_F(PartitionerTest, WeightedPartitionerModelPartition) {
-//   auto layers = LayerBuilder({{32, 32, 3}})
-//                                               .conv2d(16, 3, 3, 1, 1)
-//                                               .batchnorm()
-//                                               .maxpool2d(2, 2, 2, 2, 0, 0)
-//                                               .conv2d(32, 3, 3, 1, 1)
-//                                               .batchnorm()
-//                                               .maxpool2d(2, 2, 2, 2, 0, 0)
-//                                               .flatten()
-//                                               .dense(128)
-//                                               .dense(10)
-//                                               .build();
-
-//   WeightedPartitionerConfig config{{{2, 1}, {64, 32, 32, 3}}};
-//   WeightedPipelinePartitioner partitioner(config);
-
-//   vector<LayerImpl *> layer_ptrs;
-//   for (const auto &layer : layers) {
-//     layer_ptrs.push_back(layer.get());
-//   }
-
-//   auto partitions = partitioner.partition_model(layer_ptrs);
-
-//   EXPECT_EQ(partitions.size(), 2);
-
-//   size_t current_layer = 0;
-//   for (const auto &part : partitions) {
-//     EXPECT_EQ(part.start_offset, current_layer);
-//     current_layer += part.length;
-//   }
-//   EXPECT_EQ(current_layer, layers.size());
-//   EXPECT_EQ(partitions.size(), 2);
-// }
-
-// TEST_F(PartitionerTest, WeightedPartitionerEqualWeights) {
-//   auto layers = LayerBuilder({{28, 28, 1}})
-//                                               .conv2d(8, 3, 3, 1, 1)
-//                                               .conv2d(16, 3, 3, 1, 1)
-//                                               .conv2d(32, 3, 3, 1, 1)
-//                                               .flatten()
-//                                               .dense(10)
-//                                               .build();
-
-//   WeightedPartitionerConfig config{{{1, 1, 1}, {64, 28, 28, 1}}};
-//   WeightedPipelinePartitioner partitioner(config);
-
-//   vector<LayerImpl *> layer_ptrs;
-//   for (const auto &layer : layers) {
-//     layer_ptrs.push_back(layer.get());
-//   }
-
-//   auto partitions = partitioner.partition_model(layer_ptrs);
-
-//   EXPECT_EQ(partitions.size(), 3);
-
-//   size_t total_layers = 0;
-//   for (const auto &part : partitions) {
-//     total_layers += part.length;
-//   }
-//   EXPECT_EQ(total_layers, layers.size());
-// }
-
-// TEST_F(PartitionerTest, WeightedPartitionerManyWorkers) {
-//   auto layers = LayerBuilder({{32, 32, 3}})
-//                                               .conv2d(16, 3, 3, 1, 1)
-//                                               .conv2d(16, 3, 3, 1, 1)
-//                                               .conv2d(32, 3, 3, 1, 1)
-//                                               .conv2d(32, 3, 3, 1, 1)
-//                                               .conv2d(64, 3, 3, 1, 1)
-//                                               .flatten()
-//                                               .dense(10)
-//                                               .build();
-
-//   WeightedPartitionerConfig config{{{4, 2, 2, 1}, {64, 32, 32, 3}}};
-//   WeightedPipelinePartitioner partitioner(config);
-
-//   vector<LayerImpl *> layer_ptrs;
-//   for (const auto &layer : layers) {
-//     layer_ptrs.push_back(layer.get());
-//   }
-
-//   auto partitions = partitioner.partition_model(layer_ptrs);
-
-//   EXPECT_EQ(partitions.size(), 4);
-
-//   size_t current_layer = 0;
-//   for (const auto &part : partitions) {
-//     EXPECT_EQ(part.start_offset, current_layer);
-//     EXPECT_GT(part.length, 0);
-//     current_layer += part.length;
-//   }
-//   EXPECT_EQ(current_layer, layers.size());
-// }
-
-TEST_F(PartitionerTest, NaivePipelineEqualProportions) {
-  auto layers = LayerBuilder({{28, 28, 1}})
-                    .conv2d(16, 3, 3, 1, 1)
-                    .conv2d(16, 3, 3, 1, 1)
-                    .conv2d(16, 3, 3, 1, 1)
-                    .flatten()
-                    .dense(10)
-                    .build();
-
-  NaivePartitionerConfig config{{{1, 1}}};
-  NaivePipelinePartitioner partitioner(config);
-
-  vector<LayerImpl *> layer_ptrs;
-  for (const auto &layer : layers) {
-    layer_ptrs.push_back(layer.get());
-  }
-
-  auto partitions = partitioner.partition_model(layer_ptrs);
-
-  EXPECT_EQ(partitions.size(), 2);
-
-  size_t total = 0;
-  for (const auto &part : partitions) {
-    total += part.length;
-  }
-  EXPECT_EQ(total, layers.size());
-}
-
-TEST_F(PartitionerTest, NaivePipelineSinglePartition) {
-  auto layers = LayerBuilder({{28, 28, 1}}).conv2d(16, 3, 3, 1, 1).flatten().dense(10).build();
-
-  NaivePartitionerConfig config{{{1}}};
-  NaivePipelinePartitioner partitioner(config);
-
-  vector<LayerImpl *> layer_ptrs;
-  for (const auto &layer : layers) {
-    layer_ptrs.push_back(layer.get());
-  }
-
-  auto partitions = partitioner.partition_model(layer_ptrs);
-
-  EXPECT_EQ(partitions.size(), 1);
-  EXPECT_EQ(partitions[0].start_offset, 0);
-  EXPECT_EQ(partitions[0].length, layers.size());
-}
-
-TEST_F(PartitionerTest, NaiveDataSinglePartition) {
-  NaivePartitionerConfig config{{{1}}};
-  NaiveDataPartitioner partitioner(config);
-
-  auto input = make_tensor(DType_t::FP32, {{64, 224, 224, 3}});
-  auto labels = make_tensor(DType_t::FP32, {{64, 1000}});
-
-  auto input_partitions = partitioner.partition_input(input, labels);
-
-  EXPECT_EQ(input_partitions.size(), 1);
-  EXPECT_EQ(input_partitions[0].start_offset, 0);
-  EXPECT_EQ(input_partitions[0].length, 64);
+  EXPECT_THROW(partitioner.partition(graph), std::runtime_error);
 }

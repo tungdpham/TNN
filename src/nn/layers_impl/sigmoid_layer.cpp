@@ -63,8 +63,8 @@ LayerConfig SigmoidLayerImpl::get_config() const {
   return config;
 }
 
-std::unique_ptr<SigmoidLayerImpl> SigmoidLayerImpl::create_from_config(const LayerConfig &config) {
-  return std::make_unique<SigmoidLayerImpl>(config.name);
+std::shared_ptr<SigmoidLayerImpl> SigmoidLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<SigmoidLayerImpl>(config.name);
 }
 
 }  // namespace tnn

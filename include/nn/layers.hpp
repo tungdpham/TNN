@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include <istream>
 #include <memory>
 #include <string>
 
@@ -38,13 +39,47 @@ class LayerNormLayerImpl;
 class ClassTokenLayerImpl;
 class PositionalEmbeddingLayerImpl;
 class EmbeddingLayerImpl;
+class AttentionBlockImpl;
+class FlashAttentionBlockImpl;
+class ResidualBlockImpl;
+class SliceLayerImpl;
+class TransposeLayerImpl;
+class SequentialImpl;
+class MSequentialImpl;
+
+// Wrapper classes (LayerRef handles)
+template <typename T>
+class LayerRef;
+class IdentityLayer;
+class DenseLayer;
+class ActivationLayer;
+class Conv2DLayer;
+class MaxPool2DLayer;
+class AvgPool2DLayer;
+class BatchNormLayer;
+class DropoutLayer;
+class FlattenLayer;
+class GroupNormLayer;
+class LayerNormLayer;
+class ClassTokenLayer;
+class PositionalEmbeddingLayer;
+class EmbeddingLayer;
 class AttentionBlock;
 class FlashAttentionBlock;
 class ResidualBlock;
-class SliceLayerImpl;
-class TransposeLayerImpl;
+class SliceLayer;
+class TransposeLayer;
 class Sequential;
 class MSequential;
+class AddLayer;
+class SubLayer;
+class MulLayer;
+class DivLayer;
+class LegacyDenseLayer;
+class LegacyConv2DLayer;
+class LegacyMaxPool2DLayer;
+class LegacyAvgPool2DLayer;
+class LegacyBatchNormLayer;
 
 class AddLayerImpl;
 class SubLayerImpl;
@@ -94,33 +129,27 @@ namespace tnn {
 template <typename T>
 concept HasLayerTypeName = requires {
   { T::TYPE_NAME } -> std::convertible_to<const char *>;
-  {
-    T::create_from_config(std::declval<const LayerConfig &>())
-  } -> std::convertible_to<std::unique_ptr<LayerImpl>>;
+  { T::create_from_config(std::declval<const LayerConfig &>()) } -> std::convertible_to<Layer>;
 };
 
 class LayerFactory {
 private:
-  static std::unordered_map<std::string,
-                            std::function<std::unique_ptr<LayerImpl>(const LayerConfig &)>>
-      creators_;
+  static std::unordered_map<std::string, std::function<Layer(const LayerConfig &)>> creators_;
 
 public:
-  static void register_layer(
-      const std::string &type,
-      std::function<std::unique_ptr<LayerImpl>(const LayerConfig &)> creator) {
+  static void register_layer(const std::string &type,
+                             std::function<Layer(const LayerConfig &)> creator) {
     creators_[type] = creator;
   }
 
   template <HasLayerTypeName LayerType>
   static void register_layer_type() {
-    register_layer(LayerType::TYPE_NAME,
-                   [](const LayerConfig &config) -> std::unique_ptr<LayerImpl> {
-                     return LayerType::create_from_config(config);
-                   });
+    register_layer(LayerType::TYPE_NAME, [](const LayerConfig &config) -> Layer {
+      return LayerType::create_from_config(config);
+    });
   }
 
-  static std::unique_ptr<LayerImpl> create(const std::string &type, const LayerConfig &config) {
+  static Layer create(const std::string &type, const LayerConfig &config) {
     auto it = creators_.find(type);
     if (it != creators_.end()) {
       return it->second(config);
@@ -128,9 +157,7 @@ public:
     throw std::invalid_argument("Unknown layer type: " + type);
   }
 
-  static std::unique_ptr<LayerImpl> create(const LayerConfig &config) {
-    return create(config.type, config);
-  }
+  static Layer create(const LayerConfig &config) { return create(config.type, config); }
 
   static void register_defaults() {
     register_layer_type<IdentityLayerImpl>();
@@ -153,15 +180,12 @@ public:
     register_layer_type<PositionalEmbeddingLayerImpl>();
     register_layer_type<SliceLayerImpl>();
     register_layer_type<EmbeddingLayerImpl>();
-    register_layer_type<ResidualBlock>();
-    register_layer_type<AttentionBlock>();
-    register_layer_type<FlashAttentionBlock>();
+    register_layer_type<ResidualBlockImpl>();
+    register_layer_type<AttentionBlockImpl>();
+    register_layer_type<FlashAttentionBlockImpl>();
     register_layer_type<TransposeLayerImpl>();
-    register_layer_type<ResidualBlock>();
-    register_layer_type<AttentionBlock>();
-    register_layer_type<FlashAttentionBlock>();
-    register_layer_type<Sequential>();
-    register_layer_type<MSequential>();
+    register_layer_type<SequentialImpl>();
+    register_layer_type<MSequentialImpl>();
     register_layer_type<AddLayerImpl>();
     register_layer_type<SubLayerImpl>();
     register_layer_type<MulLayerImpl>();
@@ -178,7 +202,7 @@ public:
 };
 
 template <typename LayerType>
-std::unique_ptr<LayerType> load_config(std::ifstream &file) {
+std::unique_ptr<LayerType> load_config(std::istream &file) {
   size_t j_size;
   file.read(reinterpret_cast<char *>(&j_size), sizeof(size_t));
   std::string j_str(j_size, '\0');
@@ -186,7 +210,7 @@ std::unique_ptr<LayerType> load_config(std::ifstream &file) {
   nlohmann::json j = nlohmann::json::parse(j_str);
   LayerConfig config = LayerConfig::from_json(j);
   LayerFactory::register_defaults();
-  std::unique_ptr<LayerImpl> base_layer = LayerFactory::create(config);
+  Layer base_layer = LayerFactory::create(config);
   LayerType *raw_ptr = dynamic_cast<LayerType *>(base_layer.release());
   if (!raw_ptr) {
     throw std::runtime_error("Failed to cast layer to requested type");
@@ -195,15 +219,14 @@ std::unique_ptr<LayerType> load_config(std::ifstream &file) {
   return layer;
 }
 
-inline void load_params(std::ifstream &file, LayerImpl &layer) {
+inline void load_params(std::istream &file, LayerImpl &layer) {
   Vec<Tensor> params = layer.parameters();
   for (auto &param : params) {
     load_into(file, param);
   }
 }
 
-inline std::unordered_map<std::string,
-                          std::function<std::unique_ptr<LayerImpl>(const LayerConfig &)>>
+inline std::unordered_map<std::string, std::function<Layer(const LayerConfig &)>>
     LayerFactory::creators_;
 
 }  // namespace tnn

@@ -13,6 +13,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <vector>
 
 #include "communicator.hpp"
@@ -21,13 +22,12 @@
 #include "distributed/endpoint.hpp"
 #include "distributed/worker.hpp"
 #include "logging/logger.hpp"
-#include "nn/blocks_impl/sequential.hpp"
 #include "nn/loss.hpp"
 #include "nn/metrics.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
-#include "partitioner/partitioner.hpp"
+#include "partitioner/graph_partitioner.hpp"
 #include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
@@ -42,7 +42,7 @@ struct CoordinatorConfig {
   Graph model;
   std::unique_ptr<Optimizer> optimizer;
   std::unique_ptr<Scheduler> scheduler;
-  std::unique_ptr<Partitioner> partitioner;
+  std::unique_ptr<GraphPartitioner> partitioner;
   std::unique_ptr<Worker> local_worker = nullptr;
   Endpoint coordinator_endpoint;
   Vec<Endpoint> worker_endpoints;
@@ -69,7 +69,7 @@ public:
 
   void initialize() { initialize_topology(); }
 
-  void set_partitioner(std::unique_ptr<Partitioner> partitioner) {
+  void set_partitioner(std::unique_ptr<GraphPartitioner> partitioner) {
     partitioner_ = std::move(partitioner);
   }
 
@@ -558,18 +558,33 @@ public:
   }
 
 private:
+  void validate_stage_boundary(const GraphPartition &partition) const {
+    if (partition.input_uids.size() != 1 || partition.output_uids.size() != 1) {
+      throw std::runtime_error(
+          "Distributed graph partitioning currently supports only single-input single-output stage "
+          "boundaries");
+    }
+  }
+
   void initialize_topology() {
     if (!partitioner_) {
       throw std::runtime_error("Partitioner must be set before initialization");
     }
-    partitions_ = partitioner_->partition_model(model_.get_layers());
-
-    auto splitted_layers = split(model_.get_layers(), partitions_);
+    partitions_ = partitioner_->partition(model_);
+    if (partitions_.size() != worker_endpoints_.size()) {
+      throw std::runtime_error(
+          "Number of graph partitions must match the number of worker endpoints");
+    }
 
     for (size_t i = 0; i < worker_endpoints_.size(); ++i) {
-      Sequential stage_model(std::move(splitted_layers[i]), "stage_" + std::to_string(i));
+      validate_stage_boundary(partitions_[i]);
+
       StageConfig config;
-      config.model_config = stage_model.get_config();
+      std::ostringstream graph_stream(std::ios::binary);
+      partitions_[i].graph.save_state(graph_stream);
+      config.graph_state = graph_stream.str();
+      config.input_uids = partitions_[i].input_uids;
+      config.output_uids = partitions_[i].output_uids;
       config.optimizer_config = optimizer_->get_config();
       config.scheduler_config = scheduler_->get_config();
       config.coordinator_endpoint = coordinator_endpoint_;
@@ -624,7 +639,7 @@ protected:
   Graph model_;
   std::unique_ptr<Optimizer> optimizer_;
   std::unique_ptr<Scheduler> scheduler_;
-  std::unique_ptr<Partitioner> partitioner_;
+  std::unique_ptr<GraphPartitioner> partitioner_;
   std::unique_ptr<Worker> local_worker_;
 
   // Communication
@@ -632,7 +647,7 @@ protected:
   Endpoint coordinator_endpoint_;
 
   // Topology information
-  Vec<SeqPartition> partitions_;
+  std::vector<GraphPartition> partitions_;
   Vec<Endpoint> worker_endpoints_;
   Vec<StageConfig> stage_configs_;
   Logger logger_{"profiler", "logs/profiler.log", LogLevel::info};

@@ -163,9 +163,9 @@ Vec<size_t> ClassTokenLayerImpl::compute_output_shape(const Vec<size_t> &input_s
   return {batch_size, seq_len + 1, embed_dim};
 }
 
-std::unique_ptr<ClassTokenLayerImpl> ClassTokenLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<ClassTokenLayerImpl> ClassTokenLayerImpl::create_from_config(const LayerConfig &config) {
   size_t embed_dim = config.get<size_t>("embed_dim");
-  return std::make_unique<ClassTokenLayerImpl>(embed_dim, config.name);
+  return std::make_shared<ClassTokenLayerImpl>(embed_dim, config.name);
 }
 
 }  // namespace tnn

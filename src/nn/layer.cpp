@@ -9,6 +9,8 @@
 
 #include <fmt/ranges.h>
 
+#include <fstream>
+
 #include "device/flow.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
