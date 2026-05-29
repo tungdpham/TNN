@@ -9,11 +9,11 @@
 #include <memory>
 #include <string>
 
-#include "parameterized_layer.hpp"
+#include "nn/siso_layer.hpp"
 
 namespace tnn {
 
-class LegacyBatchNormLayer : public ParameterizedLayer {
+class LegacyBatchNormLayerImpl : public SISOLayerImpl {
 private:
   size_t num_features_;
   float epsilon_;
@@ -99,7 +99,7 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  explicit LegacyBatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
+  explicit LegacyBatchNormLayerImpl(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
                                 bool affine = true, const std::string &name = "batchnorm");
 
   static constexpr const char *TYPE_NAME = "legacy_batchnorm";
@@ -108,7 +108,7 @@ public:
   LayerConfig get_config() const override;
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  static std::unique_ptr<LegacyBatchNormLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<LegacyBatchNormLayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

@@ -19,7 +19,7 @@
 using namespace tnn;
 
 /**
- * Test fixture for LegacyDenseLayer validation tests.
+ * Test fixture for LegacyDenseLayerImpl validation tests.
  * These tests verify the mathematical correctness of fully connected layer operations
  * including forward and backward passes.
  */
@@ -125,7 +125,7 @@ protected:
 };
 
 TEST_F(LegacyDenseLayerTest, BasicForwardPass) {
-  auto dense_layer = std::make_unique<LegacyDenseLayer>(10, 5, true, "test_dense");
+  auto dense_layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, true, "test_dense");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
   auto &node = builder.add_layer(std::move(dense_layer));
@@ -146,7 +146,7 @@ TEST_F(LegacyDenseLayerTest, BasicForwardPass) {
 }
 
 TEST_F(LegacyDenseLayerTest, ForwardPassSingleBatch) {
-  auto layer = std::make_unique<LegacyDenseLayer>(20, 10, true, "test_dense_single");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(20, 10, true, "test_dense_single");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -168,7 +168,7 @@ TEST_F(LegacyDenseLayerTest, ForwardPassSingleBatch) {
 }
 
 TEST_F(LegacyDenseLayerTest, ForwardPassMultiBatch) {
-  auto layer = std::make_unique<LegacyDenseLayer>(15, 8, false, "test_dense_multibatch");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(15, 8, false, "test_dense_multibatch");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -187,7 +187,7 @@ TEST_F(LegacyDenseLayerTest, ForwardPassMultiBatch) {
 }
 
 TEST_F(LegacyDenseLayerTest, ForwardPassLargeLayer) {
-  auto layer = std::make_unique<LegacyDenseLayer>(128, 64, true, "test_dense_large");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(128, 64, true, "test_dense_large");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -205,7 +205,7 @@ TEST_F(LegacyDenseLayerTest, ForwardPassLargeLayer) {
 }
 
 TEST_F(LegacyDenseLayerTest, ForwardPassWithBias) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, true, "test_dense_bias");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, true, "test_dense_bias");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -223,7 +223,7 @@ TEST_F(LegacyDenseLayerTest, ForwardPassWithBias) {
 }
 
 TEST_F(LegacyDenseLayerTest, ForwardPassWithoutBias) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, false, "test_dense_no_bias");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, false, "test_dense_no_bias");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -241,7 +241,7 @@ TEST_F(LegacyDenseLayerTest, ForwardPassWithoutBias) {
 }
 
 TEST_F(LegacyDenseLayerTest, ForwardPassVariableInput) {
-  auto layer = std::make_unique<LegacyDenseLayer>(6, 3, true, "test_dense_variable");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(6, 3, true, "test_dense_variable");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -260,7 +260,7 @@ TEST_F(LegacyDenseLayerTest, ForwardPassVariableInput) {
 }
 
 TEST_F(LegacyDenseLayerTest, BasicBackwardPass) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, true, "test_dense_backward");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, true, "test_dense_backward");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -286,7 +286,7 @@ TEST_F(LegacyDenseLayerTest, BasicBackwardPass) {
 }
 
 TEST_F(LegacyDenseLayerTest, BackwardPassSingleBatch) {
-  auto layer = std::make_unique<LegacyDenseLayer>(20, 10, true, "test_dense_backward_single");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(20, 10, true, "test_dense_backward_single");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -309,7 +309,7 @@ TEST_F(LegacyDenseLayerTest, BackwardPassSingleBatch) {
 }
 
 TEST_F(LegacyDenseLayerTest, BackwardPassMultiBatch) {
-  auto layer = std::make_unique<LegacyDenseLayer>(15, 8, false, "test_dense_backward_multibatch");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(15, 8, false, "test_dense_backward_multibatch");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -332,7 +332,7 @@ TEST_F(LegacyDenseLayerTest, BackwardPassMultiBatch) {
 }
 
 TEST_F(LegacyDenseLayerTest, BackwardPassVariableGradient) {
-  auto layer = std::make_unique<LegacyDenseLayer>(8, 4, true, "test_dense_backward_var");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(8, 4, true, "test_dense_backward_var");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -360,7 +360,7 @@ TEST_F(LegacyDenseLayerTest, BackwardPassVariableGradient) {
 }
 
 TEST_F(LegacyDenseLayerTest, BackwardPassWithBias) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, true, "test_dense_backward_bias");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, true, "test_dense_backward_bias");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -381,7 +381,7 @@ TEST_F(LegacyDenseLayerTest, BackwardPassWithBias) {
 }
 
 TEST_F(LegacyDenseLayerTest, BackwardPassWithoutBias) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, false, "test_dense_backward_no_bias");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, false, "test_dense_backward_no_bias");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -402,7 +402,7 @@ TEST_F(LegacyDenseLayerTest, BackwardPassWithoutBias) {
 }
 
 TEST_F(LegacyDenseLayerTest, ComputeOutputShape) {
-  auto layer = std::make_unique<LegacyDenseLayer>(128, 64, true, "test_dense_shape");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(128, 64, true, "test_dense_shape");
 
   Vec<size_t> input_shape = {2, 128};
   Vec<size_t> expected_shape = {2, 64};
@@ -413,7 +413,7 @@ TEST_F(LegacyDenseLayerTest, ComputeOutputShape) {
 }
 
 TEST_F(LegacyDenseLayerTest, GetConfig) {
-  auto layer = std::make_unique<LegacyDenseLayer>(100, 50, true, "test_dense_config");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(100, 50, true, "test_dense_config");
 
   LayerConfig config = layer->get_config();
 
@@ -430,14 +430,14 @@ TEST_F(LegacyDenseLayerTest, CreateFromConfig) {
   config.set("output_features", size_t(32));
   config.set("use_bias", true);
 
-  auto layer = LegacyDenseLayer::create_from_config(config);
+  auto layer = LegacyDenseLayerImpl::create_from_config(config);
 
   EXPECT_NE(layer, nullptr);
   EXPECT_EQ(layer->type(), "legacy_dense");
 }
 
 TEST_F(LegacyDenseLayerTest, EdgeCaseSmallLayer) {
-  auto layer = std::make_unique<LegacyDenseLayer>(2, 1, true, "test_small_layer");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(2, 1, true, "test_small_layer");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -455,7 +455,7 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseSmallLayer) {
 }
 
 TEST_F(LegacyDenseLayerTest, EdgeCaseZeroGradient) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, true, "test_zero_gradient");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, true, "test_zero_gradient");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -476,7 +476,7 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseZeroGradient) {
 }
 
 TEST_F(LegacyDenseLayerTest, EdgeCaseLargeValues) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, false, "test_large_values");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, false, "test_large_values");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -492,7 +492,7 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseLargeValues) {
 }
 
 TEST_F(LegacyDenseLayerTest, EdgeCaseNegativeValues) {
-  auto layer = std::make_unique<LegacyDenseLayer>(8, 4, true, "test_negative_values");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(8, 4, true, "test_negative_values");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -511,7 +511,7 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseNegativeValues) {
 }
 
 TEST_F(LegacyDenseLayerTest, EdgeCaseLargeBatch) {
-  auto layer = std::make_unique<LegacyDenseLayer>(20, 10, true, "test_large_batch");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(20, 10, true, "test_large_batch");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -529,7 +529,7 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseLargeBatch) {
 }
 
 TEST_F(LegacyDenseLayerTest, NumericalStabilitySmallValues) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, true, "test_small_values");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, true, "test_small_values");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -545,7 +545,7 @@ TEST_F(LegacyDenseLayerTest, NumericalStabilitySmallValues) {
 }
 
 TEST_F(LegacyDenseLayerTest, BackwardNumericalStability) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, false, "test_backward_stability");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, false, "test_backward_stability");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -566,7 +566,7 @@ TEST_F(LegacyDenseLayerTest, BackwardNumericalStability) {
 }
 
 TEST_F(LegacyDenseLayerTest, NumericalStabilityMixedValues) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, true, "test_mixed_values");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, true, "test_mixed_values");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
@@ -585,7 +585,7 @@ TEST_F(LegacyDenseLayerTest, NumericalStabilityMixedValues) {
 }
 
 TEST_F(LegacyDenseLayerTest, MultipleForwardBackwardPasses) {
-  auto layer = std::make_unique<LegacyDenseLayer>(10, 5, true, "test_multiple_passes");
+  auto layer = std::make_unique<LegacyDenseLayerImpl>(10, 5, true, "test_multiple_passes");
 
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;

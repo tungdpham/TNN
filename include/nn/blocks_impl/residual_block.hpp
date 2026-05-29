@@ -35,8 +35,8 @@ private:
   std::unordered_map<size_t, Vec<Vec<size_t>>> input_shape_cache_;
   std::string activation_type_;
 
-  Vec<Layer *> layers() override {
-    Vec<Layer *> all_layers{main_path_.get()};
+  Vec<LayerImpl *> layers() override {
+    Vec<LayerImpl *> all_layers{main_path_.get()};
     if (shortcut_path_) {
       all_layers.push_back(shortcut_path_.get());
     }
@@ -52,9 +52,10 @@ public:
    * @param main_path The main transformation path F(x) as a vector of layers
    * @param shortcut_path Optional projection path for dimension matching (empty for identity)
    * @param final_activation Activation applied after addition (e.g., "relu")
-   * @param name Layer name
+   * @param name LayerImpl name
    */
-  ResidualBlock(Vec<std::unique_ptr<Layer>> main_path, Vec<std::unique_ptr<Layer>> shortcut_path,
+  ResidualBlock(Vec<std::unique_ptr<LayerImpl>> main_path,
+                Vec<std::unique_ptr<LayerImpl>> shortcut_path,
                 const std::string &final_activation = "relu",
                 const std::string &name = "residual_block");
 
@@ -78,7 +79,7 @@ public:
     graph_api_v2::Graph *graph = input->graph();
     graph_api_v2::Node output = graph->make_node();
 
-    std::shared_ptr<Layer> self = shared_from_this();
+    std::shared_ptr<LayerImpl> self = shared_from_this();
 
     graph->add_edge(self, {input}, {output});
     return output;

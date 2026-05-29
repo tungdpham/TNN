@@ -15,11 +15,11 @@
 #include <unordered_map>
 
 #include "nn/layers_impl/common/conv2d.hpp"
-#include "parameterized_layer.hpp"
+#include "nn/siso_layer.hpp"
 
 namespace tnn {
 
-class LegacyConv2DLayer : public ParameterizedLayer {
+class LegacyConv2DLayerImpl : public SISOLayerImpl {
 private:
   size_t in_channels_;
   size_t out_channels_;
@@ -138,11 +138,11 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  LegacyConv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
+  LegacyConv2DLayerImpl(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
                     size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                     bool use_bias = true, const std::string &name = "legacy_conv2d");
 
-  ~LegacyConv2DLayer();
+  ~LegacyConv2DLayerImpl();
 
   static constexpr const char *TYPE_NAME = "legacy_conv2d";
 
@@ -150,7 +150,7 @@ public:
   LayerConfig get_config() const override;
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  static std::unique_ptr<LegacyConv2DLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<LegacyConv2DLayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

@@ -9,12 +9,12 @@
 #include <memory>
 #include <string>
 
-#include "nn/layers_impl/stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
 
-class TransposeLayer : public StatelessLayer {
+class TransposeLayerImpl : public SISOLayerImpl {
 private:
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> permute(const ConstTensor &input, const Tensor &output, size_t B, size_t L,
@@ -24,7 +24,7 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  TransposeLayer(const std::string &name = "transpose");
+  TransposeLayerImpl(const std::string &name = "transpose");
 
   static constexpr const char *TYPE_NAME = "transpose";
 
@@ -33,7 +33,7 @@ public:
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<TransposeLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<TransposeLayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

@@ -10,12 +10,12 @@
 #include <string>
 
 #include "nn/activations_impl/tanh.hpp"
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
 
-class TanhLayer : public StatelessLayer {
+class TanhLayerImpl : public SISOLayerImpl {
 private:
   std::unique_ptr<Tanh> activation_;
 
@@ -26,11 +26,11 @@ protected:
 public:
   static constexpr const char *TYPE_NAME = "tanh";
 
-  explicit TanhLayer(const std::string &name = "tanh");
+  explicit TanhLayerImpl(const std::string &name = "tanh");
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<TanhLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<TanhLayerImpl> create_from_config(const LayerConfig &config);
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;

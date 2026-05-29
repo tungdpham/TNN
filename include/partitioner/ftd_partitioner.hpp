@@ -34,7 +34,7 @@ public:
 
   ~FTDPartitioner() {}
 
-  Vec<SeqPartition> partition_model(const Vec<Layer *> &layers) override;
+  Vec<SeqPartition> partition_model(const Vec<LayerImpl *> &layers) override;
 
   Vec<InputPartition> partition_input(const ConstTensor &input,
                                       const ConstTensor &labels) override {

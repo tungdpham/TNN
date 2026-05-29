@@ -41,13 +41,13 @@ inline size_t get_shapes_bytes(const Vec<Vec<size_t>> &shapes, DType_t dtype) {
 
 // Single input/output layer interface. Can be easily extended to multiple inputs/outputs later if
 // needed.
-class Layer : public virtual std::enable_shared_from_this<Layer> {
+class LayerImpl : public virtual std::enable_shared_from_this<LayerImpl> {
 public:
-  Layer() = default;
-  Layer(const std::string &name)
+  LayerImpl() = default;
+  LayerImpl(const std::string &name)
       : name_(name) {}
 
-  virtual ~Layer() = default;
+  virtual ~LayerImpl() = default;
 
   void set_engine_type(EngineType engine_type);
   EngineType get_engine_type() const;
@@ -57,18 +57,18 @@ public:
   Vec<Tensor> backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0);
 
   // Note: have to call init again after changing param dtype
-  Layer &set_allocator(DELAllocatorV2 &allocator);
+  LayerImpl &set_allocator(DELAllocatorV2 &allocator);
   DELAllocatorV2 *get_allocator() const;
-  Layer &set_flow_handle(flowHandle_t handle);
+  LayerImpl &set_flow_handle(flowHandle_t handle);
   flowHandle_t get_flow_handle() const;
-  Layer &set_seed(unsigned long long seed);
-  Layer &set_io_dtype(DType_t dtype);
+  LayerImpl &set_seed(unsigned long long seed);
+  LayerImpl &set_io_dtype(DType_t dtype);
   DType_t get_io_dtype() const;
-  Layer &set_param_dtype(DType_t dtype);
+  LayerImpl &set_param_dtype(DType_t dtype);
   DType_t get_param_dtype() const;
-  Layer &set_compute_dtype(DType_t dtype);
+  LayerImpl &set_compute_dtype(DType_t dtype);
   DType_t get_compute_dtype() const;
-  Layer &set_training(bool training);
+  LayerImpl &set_training(bool training);
   bool is_training() const;
 
   virtual Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const = 0;
@@ -84,7 +84,7 @@ public:
 
   const Device &device() const {
     if (!allocator_) {
-      throw std::runtime_error("Layer: Allocator is not set to get device.");
+      throw std::runtime_error("LayerImpl: Allocator is not set to get device.");
     }
     return allocator_->device();
   }
@@ -128,6 +128,43 @@ protected:
   Tensor get_cache_tensor(const Vec<size_t> &shape = {}, DType_t dtype = DType_t::FP32);
   Tensor get_workspace(const Vec<size_t> &shape, DType_t dtype = DType_t::FP32);
 };
+
+template <typename LayerType>
+class LayerRef {
+public:
+  LayerRef(std::shared_ptr<LayerType> layer)
+      : layer_(layer) {}
+
+  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, LayerType *>>>
+  LayerRef(std::shared_ptr<U> layer)
+      : layer_(std::move(layer)) {}
+
+  template <typename... Args>
+  LayerRef(Args &&...args)
+      : layer_(std::make_shared<LayerType>(std::forward<Args>(args)...)) {}
+
+  LayerType *operator->() const { return layer_.get(); }
+  LayerType &operator*() const { return *layer_; }
+
+  operator std::shared_ptr<LayerType>() const { return layer_; }
+  std::shared_ptr<LayerType> get() const { return layer_; }
+
+  template <typename... Args>
+  decltype(auto) operator()(Args &&...args) const {
+    if (!layer_) {
+      throw std::runtime_error("LayerRef: underlying shared_ptr is null");
+    }
+    return (*layer_)(std::forward<Args>(args)...);
+  }
+
+private:
+  std::shared_ptr<LayerType> layer_;
+};
+
+template <typename LayerType, typename... Args>
+auto make_layer(Args &&...args) -> LayerRef<LayerType> {
+  return LayerRef<LayerType>(std::make_shared<LayerType>(std::forward<Args>(args)...));
+}
 
 #define DISPATCH_IO_DTYPE(method_name, ...)                                \
   do {                                                                     \

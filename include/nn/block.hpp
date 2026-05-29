@@ -3,7 +3,7 @@
 #include "nn/layer.hpp"
 
 namespace tnn {
-class Block : virtual public Layer {
+class Block : virtual public LayerImpl {
 public:
   Block(const std::string &name = "block") { this->name_ = name; }
 
@@ -74,6 +74,6 @@ protected:
     }
   }
 
-  virtual Vec<Layer *> layers() = 0;
+  virtual Vec<LayerImpl *> layers() = 0;
 };
 }  // namespace tnn

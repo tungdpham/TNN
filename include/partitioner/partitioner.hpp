@@ -23,11 +23,12 @@ struct InputPartition {
         length(length) {}
 };
 
-inline Vec<Vec<std::unique_ptr<Layer>>> split(Vec<Layer *> layers, Vec<SeqPartition> &partitions) {
+inline Vec<Vec<std::unique_ptr<LayerImpl>>> split(Vec<LayerImpl *> layers,
+                                                  Vec<SeqPartition> &partitions) {
   if (partitions.empty()) {
     throw std::invalid_argument("Partitions vector is empty");
   }
-  Vec<Vec<std::unique_ptr<Layer>>> stages;
+  Vec<Vec<std::unique_ptr<LayerImpl>>> stages;
   stages.reserve(partitions.size());
   for (const auto &part : partitions) {
     if (part.start_offset >= layers.size() || part.start_offset + part.length > layers.size() ||
@@ -35,7 +36,7 @@ inline Vec<Vec<std::unique_ptr<Layer>>> split(Vec<Layer *> layers, Vec<SeqPartit
       throw std::out_of_range("Invalid partition range");
     }
 
-    auto partition_layers = Vec<std::unique_ptr<Layer>>();
+    auto partition_layers = Vec<std::unique_ptr<LayerImpl>>();
     LayerFactory::register_defaults();
     for (size_t i = part.start_offset; i < part.start_offset + part.length; ++i) {
       auto layer_config = layers[i]->get_config();
@@ -53,7 +54,7 @@ public:
   virtual ~Partitioner() = default;
 
   // splits the sequential model into partitions corresponding to each stage
-  virtual Vec<SeqPartition> partition_model(const Vec<Layer *> &layers) = 0;
+  virtual Vec<SeqPartition> partition_model(const Vec<LayerImpl *> &layers) = 0;
 
   // splits the input data for each stage.
   virtual Vec<InputPartition> partition_input(const ConstTensor &input,

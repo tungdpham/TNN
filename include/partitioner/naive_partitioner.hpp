@@ -23,7 +23,7 @@ public:
         config_(config) {}
   ~NaivePipelinePartitioner() = default;
 
-  Vec<SeqPartition> partition_model(const Vec<Layer *> &layers_) override {
+  Vec<SeqPartition> partition_model(const Vec<LayerImpl *> &layers_) override {
     if (this->num_partitions_ == 0) {
       throw std::runtime_error("Number of partitions must be greater than zero");
     }
@@ -78,7 +78,7 @@ public:
         config_(config) {}
   ~NaiveDataPartitioner() = default;
 
-  Vec<SeqPartition> partition_model(const Vec<Layer *> &layers) override {
+  Vec<SeqPartition> partition_model(const Vec<LayerImpl *> &layers) override {
     // same config for every stage
     Vec<SeqPartition> partitions;
     partitions.push_back(SeqPartition(0, layers.size()));

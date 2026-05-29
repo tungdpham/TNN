@@ -10,7 +10,7 @@ namespace tnn {
 
 class LayerBuilder {
 private:
-  Vec<std::unique_ptr<Layer>> layers_;
+  Vec<std::unique_ptr<LayerImpl>> layers_;
   Vec<Vec<size_t>> input_shapes_;
   DType_t io_dtype_ = DType_t::FP32;
 
@@ -50,7 +50,7 @@ public:
     Vec<Vec<size_t>> current_shapes = get_current_shape();
     size_t input_features = current_shapes.back().back();
 
-    auto layer = std::make_unique<DenseLayer>(
+    auto layer = std::make_unique<DenseLayerImpl>(
         input_features, output_features, use_bias,
         name.empty() ? "dense_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -72,7 +72,7 @@ public:
 
     size_t in_channels = current_shape.back();
 
-    auto layer = std::make_unique<Conv2DLayer>(
+    auto layer = std::make_unique<Conv2DLayerImpl>(
         in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w, use_bias,
         name.empty() ? "conv2d_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -90,7 +90,7 @@ public:
 
     size_t num_features = current_shape.back();
 
-    auto layer = std::make_unique<BatchNormLayer>(
+    auto layer = std::make_unique<BatchNormLayerImpl>(
         num_features, epsilon, momentum, affine, use_relu == SBool::TRUE,
         name.empty() ? "batchnorm_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -99,7 +99,7 @@ public:
 
   LayerBuilder &maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,
                           size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "") {
-    auto layer = std::make_unique<MaxPool2DLayer>(
+    auto layer = std::make_unique<MaxPool2DLayerImpl>(
         pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
         name.empty() ? "maxpool2d_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -108,7 +108,7 @@ public:
 
   LayerBuilder &avgpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
                           size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "") {
-    auto layer = std::make_unique<AvgPool2DLayer>(
+    auto layer = std::make_unique<AvgPool2DLayerImpl>(
         pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
         name.empty() ? "avgpool2d_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -121,7 +121,7 @@ public:
     Vec<size_t> current_shape = current_shapes.back();
     size_t input_features = current_shape.back();
 
-    auto layer = std::make_unique<LegacyDenseLayer>(
+    auto layer = std::make_unique<LegacyDenseLayerImpl>(
         input_features, output_features, use_bias,
         name.empty() ? "dense_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -144,7 +144,7 @@ public:
 
     size_t in_channels = current_shape[1];
 
-    auto layer = std::make_unique<LegacyConv2DLayer>(
+    auto layer = std::make_unique<LegacyConv2DLayerImpl>(
         in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w, use_bias,
         name.empty() ? "conv2d_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -162,7 +162,7 @@ public:
 
     size_t num_features = current_shape[1];
 
-    auto layer = std::make_unique<LegacyBatchNormLayer>(
+    auto layer = std::make_unique<LegacyBatchNormLayerImpl>(
         num_features, epsilon, momentum, affine,
         name.empty() ? "batchnorm_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -172,7 +172,7 @@ public:
   LayerBuilder &legacy_maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
                                  size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
                                  const std::string &name = "") {
-    auto layer = std::make_unique<LegacyMaxPool2DLayer>(
+    auto layer = std::make_unique<LegacyMaxPool2DLayerImpl>(
         pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
         name.empty() ? "maxpool2d_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -182,7 +182,7 @@ public:
   LayerBuilder &legacy_avgpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 1,
                                  size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                                  const std::string &name = "") {
-    auto layer = std::make_unique<LegacyAvgPool2DLayer>(
+    auto layer = std::make_unique<LegacyAvgPool2DLayerImpl>(
         pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
         name.empty() ? "avgpool2d_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -200,7 +200,7 @@ public:
 
     size_t num_channels = current_shape.back();
 
-    auto layer = std::make_unique<GroupNormLayer>(
+    auto layer = std::make_unique<GroupNormLayerImpl>(
         num_groups, num_channels, epsilon, affine,
         name.empty() ? "groupnorm_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -217,7 +217,7 @@ public:
 
     size_t num_features = current_shape.back();
 
-    auto layer = std::make_unique<LayerNormLayer>(
+    auto layer = std::make_unique<LayerNormLayerImpl>(
         num_features, epsilon, affine,
         name.empty() ? "layernorm_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -228,28 +228,28 @@ public:
     auto factory = ActivationFactory();
     factory.register_defaults();
     auto act = factory.create(activation_name);
-    auto layer = std::make_unique<ActivationLayer>(
+    auto layer = std::make_unique<ActivationLayerImpl>(
         std::move(act), name.empty() ? "activation_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }
 
   LayerBuilder &dropout(float dropout_rate, const std::string &name = "") {
-    auto layer = std::make_unique<DropoutLayer>(
+    auto layer = std::make_unique<DropoutLayerImpl>(
         dropout_rate, name.empty() ? "dropout_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }
 
   LayerBuilder &flatten(int start_dim = 1, int end_dim = -1, const std::string &name = "") {
-    auto layer = std::make_unique<FlattenLayer>(
+    auto layer = std::make_unique<FlattenLayerImpl>(
         start_dim, end_dim, name.empty() ? "flatten_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }
 
   LayerBuilder &class_token(size_t embed_dim, const std::string &name = "") {
-    auto layer = std::make_unique<ClassTokenLayer>(
+    auto layer = std::make_unique<ClassTokenLayerImpl>(
         embed_dim, name.empty() ? "class_token_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
@@ -257,7 +257,7 @@ public:
 
   LayerBuilder &positional_embedding(size_t embed_dim, size_t seq_len,
                                      const std::string &name = "") {
-    auto layer = std::make_unique<PositionalEmbeddingLayer>(
+    auto layer = std::make_unique<PositionalEmbeddingLayerImpl>(
         embed_dim, seq_len,
         name.empty() ? "pos_embedding_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
@@ -265,7 +265,7 @@ public:
   }
 
   LayerBuilder &slice(size_t axis, size_t start, size_t length, const std::string &name = "") {
-    auto layer = std::make_unique<SliceLayer>(
+    auto layer = std::make_unique<SliceLayerImpl>(
         axis, start, length, name.empty() ? "slice_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
@@ -291,7 +291,7 @@ public:
 
   LayerBuilder &embedding(size_t vocab_size, size_t embed_dim, const std::string &name = "",
                           size_t padding_idx = static_cast<size_t>(-1)) {
-    auto layer = std::make_unique<EmbeddingLayer>(
+    auto layer = std::make_unique<EmbeddingLayerImpl>(
         vocab_size, embed_dim, name.empty() ? "embedding_" + std::to_string(layers_.size()) : name,
         padding_idx);
     layers_.push_back(std::move(layer));
@@ -299,14 +299,14 @@ public:
   }
 
   LayerBuilder &transpose(const std::string &name = "") {
-    auto layer = std::make_unique<TransposeLayer>(
+    auto layer = std::make_unique<TransposeLayerImpl>(
         name.empty() ? "transpose_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }
 
-  LayerBuilder &residual_block(Vec<std::unique_ptr<Layer>> main_path,
-                               Vec<std::unique_ptr<Layer>> shortcut_path,
+  LayerBuilder &residual_block(Vec<std::unique_ptr<LayerImpl>> main_path,
+                               Vec<std::unique_ptr<LayerImpl>> shortcut_path,
                                const std::string &activation, const std::string &name = "") {
     auto layer = std::make_unique<ResidualBlock>(
         std::move(main_path), std::move(shortcut_path), activation,
@@ -327,7 +327,7 @@ public:
                          .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::FALSE, name + "_bn1")
                          .build();
 
-    Vec<std::unique_ptr<Layer>> shortcut;
+    Vec<std::unique_ptr<LayerImpl>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
                      .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false, name + "_conv0")
@@ -399,7 +399,7 @@ public:
                          .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn2")
                          .build();
 
-    Vec<std::unique_ptr<Layer>> shortcut;
+    Vec<std::unique_ptr<LayerImpl>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
                      .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
@@ -426,7 +426,7 @@ public:
                          .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn0")
                          .build();
 
-    Vec<std::unique_ptr<Layer>> shortcut;
+    Vec<std::unique_ptr<LayerImpl>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
                      .legacy_conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
@@ -462,7 +462,7 @@ public:
 
     auto main_path = main_builder.build();
 
-    Vec<std::unique_ptr<Layer>> shortcut;
+    Vec<std::unique_ptr<LayerImpl>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
                      .legacy_conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
@@ -492,7 +492,7 @@ public:
                          .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn2")
                          .build();
 
-    Vec<std::unique_ptr<Layer>> shortcut;
+    Vec<std::unique_ptr<LayerImpl>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
       shortcut = LayerBuilder(get_batchless_current_shape())
                      .legacy_conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
@@ -531,7 +531,7 @@ public:
                          .build();
 
     auto attn_res = std::make_unique<ResidualBlock>(
-        std::move(attn_main), Vec<std::unique_ptr<Layer>>(), "linear", valid_name + "_attn");
+        std::move(attn_main), Vec<std::unique_ptr<LayerImpl>>(), "linear", valid_name + "_attn");
     layers_.push_back(std::move(attn_res));
 
     // 2. Feed-Forward Sub-block (Residual)
@@ -544,7 +544,7 @@ public:
                         .build();
 
     auto ffn_res = std::make_unique<ResidualBlock>(
-        std::move(ffn_main), Vec<std::unique_ptr<Layer>>(), "linear", valid_name + "_ffn");
+        std::move(ffn_main), Vec<std::unique_ptr<LayerImpl>>(), "linear", valid_name + "_ffn");
     layers_.push_back(std::move(ffn_res));
 
     return *this;
@@ -576,7 +576,7 @@ public:
                          .build();
 
     auto attn_res = std::make_unique<ResidualBlock>(
-        std::move(attn_main), Vec<std::unique_ptr<Layer>>(), "linear", valid_name + "_attn");
+        std::move(attn_main), Vec<std::unique_ptr<LayerImpl>>(), "linear", valid_name + "_attn");
     layers_.push_back(std::move(attn_res));
 
     // 2. Feed-Forward Sub-block (Residual)
@@ -589,18 +589,18 @@ public:
                         .build();
 
     auto ffn_res = std::make_unique<ResidualBlock>(
-        std::move(ffn_main), Vec<std::unique_ptr<Layer>>(), "linear", valid_name + "_ffn");
+        std::move(ffn_main), Vec<std::unique_ptr<LayerImpl>>(), "linear", valid_name + "_ffn");
     layers_.push_back(std::move(ffn_res));
 
     return *this;
   }
 
-  LayerBuilder &add_layer(std::unique_ptr<Layer> layer) {
+  LayerBuilder &add_layer(std::unique_ptr<LayerImpl> layer) {
     layers_.push_back(std::move(layer));
     return *this;
   }
 
-  Vec<std::unique_ptr<Layer>> build() { return std::move(layers_); }
+  Vec<std::unique_ptr<LayerImpl>> build() { return std::move(layers_); }
 
   const Vec<Vec<size_t>> &get_input_shape() const { return input_shapes_; }
 };

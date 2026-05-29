@@ -12,13 +12,13 @@
 
 namespace tnn {
 
-PositionalEmbeddingLayer::PositionalEmbeddingLayer(size_t embed_dim, size_t seq_len,
+PositionalEmbeddingLayerImpl::PositionalEmbeddingLayerImpl(size_t embed_dim, size_t seq_len,
                                                    const std::string &name)
-    : ParameterizedLayer(name),
+    : SISOLayerImpl(name),
       embed_dim_(embed_dim),
       seq_len_(seq_len) {}
 
-void PositionalEmbeddingLayer::init_impl() {
+void PositionalEmbeddingLayerImpl::init_impl() {
   float bound = static_cast<float>(1.0 / std::sqrt(static_cast<double>(embed_dim_)));
 
   if (this->use_seed_) {
@@ -30,22 +30,22 @@ void PositionalEmbeddingLayer::init_impl() {
   pos_embedding_gradients_->fill(0.0f);
 }
 
-Tensor PositionalEmbeddingLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor PositionalEmbeddingLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() < 2) {
-    throw std::runtime_error("PositionalEmbeddingLayer: Input tensor must be at least 2D");
+    throw std::runtime_error("PositionalEmbeddingLayerImpl: Input tensor must be at least 2D");
   }
 
   size_t last_dim = shape.back();
   size_t second_last_dim = shape[shape.size() - 2];
 
   if (last_dim != embed_dim_) {
-    throw std::runtime_error("PositionalEmbeddingLayer: Input last dim (" +
+    throw std::runtime_error("PositionalEmbeddingLayerImpl: Input last dim (" +
                              std::to_string(last_dim) + ") must match embed_dim (" +
                              std::to_string(embed_dim_) + ")");
   }
   if (second_last_dim != seq_len_) {
-    throw std::runtime_error("PositionalEmbeddingLayer: Input sequence length (" +
+    throw std::runtime_error("PositionalEmbeddingLayerImpl: Input sequence length (" +
                              std::to_string(second_last_dim) + ") must match seq_len (" +
                              std::to_string(seq_len_) + ")");
   }
@@ -58,22 +58,22 @@ Tensor PositionalEmbeddingLayer::forward_impl(const ConstTensor &input, size_t m
   return output;
 }
 
-Tensor PositionalEmbeddingLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor PositionalEmbeddingLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const auto &shape = grad_output->shape();
   if (shape.size() < 2) {
-    throw std::runtime_error("PositionalEmbeddingLayer: Gradient tensor must be at least 2D");
+    throw std::runtime_error("PositionalEmbeddingLayerImpl: Gradient tensor must be at least 2D");
   }
 
   size_t last_dim = shape.back();
   size_t second_last_dim = shape[shape.size() - 2];
 
   if (last_dim != embed_dim_) {
-    throw std::runtime_error("PositionalEmbeddingLayer: Gradient last dim (" +
+    throw std::runtime_error("PositionalEmbeddingLayerImpl: Gradient last dim (" +
                              std::to_string(last_dim) + ") must match embed_dim (" +
                              std::to_string(embed_dim_) + ")");
   }
   if (second_last_dim != seq_len_) {
-    throw std::runtime_error("PositionalEmbeddingLayer: Gradient sequence length (" +
+    throw std::runtime_error("PositionalEmbeddingLayerImpl: Gradient sequence length (" +
                              std::to_string(second_last_dim) + ") must match seq_len (" +
                              std::to_string(seq_len_) + ")");
   }
@@ -89,21 +89,21 @@ Tensor PositionalEmbeddingLayer::backward_impl(const ConstTensor &grad_output, s
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
+std::unique_ptr<Task> PositionalEmbeddingLayerImpl::add_positional_embedding(
     const ConstTensor &input, const Tensor &output, const ConstTensor &pos_embedding,
     flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
-        "PositionalEmbeddingLayer mixed dtype dispatch not implemented "
+        "PositionalEmbeddingLayerImpl mixed dtype dispatch not implemented "
         "(io/param/compute must match).");
   }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error(
-        "PositionalEmbeddingLayer IO tensor dtype mismatch with dispatch IO_T");
+        "PositionalEmbeddingLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
   if (pos_embedding->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error(
-        "PositionalEmbeddingLayer pos_embedding dtype mismatch with dispatch Param_T");
+        "PositionalEmbeddingLayerImpl pos_embedding dtype mismatch with dispatch Param_T");
   }
 
   size_t sample_size = seq_len_ * embed_dim_;
@@ -141,21 +141,21 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
+std::unique_ptr<Task> PositionalEmbeddingLayerImpl::accumulate_pos_gradients(
     const ConstTensor &grad_output, const Tensor &pos_embedding_gradients,
     flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
-        "PositionalEmbeddingLayer mixed dtype dispatch not implemented "
+        "PositionalEmbeddingLayerImpl mixed dtype dispatch not implemented "
         "(io/param/compute must match).");
   }
   if (grad_output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error(
-        "PositionalEmbeddingLayer grad_output dtype mismatch with dispatch IO_T");
+        "PositionalEmbeddingLayerImpl grad_output dtype mismatch with dispatch IO_T");
   }
   if (pos_embedding_gradients->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error(
-        "PositionalEmbeddingLayer pos_embedding_gradients dtype mismatch with dispatch Param_T");
+        "PositionalEmbeddingLayerImpl pos_embedding_gradients dtype mismatch with dispatch Param_T");
   }
 
   size_t sample_size = seq_len_ * embed_dim_;
@@ -190,7 +190,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
   }
 }
 
-LayerConfig PositionalEmbeddingLayer::get_config() const {
+LayerConfig PositionalEmbeddingLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -199,15 +199,15 @@ LayerConfig PositionalEmbeddingLayer::get_config() const {
   return config;
 }
 
-Vec<size_t> PositionalEmbeddingLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> PositionalEmbeddingLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   return input_shape;
 }
 
-std::unique_ptr<PositionalEmbeddingLayer> PositionalEmbeddingLayer::create_from_config(
+std::unique_ptr<PositionalEmbeddingLayerImpl> PositionalEmbeddingLayerImpl::create_from_config(
     const LayerConfig &config) {
   size_t embed_dim = config.get<size_t>("embed_dim");
   size_t seq_len = config.get<size_t>("seq_len");
-  return std::make_unique<PositionalEmbeddingLayer>(embed_dim, seq_len, config.name);
+  return std::make_unique<PositionalEmbeddingLayerImpl>(embed_dim, seq_len, config.name);
 }
 
 }  // namespace tnn

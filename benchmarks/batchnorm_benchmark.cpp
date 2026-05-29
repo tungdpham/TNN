@@ -25,12 +25,12 @@ signed main() {
 
   // fuse relu
   auto bn_layer =
-      make_unique<BatchNormLayer>(NUM_FEATURES, 1e-5f, 0.1f, true, true, "batchnorm_test");
+      make_unique<BatchNormLayerImpl>(NUM_FEATURES, 1e-5f, 0.1f, true, true, "batchnorm_test");
   auto &bn_node = builder.add_layer(std::move(bn_layer));
 
-  auto legacy_batchnorm_layer =
-      make_unique<LegacyBatchNormLayer>(NUM_FEATURES, 1e-5f, 0.1f, true, "legacy_batchnorm_test");
-  auto relu_layer = make_unique<ActivationLayer>(std::make_unique<ReLU>(), "relu_activation");
+  auto legacy_batchnorm_layer = make_unique<LegacyBatchNormLayerImpl>(
+      NUM_FEATURES, 1e-5f, 0.1f, true, "legacy_batchnorm_test");
+  auto relu_layer = make_unique<ActivationLayerImpl>(std::make_unique<ReLU>(), "relu_activation");
   auto &legacy_bn_node = builder.add_layer(std::move(legacy_batchnorm_layer));
   auto &relu_node = builder.add_layer(std::move(relu_layer));
 

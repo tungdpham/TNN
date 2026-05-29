@@ -16,7 +16,7 @@
 namespace tnn {
 
 // Element-wise subtraction layer.
-class SubLayer : public Layer {
+class SubLayerImpl : public LayerImpl {
 protected:
   Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) override;
   Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) override;
@@ -24,7 +24,7 @@ protected:
 public:
   static constexpr const char *TYPE_NAME = "sub";
 
-  explicit SubLayer(const std::string &name = "sub") { this->name_ = name; }
+  explicit SubLayerImpl(const std::string &name = "sub") { this->name_ = name; }
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
@@ -33,19 +33,19 @@ public:
 
   graph_api_v2::Node operator()(const graph_api_v2::Node &a, const graph_api_v2::Node &b) {
     if (!a || !b) {
-      throw std::runtime_error("SubLayer: input nodes cannot be null");
+      throw std::runtime_error("SubLayerImpl: input nodes cannot be null");
     }
     graph_api_v2::Graph *graph = a->graph();
     if (graph != b->graph()) {
-      throw std::runtime_error("SubLayer: both input nodes must belong to the same graph");
+      throw std::runtime_error("SubLayerImpl: both input nodes must belong to the same graph");
     }
     graph_api_v2::Node output = graph->make_node();
-    std::shared_ptr<Layer> self = shared_from_this();
+    std::shared_ptr<LayerImpl> self = shared_from_this();
     graph->add_edge(self, {a, b}, {output});
     return output;
   }
 
-  static std::unique_ptr<SubLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<SubLayerImpl> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

@@ -9,7 +9,7 @@ namespace tnn {
 // Simple op node. 1 Input, 1 Output.
 class OpNode : public INode {
 public:
-  OpNode(std::string uid, std::unique_ptr<Layer> layer)
+  OpNode(std::string uid, std::unique_ptr<LayerImpl> layer)
       : INode(uid),
         layer_(std::move(layer)) {}
 
@@ -44,13 +44,13 @@ public:
 
   const Device &device() const { return layer_->device(); }
 
-  Layer *layer() { return layer_.get(); }
-  const Layer *layer() const { return layer_.get(); }
+  LayerImpl *layer() { return layer_.get(); }
+  const LayerImpl *layer() const { return layer_.get(); }
 
-  std::unique_ptr<Layer> release_layer() { return std::move(layer_); }
+  std::unique_ptr<LayerImpl> release_layer() { return std::move(layer_); }
 
 private:
-  std::unique_ptr<Layer> layer_;
+  std::unique_ptr<LayerImpl> layer_;
 };
 
 }  // namespace tnn

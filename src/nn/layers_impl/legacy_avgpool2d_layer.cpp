@@ -14,10 +14,10 @@
 
 namespace tnn {
 
-LegacyAvgPool2DLayer::LegacyAvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
+LegacyAvgPool2DLayerImpl::LegacyAvgPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
                                            size_t stride_w, size_t pad_h, size_t pad_w,
                                            const std::string &name)
-    : StatelessLayer(name),
+    : SISOLayerImpl(name),
       pool_h_(pool_h),
       pool_w_(pool_w),
       stride_h_(stride_h == 0 ? pool_h : stride_h),
@@ -32,7 +32,7 @@ LegacyAvgPool2DLayer::LegacyAvgPool2DLayer(size_t pool_h, size_t pool_w, size_t 
   }
 }
 
-Tensor LegacyAvgPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor LegacyAvgPool2DLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::invalid_argument("AvgPool2D: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -56,7 +56,7 @@ Tensor LegacyAvgPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id
   return output;
 }
 
-Tensor LegacyAvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor LegacyAvgPool2DLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   if (grad_output->dims() != 4) {
     throw std::invalid_argument("AvgPool2D: Gradient tensor must be 4-dimensional (NCHW)");
   }
@@ -64,7 +64,7 @@ Tensor LegacyAvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_
 
   if (it_shape == micro_batch_input_shapes_.end()) {
     throw std::runtime_error(
-        "No cached input shape found for micro-batch ID in LegacyAvgPool2DLayer: " +
+        "No cached input shape found for micro-batch ID in LegacyAvgPool2DLayerImpl: " +
         std::to_string(mb_id));
   }
 
@@ -87,12 +87,12 @@ Tensor LegacyAvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> LegacyAvgPool2DLayer::run_forward(
+std::unique_ptr<Task> LegacyAvgPool2DLayerImpl::run_forward(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w, flowHandle_t handle) const {
   if (input_data->data_type() != dtype_of<Compute_T>() ||
       output_data->data_type() != dtype_of<Compute_T>()) {
-    throw std::runtime_error("LegacyAvgPool2DLayer tensor dtype mismatch with dispatch type");
+    throw std::runtime_error("LegacyAvgPool2DLayerImpl tensor dtype mismatch with dispatch type");
   }
   if (input_data->device_type() != output_data->device_type()) {
     throw std::runtime_error("Input and output tensors must be on the same device");
@@ -118,7 +118,7 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::run_forward(
   return nullptr;
 }
 
-std::unique_ptr<Task> LegacyAvgPool2DLayer::run_forward(
+std::unique_ptr<Task> LegacyAvgPool2DLayerImpl::run_forward(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w, flowHandle_t handle) const {
   DISPATCH_IO_DTYPE(run_forward, input_data, output_data, batch_size, channels, input_h, input_w,
@@ -127,7 +127,7 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::run_forward(
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> LegacyAvgPool2DLayer::run_backward(const ConstTensor &gradient_data,
+std::unique_ptr<Task> LegacyAvgPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
                                                          const Tensor &grad_input_data,
                                                          size_t batch_size, size_t channels,
                                                          size_t input_h, size_t input_w,
@@ -135,7 +135,7 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::run_backward(const ConstTensor &grad
                                                          flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<Compute_T>() ||
       grad_input_data->data_type() != dtype_of<Compute_T>()) {
-    throw std::runtime_error("LegacyAvgPool2DLayer tensor dtype mismatch with dispatch type");
+    throw std::runtime_error("LegacyAvgPool2DLayerImpl tensor dtype mismatch with dispatch type");
   }
   if (gradient_data->device_type() != grad_input_data->device_type()) {
     throw std::runtime_error("Gradient and input grad_output tensors must be on the same device");
@@ -161,7 +161,7 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::run_backward(const ConstTensor &grad
   return nullptr;
 }
 
-std::unique_ptr<Task> LegacyAvgPool2DLayer::run_backward(const ConstTensor &gradient_data,
+std::unique_ptr<Task> LegacyAvgPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
                                                          const Tensor &grad_input_data,
                                                          size_t batch_size, size_t channels,
                                                          size_t input_h, size_t input_w,
@@ -172,7 +172,7 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::run_backward(const ConstTensor &grad
   return nullptr;
 }
 
-LayerConfig LegacyAvgPool2DLayer::get_config() const {
+LayerConfig LegacyAvgPool2DLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -185,9 +185,9 @@ LayerConfig LegacyAvgPool2DLayer::get_config() const {
   return config;
 }
 
-Vec<size_t> LegacyAvgPool2DLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> LegacyAvgPool2DLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
-    throw std::invalid_argument("LegacyAvgPool2DLayer expects 4D input including batch size");
+    throw std::invalid_argument("LegacyAvgPool2DLayerImpl expects 4D input including batch size");
   }
 
   // Check for underflow in the calculation
@@ -202,7 +202,7 @@ Vec<size_t> LegacyAvgPool2DLayer::compute_output_shape(const Vec<size_t> &input_
   return {batch_size, channels, output_h, output_w};
 }
 
-std::unique_ptr<LegacyAvgPool2DLayer> LegacyAvgPool2DLayer::create_from_config(
+std::unique_ptr<LegacyAvgPool2DLayerImpl> LegacyAvgPool2DLayerImpl::create_from_config(
     const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
@@ -211,7 +211,7 @@ std::unique_ptr<LegacyAvgPool2DLayer> LegacyAvgPool2DLayer::create_from_config(
   size_t pad_h = config.get<size_t>("pad_h");
   size_t pad_w = config.get<size_t>("pad_w");
 
-  return std::make_unique<LegacyAvgPool2DLayer>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+  return std::make_unique<LegacyAvgPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                                                 config.name);
 }
 

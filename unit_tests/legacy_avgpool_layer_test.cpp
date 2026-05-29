@@ -19,7 +19,7 @@
 using namespace tnn;
 
 /**
- * Test fixture for LegacyAvgPool2DLayer validation tests.
+ * Test fixture for LegacyAvgPool2DLayerImpl validation tests.
  * These tests verify the mathematical correctness of average pooling operations
  * including forward and backward passes.
  */
@@ -156,7 +156,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BasicForwardPass) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto avg_pool_layer = std::make_unique<LegacyAvgPool2DLayer>(2, 2, 2, 2, 0, 0, "test_avgpool");
+  auto avg_pool_layer = std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_avgpool");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -183,7 +183,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassWithStride) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(3, 3, 1, 1, 0, 0, "test_avgpool_stride");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(3, 3, 1, 1, 0, 0, "test_avgpool_stride");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -209,7 +209,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassWithPadding) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(3, 3, 1, 1, 1, 1, "test_avgpool_padding");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(3, 3, 1, 1, 1, 1, "test_avgpool_padding");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -234,7 +234,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassMultiChannel) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(2, 2, 2, 2, 0, 0, "test_avgpool_multichannel");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_avgpool_multichannel");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -262,7 +262,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassMultiBatch) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(2, 2, 2, 2, 0, 0, "test_avgpool_multibatch");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_avgpool_multibatch");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -290,7 +290,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassNonSquarePooling) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(3, 2, 2, 2, 0, 0, "test_avgpool_nonsquare");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(3, 2, 2, 2, 0, 0, "test_avgpool_nonsquare");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -316,7 +316,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BasicBackwardPass) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(2, 2, 2, 2, 0, 0, "test_avgpool_backward");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_avgpool_backward");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -350,7 +350,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassWithPadding) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(3, 3, 1, 1, 1, 1, "test_avgpool_backward_pad");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(3, 3, 1, 1, 1, 1, "test_avgpool_backward_pad");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -380,7 +380,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassMultiChannel) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   GraphBuilder builder;
 
-  auto avg_pool_layer = std::make_unique<LegacyAvgPool2DLayer>(
+  auto avg_pool_layer = std::make_unique<LegacyAvgPool2DLayerImpl>(
       2, 2, 2, 2, 0, 0, "test_avgpool_backward_multichannel");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
@@ -412,7 +412,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassVariableGradient) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(2, 2, 1, 1, 0, 0, "test_avgpool_backward_var");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 1, 1, 0, 0, "test_avgpool_backward_var");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -440,8 +440,8 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassVariableGradient) {
 
 TEST_F(LegacyAvgPool2DLayerTest, ComputeOutputShape) {
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(2, 2, 2, 2, 0, 0, "test_avgpool_shape");
-  LegacyAvgPool2DLayer *layer = avg_pool_layer.get();
+      std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_avgpool_shape");
+  LegacyAvgPool2DLayerImpl *layer = avg_pool_layer.get();
 
   Vec<size_t> input_shape = {2, 3, 8, 8};
   Vec<size_t> expected_shape = {2, 3, 4, 4};
@@ -453,8 +453,8 @@ TEST_F(LegacyAvgPool2DLayerTest, ComputeOutputShape) {
 
 TEST_F(LegacyAvgPool2DLayerTest, ComputeOutputShapeWithPadding) {
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(3, 3, 1, 1, 1, 1, "test_avgpool_shape_pad");
-  LegacyAvgPool2DLayer *layer = avg_pool_layer.get();
+      std::make_unique<LegacyAvgPool2DLayerImpl>(3, 3, 1, 1, 1, 1, "test_avgpool_shape_pad");
+  LegacyAvgPool2DLayerImpl *layer = avg_pool_layer.get();
 
   Vec<size_t> input_shape = {1, 1, 5, 5};
   Vec<size_t> expected_shape = {1, 1, 5, 5};
@@ -466,8 +466,8 @@ TEST_F(LegacyAvgPool2DLayerTest, ComputeOutputShapeWithPadding) {
 
 TEST_F(LegacyAvgPool2DLayerTest, GetConfig) {
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(3, 4, 2, 1, 1, 2, "test_avgpool_config");
-  LegacyAvgPool2DLayer *layer = avg_pool_layer.get();
+      std::make_unique<LegacyAvgPool2DLayerImpl>(3, 4, 2, 1, 1, 2, "test_avgpool_config");
+  LegacyAvgPool2DLayerImpl *layer = avg_pool_layer.get();
 
   LayerConfig config = layer->get_config();
 
@@ -490,7 +490,7 @@ TEST_F(LegacyAvgPool2DLayerTest, CreateFromConfig) {
   config.set("pad_h", size_t(0));
   config.set("pad_w", size_t(0));
 
-  auto layer = LegacyAvgPool2DLayer::create_from_config(config);
+  auto layer = LegacyAvgPool2DLayerImpl::create_from_config(config);
 
   EXPECT_NE(layer, nullptr);
   EXPECT_EQ(layer->type(), "avgpool2d");
@@ -501,7 +501,7 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseGlobalAveragePooling) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(4, 4, 1, 1, 0, 0, "test_global_avgpool");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(4, 4, 1, 1, 0, 0, "test_global_avgpool");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -525,7 +525,7 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseZeroGradient) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(2, 2, 2, 2, 0, 0, "test_zero_gradient");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_zero_gradient");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -555,7 +555,7 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseLargeValues) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(2, 2, 2, 2, 0, 0, "test_large_values");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_large_values");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -580,7 +580,7 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseNegativeValues) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(2, 2, 2, 2, 0, 0, "test_negative_values");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_negative_values");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -603,7 +603,7 @@ TEST_F(LegacyAvgPool2DLayerTest, NumericalStabilitySmallValues) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(2, 2, 2, 2, 0, 0, "test_small_values");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_small_values");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);
@@ -628,7 +628,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardNumericalStability) {
   GraphBuilder builder;
 
   auto avg_pool_layer =
-      std::make_unique<LegacyAvgPool2DLayer>(2, 2, 2, 2, 0, 0, "test_backward_stability");
+      std::make_unique<LegacyAvgPool2DLayerImpl>(2, 2, 2, 2, 0, 0, "test_backward_stability");
   auto &node = builder.add_layer(std::move(avg_pool_layer));
 
   Graph graph = builder.compile(allocator);

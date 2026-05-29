@@ -13,25 +13,25 @@
 
 namespace tnn {
 
-Vec<Vec<size_t>> AddLayer::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
+Vec<Vec<size_t>> AddLayerImpl::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   if (input_shapes.size() != 2) {
-    throw std::runtime_error("AddLayer: expected exactly 2 inputs");
+    throw std::runtime_error("AddLayerImpl: expected exactly 2 inputs");
   }
   if (input_shapes[0] != input_shapes[1]) {
-    throw std::runtime_error("AddLayer: both inputs must have the same shape");
+    throw std::runtime_error("AddLayerImpl: both inputs must have the same shape");
   }
   return {input_shapes[0]};
 }
 
-Vec<Tensor> AddLayer::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> AddLayerImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (inputs.size() != 2) {
-    throw std::runtime_error("AddLayer: expected exactly 2 inputs");
+    throw std::runtime_error("AddLayerImpl: expected exactly 2 inputs");
   }
   const ConstTensor &a = inputs[0];
   const ConstTensor &b = inputs[1];
 
   if (a->shape() != b->shape()) {
-    throw std::runtime_error("AddLayer: both inputs must have the same shape");
+    throw std::runtime_error("AddLayerImpl: both inputs must have the same shape");
   }
 
   Tensor output = get_output_tensor(a->shape());
@@ -44,9 +44,9 @@ Vec<Tensor> AddLayer::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id)
   return {output};
 }
 
-Vec<Tensor> AddLayer::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> AddLayerImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
   if (grad_outputs.size() != 1) {
-    throw std::runtime_error("AddLayer: expected exactly 1 grad output");
+    throw std::runtime_error("AddLayerImpl: expected exactly 1 grad output");
   }
   const ConstTensor &grad_out = grad_outputs[0];
   const size_t n = grad_out->size();
@@ -63,15 +63,15 @@ Vec<Tensor> AddLayer::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t
   return {grad_a, grad_b};
 }
 
-LayerConfig AddLayer::get_config() const {
+LayerConfig AddLayerImpl::get_config() const {
   LayerConfig config;
   config.type = TYPE_NAME;
   config.name = this->name_;
   return config;
 }
 
-std::unique_ptr<AddLayer> AddLayer::create_from_config(const LayerConfig &config) {
-  return std::make_unique<AddLayer>(config.name.empty() ? "add" : config.name);
+std::unique_ptr<AddLayerImpl> AddLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_unique<AddLayerImpl>(config.name.empty() ? "add" : config.name);
 }
 
 }  // namespace tnn

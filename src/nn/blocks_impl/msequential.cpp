@@ -25,7 +25,7 @@
 namespace tnn {
 
 MSequential::MSequential(Vec<std::unique_ptr<Sequential>> sequences,
-                         std::unique_ptr<Layer> join_layer, const std::string &name)
+                         std::unique_ptr<LayerImpl> join_layer, const std::string &name)
     : Block(name),
       sequences_(std::move(sequences)),
       join_layer_(std::move(join_layer)) {
@@ -206,7 +206,7 @@ void MSequential::print_summary(const Vec<Vec<size_t>> &input_shapes) const {
     sequences_[i]->print_summary(input_shapes[i]);
   }
 
-  std::cout << "\n--- Join Layer ---\n";
+  std::cout << "\n--- Join LayerImpl ---\n";
   std::cout << "Type: " << join_layer_->type() << "\n";
   std::cout << "Name: " << (join_layer_->name().empty() ? "<unnamed>" : join_layer_->name())
             << "\n";
@@ -236,7 +236,7 @@ Vec<Sequential *> MSequential::get_sequences() {
   return seqs;
 }
 
-Layer *MSequential::get_join_layer() { return join_layer_.get(); }
+LayerImpl *MSequential::get_join_layer() { return join_layer_.get(); }
 
 LayerConfig MSequential::get_config() const {
   LayerConfig config;

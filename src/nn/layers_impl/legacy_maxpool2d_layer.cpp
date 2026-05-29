@@ -15,10 +15,10 @@
 
 namespace tnn {
 
-LegacyMaxPool2DLayer::LegacyMaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
+LegacyMaxPool2DLayerImpl::LegacyMaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
                                            size_t stride_w, size_t pad_h, size_t pad_w,
                                            const std::string &name)
-    : StatelessLayer(name),
+    : SISOLayerImpl(name),
       pool_h_(pool_h),
       pool_w_(pool_w),
       stride_h_(stride_h == 0 ? pool_h : stride_h),
@@ -33,7 +33,7 @@ LegacyMaxPool2DLayer::LegacyMaxPool2DLayer(size_t pool_h, size_t pool_w, size_t 
   }
 }
 
-Tensor LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor LegacyMaxPool2DLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("MaxPool2D: Input tensor must be 4-dimensional (NCHW)");
@@ -63,17 +63,17 @@ Tensor LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id
   return output;
 }
 
-Tensor LegacyMaxPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor LegacyMaxPool2DLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   auto it_mask = micro_batch_mask_indices_.find(mb_id);
   auto it_shape = micro_batch_input_shapes_.find(mb_id);
 
   if (it_mask == micro_batch_mask_indices_.end()) {
-    throw std::runtime_error("No cached mask found for micro-batch ID in LegacyMaxPool2DLayer: " +
+    throw std::runtime_error("No cached mask found for micro-batch ID in LegacyMaxPool2DLayerImpl: " +
                              std::to_string(mb_id));
   }
   if (it_shape == micro_batch_input_shapes_.end()) {
     throw std::runtime_error(
-        "No cached input shape found for micro-batch ID in LegacyMaxPool2DLayer: " +
+        "No cached input shape found for micro-batch ID in LegacyMaxPool2DLayerImpl: " +
         std::to_string(mb_id));
   }
 
@@ -102,12 +102,12 @@ Tensor LegacyMaxPool2DLayer::backward_impl(const ConstTensor &grad_output, size_
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> LegacyMaxPool2DLayer::run_forward(
+std::unique_ptr<Task> LegacyMaxPool2DLayerImpl::run_forward(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w, const Tensor &mask_indices,
     flowHandle_t handle) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("LegacyMaxPool2DLayer tensor dtype mismatch with dispatch type");
+    throw std::runtime_error("LegacyMaxPool2DLayerImpl tensor dtype mismatch with dispatch type");
   }
   if (input_data->device_type() != output_data->device_type()) {
     throw std::runtime_error("Input and output tensors must be on the same device");
@@ -133,7 +133,7 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::run_forward(
   return nullptr;
 }
 
-std::unique_ptr<Task> LegacyMaxPool2DLayer::run_forward(
+std::unique_ptr<Task> LegacyMaxPool2DLayerImpl::run_forward(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w, const Tensor &mask_indices,
     flowHandle_t handle) const {
@@ -143,7 +143,7 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::run_forward(
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> LegacyMaxPool2DLayer::run_backward(const ConstTensor &gradient_data,
+std::unique_ptr<Task> LegacyMaxPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
                                                          const Tensor &grad_input_data,
                                                          size_t batch_size, size_t channels,
                                                          size_t output_h, size_t output_w,
@@ -151,7 +151,7 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::run_backward(const ConstTensor &grad
                                                          flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("LegacyMaxPool2DLayer tensor dtype mismatch with dispatch type");
+    throw std::runtime_error("LegacyMaxPool2DLayerImpl tensor dtype mismatch with dispatch type");
   }
   if (gradient_data->device_type() != grad_input_data->device_type()) {
     throw std::runtime_error("Gradient and input grad_output tensors must be on the same device");
@@ -177,7 +177,7 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::run_backward(const ConstTensor &grad
   return nullptr;
 }
 
-std::unique_ptr<Task> LegacyMaxPool2DLayer::run_backward(const ConstTensor &gradient_data,
+std::unique_ptr<Task> LegacyMaxPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
                                                          const Tensor &grad_input_data,
                                                          size_t batch_size, size_t channels,
                                                          size_t output_h, size_t output_w,
@@ -188,7 +188,7 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::run_backward(const ConstTensor &grad
   return nullptr;
 }
 
-LayerConfig LegacyMaxPool2DLayer::get_config() const {
+LayerConfig LegacyMaxPool2DLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -201,9 +201,9 @@ LayerConfig LegacyMaxPool2DLayer::get_config() const {
   return config;
 }
 
-Vec<size_t> LegacyMaxPool2DLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> LegacyMaxPool2DLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
-    throw std::invalid_argument("LegacyMaxPool2DLayer expects 4D input including batch size");
+    throw std::invalid_argument("LegacyMaxPool2DLayerImpl expects 4D input including batch size");
   }
 
   size_t batch_size = input_shape[0];
@@ -214,7 +214,7 @@ Vec<size_t> LegacyMaxPool2DLayer::compute_output_shape(const Vec<size_t> &input_
   return {batch_size, channels, output_h, output_w};
 }
 
-std::unique_ptr<LegacyMaxPool2DLayer> LegacyMaxPool2DLayer::create_from_config(
+std::unique_ptr<LegacyMaxPool2DLayerImpl> LegacyMaxPool2DLayerImpl::create_from_config(
     const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
@@ -223,7 +223,7 @@ std::unique_ptr<LegacyMaxPool2DLayer> LegacyMaxPool2DLayer::create_from_config(
   size_t pad_h = config.get<size_t>("pad_h");
   size_t pad_w = config.get<size_t>("pad_w");
 
-  return std::make_unique<LegacyMaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+  return std::make_unique<LegacyMaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                                                 config.name);
 }
 

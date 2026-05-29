@@ -13,19 +13,19 @@
 
 namespace tnn {
 
-TransposeLayer::TransposeLayer(const std::string &name)
-    : StatelessLayer(name) {}
+TransposeLayerImpl::TransposeLayerImpl(const std::string &name)
+    : SISOLayerImpl(name) {}
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> TransposeLayer::permute(const ConstTensor &input, const Tensor &output,
+std::unique_ptr<Task> TransposeLayerImpl::permute(const ConstTensor &input, const Tensor &output,
                                               size_t B, size_t L, size_t H, size_t D,
                                               flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
-        "TransposeLayer mixed dtype dispatch not implemented (io/compute must match).");
+        "TransposeLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
   }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("TransposeLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("TransposeLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 
   if (get_engine_type() == EngineType::CPU) {
@@ -44,9 +44,9 @@ std::unique_ptr<Task> TransposeLayer::permute(const ConstTensor &input, const Te
   return nullptr;
 }
 
-Tensor TransposeLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor TransposeLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 3) {
-    throw std::runtime_error("TransposeLayer expects 3D input (Batch, D1, D2)");
+    throw std::runtime_error("TransposeLayerImpl expects 3D input (Batch, D1, D2)");
   }
   size_t B = input->dimension(0);
   size_t L = input->dimension(1);
@@ -59,10 +59,10 @@ Tensor TransposeLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor TransposeLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor TransposeLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   // Gradient is (B, H, L). We want (B, L, H).
   if (grad_output->dims() != 3) {
-    throw std::runtime_error("TransposeLayer: Gradient must be 3D");
+    throw std::runtime_error("TransposeLayerImpl: Gradient must be 3D");
   }
   size_t B = grad_output->dimension(0);
   // Gradient output shape was {B, H, L}, so dim(1) is H, dim(2) is L
@@ -76,21 +76,21 @@ Tensor TransposeLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
   return grad_input;
 }
 
-Vec<size_t> TransposeLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> TransposeLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 3)
-    throw std::runtime_error("TransposeLayer expects 3 dims (B, D1, D2)");
+    throw std::runtime_error("TransposeLayerImpl expects 3 dims (B, D1, D2)");
   return {input_shape[0], input_shape[2], input_shape[1]};
 }
 
-LayerConfig TransposeLayer::get_config() const {
+LayerConfig TransposeLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
   return config;
 }
 
-std::unique_ptr<TransposeLayer> TransposeLayer::create_from_config(const LayerConfig &config) {
-  return std::make_unique<TransposeLayer>(config.name);
+std::unique_ptr<TransposeLayerImpl> TransposeLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_unique<TransposeLayerImpl>(config.name);
 }
 
 }  // namespace tnn

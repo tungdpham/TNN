@@ -92,7 +92,7 @@ public:
 
     // Add fused edges for each chain
     for (const auto &chain : chains) {
-      Vec<std::unique_ptr<Layer>> composite_layers;
+      Vec<std::unique_ptr<LayerImpl>> composite_layers;
 
       // Collect layers from the chain
       for (size_t idx : chain) {

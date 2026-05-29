@@ -12,7 +12,7 @@
 #include <unordered_map>
 
 #include "nn/layers_impl/common/batchnorm.hpp"
-#include "parameterized_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
 #ifdef USE_CUDNN
@@ -26,7 +26,7 @@
 
 namespace tnn {
 
-class BatchNormLayer : public ParameterizedLayer {
+class BatchNormLayerImpl : public SISOLayerImpl {
 private:
   size_t num_features_;
   float epsilon_;
@@ -132,16 +132,16 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  explicit BatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
+  explicit BatchNormLayerImpl(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
                           bool affine = true, bool use_relu = false,
                           const std::string &name = "batchnorm");
-  ~BatchNormLayer() override;
+  ~BatchNormLayerImpl() override;
 
   static constexpr const char *TYPE_NAME = "batchnorm";
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<BatchNormLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<BatchNormLayerImpl> create_from_config(const LayerConfig &config);
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 };

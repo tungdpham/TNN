@@ -11,11 +11,11 @@
 
 namespace tnn {
 
-TanhLayer::TanhLayer(const std::string &name)
-    : StatelessLayer(name),
+TanhLayerImpl::TanhLayerImpl(const std::string &name)
+    : SISOLayerImpl(name),
       activation_(std::make_unique<Tanh>()) {}
 
-Tensor TanhLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor TanhLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   Tensor output = get_output_tensor(input->shape());
   activation_->apply(input, output);
 
@@ -28,10 +28,10 @@ Tensor TanhLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor TanhLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor TanhLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &output = this->get_immutable_cache(mb_id, "output");
   if (!output) {
-    throw std::runtime_error("No cached output found for backward pass in TanhLayer");
+    throw std::runtime_error("No cached output found for backward pass in TanhLayerImpl");
   }
 
   Tensor grad_input = get_output_tensor(grad_output->shape());
@@ -49,22 +49,22 @@ Tensor TanhLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    throw std::runtime_error("TanhLayer: GPU backward not yet implemented");
+    throw std::runtime_error("TanhLayerImpl: GPU backward not yet implemented");
   }
 #endif
 
   return grad_input;
 }
 
-LayerConfig TanhLayer::get_config() const {
+LayerConfig TanhLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
   return config;
 }
 
-std::unique_ptr<TanhLayer> TanhLayer::create_from_config(const LayerConfig &config) {
-  return std::make_unique<TanhLayer>(config.name);
+std::unique_ptr<TanhLayerImpl> TanhLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_unique<TanhLayerImpl>(config.name);
 }
 
 }  // namespace tnn
