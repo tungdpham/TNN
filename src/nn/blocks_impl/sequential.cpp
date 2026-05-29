@@ -66,7 +66,9 @@ Vec<Tensor> Sequential::backward_impl(const Vec<ConstTensor> &grad_outputs, size
 
 Sequential::Sequential(Vec<std::unique_ptr<Layer>> layers, const std::string &name)
     : Block(name) {
-  layers_ = std::move(layers);
+  for (auto &layer : layers) {
+    layers_.emplace_back(std::move(layer));
+  }
 }
 
 Vec<Vec<size_t>> Sequential::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {

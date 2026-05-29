@@ -131,6 +131,11 @@ private:
   Vec<Node> consumers_;
 };
 
+enum class ExecutionMode {
+  TRAIN,
+  EVAL,
+};
+
 class Graph {
 public:
   Graph() = default;
@@ -314,6 +319,12 @@ public:
   }
 
   GraphContext *context() const { return context_.get(); }
+
+  void set_mode(ExecutionMode mode) {
+    for (const auto &edge : edges_) {
+      edge->layer()->set_training(mode == ExecutionMode::TRAIN);
+    }
+  }
 
 private:
   Vec<Node> nodes_;
