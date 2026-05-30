@@ -25,8 +25,6 @@
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-// TNN_FLASH_ATTN_BF16_PATCH: local cuDNN SDPA IO/workspace uses BF16 instead of FP16.
-
 namespace tnn {
 
 // Constructor
@@ -155,7 +153,7 @@ Tensor FlashAttentionBlockImpl::cudnn_forward(const ConstTensor &input, size_t m
   Tensor attn_heads =
       this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
-  // since cudnn SDPA only support FP16/FP16 IO, we need to convert here
+  // since cudnn SDPA only support FP16/BF16 IO, we need to convert here
   Tensor q_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
   Tensor k_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
   Tensor v_heads = this->get_workspace({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
