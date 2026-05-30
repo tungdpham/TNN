@@ -37,4 +37,12 @@ public:
   }
 };
 
+class ReLULayer : public LayerRef<ReLULayerImpl> {
+public:
+  explicit ReLULayer(const std::string &name = "relu")
+      : LayerRef(std::make_shared<ReLULayerImpl>(name)) {}
+
+  using LayerRef<ReLULayerImpl>::LayerRef;
+};
+
 }  // namespace tnn

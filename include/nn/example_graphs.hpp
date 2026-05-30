@@ -56,7 +56,6 @@ inline Graph load_or_create_graph(const std::string &graph_name, const std::stri
     file.close();
     return graph;
   }
-
   try {
     auto graph = ExampleGraphs::create(graph_name, allocator);
     std::cout << "Created graph: " << graph_name << std::endl;

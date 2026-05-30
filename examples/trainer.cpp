@@ -4,7 +4,7 @@
 
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
-#include "nn/example_models.hpp"
+#include "nn/example_graphs.hpp"
 #include "nn/graph_api.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
@@ -14,7 +14,7 @@ using namespace std;
 using namespace tnn;
 
 signed main(int argc, char *argv[]) {
-  ExampleModels::register_defaults();
+  ExampleGraphs::register_defaults();
 
   std::string config_path;
   static struct option long_options[] = {
@@ -61,7 +61,7 @@ signed main(int argc, char *argv[]) {
   }
   train_loader->set_seed(123456);
 
-  Graph graph = load_or_create_model(train_config.model_name, train_config.model_path, allocator);
+  Graph graph = load_or_create_graph(train_config.model_name, train_config.model_path, allocator);
 
   auto criterion = LossFactory::create_crossentropy();
   int adamw = 1;

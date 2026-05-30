@@ -92,4 +92,13 @@ public:
   static std::shared_ptr<SDPALayerImpl> create_from_config(const LayerConfig &config);
 };
 
+class SDPALayer : public LayerRef<SDPALayerImpl> {
+public:
+  explicit SDPALayer(float attn_scale = 1.0f, bool is_causal = false,
+                     const std::string &name = "sdpa")
+      : LayerRef(std::make_shared<SDPALayerImpl>(attn_scale, is_causal, name)) {}
+
+  using LayerRef<SDPALayerImpl>::LayerRef;
+};
+
 }  // namespace tnn

@@ -37,4 +37,12 @@ public:
   }
 };
 
+class LinearLayer : public LayerRef<LinearLayerImpl> {
+public:
+  explicit LinearLayer(const std::string &name = "linear")
+      : LayerRef(std::make_shared<LinearLayerImpl>(name)) {}
+
+  using LayerRef<LinearLayerImpl>::LayerRef;
+};
+
 }  // namespace tnn

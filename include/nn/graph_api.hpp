@@ -354,6 +354,13 @@ public:
     return node;
   }
 
+  Node input(const std::string &uid = "input") { return make_node(uid); }
+
+  template <typename... Args>
+  std::array<Node, sizeof...(Args)> inputs(Args... uids) {
+    return {make_node(uids)...};
+  }
+
   GraphContext *context() const { return context_.get(); }
 
   void set_mode(ExecutionMode mode) {
