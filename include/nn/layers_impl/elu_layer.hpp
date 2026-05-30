@@ -40,4 +40,12 @@ public:
   float get_alpha() const { return alpha_; }
 };
 
+class ELULayer : public LayerRef<ELULayerImpl> {
+public:
+  explicit ELULayer(float alpha = 1.0f, const std::string &name = "elu")
+      : LayerRef(std::make_shared<ELULayerImpl>(alpha, name)) {}
+
+  using LayerRef<ELULayerImpl>::LayerRef;
+};
+
 }  // namespace tnn

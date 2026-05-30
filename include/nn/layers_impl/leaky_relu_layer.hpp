@@ -40,4 +40,12 @@ public:
   float get_negative_slope() const { return negative_slope_; }
 };
 
+class LeakyReLULayer : public LayerRef<LeakyReLULayerImpl> {
+public:
+  explicit LeakyReLULayer(float negative_slope = 0.01f, const std::string &name = "leaky_relu")
+      : LayerRef(std::make_shared<LeakyReLULayerImpl>(negative_slope, name)) {}
+
+  using LayerRef<LeakyReLULayerImpl>::LayerRef;
+};
+
 }  // namespace tnn

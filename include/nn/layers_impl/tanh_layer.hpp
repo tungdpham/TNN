@@ -37,4 +37,12 @@ public:
   }
 };
 
+class TanhLayer : public LayerRef<TanhLayerImpl> {
+public:
+  explicit TanhLayer(const std::string &name = "tanh")
+      : LayerRef(std::make_shared<TanhLayerImpl>(name)) {}
+
+  using LayerRef<TanhLayerImpl>::LayerRef;
+};
+
 }  // namespace tnn

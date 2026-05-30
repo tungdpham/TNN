@@ -37,4 +37,12 @@ public:
   }
 };
 
+class GELULayer : public LayerRef<GELULayerImpl> {
+public:
+  explicit GELULayer(const std::string &name = "gelu")
+      : LayerRef(std::make_shared<GELULayerImpl>(name)) {}
+
+  using LayerRef<GELULayerImpl>::LayerRef;
+};
+
 }  // namespace tnn

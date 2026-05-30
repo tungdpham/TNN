@@ -42,4 +42,12 @@ public:
   }
 };
 
+class SigmoidLayer : public LayerRef<SigmoidLayerImpl> {
+public:
+  explicit SigmoidLayer(const std::string &name = "sigmoid")
+      : LayerRef(std::make_shared<SigmoidLayerImpl>(name)) {}
+
+  using LayerRef<SigmoidLayerImpl>::LayerRef;
+};
+
 }  // namespace tnn
