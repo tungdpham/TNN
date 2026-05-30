@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <initializer_list>
 #include <iosfwd>
 #include <iostream>
@@ -162,13 +163,14 @@ public:
       }
     }
     context_ = std::make_unique<GraphContext>(allocator, ctx_desc);
-    auto ws_allocator = DELAllocatorV2::instance(context_->device(), defaultFlowHandle);
+    workspace_allocator_ = DELAllocatorV2::instance(context_->device(), defaultFlowHandle);
     for (LayerImpl *layer_ptr : unique_layers) {
       std::cout << fmt::format("Initializing layer: {}", layer_ptr->name()) << std::endl;
       layer_ptr->set_engine_type(allocator.device().get_engine());
-      layer_ptr->set_allocator(*ws_allocator);
+      layer_ptr->set_allocator(*workspace_allocator_);
       layer_ptr->init();
     }
+    build_execution_plan();
   }
 
   Vec<Node> nodes() const { return nodes_; }
@@ -281,8 +283,20 @@ public:
       }
       it->second->set_data(tensor);
     }
-    for (auto it = edges_.begin(); it != edges_.end(); ++it) {
-      (*it)->forward(mb_id);
+    switch (execution_plan_kind_) {
+      case ExecutionPlanKind::Spsc:
+        execute_spsc_chain_forward(spsc_chain_, mb_id,
+                                   workspace_allocator_ ? workspace_allocator_->side() : 0);
+        break;
+      case ExecutionPlanKind::SingleJoin:
+        execute_single_join_forward(mb_id);
+        break;
+      case ExecutionPlanKind::Topological:
+      default:
+        for (auto it = edges_.begin(); it != edges_.end(); ++it) {
+          (*it)->forward(mb_id);
+        }
+        break;
     }
     OutputMap output_map;
     auto outputs = this->outputs();
@@ -304,8 +318,20 @@ public:
       }
       it->second->set_grad(tensor);
     }
-    for (auto it = edges_.rbegin(); it != edges_.rend(); ++it) {
-      (*it)->backward(mb_id);
+    switch (execution_plan_kind_) {
+      case ExecutionPlanKind::Spsc:
+        execute_spsc_chain_backward(spsc_chain_, mb_id,
+                                    workspace_allocator_ ? workspace_allocator_->side() : 0);
+        break;
+      case ExecutionPlanKind::SingleJoin:
+        execute_single_join_backward(mb_id);
+        break;
+      case ExecutionPlanKind::Topological:
+      default:
+        for (auto it = edges_.rbegin(); it != edges_.rend(); ++it) {
+          (*it)->backward(mb_id);
+        }
+        break;
     }
     OutputMap input_grad_map;
     auto inputs = this->inputs();
@@ -337,6 +363,18 @@ public:
   }
 
 private:
+  enum class ExecutionPlanKind {
+    Topological,
+    Spsc,
+    SingleJoin,
+  };
+
+  struct SingleJoinPlan {
+    Vec<Vec<Edge>> branches;
+    Edge join_edge;
+    Vec<Edge> tail;
+  };
+
   Vec<Node> nodes_;
   Vec<Edge> edges_;
   std::unique_ptr<GraphContext> context_;
@@ -344,6 +382,12 @@ private:
   std::map<std::weak_ptr<NodeImpl>, int, std::owner_less<std::weak_ptr<NodeImpl>>> out_degree_;
   size_t node_count_ = 0;
   std::set<std::string> used_uids_;
+  std::shared_ptr<DELAllocatorV2> workspace_allocator_;
+  ExecutionPlanKind execution_plan_kind_ = ExecutionPlanKind::Topological;
+  Vec<Edge> spsc_chain_;
+  SingleJoinPlan single_join_plan_;
+  Vec<size_t> single_join_execution_order_;
+  bool single_join_execution_order_cached_ = false;
 
   std::string generate_uid() {
     std::string uid;
@@ -384,6 +428,305 @@ private:
     }
     for (const auto &consumer : edge->consumers()) {
       in_degree_[consumer]++;
+    }
+  }
+
+  void build_execution_plan() {
+    execution_plan_kind_ = ExecutionPlanKind::Topological;
+    spsc_chain_.clear();
+    single_join_plan_ = SingleJoinPlan{};
+    single_join_execution_order_.clear();
+    single_join_execution_order_cached_ = false;
+
+    if (try_build_spsc_plan()) {
+      execution_plan_kind_ = ExecutionPlanKind::Spsc;
+      return;
+    }
+
+    if (try_build_single_join_plan()) {
+      execution_plan_kind_ = ExecutionPlanKind::SingleJoin;
+    }
+  }
+
+  bool try_build_spsc_plan() {
+    if (edges_.empty() || inputs().size() != 1 || outputs().size() != 1) {
+      return false;
+    }
+
+    for (const auto &edge : edges_) {
+      if (edge->producers().size() != 1 || edge->consumers().size() != 1) {
+        return false;
+      }
+    }
+
+    for (const auto &node : nodes_) {
+      const bool is_input = !in_degree_.count(node) || in_degree_.at(node) == 0;
+      const bool is_output = !out_degree_.count(node) || out_degree_.at(node) == 0;
+      if (is_input || is_output) {
+        continue;
+      }
+      if (in_degree_.at(node) != 1 || out_degree_.at(node) != 1) {
+        return false;
+      }
+    }
+
+    spsc_chain_ = edges_;
+    return true;
+  }
+
+  bool try_build_single_join_plan() {
+    if (edges_.empty() || outputs().size() != 1) {
+      return false;
+    }
+
+    std::map<NodeImpl *, Edge> producer_edge_by_output;
+    std::map<NodeImpl *, Vec<Edge>> consumer_edges_by_node;
+    Vec<Edge> multi_input_edges;
+
+    for (const auto &edge : edges_) {
+      if (edge->consumers().size() != 1) {
+        return false;
+      }
+      if (edge->producers().size() > 1) {
+        multi_input_edges.push_back(edge);
+      }
+      for (const auto &consumer : edge->consumers()) {
+        producer_edge_by_output[consumer.get()] = edge;
+      }
+      for (const auto &producer : edge->producers()) {
+        consumer_edges_by_node[producer.get()].push_back(edge);
+      }
+    }
+
+    if (multi_input_edges.size() != 1) {
+      return false;
+    }
+
+    Edge join_edge = multi_input_edges.front();
+    std::set<Edge> covered_edges;
+    Vec<Vec<Edge>> branches;
+    branches.reserve(join_edge->producers().size());
+
+    for (const auto &join_input : join_edge->producers()) {
+      Vec<Edge> branch;
+      Node current = join_input;
+      while (true) {
+        auto producer_it = producer_edge_by_output.find(current.get());
+        if (producer_it == producer_edge_by_output.end()) {
+          break;
+        }
+
+        Edge edge = producer_it->second;
+        if (edge == join_edge || edge->producers().size() != 1 || edge->consumers().size() != 1) {
+          return false;
+        }
+
+        Node producer = edge->producers().front();
+        if ((!out_degree_.count(producer) || out_degree_.at(producer) == 0) ||
+            out_degree_.at(producer) > 1) {
+          return false;
+        }
+        if (in_degree_.count(current) && in_degree_.at(current) > 1 && current != join_input) {
+          return false;
+        }
+
+        branch.push_back(edge);
+        covered_edges.insert(edge);
+        current = producer;
+      }
+      std::reverse(branch.begin(), branch.end());
+      branches.push_back(std::move(branch));
+    }
+
+    Vec<Edge> tail;
+    Node current = join_edge->consumers().front();
+    while (true) {
+      auto consumer_it = consumer_edges_by_node.find(current.get());
+      if (consumer_it == consumer_edges_by_node.end()) {
+        break;
+      }
+      if (consumer_it->second.size() != 1 || out_degree_.at(current) > 1) {
+        return false;
+      }
+
+      Edge edge = consumer_it->second.front();
+      if (edge->producers().size() != 1 || edge->consumers().size() != 1) {
+        return false;
+      }
+      if (in_degree_.count(current) && in_degree_.at(current) != 1) {
+        return false;
+      }
+
+      tail.push_back(edge);
+      covered_edges.insert(edge);
+      current = edge->consumers().front();
+    }
+
+    covered_edges.insert(join_edge);
+    if (covered_edges.size() != edges_.size()) {
+      return false;
+    }
+
+    single_join_plan_.branches = std::move(branches);
+    single_join_plan_.join_edge = join_edge;
+    single_join_plan_.tail = std::move(tail);
+    return true;
+  }
+
+  void execute_spsc_chain_forward(const Vec<Edge> &chain, size_t mb_id, int output_side) {
+    if (chain.empty()) {
+      return;
+    }
+    if (!workspace_allocator_) {
+      for (const auto &edge : chain) {
+        edge->forward(mb_id);
+      }
+      return;
+    }
+
+    workspace_allocator_->set_side(output_side);
+    if (chain.size() % 2 == 0) {
+      workspace_allocator_->flip();
+    }
+    for (size_t i = 0; i < chain.size(); ++i) {
+      chain[i]->forward(mb_id);
+      if (i + 1 < chain.size()) {
+        workspace_allocator_->flip();
+      }
+    }
+  }
+
+  void execute_spsc_chain_backward(const Vec<Edge> &chain, size_t mb_id, int input_grad_side) {
+    if (chain.empty()) {
+      return;
+    }
+    if (!workspace_allocator_) {
+      for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+        (*it)->backward(mb_id);
+      }
+      return;
+    }
+
+    workspace_allocator_->set_side(input_grad_side);
+    if (chain.size() % 2 == 0) {
+      workspace_allocator_->flip();
+    }
+    for (size_t offset = 0; offset < chain.size(); ++offset) {
+      size_t index = chain.size() - 1 - offset;
+      chain[index]->backward(mb_id);
+      if (offset + 1 < chain.size()) {
+        workspace_allocator_->flip();
+      }
+    }
+  }
+
+  void clear_forward_measurement_artifacts(const Vec<Edge> &chain, size_t mb_id) {
+    for (const auto &edge : chain) {
+      edge->layer()->clear_cache(mb_id);
+    }
+    for (const auto &edge : chain) {
+      for (const auto &consumer : edge->consumers()) {
+        consumer->set_data(Tensor());
+      }
+    }
+  }
+
+  std::pair<size_t, size_t> measure_chain_memory(const Vec<Edge> &chain, size_t mb_id,
+                                                 int output_side) {
+    if (chain.empty() || !workspace_allocator_) {
+      return {0, 0};
+    }
+
+    int original_side = workspace_allocator_->side();
+    size_t m_prev = workspace_allocator_->total_allocated();
+    size_t m_max = m_prev;
+    size_t hook_id = workspace_allocator_->add_allocation_hook([&m_max](size_t total_allocated) {
+      if (total_allocated > m_max) {
+        m_max = total_allocated;
+      }
+    });
+
+    execute_spsc_chain_forward(chain, mb_id, output_side);
+    context_->device().getFlow(defaultFlowHandle)->synchronize();
+    workspace_allocator_->remove_allocation_hook(hook_id);
+
+    size_t m_after = workspace_allocator_->total_allocated();
+    clear_forward_measurement_artifacts(chain, mb_id);
+    workspace_allocator_->set_side(original_side);
+
+    return {m_max - m_prev, m_after - m_prev};
+  }
+
+  Vec<size_t> compute_single_join_execution_order(size_t mb_id) {
+    if (single_join_execution_order_cached_) {
+      return single_join_execution_order_;
+    }
+
+    struct BranchMemInfo {
+      size_t index;
+      size_t cycling_cost;
+      size_t retained_cost;
+      long long priority;
+    };
+
+    Vec<BranchMemInfo> infos;
+    infos.reserve(single_join_plan_.branches.size());
+    int branch_output_side = workspace_allocator_ ? workspace_allocator_->side() : 0;
+
+    for (size_t i = 0; i < single_join_plan_.branches.size(); ++i) {
+      const auto &branch = single_join_plan_.branches[i];
+      if (branch.empty()) {
+        infos.push_back({i, 0, 0, 0});
+        continue;
+      }
+      auto [cycling_cost, retained_cost] = measure_chain_memory(branch, mb_id, branch_output_side);
+      infos.push_back(
+          {i, cycling_cost, retained_cost,
+           static_cast<long long>(cycling_cost) - static_cast<long long>(retained_cost)});
+    }
+
+    std::sort(infos.begin(), infos.end(), [](const BranchMemInfo &a, const BranchMemInfo &b) {
+      return a.priority > b.priority;
+    });
+
+    single_join_execution_order_.clear();
+    for (const auto &info : infos) {
+      single_join_execution_order_.push_back(info.index);
+    }
+    single_join_execution_order_cached_ = true;
+    return single_join_execution_order_;
+  }
+
+  void execute_single_join_forward(size_t mb_id) {
+    int branch_output_side = workspace_allocator_ ? workspace_allocator_->side() : 0;
+    Vec<size_t> order = compute_single_join_execution_order(mb_id);
+
+    for (size_t branch_index : order) {
+      execute_spsc_chain_forward(single_join_plan_.branches[branch_index], mb_id,
+                                 branch_output_side);
+    }
+
+    if (workspace_allocator_) {
+      workspace_allocator_->set_side(1 - branch_output_side);
+    }
+    single_join_plan_.join_edge->forward(mb_id);
+    execute_spsc_chain_forward(single_join_plan_.tail, mb_id, branch_output_side);
+  }
+
+  void execute_single_join_backward(size_t mb_id) {
+    int join_input_grad_side = workspace_allocator_ ? workspace_allocator_->side() : 0;
+    execute_spsc_chain_backward(single_join_plan_.tail, mb_id, join_input_grad_side);
+
+    if (workspace_allocator_) {
+      workspace_allocator_->set_side(1 - join_input_grad_side);
+    }
+    single_join_plan_.join_edge->backward(mb_id);
+
+    Vec<size_t> order = compute_single_join_execution_order(mb_id);
+    for (size_t offset = 0; offset < order.size(); ++offset) {
+      size_t branch_index = order[order.size() - 1 - offset];
+      execute_spsc_chain_backward(single_join_plan_.branches[branch_index], mb_id,
+                                  join_input_grad_side);
     }
   }
 };
