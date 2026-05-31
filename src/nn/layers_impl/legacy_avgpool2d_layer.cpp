@@ -15,8 +15,8 @@
 namespace tnn {
 
 LegacyAvgPool2DLayerImpl::LegacyAvgPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
-                                           size_t stride_w, size_t pad_h, size_t pad_w,
-                                           const std::string &name)
+                                                   size_t stride_w, size_t pad_h, size_t pad_w,
+                                                   const std::string &name)
     : SISOLayerImpl(name),
       pool_h_(pool_h),
       pool_w_(pool_w),
@@ -48,7 +48,7 @@ Tensor LegacyAvgPool2DLayerImpl::forward_impl(const ConstTensor &input, size_t m
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  Tensor output = get_output_tensor({batch_size, channels, output_h, output_w});
+  Tensor output = get_tensor({batch_size, channels, output_h, output_w}, input->data_type());
 
   run_forward(input, output, batch_size, channels, input_h, input_w, output_h, output_w,
               this->flow_handle_);
@@ -77,7 +77,8 @@ Tensor LegacyAvgPool2DLayerImpl::backward_impl(const ConstTensor &grad_output, s
   const size_t output_h = grad_shape[2];
   const size_t output_w = grad_shape[3];
 
-  Tensor grad_input = get_output_tensor({batch_size, channels, input_h, input_w});
+  Tensor grad_input =
+      get_tensor({batch_size, channels, input_h, input_w}, grad_output->data_type());
   grad_input->fill(0);
 
   run_backward(grad_output, grad_input, batch_size, channels, input_h, input_w, output_h, output_w,
@@ -128,11 +129,11 @@ std::unique_ptr<Task> LegacyAvgPool2DLayerImpl::run_forward(
 
 template <typename Compute_T>
 std::unique_ptr<Task> LegacyAvgPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
-                                                         const Tensor &grad_input_data,
-                                                         size_t batch_size, size_t channels,
-                                                         size_t input_h, size_t input_w,
-                                                         size_t output_h, size_t output_w,
-                                                         flowHandle_t handle) const {
+                                                             const Tensor &grad_input_data,
+                                                             size_t batch_size, size_t channels,
+                                                             size_t input_h, size_t input_w,
+                                                             size_t output_h, size_t output_w,
+                                                             flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<Compute_T>() ||
       grad_input_data->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("LegacyAvgPool2DLayerImpl tensor dtype mismatch with dispatch type");
@@ -162,11 +163,11 @@ std::unique_ptr<Task> LegacyAvgPool2DLayerImpl::run_backward(const ConstTensor &
 }
 
 std::unique_ptr<Task> LegacyAvgPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
-                                                         const Tensor &grad_input_data,
-                                                         size_t batch_size, size_t channels,
-                                                         size_t input_h, size_t input_w,
-                                                         size_t output_h, size_t output_w,
-                                                         flowHandle_t handle) const {
+                                                             const Tensor &grad_input_data,
+                                                             size_t batch_size, size_t channels,
+                                                             size_t input_h, size_t input_w,
+                                                             size_t output_h, size_t output_w,
+                                                             flowHandle_t handle) const {
   DISPATCH_IO_DTYPE(run_backward, gradient_data, grad_input_data, batch_size, channels, input_h,
                     input_w, output_h, output_w, handle);
   return nullptr;
@@ -211,8 +212,8 @@ std::shared_ptr<LegacyAvgPool2DLayerImpl> LegacyAvgPool2DLayerImpl::create_from_
   size_t pad_h = config.get<size_t>("pad_h");
   size_t pad_w = config.get<size_t>("pad_w");
 
-  return std::make_shared<LegacyAvgPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
-                                                config.name);
+  return std::make_shared<LegacyAvgPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h,
+                                                    pad_w, config.name);
 }
 
 }  // namespace tnn

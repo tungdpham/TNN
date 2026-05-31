@@ -3,9 +3,10 @@
 #include "nn/layer.hpp"
 
 namespace tnn {
-class Block : virtual public LayerImpl {
+class Block : public LayerImpl {
 public:
-  Block(const std::string &name = "block") { this->name_ = name; }
+  Block(const std::string &name = "block")
+      : LayerImpl(name) {}
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;

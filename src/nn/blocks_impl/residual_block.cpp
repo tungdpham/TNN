@@ -76,7 +76,7 @@ Vec<Tensor> ResidualBlockImpl::forward_impl(const Vec<ConstTensor> &inputs, size
   for (size_t i = 0; i < outputs.size(); ++i) {
     if (final_activation_) {
       std::string pre_act_key = "pre_activation_" + std::to_string(i);
-      Tensor pre_act = get_cache_tensor(main_outputs[i]->shape(), io_dtype_);
+      Tensor pre_act = get_tensor(main_outputs[i]->shape(), io_dtype_);
       DISPATCH_IO_DTYPE(ops::add, main_outputs[i]->data_ptr(), shortcut_outputs[i]->data_ptr(),
                         pre_act->data_ptr(), outputs[i]->size());
       set_mutable_cache(mb_id, pre_act_key, pre_act);
@@ -96,7 +96,7 @@ Vec<Tensor> ResidualBlockImpl::backward_impl(const Vec<ConstTensor> &grad_output
     for (size_t i = 0; i < grad_outputs.size(); ++i) {
       std::string pre_act_key = "pre_activation_" + std::to_string(i);
       Tensor &pre_act = this->get_mutable_cache(mb_id, pre_act_key);
-      Tensor grad_pre_act = this->get_workspace(pre_act->shape());
+      Tensor grad_pre_act = this->get_tensor(pre_act->shape(), pre_act->data_type());
       final_activation_->compute_gradient(pre_act, grad_outputs[i], grad_pre_act);
       pre_act = nullptr;  // free pre-activation cache after backward
       grads_to_propagate[i] = grad_pre_act;
@@ -116,7 +116,8 @@ Vec<Tensor> ResidualBlockImpl::backward_impl(const Vec<ConstTensor> &grad_output
 
   Vec<Tensor> grad_inputs(main_grad_inputs.size());
   for (size_t i = 0; i < grad_inputs.size(); ++i) {
-    grad_inputs[i] = this->get_output_tensor(main_grad_inputs[i]->shape());
+    grad_inputs[i] =
+        this->get_tensor(main_grad_inputs[i]->shape(), main_grad_inputs[i]->data_type());
     DISPATCH_IO_DTYPE(ops::add, main_grad_inputs[i]->data_ptr(),
                       shortcut_grad_inputs[i]->data_ptr(), grad_inputs[i]->data_ptr(),
                       grad_inputs[i]->size(), defaultFlowHandle);

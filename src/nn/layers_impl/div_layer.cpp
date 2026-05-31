@@ -34,7 +34,7 @@ Vec<Tensor> DivLayerImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb
     throw std::runtime_error("DivLayerImpl: both inputs must have the same shape");
   }
 
-  Tensor output = get_output_tensor(a->shape());
+  Tensor output = get_tensor(a->shape(), io_dtype_);
   const size_t n = a->size();
 
   // Cache inputs for backward pass
@@ -61,8 +61,8 @@ Vec<Tensor> DivLayerImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, si
 
   // grad_a = grad_out / b
   // grad_b = -(grad_out * a) / b^2
-  Tensor grad_a = get_workspace(grad_out->shape(), this->io_dtype_);
-  Tensor grad_b = get_workspace(grad_out->shape(), this->io_dtype_);
+  Tensor grad_a = get_tensor(grad_out->shape(), this->io_dtype_);
+  Tensor grad_b = get_tensor(grad_out->shape(), this->io_dtype_);
 
   DISPATCH_DTYPE(grad_out->data_type(), T, {
     // grad_a = grad_out / b
@@ -70,11 +70,11 @@ Vec<Tensor> DivLayerImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, si
 
     // grad_b = -(grad_out * a) / b^2
     // Step 1: b_sq = b * b
-    Tensor b_sq = get_workspace(grad_out->shape(), this->io_dtype_);
+    Tensor b_sq = get_tensor(grad_out->shape(), this->io_dtype_);
     ops::mul<T>(b->data_ptr(), b->data_ptr(), b_sq->data_ptr(), n, this->flow_handle_);
 
     // Step 2: numerator = grad_out * a
-    Tensor numerator = get_workspace(grad_out->shape(), this->io_dtype_);
+    Tensor numerator = get_tensor(grad_out->shape(), this->io_dtype_);
     ops::mul<T>(grad_out->data_ptr(), a->data_ptr(), numerator->data_ptr(), n, this->flow_handle_);
 
     // Step 3: grad_b = numerator / b_sq

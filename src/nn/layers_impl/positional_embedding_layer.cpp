@@ -13,7 +13,7 @@
 namespace tnn {
 
 PositionalEmbeddingLayerImpl::PositionalEmbeddingLayerImpl(size_t embed_dim, size_t seq_len,
-                                                   const std::string &name)
+                                                           const std::string &name)
     : SISOLayerImpl(name),
       embed_dim_(embed_dim),
       seq_len_(seq_len) {}
@@ -50,7 +50,7 @@ Tensor PositionalEmbeddingLayerImpl::forward_impl(const ConstTensor &input, size
                              std::to_string(seq_len_) + ")");
   }
 
-  Tensor output = get_output_tensor(shape);
+  Tensor output = get_tensor(shape, io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(add_positional_embedding, input, output, pos_embedding_,
                                  this->flow_handle_);
@@ -78,7 +78,7 @@ Tensor PositionalEmbeddingLayerImpl::backward_impl(const ConstTensor &grad_outpu
                              std::to_string(seq_len_) + ")");
   }
 
-  Tensor grad_input = get_output_tensor(shape);
+  Tensor grad_input = get_tensor(shape, io_dtype_);
 
   grad_output->copy_to(grad_input);
 
@@ -155,7 +155,8 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::accumulate_pos_gradients(
   }
   if (pos_embedding_gradients->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error(
-        "PositionalEmbeddingLayerImpl pos_embedding_gradients dtype mismatch with dispatch Param_T");
+        "PositionalEmbeddingLayerImpl pos_embedding_gradients dtype mismatch with dispatch "
+        "Param_T");
   }
 
   size_t sample_size = seq_len_ * embed_dim_;
@@ -199,7 +200,8 @@ LayerConfig PositionalEmbeddingLayerImpl::get_config() const {
   return config;
 }
 
-Vec<size_t> PositionalEmbeddingLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> PositionalEmbeddingLayerImpl::compute_output_shape(
+    const Vec<size_t> &input_shape) const {
   return input_shape;
 }
 

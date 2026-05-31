@@ -34,10 +34,9 @@ void ClassTokenLayerImpl::init_impl() {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> ClassTokenLayerImpl::forward_task(const ConstTensor &input, const Tensor &output,
-                                                    const ConstTensor &class_token,
-                                                    size_t batch_size, size_t seq_len,
-                                                    size_t embed_dim, flowHandle_t handle) const {
+std::unique_ptr<Task> ClassTokenLayerImpl::forward_task(
+    const ConstTensor &input, const Tensor &output, const ConstTensor &class_token,
+    size_t batch_size, size_t seq_len, size_t embed_dim, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "ClassTokenLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -46,7 +45,8 @@ std::unique_ptr<Task> ClassTokenLayerImpl::forward_task(const ConstTensor &input
     throw std::runtime_error("ClassTokenLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
   if (class_token->data_type() != dtype_of<Param_T>()) {
-    throw std::runtime_error("ClassTokenLayerImpl class_token dtype mismatch with dispatch Param_T");
+    throw std::runtime_error(
+        "ClassTokenLayerImpl class_token dtype mismatch with dispatch Param_T");
   }
 
   if (get_engine_type() == EngineType::CPU) {
@@ -68,12 +68,10 @@ std::unique_ptr<Task> ClassTokenLayerImpl::forward_task(const ConstTensor &input
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> ClassTokenLayerImpl::backward_task(const ConstTensor &grad_output,
-                                                     const Tensor &grad_input,
-                                                     const Tensor &class_token_gradients,
-                                                     const ConstTensor &class_token,
-                                                     size_t batch_size, size_t seq_len,
-                                                     size_t embed_dim, flowHandle_t handle) const {
+std::unique_ptr<Task> ClassTokenLayerImpl::backward_task(
+    const ConstTensor &grad_output, const Tensor &grad_input, const Tensor &class_token_gradients,
+    const ConstTensor &class_token, size_t batch_size, size_t seq_len, size_t embed_dim,
+    flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "ClassTokenLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -119,7 +117,7 @@ Tensor ClassTokenLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id)
     throw std::runtime_error("ClassTokenLayerImpl: Input embed_dim must match layer embed_dim");
   }
 
-  Tensor output = get_output_tensor({batch_size, seq_len + 1, embed_dim});
+  Tensor output = get_tensor({batch_size, seq_len + 1, embed_dim}, input->data_type());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(forward_task, input, output, class_token_, batch_size, seq_len,
                                  embed_dim, this->flow_handle_);
@@ -137,7 +135,7 @@ Tensor ClassTokenLayerImpl::backward_impl(const ConstTensor &grad_output, size_t
   size_t embed_dim = grad_output->dimension(2);
   size_t seq_len = seq_len_plus_1 - 1;
 
-  Tensor grad_input = get_output_tensor({batch_size, seq_len, embed_dim});
+  Tensor grad_input = get_tensor({batch_size, seq_len, embed_dim}, grad_output->data_type());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, grad_output, grad_input, class_token_gradients_,
                                  class_token_, batch_size, seq_len, embed_dim, this->flow_handle_);
@@ -163,7 +161,8 @@ Vec<size_t> ClassTokenLayerImpl::compute_output_shape(const Vec<size_t> &input_s
   return {batch_size, seq_len + 1, embed_dim};
 }
 
-std::shared_ptr<ClassTokenLayerImpl> ClassTokenLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<ClassTokenLayerImpl> ClassTokenLayerImpl::create_from_config(
+    const LayerConfig &config) {
   size_t embed_dim = config.get<size_t>("embed_dim");
   return std::make_shared<ClassTokenLayerImpl>(embed_dim, config.name);
 }

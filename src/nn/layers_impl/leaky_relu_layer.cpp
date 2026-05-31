@@ -17,11 +17,11 @@ LeakyReLULayerImpl::LeakyReLULayerImpl(float negative_slope, const std::string &
       negative_slope_(negative_slope) {}
 
 Tensor LeakyReLULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
-  Tensor output = get_output_tensor(input->shape());
+  Tensor output = get_tensor(input->shape(), io_dtype_);
 
   if (this->is_training_) {
     // Cache boolean mask (1 byte per element) instead of full input
-    Tensor mask = this->get_cache_tensor(input->shape(), DType_t::UINT8_T);
+    Tensor mask = this->get_tensor(input->shape(), DType_t::UINT8_T);
     set_mutable_cache(mb_id, "mask", mask);
 
     // Compute LeakyReLU and mask
@@ -54,7 +54,7 @@ Tensor LeakyReLULayerImpl::backward_impl(const ConstTensor &grad_output, size_t 
     throw std::runtime_error("No cached mask found for backward pass in LeakyReLULayerImpl");
   }
 
-  Tensor grad_input = get_output_tensor(grad_output->shape());
+  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
 
   // Gradient: grad_input = grad_output * (mask ? 1.0 : negative_slope)
   const size_t num_elements = grad_output->size();
@@ -84,7 +84,8 @@ LayerConfig LeakyReLULayerImpl::get_config() const {
   return config;
 }
 
-std::shared_ptr<LeakyReLULayerImpl> LeakyReLULayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<LeakyReLULayerImpl> LeakyReLULayerImpl::create_from_config(
+    const LayerConfig &config) {
   float negative_slope = config.get<float>("negative_slope", 0.01f);
   return std::make_shared<LeakyReLULayerImpl>(negative_slope, config.name);
 }

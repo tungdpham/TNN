@@ -5,6 +5,7 @@
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
 #include "nn/example_graphs.hpp"
+#include "nn/example_models.hpp"
 #include "nn/graph_api.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
@@ -15,6 +16,7 @@ using namespace tnn;
 
 signed main(int argc, char *argv[]) {
   ExampleGraphs::register_defaults();
+  ExampleModels::register_defaults();
 
   std::string config_path;
   static struct option long_options[] = {

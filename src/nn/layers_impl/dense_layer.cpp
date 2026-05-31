@@ -27,7 +27,7 @@
 namespace tnn {
 
 DenseLayerImpl::DenseLayerImpl(size_t input_features, size_t output_features, bool use_bias,
-                       const std::string &name)
+                               const std::string &name)
     : SISOLayerImpl(name),
       input_features_(input_features),
       output_features_(output_features),
@@ -114,7 +114,7 @@ Tensor DenseLayerImpl::def_forward(const ConstTensor &input, size_t mb_id) {
     batch_size *= input->shape()[i];
   }
 
-  Tensor output = get_output_tensor({batch_size, output_features_});
+  Tensor output = get_tensor({batch_size, output_features_}, input->data_type());
   if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
       create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_forward<T>, input->data_as<T>(),
@@ -149,7 +149,7 @@ Tensor DenseLayerImpl::def_backward(const ConstTensor &grad_output, size_t mb_id
     batch_size *= input_shape[i];
   }
 
-  Tensor grad_input = get_output_tensor(input_shape);
+  Tensor grad_input = get_tensor(input_shape, grad_output->data_type());
 
   if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
@@ -198,13 +198,14 @@ void DenseLayerImpl::build_cudnn_graph(const Vec<size_t> &input_shape) const {
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> DenseLayerImpl::run_bgrad(const ConstTensor &grad_output,
-                                            const Tensor &bias_gradient, size_t batch_size,
-                                            size_t output_features, flowHandle_t handle) const {
+                                                const Tensor &bias_gradient, size_t batch_size,
+                                                size_t output_features, flowHandle_t handle) const {
   if (grad_output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayerImpl grad_output dtype mismatch with dispatch IO_T");
   }
   if (bias_gradient->data_type() != dtype_of<Param_T>()) {
-    throw std::runtime_error("DenseLayerImpl bias grad_output dtype mismatch with dispatch Param_T");
+    throw std::runtime_error(
+        "DenseLayerImpl bias grad_output dtype mismatch with dispatch Param_T");
   }
   if (get_engine_type() == EngineType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
@@ -230,8 +231,8 @@ std::unique_ptr<Task> DenseLayerImpl::run_bgrad(const ConstTensor &grad_output,
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> DenseLayerImpl::add_bias(const Tensor &output, const ConstTensor &bias,
-                                           size_t batch_size, size_t output_features,
-                                           flowHandle_t handle) const {
+                                               size_t batch_size, size_t output_features,
+                                               flowHandle_t handle) const {
   if (output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayerImpl output dtype mismatch with dispatch IO_T");
   }
@@ -277,9 +278,9 @@ Tensor DenseLayerImpl::cudnn_forward(const ConstTensor &input, size_t mb_id) {
   Vec<size_t> out_shape = input->shape();
   out_shape.back() = output_features_;
 
-  Tensor output = get_output_tensor(out_shape);
+  Tensor output = get_tensor(out_shape, io_dtype_);
 
-  Tensor cudnn_workspace = this->get_workspace({stats.fwd_workspace_size}, DType_t::BYTE);
+  Tensor cudnn_workspace = this->get_tensor({stats.fwd_workspace_size}, DType_t::BYTE);
 
   create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_forward, handle, stats, input->data(),
                    weights_->data(), output->data(), cudnn_workspace->data());
@@ -306,9 +307,9 @@ Tensor DenseLayerImpl::cudnn_backward(const ConstTensor &grad_output, size_t mb_
 
   GemmStats &stats = stats_cache.at(shape_key);
 
-  Tensor grad_input = get_output_tensor(input->shape());
+  Tensor grad_input = get_tensor(input->shape(), io_dtype_);
 
-  Tensor cudnn_workspace = this->get_workspace(
+  Tensor cudnn_workspace = this->get_tensor(
       {std::max(stats.dgrad_workspace_size, stats.wgrad_workspace_size)}, DType_t::BYTE);
 
   // Compute weight gradients

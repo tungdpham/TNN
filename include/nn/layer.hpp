@@ -39,6 +39,49 @@ inline size_t get_shapes_bytes(const Vec<Vec<size_t>> &shapes, DType_t dtype) {
   return total_bytes;
 }
 
+struct Cache {
+  struct CacheKey {
+    size_t mb_id;
+    std::string key;
+
+    bool operator==(const CacheKey &other) const {
+      return mb_id == other.mb_id && key == other.key;
+    }
+  };
+
+  struct CacheKeyHash {
+    size_t operator()(const CacheKey &cache_key) const noexcept {
+      size_t seed = std::hash<size_t>{}(cache_key.mb_id);
+      seed ^= std::hash<std::string>{}(cache_key.key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      return seed;
+    }
+  };
+
+  std::unordered_map<CacheKey, Tensor, CacheKeyHash> cache;
+
+  void set(size_t mb_id, const std::string &key, const Tensor &value) {
+    cache[{mb_id, key}] = value;
+  }
+
+  Tensor &get(size_t mb_id, const std::string &key) {
+    auto it = cache.find({mb_id, key});
+    if (it == cache.end()) {
+      throw std::runtime_error(fmt::format("Cache miss for key: {} (mb_id={})", key, mb_id));
+    }
+    return it->second;
+  }
+
+  void clear(size_t mb_id) {
+    for (auto it = cache.begin(); it != cache.end();) {
+      if (it->first.mb_id == mb_id) {
+        it = cache.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+};
+
 // Single input/output layer interface. Can be easily extended to multiple inputs/outputs later if
 // needed.
 class LayerImpl : public virtual std::enable_shared_from_this<LayerImpl> {
@@ -124,9 +167,6 @@ protected:
   void set_mutable_cache(size_t mb_id, const std::string &key, Tensor value);
   Tensor &get_mutable_cache(size_t mb_id, const std::string &key);
   Tensor get_tensor(const Vec<size_t> &shape, DType_t dtype);
-  Tensor get_output_tensor(const Vec<size_t> &shape);
-  Tensor get_cache_tensor(const Vec<size_t> &shape = {}, DType_t dtype = DType_t::FP32);
-  Tensor get_workspace(const Vec<size_t> &shape, DType_t dtype = DType_t::FP32);
 };
 
 template <typename LayerType>

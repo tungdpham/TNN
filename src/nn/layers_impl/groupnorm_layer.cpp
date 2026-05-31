@@ -17,15 +17,16 @@
 
 namespace tnn {
 
-GroupNormLayerImpl::GroupNormLayerImpl(size_t num_groups, size_t num_channels, float epsilon, bool affine,
-                               const std::string &name)
+GroupNormLayerImpl::GroupNormLayerImpl(size_t num_groups, size_t num_channels, float epsilon,
+                                       bool affine, const std::string &name)
     : SISOLayerImpl(name),
       num_groups_(num_groups),
       num_channels_(num_channels),
       epsilon_(epsilon),
       affine_(affine) {
   if (num_channels_ % num_groups_ != 0) {
-    throw std::invalid_argument("num_channels must be divisible by num_groups in GroupNormLayerImpl");
+    throw std::invalid_argument(
+        "num_channels must be divisible by num_groups in GroupNormLayerImpl");
   }
 }
 
@@ -50,15 +51,15 @@ Tensor GroupNormLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) 
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayerImpl");
   }
 
-  Tensor output = get_output_tensor(input->shape());
+  Tensor output = get_tensor(input->shape(), io_dtype_);
 
-  Tensor norm = this->get_cache_tensor(input->shape(), io_dtype_);
+  Tensor norm = this->get_tensor(input->shape(), io_dtype_);
   set_mutable_cache(mb_id, "norm", norm);
 
-  Tensor mean = this->get_cache_tensor({batch_size * num_groups_}, io_dtype_);
+  Tensor mean = this->get_tensor({batch_size * num_groups_}, io_dtype_);
   set_mutable_cache(mb_id, "mean", mean);
 
-  Tensor inv_std = this->get_cache_tensor({batch_size * num_groups_}, io_dtype_);
+  Tensor inv_std = this->get_tensor({batch_size * num_groups_}, io_dtype_);
   set_mutable_cache(mb_id, "inv_std", inv_std);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward, input, mean, inv_std, gamma_, beta_, output, norm,
@@ -84,7 +85,7 @@ Tensor GroupNormLayerImpl::backward_impl(const ConstTensor &grad_output, size_t 
   const size_t channels = input->dimension(1);
   const size_t spatial_size = input->stride(1);
 
-  Tensor grad_input = get_output_tensor(input->shape());
+  Tensor grad_input = get_tensor(input->shape(), io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward, grad_output, normalized, inv_std, gamma_,
                                  gamma_gradients_, beta_gradients_, grad_input, batch_size,
@@ -94,13 +95,11 @@ Tensor GroupNormLayerImpl::backward_impl(const ConstTensor &grad_output, size_t 
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> GroupNormLayerImpl::run_forward(const ConstTensor &input,
-                                                  const Tensor &group_mean,
-                                                  const Tensor &group_inv_std,
-                                                  const ConstTensor &gamma, const ConstTensor &beta,
-                                                  const Tensor &output, const Tensor &norm_cache,
-                                                  size_t batch_size, size_t channels,
-                                                  size_t spatial_size, flowHandle_t handle) const {
+std::unique_ptr<Task> GroupNormLayerImpl::run_forward(
+    const ConstTensor &input, const Tensor &group_mean, const Tensor &group_inv_std,
+    const ConstTensor &gamma, const ConstTensor &beta, const Tensor &output,
+    const Tensor &norm_cache, size_t batch_size, size_t channels, size_t spatial_size,
+    flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "GroupNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -183,13 +182,15 @@ Vec<size_t> GroupNormLayerImpl::compute_output_shape(const Vec<size_t> &input_sh
   return input_shape;
 }
 
-std::shared_ptr<GroupNormLayerImpl> GroupNormLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<GroupNormLayerImpl> GroupNormLayerImpl::create_from_config(
+    const LayerConfig &config) {
   size_t num_groups = config.get<size_t>("num_groups");
   size_t num_channels = config.get<size_t>("num_channels");
   float epsilon = config.get<float>("epsilon", 1e-5f);
   bool affine = config.get<bool>("affine");
 
-  return std::make_shared<GroupNormLayerImpl>(num_groups, num_channels, epsilon, affine, config.name);
+  return std::make_shared<GroupNormLayerImpl>(num_groups, num_channels, epsilon, affine,
+                                              config.name);
 }
 
 }  // namespace tnn
