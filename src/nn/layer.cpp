@@ -166,7 +166,7 @@ Tensor LayerImpl::get_tensor(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
-  return make_tensor(dtype, shape, device());
+  return make_tensor(*allocator_, dtype, shape);
 }
 
 void LayerImpl::set_immutable_cache(size_t mb_id, const std::string &key, ConstTensor value) {
@@ -189,30 +189,6 @@ void LayerImpl::set_mutable_cache(size_t mb_id, const std::string &key, Tensor v
 
 Tensor &LayerImpl::get_mutable_cache(size_t mb_id, const std::string &key) {
   return mutable_cache_[{mb_id, key}];
-}
-
-Tensor LayerImpl::get_output_tensor(const Vec<size_t> &shape) {
-  if (!allocator_) {
-    throw std::runtime_error("Allocator is not set");
-  }
-  Tensor output_tensor = make_tensor(*allocator_, io_dtype_, shape);
-  return output_tensor;
-}
-
-Tensor LayerImpl::get_cache_tensor(const Vec<size_t> &shape, DType_t dtype) {
-  if (!allocator_) {
-    throw std::runtime_error("Allocator is not set");
-  }
-  Tensor cache_tensor = make_tensor(*allocator_, dtype, shape);
-  return cache_tensor;
-}
-
-Tensor LayerImpl::get_workspace(const Vec<size_t> &shape, DType_t dtype) {
-  if (!allocator_) {
-    throw std::runtime_error("Allocator is not set");
-  }
-  Tensor workspace_tensor = make_tensor(*allocator_, dtype, shape);
-  return workspace_tensor;
 }
 
 void LayerImpl::clear_cache(size_t mb_id) {

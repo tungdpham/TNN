@@ -12,7 +12,6 @@
 
 using namespace std;
 using namespace tnn;
-using namespace tnn::graph_api_v2;
 
 std::shared_ptr<Graph> make_model_test() {
   auto graph = make_shared<Graph>();

@@ -27,7 +27,7 @@
 namespace tnn {
 
 LayerNormLayerImpl::LayerNormLayerImpl(size_t normalized_shape, float epsilon, bool affine,
-                               const std::string &name)
+                                       const std::string &name)
     : SISOLayerImpl(name),
       normalized_shape_(normalized_shape),
       epsilon_(epsilon),
@@ -54,10 +54,11 @@ void LayerNormLayerImpl::init_impl() {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LayerNormLayerImpl::run_forward(const ConstTensor &input, const Tensor &output,
-                                                  const ConstTensor &gamma, const ConstTensor &beta,
-                                                  size_t batch_size, size_t channels,
-                                                  flowHandle_t handle) const {
+std::unique_ptr<Task> LayerNormLayerImpl::run_forward(const ConstTensor &input,
+                                                      const Tensor &output,
+                                                      const ConstTensor &gamma,
+                                                      const ConstTensor &beta, size_t batch_size,
+                                                      size_t channels, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "LayerNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -207,12 +208,12 @@ Tensor LayerNormLayerImpl::cudnn_forward(const ConstTensor &input, size_t mb_id)
 
   build_graph(shape);
 
-  Tensor batch_mean = this->get_cache_tensor({batch_size}, compute_dtype_);
-  Tensor batch_invar = this->get_cache_tensor({batch_size}, compute_dtype_);
+  Tensor batch_mean = this->get_tensor({batch_size}, compute_dtype_);
+  Tensor batch_invar = this->get_tensor({batch_size}, compute_dtype_);
   set_mutable_cache(mb_id, "batch_mean", batch_mean);
   set_mutable_cache(mb_id, "batch_invar", batch_invar);
 
-  Tensor output = get_output_tensor(shape);
+  Tensor output = get_tensor(shape, io_dtype_);
 
   size_t shape_key = get_shape_hash({batch_size, channels});
 
@@ -222,7 +223,7 @@ Tensor LayerNormLayerImpl::cudnn_forward(const ConstTensor &input, size_t mb_id)
   LayerNormStats &current_stats = stats_cache.at(shape_key);
 
   size_t workspace_size = current_stats.fwd_workspace_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
+  Tensor cudnn_workspace = this->get_tensor({workspace_size}, DType_t::BYTE);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_run_forward, fe_handle, current_stats, input, output, gamma_,
                                  beta_, batch_mean, batch_invar, cudnn_workspace, batch_size,
@@ -238,7 +239,7 @@ Tensor LayerNormLayerImpl::cudnn_backward(const ConstTensor &grad_output, size_t
   }
 
   const auto &shape = input->shape();
-  Tensor grad_input = get_output_tensor(shape);
+  Tensor grad_input = get_tensor(shape, io_dtype_);
 
   size_t last_dim = shape.back();
   size_t channels = last_dim;
@@ -252,7 +253,7 @@ Tensor LayerNormLayerImpl::cudnn_backward(const ConstTensor &grad_output, size_t
   LayerNormStats &current_stats = stats_cache.at(shape_key);
 
   size_t workspace_size = current_stats.bwd_workspace_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
+  Tensor cudnn_workspace = this->get_tensor({workspace_size}, DType_t::BYTE);
 
   // Retrieve cached mean and inv_variance from forward pass (like batch norm)
   const Tensor &batch_mean = this->get_mutable_cache(mb_id, "batch_mean");
@@ -263,8 +264,8 @@ Tensor LayerNormLayerImpl::cudnn_backward(const ConstTensor &grad_output, size_t
         std::to_string(mb_id));
   }
 
-  Tensor dscale_scratch_ = this->get_workspace({normalized_shape_}, compute_dtype_);
-  Tensor dbias_scratch_ = this->get_workspace({normalized_shape_}, compute_dtype_);
+  Tensor dscale_scratch_ = this->get_tensor({normalized_shape_}, compute_dtype_);
+  Tensor dbias_scratch_ = this->get_tensor({normalized_shape_}, compute_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(cudnn_run_backward, fe_handle, current_stats, grad_output, input,
                                  gamma_, grad_input, dscale_scratch_, dbias_scratch_, batch_mean,
@@ -293,7 +294,7 @@ Tensor LayerNormLayerImpl::def_forward(const ConstTensor &input, size_t mb_id) {
     batch_size *= shape[i];
   }
 
-  Tensor output = get_output_tensor(shape);
+  Tensor output = get_tensor(shape, io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward, input, output, gamma_, beta_, batch_size, channels,
                                  this->flow_handle_);
@@ -308,7 +309,7 @@ Tensor LayerNormLayerImpl::def_backward(const ConstTensor &grad_output, size_t m
   }
 
   const auto &shape = input->shape();
-  Tensor grad_input = get_output_tensor(shape);
+  Tensor grad_input = get_tensor(shape, io_dtype_);
 
   size_t last_dim = shape.back();
   size_t channels = last_dim;
@@ -361,7 +362,8 @@ LayerConfig LayerNormLayerImpl::get_config() const {
   return config;
 }
 
-std::shared_ptr<LayerNormLayerImpl> LayerNormLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<LayerNormLayerImpl> LayerNormLayerImpl::create_from_config(
+    const LayerConfig &config) {
   size_t normalized_shape = config.get<size_t>("normalized_shape");
   float epsilon = config.get<float>("epsilon", 1e-5f);
   bool affine = config.get<bool>("affine", true);

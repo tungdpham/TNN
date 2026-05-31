@@ -24,7 +24,7 @@ Tensor SliceLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
 
   Vec<size_t> output_shape = compute_output_shape(input->shape());
-  Tensor output = get_output_tensor(output_shape);
+  Tensor output = get_tensor(output_shape, io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_forward, input, output, this->flow_handle_);
   return output;
@@ -37,7 +37,7 @@ Tensor SliceLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_i
   }
   const Vec<size_t> &original_shape = it->second;
 
-  Tensor grad_input = get_output_tensor(original_shape);
+  Tensor grad_input = get_tensor(original_shape, io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_backward, grad_output, grad_input, original_shape,
                                  this->flow_handle_);
@@ -46,7 +46,7 @@ Tensor SliceLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_i
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> SliceLayerImpl::slice_forward(const ConstTensor &input, const Tensor &output,
-                                                flowHandle_t handle) const {
+                                                    flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
         "SliceLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
@@ -78,9 +78,9 @@ std::unique_ptr<Task> SliceLayerImpl::slice_forward(const ConstTensor &input, co
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> SliceLayerImpl::slice_backward(const ConstTensor &grad_output,
-                                                 const Tensor &grad_input,
-                                                 const Vec<size_t> &original_shape,
-                                                 flowHandle_t handle) const {
+                                                     const Tensor &grad_input,
+                                                     const Vec<size_t> &original_shape,
+                                                     flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
         "SliceLayerImpl mixed dtype dispatch not implemented (io/compute must match).");

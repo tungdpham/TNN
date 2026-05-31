@@ -14,7 +14,7 @@ private:
     Vec<Tensor> outputs;
     outputs.reserve(inputs.size());
     for (size_t i = 0; i < inputs.size(); ++i) {
-      Tensor output = get_output_tensor(inputs[i]->shape());
+      Tensor output = get_tensor(inputs[i]->shape(), inputs[i]->data_type());
       output->share_from(inputs[i]);
       outputs.push_back(output);
     }
@@ -25,7 +25,7 @@ private:
     Vec<Tensor> grad_inputs;
     grad_inputs.reserve(grad_outputs.size());
     for (size_t i = 0; i < grad_outputs.size(); ++i) {
-      Tensor grad_input = get_output_tensor(grad_outputs[i]->shape());
+      Tensor grad_input = get_tensor(grad_outputs[i]->shape(), grad_outputs[i]->data_type());
       grad_input->share_from(grad_outputs[i]);
       grad_inputs.push_back(grad_input);
     }

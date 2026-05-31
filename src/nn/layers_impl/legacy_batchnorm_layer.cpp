@@ -20,8 +20,9 @@
 
 namespace tnn {
 
-LegacyBatchNormLayerImpl::LegacyBatchNormLayerImpl(size_t num_features, float epsilon, float momentum,
-                                           bool affine, const std::string &name)
+LegacyBatchNormLayerImpl::LegacyBatchNormLayerImpl(size_t num_features, float epsilon,
+                                                   float momentum, bool affine,
+                                                   const std::string &name)
     : SISOLayerImpl(name),
       num_features_(num_features),
       epsilon_(epsilon),
@@ -67,11 +68,11 @@ Tensor LegacyBatchNormLayerImpl::def_forward(const ConstTensor &input, size_t mb
     throw std::invalid_argument("BatchNorm: Input channels must match num_features.");
   }
 
-  Tensor output = get_output_tensor(input->shape());
+  Tensor output = get_tensor(input->shape(), io_dtype_);
 
-  Tensor norm = this->get_cache_tensor(input->shape(), io_dtype_);
-  Tensor batch_inv_std = this->get_cache_tensor({num_features_}, io_dtype_);
-  Tensor batch_mean = this->get_cache_tensor({num_features_}, io_dtype_);
+  Tensor norm = this->get_tensor(input->shape(), io_dtype_);
+  Tensor batch_inv_std = this->get_tensor({num_features_}, io_dtype_);
+  Tensor batch_mean = this->get_tensor({num_features_}, io_dtype_);
 
   set_mutable_cache(mb_id, "norm", norm);
   set_mutable_cache(mb_id, "inv_std", batch_inv_std);
@@ -97,7 +98,7 @@ Tensor LegacyBatchNormLayerImpl::def_backward(const ConstTensor &grad_output, si
   const size_t channels = grad_output->dimension(1);
   const size_t spatial_size = grad_output->stride(1);
 
-  Tensor grad_input = get_output_tensor(grad_output->shape());
+  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward, grad_output, norm, inv_std, gamma_, gamma_gradients_,
                                  beta_gradients_, grad_input, batch_size, channels, spatial_size,
                                  this->flow_handle_);
@@ -106,17 +107,17 @@ Tensor LegacyBatchNormLayerImpl::def_backward(const ConstTensor &grad_output, si
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyBatchNormLayerImpl::run_inference_impl(const ConstTensor &input,
-                                                               const Tensor &output,
-                                                               size_t batch_size, size_t channels,
-                                                               size_t spatial_size,
-                                                               flowHandle_t handle) {
+std::unique_ptr<Task> LegacyBatchNormLayerImpl::run_inference_impl(
+    const ConstTensor &input, const Tensor &output, size_t batch_size, size_t channels,
+    size_t spatial_size, flowHandle_t handle) {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
-        "LegacyBatchNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
+        "LegacyBatchNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must "
+        "match).");
   }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("LegacyBatchNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error(
+        "LegacyBatchNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
   if (input->device_type() != output->device_type() ||
       input->device_type() != running_mean_->device_type() ||
@@ -153,9 +154,10 @@ std::unique_ptr<Task> LegacyBatchNormLayerImpl::run_inference_impl(const ConstTe
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyBatchNormLayerImpl::run_inference(const ConstTensor &input,
-                                                          const Tensor &output, size_t batch_size,
-                                                          size_t channels, size_t spatial_size,
-                                                          flowHandle_t handle) {
+                                                              const Tensor &output,
+                                                              size_t batch_size, size_t channels,
+                                                              size_t spatial_size,
+                                                              flowHandle_t handle) {
   return run_inference_impl<IO_T, Param_T, Compute_T>(input, output, batch_size, channels,
                                                       spatial_size, handle);
 }
@@ -240,7 +242,7 @@ std::shared_ptr<LegacyBatchNormLayerImpl> LegacyBatchNormLayerImpl::create_from_
   bool affine = config.get<bool>("affine");
 
   return std::make_shared<LegacyBatchNormLayerImpl>(num_features, epsilon, momentum, affine,
-                                                config.name);
+                                                    config.name);
 }
 
 }  // namespace tnn

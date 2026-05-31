@@ -18,8 +18,8 @@ TransposeLayerImpl::TransposeLayerImpl(const std::string &name)
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> TransposeLayerImpl::permute(const ConstTensor &input, const Tensor &output,
-                                              size_t B, size_t L, size_t H, size_t D,
-                                              flowHandle_t handle) const {
+                                                  size_t B, size_t L, size_t H, size_t D,
+                                                  flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
         "TransposeLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
@@ -53,7 +53,7 @@ Tensor TransposeLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) 
   size_t H = input->dimension(2);
   size_t D = 1;
 
-  Tensor output = get_output_tensor({B, H, L});
+  Tensor output = get_tensor({B, H, L}, input->data_type());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, input, output, B, L, H, D, this->flow_handle_);
   return output;
@@ -70,7 +70,7 @@ Tensor TransposeLayerImpl::backward_impl(const ConstTensor &grad_output, size_t 
   size_t L = grad_output->dimension(2);
   size_t D = 1;
 
-  Tensor grad_input = get_output_tensor({B, L, H});
+  Tensor grad_input = get_tensor({B, L, H}, grad_output->data_type());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, grad_output, grad_input, B, H, L, D, this->flow_handle_);
   return grad_input;
@@ -89,7 +89,8 @@ LayerConfig TransposeLayerImpl::get_config() const {
   return config;
 }
 
-std::shared_ptr<TransposeLayerImpl> TransposeLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<TransposeLayerImpl> TransposeLayerImpl::create_from_config(
+    const LayerConfig &config) {
   return std::make_shared<TransposeLayerImpl>(config.name);
 }
 

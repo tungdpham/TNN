@@ -22,7 +22,7 @@ Tensor ELULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
     set_immutable_cache(mb_id, "input", input);
   }
 
-  Tensor output = get_output_tensor(input->shape());
+  Tensor output = get_tensor(input->shape(), io_dtype_);
   activation_->apply(input, output);
   return output;
 }
@@ -33,7 +33,7 @@ Tensor ELULayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id)
     throw std::runtime_error("No cached input found for backward pass in ELULayerImpl");
   }
 
-  Tensor grad_input = get_output_tensor(input->shape());
+  Tensor grad_input = get_tensor(input->shape(), io_dtype_);
   activation_->compute_gradient(input, grad_output, grad_input);
   return grad_input;
 }

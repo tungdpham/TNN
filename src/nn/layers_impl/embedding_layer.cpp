@@ -20,7 +20,7 @@
 namespace tnn {
 
 EmbeddingLayerImpl::EmbeddingLayerImpl(size_t vocab_size, size_t embed_dim, const std::string &name,
-                               size_t padding_idx)
+                                       size_t padding_idx)
     : SISOLayerImpl(name),
       vocab_size_(vocab_size),
       embed_dim_(embed_dim) {
@@ -61,7 +61,7 @@ Tensor EmbeddingLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) 
 
   Vec<size_t> out_shape = input->shape();
   out_shape.push_back(embed_dim_);
-  Tensor output = get_output_tensor(out_shape);
+  Tensor output = get_tensor(out_shape, io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_forward_impl, input, weight_, output, num_tokens,
                                  vocab_size_, embed_dim_, padding_idx_, this->flow_handle_);
@@ -72,7 +72,7 @@ Tensor EmbeddingLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) 
 Tensor EmbeddingLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &input = this->get_immutable_cache(mb_id, "input");
 
-  Tensor grad_input = get_output_tensor(input->shape());
+  Tensor grad_input = get_tensor(input->shape(), io_dtype_);
   grad_input->fill(0);
 
   size_t num_tokens = input->size();
@@ -96,7 +96,8 @@ std::unique_ptr<Task> EmbeddingLayerImpl::compute_forward_impl(
     throw std::runtime_error("EmbeddingLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
   if (weight->data_type() != dtype_of<Param_T>()) {
-    throw std::runtime_error("EmbeddingLayerImpl weight tensor dtype mismatch with dispatch Param_T");
+    throw std::runtime_error(
+        "EmbeddingLayerImpl weight tensor dtype mismatch with dispatch Param_T");
   }
 
   if (input->device_type() == DeviceType::CPU) {
@@ -120,12 +121,10 @@ std::unique_ptr<Task> EmbeddingLayerImpl::compute_forward_impl(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> EmbeddingLayerImpl::compute_backward_impl(const ConstTensor &input,
-                                                            const ConstTensor &grad_output,
-                                                            const Tensor &weight_gradients,
-                                                            size_t num_indices, size_t vocab_size,
-                                                            size_t embed_dim, size_t padding_idx,
-                                                            flowHandle_t handle) const {
+std::unique_ptr<Task> EmbeddingLayerImpl::compute_backward_impl(
+    const ConstTensor &input, const ConstTensor &grad_output, const Tensor &weight_gradients,
+    size_t num_indices, size_t vocab_size, size_t embed_dim, size_t padding_idx,
+    flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "EmbeddingLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -174,7 +173,8 @@ LayerConfig EmbeddingLayerImpl::get_config() const {
   return config;
 }
 
-std::shared_ptr<EmbeddingLayerImpl> EmbeddingLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<EmbeddingLayerImpl> EmbeddingLayerImpl::create_from_config(
+    const LayerConfig &config) {
   size_t vocab_size = config.get<size_t>("vocab_size");
   size_t embed_dim = config.get<size_t>("embed_dim");
   size_t padding_idx = config.get<size_t>("padding_idx", static_cast<size_t>(-1));

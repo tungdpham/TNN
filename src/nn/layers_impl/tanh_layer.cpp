@@ -16,7 +16,7 @@ TanhLayerImpl::TanhLayerImpl(const std::string &name)
       activation_(std::make_unique<Tanh>()) {}
 
 Tensor TanhLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
-  Tensor output = get_output_tensor(input->shape());
+  Tensor output = get_tensor(input->shape(), io_dtype_);
   activation_->apply(input, output);
 
   if (this->is_training_) {
@@ -34,7 +34,7 @@ Tensor TanhLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id
     throw std::runtime_error("No cached output found for backward pass in TanhLayerImpl");
   }
 
-  Tensor grad_input = get_output_tensor(grad_output->shape());
+  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
 
   // Gradient: grad_input = grad_output * (1 - output^2)
   const size_t num_elements = grad_output->size();

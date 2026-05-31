@@ -21,8 +21,9 @@
 
 namespace tnn {
 
-MaxPool2DLayerImpl::MaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,
-                               size_t pad_h, size_t pad_w, const std::string &name)
+MaxPool2DLayerImpl::MaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
+                                       size_t stride_w, size_t pad_h, size_t pad_w,
+                                       const std::string &name)
     : SISOLayerImpl(name),
       pool_h_(pool_h),
       pool_w_(pool_w),
@@ -73,20 +74,20 @@ Tensor MaxPool2DLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) 
 
   if (is_training_) {
     Tensor mask_indices =
-        this->get_cache_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
+        this->get_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
     set_mutable_cache(mb_id, "mask_indices", mask_indices);
 
-    Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
+    Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input->data_type());
 
     run_forward(input, output, batch_size, input_h, input_w, channels, output_h, output_w,
                 mask_indices, this->flow_handle_);
 
     return output;
   } else {
-    Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
+    Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input->data_type());
 
     Tensor mask_indices =
-        this->get_cache_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
+        this->get_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
 
     run_forward(input, output, batch_size, input_h, input_w, channels, output_h, output_w,
                 mask_indices, this->flow_handle_);
@@ -116,7 +117,8 @@ Tensor MaxPool2DLayerImpl::backward_impl(const ConstTensor &grad_output, size_t 
   const size_t output_h = grad_shape[1];
   const size_t output_w = grad_shape[2];
 
-  Tensor grad_input = get_output_tensor({batch_size, input_h, input_w, channels});
+  Tensor grad_input =
+      get_tensor({batch_size, input_h, input_w, channels}, grad_output->data_type());
 
   grad_input->fill(0);
 
@@ -128,11 +130,11 @@ Tensor MaxPool2DLayerImpl::backward_impl(const ConstTensor &grad_output, size_t 
 
 template <typename IO_T>
 std::unique_ptr<Task> MaxPool2DLayerImpl::run_forward(const ConstTensor &input_data,
-                                                  const Tensor &output_data, size_t batch_size,
-                                                  size_t height, size_t width, size_t channels,
-                                                  size_t output_h, size_t output_w,
-                                                  const Tensor &mask_indices,
-                                                  flowHandle_t handle) const {
+                                                      const Tensor &output_data, size_t batch_size,
+                                                      size_t height, size_t width, size_t channels,
+                                                      size_t output_h, size_t output_w,
+                                                      const Tensor &mask_indices,
+                                                      flowHandle_t handle) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("MaxPool2DLayerImpl: data type mismatch in forward pass");
   }
@@ -158,11 +160,11 @@ std::unique_ptr<Task> MaxPool2DLayerImpl::run_forward(const ConstTensor &input_d
 }
 
 std::unique_ptr<Task> MaxPool2DLayerImpl::run_forward(const ConstTensor &input_data,
-                                                  const Tensor &output_data, size_t batch_size,
-                                                  size_t height, size_t width, size_t channels,
-                                                  size_t output_h, size_t output_w,
-                                                  const Tensor &mask_indices,
-                                                  flowHandle_t handle) const {
+                                                      const Tensor &output_data, size_t batch_size,
+                                                      size_t height, size_t width, size_t channels,
+                                                      size_t output_h, size_t output_w,
+                                                      const Tensor &mask_indices,
+                                                      flowHandle_t handle) const {
   DISPATCH_IO_DTYPE(run_forward, input_data, output_data, batch_size, height, width, channels,
                     output_h, output_w, mask_indices, handle);
   return nullptr;
@@ -170,10 +172,11 @@ std::unique_ptr<Task> MaxPool2DLayerImpl::run_forward(const ConstTensor &input_d
 
 template <typename IO_T>
 std::unique_ptr<Task> MaxPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
-                                                   const Tensor &grad_input_data, size_t batch_size,
-                                                   size_t channels, size_t output_h,
-                                                   size_t output_w, const ConstTensor &mask_indices,
-                                                   flowHandle_t handle) const {
+                                                       const Tensor &grad_input_data,
+                                                       size_t batch_size, size_t channels,
+                                                       size_t output_h, size_t output_w,
+                                                       const ConstTensor &mask_indices,
+                                                       flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("MaxPool2DLayerImpl: data type mismatch in backward pass");
@@ -198,10 +201,11 @@ std::unique_ptr<Task> MaxPool2DLayerImpl::run_backward(const ConstTensor &gradie
 }
 
 std::unique_ptr<Task> MaxPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
-                                                   const Tensor &grad_input_data, size_t batch_size,
-                                                   size_t channels, size_t output_h,
-                                                   size_t output_w, const ConstTensor &mask_indices,
-                                                   flowHandle_t handle) const {
+                                                       const Tensor &grad_input_data,
+                                                       size_t batch_size, size_t channels,
+                                                       size_t output_h, size_t output_w,
+                                                       const ConstTensor &mask_indices,
+                                                       flowHandle_t handle) const {
   DISPATCH_IO_DTYPE(run_backward, gradient_data, grad_input_data, batch_size, channels, output_h,
                     output_w, mask_indices, handle);
   return nullptr;
@@ -233,7 +237,8 @@ Vec<size_t> MaxPool2DLayerImpl::compute_output_shape(const Vec<size_t> &input_sh
   return {batch_size, output_h, output_w, channels};
 }
 
-std::shared_ptr<MaxPool2DLayerImpl> MaxPool2DLayerImpl::create_from_config(const LayerConfig &config) {
+std::shared_ptr<MaxPool2DLayerImpl> MaxPool2DLayerImpl::create_from_config(
+    const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
   size_t stride_h = config.get<size_t>("stride_h");
@@ -242,7 +247,7 @@ std::shared_ptr<MaxPool2DLayerImpl> MaxPool2DLayerImpl::create_from_config(const
   size_t pad_w = config.get<size_t>("pad_w");
 
   return std::make_shared<MaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
-                                          config.name);
+                                              config.name);
 }
 
 #ifdef USE_DNNL
@@ -263,11 +268,11 @@ Tensor MaxPool2DLayerImpl::dnnl_forward(const ConstTensor &input, size_t mb_id) 
   cpu::dnnl_maxpool::dnnlMaxPoolHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
   const MaxPoolStats &current_stats = dnnl_stats_cache.at(shape_key);
 
-  Tensor output = get_output_tensor({current_stats.batch_size, current_stats.output_h,
-                                     current_stats.output_w, current_stats.channels});
+  Tensor output = get_tensor({current_stats.batch_size, current_stats.output_h,
+                              current_stats.output_w, current_stats.channels});
 
   if (this->is_training_) {
-    Tensor pool_ws = get_cache_tensor({current_stats.pool_workspace_size}, DType_t::BYTE);
+    Tensor pool_ws = get_tensor({current_stats.pool_workspace_size}, DType_t::BYTE);
     set_mutable_cache(mb_id, "dnnl_pool_ws", pool_ws);
 
     create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_forward, dnnl_handle, current_stats,
@@ -288,7 +293,7 @@ Tensor MaxPool2DLayerImpl::dnnl_backward(const ConstTensor &grad_output, size_t 
   cpu::dnnl_maxpool::dnnlMaxPoolHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
   const MaxPoolStats &current_stats = dnnl_stats_cache.at(shape_key);
 
-  Tensor grad_input = get_output_tensor(input_shape);
+  Tensor grad_input = get_tensor(input_shape, io_dtype_);
   Tensor &pool_ws = this->get_mutable_cache(mb_id, "dnnl_pool_ws");
 
   create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_backward, dnnl_handle, current_stats,

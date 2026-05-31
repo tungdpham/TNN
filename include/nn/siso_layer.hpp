@@ -4,9 +4,8 @@
 #include "nn/layer.hpp"
 
 namespace tnn {
-class SISOLayerImpl : virtual public LayerImpl {
+class SISOLayerImpl : public LayerImpl {
 public:
-  SISOLayerImpl() = default;
   SISOLayerImpl(const std::string &name)
       : LayerImpl(name) {}
 

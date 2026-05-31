@@ -34,7 +34,7 @@ Vec<Tensor> MulLayerImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb
     throw std::runtime_error("MulLayerImpl: both inputs must have the same shape");
   }
 
-  Tensor output = get_output_tensor(a->shape());
+  Tensor output = get_tensor(a->shape(), io_dtype_);
   const size_t n = a->size();
 
   // Cache inputs for backward pass
@@ -60,8 +60,8 @@ Vec<Tensor> MulLayerImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, si
   const size_t n = grad_out->size();
 
   // grad_a = grad_out * b,  grad_b = grad_out * a
-  Tensor grad_a = get_workspace(grad_out->shape(), this->io_dtype_);
-  Tensor grad_b = get_workspace(grad_out->shape(), this->io_dtype_);
+  Tensor grad_a = get_tensor(grad_out->shape(), this->io_dtype_);
+  Tensor grad_b = get_tensor(grad_out->shape(), this->io_dtype_);
 
   DISPATCH_DTYPE(grad_out->data_type(), T, {
     ops::mul<T>(grad_out->data_ptr(), b->data_ptr(), grad_a->data_ptr(), n, this->flow_handle_);

@@ -14,7 +14,7 @@ ActivationLayerImpl::ActivationLayerImpl(std::unique_ptr<ActivationFunction> act
     : SISOLayerImpl(name),
       activation_(std::move(activation)) {
   if (!activation_) {
-    throw std::invalid_argument("Function function cannot be null");
+    throw std::invalid_argument("Activation function cannot be null");
   }
 }
 
@@ -23,7 +23,7 @@ Tensor ActivationLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id)
     set_immutable_cache(mb_id, "input", input);
   }
 
-  Tensor output = get_output_tensor(input->shape());
+  Tensor output = get_tensor(input->shape(), input->data_type());
   activation_->apply(input, output);
   return output;
 }
@@ -33,7 +33,7 @@ Tensor ActivationLayerImpl::backward_impl(const ConstTensor &grad_output, size_t
   if (!input) {
     throw std::runtime_error("No cached input found for backward pass in ActivationLayerImpl");
   }
-  Tensor grad_input = get_output_tensor(input->shape());
+  Tensor grad_input = get_tensor(input->shape(), input->data_type());
   activation_->compute_gradient(input, grad_output, grad_input);
   return grad_input;
 }

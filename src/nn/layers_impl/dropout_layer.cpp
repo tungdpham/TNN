@@ -29,15 +29,15 @@ DropoutLayerImpl::DropoutLayerImpl(float dropout_rate, const std::string &name)
 
 Tensor DropoutLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (!this->is_training_) {
-    Tensor output = get_output_tensor(input->shape());
+    Tensor output = get_tensor(input->shape(), io_dtype_);
     output->share_from(input);
     return output;
   }
 
-  Tensor mask = this->get_cache_tensor(input->shape(), DType_t::BOOL);
+  Tensor mask = this->get_tensor(input->shape(), DType_t::BOOL);
   set_mutable_cache(mb_id, "mask", mask);
 
-  Tensor output = get_output_tensor(input->shape());
+  Tensor output = get_tensor(input->shape(), io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward, input, output, mask, this->flow_handle_);
   return output;
@@ -50,14 +50,14 @@ Tensor DropoutLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb
                              std::to_string(mb_id));
   }
 
-  Tensor grad_input = get_output_tensor(grad_output->shape());
+  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward, grad_output, grad_input, mask, this->flow_handle_);
   return grad_input;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> DropoutLayerImpl::run_forward(const ConstTensor &input, const Tensor &output,
-                                                const Tensor &mask, flowHandle_t handle) const {
+                                                    const Tensor &mask, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
         "DropoutLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
@@ -92,8 +92,9 @@ std::unique_ptr<Task> DropoutLayerImpl::run_forward(const ConstTensor &input, co
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> DropoutLayerImpl::run_backward(const ConstTensor &grad_output,
-                                                 const Tensor &grad_input, const ConstTensor &mask,
-                                                 flowHandle_t handle) const {
+                                                     const Tensor &grad_input,
+                                                     const ConstTensor &mask,
+                                                     flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
         "DropoutLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
