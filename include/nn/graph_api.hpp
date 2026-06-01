@@ -580,6 +580,24 @@ public:
     }
   }
 
+  void set_io_dtype(DType_t dtype) {
+    for (const auto &edge : edges_) {
+      edge->layer()->set_io_dtype(dtype);
+    }
+  }
+
+  void set_param_dtype(DType_t dtype) {
+    for (const auto &edge : edges_) {
+      edge->layer()->set_param_dtype(dtype);
+    }
+  }
+
+  void set_compute_dtype(DType_t dtype) {
+    for (const auto &edge : edges_) {
+      edge->layer()->set_compute_dtype(dtype);
+    }
+  }
+
   Node input(const std::string &uid = "input") { return make_node(uid); }
 
   template <typename... Args>
