@@ -10,7 +10,7 @@
 #include "distributed/coordinator.hpp"
 #include "distributed/roce_worker.hpp"
 #include "distributed/train.hpp"
-#include "nn/example_models.hpp"
+#include "nn/example_graphs.hpp"
 #include "nn/optimizers.hpp"
 #include "partitioner/graph_partitioner.hpp"
 #include "utils/env.hpp"
@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  ExampleModels::register_defaults();
+  ExampleGraphs::register_defaults();
 
   TrainingConfig train_config;
   train_config.load_from_env();
@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
   const auto &device = DeviceManager::getInstance().getDevice(device_type);
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
 
-  Graph graph = load_or_create_model(train_config.model_name, train_config.model_path, allocator);
+  Graph graph = load_or_create_graph(train_config.model_name, train_config.model_path, allocator);
 
   if (train_config.dataset_name.empty()) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");

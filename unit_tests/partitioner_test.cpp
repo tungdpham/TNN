@@ -56,7 +56,7 @@ protected:
 
 TEST(GraphPartitionerTest, SplitsLinearGraphIntoRequestedLayerCounts) {
   Graph graph = build_linear_graph();
-  GraphPartitioner partitioner({1, 3});
+  GraphPartitioner partitioner({0.25, 0.75});
 
   std::vector<GraphPartition> partitions = partitioner.partition(graph);
 
@@ -76,7 +76,7 @@ TEST(GraphPartitionerTest, SplitsLinearGraphIntoRequestedLayerCounts) {
 
 TEST(GraphPartitionerTest, PreservesBoundaryNodesForBranchedGraph) {
   Graph graph = build_branched_graph();
-  GraphPartitioner partitioner({2, 2});
+  GraphPartitioner partitioner({0.5, 0.5});
 
   std::vector<GraphPartition> partitions = partitioner.partition(graph);
 
@@ -90,9 +90,9 @@ TEST(GraphPartitionerTest, PreservesBoundaryNodesForBranchedGraph) {
   EXPECT_EQ(partitions[1].output_uids, (std::vector<std::string>{"output"}));
 }
 
-TEST(GraphPartitionerTest, RejectsPartitionSizesThatDoNotMatchLayerCount) {
+TEST(GraphPartitionerTest, RejectsPartitionRatiosThatResolveToEmptyPartitions) {
   Graph graph = build_linear_graph();
-  GraphPartitioner partitioner({2, 1});
+  GraphPartitioner partitioner({0.95, 0.05, 0.01, 0.01, 0.01});
 
   EXPECT_THROW(partitioner.partition(graph), std::runtime_error);
 }

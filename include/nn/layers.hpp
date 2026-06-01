@@ -28,6 +28,13 @@ class LegacyBatchNormLayerImpl;
 class IdentityLayerImpl;
 class DenseLayerImpl;
 class ActivationLayerImpl;
+class ReLULayerImpl;
+class ELULayerImpl;
+class GELULayerImpl;
+class LeakyReLULayerImpl;
+class LinearLayerImpl;
+class SigmoidLayerImpl;
+class TanhLayerImpl;
 class Conv2DLayerImpl;
 class MaxPool2DLayerImpl;
 class AvgPool2DLayerImpl;
@@ -43,6 +50,7 @@ class AttentionBlockImpl;
 class FlashAttentionBlockImpl;
 class ResidualBlockImpl;
 class SliceLayerImpl;
+class SDPALayerImpl;
 class TransposeLayerImpl;
 class SequentialImpl;
 class MSequentialImpl;
@@ -53,6 +61,13 @@ class LayerRef;
 class IdentityLayer;
 class DenseLayer;
 class ActivationLayer;
+class ReLULayer;
+class ELULayer;
+class GELULayer;
+class LeakyReLULayer;
+class LinearLayer;
+class SigmoidLayer;
+class TanhLayer;
 class Conv2DLayer;
 class MaxPool2DLayer;
 class AvgPool2DLayer;
@@ -68,6 +83,7 @@ class AttentionBlock;
 class FlashAttentionBlock;
 class ResidualBlock;
 class SliceLayer;
+class SDPALayer;
 class TransposeLayer;
 class Sequential;
 class MSequential;
@@ -99,18 +115,26 @@ class DivLayerImpl;
 #include "layers_impl/conv2d_layer.hpp"
 #include "layers_impl/dense_layer.hpp"
 #include "layers_impl/dropout_layer.hpp"
+#include "layers_impl/elu_layer.hpp"
 #include "layers_impl/embedding_layer.hpp"
 #include "layers_impl/flatten_layer.hpp"
+#include "layers_impl/gelu_layer.hpp"
 #include "layers_impl/groupnorm_layer.hpp"
 #include "layers_impl/layer_norm_layer.hpp"
+#include "layers_impl/leaky_relu_layer.hpp"
 #include "layers_impl/legacy_avgpool2d_layer.hpp"
 #include "layers_impl/legacy_batchnorm_layer.hpp"
 #include "layers_impl/legacy_conv2d_layer.hpp"
 #include "layers_impl/legacy_dense_layer.hpp"
 #include "layers_impl/legacy_maxpool2d_layer.hpp"
+#include "layers_impl/linear_layer.hpp"
 #include "layers_impl/maxpool2d_layer.hpp"
 #include "layers_impl/positional_embedding_layer.hpp"
+#include "layers_impl/relu_layer.hpp"
+#include "layers_impl/sdpa_layer.hpp"
+#include "layers_impl/sigmoid_layer.hpp"
 #include "layers_impl/slice_layer.hpp"
+#include "layers_impl/tanh_layer.hpp"
 #include "layers_impl/transpose_layer.hpp"
 #include "nn/blocks_impl/flash_attention_block.hpp"
 #include "nn/blocks_impl/msequential.hpp"
@@ -163,6 +187,13 @@ public:
     register_layer_type<IdentityLayerImpl>();
     register_layer_type<DenseLayerImpl>();
     register_layer_type<ActivationLayerImpl>();
+    register_layer_type<ReLULayerImpl>();
+    register_layer_type<ELULayerImpl>();
+    register_layer_type<GELULayerImpl>();
+    register_layer_type<LeakyReLULayerImpl>();
+    register_layer_type<LinearLayerImpl>();
+    register_layer_type<SigmoidLayerImpl>();
+    register_layer_type<TanhLayerImpl>();
     register_layer_type<Conv2DLayerImpl>();
     register_layer_type<MaxPool2DLayerImpl>();
     register_layer_type<AvgPool2DLayerImpl>();
@@ -180,6 +211,7 @@ public:
     register_layer_type<PositionalEmbeddingLayerImpl>();
     register_layer_type<SliceLayerImpl>();
     register_layer_type<EmbeddingLayerImpl>();
+    register_layer_type<SDPALayerImpl>();
     register_layer_type<ResidualBlockImpl>();
     register_layer_type<AttentionBlockImpl>();
     register_layer_type<FlashAttentionBlockImpl>();

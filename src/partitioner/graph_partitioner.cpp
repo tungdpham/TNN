@@ -1,5 +1,6 @@
 #include "partitioner/graph_partitioner.hpp"
 
+#include <cmath>
 #include <map>
 #include <numeric>
 #include <queue>
@@ -143,18 +144,25 @@ GraphPartition build_partition(const Vec<Edge> &edges, size_t start_layer) {
 
 }  // namespace
 
-GraphPartitioner::GraphPartitioner(std::vector<size_t> layer_counts)
-    : layer_counts_(std::move(layer_counts)) {}
+GraphPartitioner::GraphPartitioner(std::vector<double> layer_ratios)
+    : layer_ratios_(std::move(layer_ratios)) {}
+
+GraphPartitioner::GraphPartitioner(std::vector<size_t> layer_ratios) {
+  layer_ratios_.reserve(layer_ratios.size());
+  for (const size_t layer_ratio : layer_ratios) {
+    layer_ratios_.push_back(static_cast<double>(layer_ratio));
+  }
+}
 
 std::vector<GraphPartition> GraphPartitioner::partition(const Graph &graph) const {
   const Vec<Edge> sorted_edges = topologically_sorted_edges(graph);
-  validate_partitioning(sorted_edges.size());
+  const std::vector<size_t> layer_counts = resolve_layer_counts(sorted_edges.size());
 
   std::vector<GraphPartition> partitions;
-  partitions.reserve(layer_counts_.size());
+  partitions.reserve(layer_counts.size());
 
   size_t offset = 0;
-  for (const size_t layer_count : layer_counts_) {
+  for (const size_t layer_count : layer_counts) {
     Vec<Edge> partition_edges;
     partition_edges.reserve(layer_count);
     for (size_t i = 0; i < layer_count; ++i) {
@@ -168,25 +176,64 @@ std::vector<GraphPartition> GraphPartitioner::partition(const Graph &graph) cons
   return partitions;
 }
 
-void GraphPartitioner::validate_partitioning(size_t total_layers) const {
-  if (layer_counts_.empty()) {
+std::vector<size_t> GraphPartitioner::resolve_layer_counts(size_t total_layers) const {
+  if (layer_ratios_.empty()) {
     if (total_layers == 0) {
-      return;
+      return {};
     }
-    throw std::runtime_error("GraphPartitioner requires at least one partition size");
+    throw std::runtime_error("GraphPartitioner requires at least one partition ratio");
   }
 
-  for (const size_t layer_count : layer_counts_) {
+  if (total_layers == 0) {
+    throw std::runtime_error("GraphPartitioner cannot apply partition ratios to an empty graph");
+  }
+
+  double ratio_sum = 0.0;
+  std::vector<size_t> layer_counts(layer_ratios_.size(), 0);
+  struct FractionalCount {
+    size_t index;
+    double remainder;
+  };
+  std::vector<FractionalCount> fractional_counts;
+  fractional_counts.reserve(layer_ratios_.size());
+
+  for (const double layer_ratio : layer_ratios_) {
+    if (!std::isfinite(layer_ratio) || layer_ratio <= 0.0) {
+      throw std::runtime_error(
+          "GraphPartitioner partition ratios must be finite and greater than zero");
+    }
+    ratio_sum += layer_ratio;
+  }
+
+  for (size_t i = 0; i < layer_ratios_.size(); ++i) {
+    const double exact_layer_count =
+        (layer_ratios_[i] / ratio_sum) * static_cast<double>(total_layers);
+    const size_t resolved_layer_count = static_cast<size_t>(std::floor(exact_layer_count));
+    layer_counts[i] = resolved_layer_count;
+    fractional_counts.push_back({i, exact_layer_count - static_cast<double>(resolved_layer_count)});
+  }
+
+  size_t assigned_layers = std::accumulate(layer_counts.begin(), layer_counts.end(), size_t{0});
+  std::sort(fractional_counts.begin(), fractional_counts.end(),
+            [](const FractionalCount &lhs, const FractionalCount &rhs) {
+              if (lhs.remainder == rhs.remainder) {
+                return lhs.index < rhs.index;
+              }
+              return lhs.remainder > rhs.remainder;
+            });
+
+  for (size_t i = 0; i < total_layers - assigned_layers; ++i) {
+    ++layer_counts[fractional_counts[i].index];
+  }
+
+  for (const size_t layer_count : layer_counts) {
     if (layer_count == 0) {
-      throw std::runtime_error("GraphPartitioner partition sizes must be greater than zero");
+      throw std::runtime_error(
+          "GraphPartitioner partition ratios resolve to an empty partition for this graph");
     }
   }
 
-  const size_t requested_layers =
-      std::accumulate(layer_counts_.begin(), layer_counts_.end(), size_t{0});
-  if (requested_layers != total_layers) {
-    throw std::runtime_error("GraphPartitioner partition sizes must sum to the graph layer count");
-  }
+  return layer_counts;
 }
 
 }  // namespace tnn
