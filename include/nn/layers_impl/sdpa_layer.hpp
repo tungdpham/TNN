@@ -37,16 +37,17 @@ private:
   template <typename IO_T>
   std::unique_ptr<Task> compute_sdpa_forward_impl(const ConstTensor &q, const ConstTensor &k,
                                                   const ConstTensor &v, const Tensor &output,
+                                                  const Tensor &scores, const Tensor &attn_weights,
                                                   size_t batch_size, size_t num_heads,
                                                   size_t seq_len, size_t head_dim,
                                                   flowHandle_t handle, size_t mb_id) const;
 
   template <typename IO_T>
   std::unique_ptr<Task> compute_sdpa_backward_impl(
-      const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const ConstTensor &output,
-      const ConstTensor &grad_output, const Tensor &grad_q, const Tensor &grad_k,
-      const Tensor &grad_v, size_t batch_size, size_t num_heads, size_t seq_len, size_t head_dim,
-      flowHandle_t handle, size_t mb_id) const;
+      const ConstTensor &q, const ConstTensor &k, const ConstTensor &v,
+      const ConstTensor &attn_weights, const ConstTensor &grad_output, const Tensor &grad_scores,
+      const Tensor &grad_q, const Tensor &grad_k, const Tensor &grad_v, size_t batch_size,
+      size_t num_heads, size_t seq_len, size_t head_dim, flowHandle_t handle, size_t mb_id) const;
 
 #ifdef USE_CUDNN
   void cudnn_forward(const ConstTensor &q, const ConstTensor &k, const ConstTensor &v,
