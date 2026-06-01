@@ -832,5 +832,6 @@ std::unique_ptr<Task> cast(const dptr a, dptr b, size_t size,
     throw std::runtime_error("Unsupported device type");
   }
 }
+
 }  // namespace ops
 }  // namespace tnn

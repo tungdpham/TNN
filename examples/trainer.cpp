@@ -55,8 +55,8 @@ signed main(int argc, char *argv[]) {
   if (train_config.dataset_name.empty()) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");
   }
-  auto [train_loader, val_loader] =
-      DataLoaderFactory::create(train_config.dataset_name, train_config.dataset_path);
+  auto [train_loader, val_loader] = DataLoaderFactory::create(
+      train_config.dataset_name, train_config.dataset_path, train_config.io_dtype);
   if (!train_loader || !val_loader) {
     cerr << "Failed to create data loaders for dataset: " << train_config.dataset_name << endl;
     return 1;

@@ -290,6 +290,18 @@ public:
     throw std::runtime_error("Unsupported device type for to_device()");
   }
 
+  Tensor to_dtype(DType_t target_dtype) const {
+    if (dtype_ == target_dtype) {
+      return clone();
+    }
+    auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
+    Vec<size_t> shape_vec(shape_);
+    Tensor converted_tensor = std::make_shared<TensorImpl>(allocator, target_dtype, shape_vec);
+    DISPATCH_ANY_DTYPE2(dtype_, target_dtype, T, U,
+                        ops::cast<T, U>(data_, converted_tensor->data_, data_size_));
+    return converted_tensor;
+  }
+
   Tensor to_host() const {
     if (device_type() == DeviceType::CPU) {
       return clone();
