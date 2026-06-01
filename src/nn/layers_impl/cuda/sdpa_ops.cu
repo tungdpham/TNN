@@ -12,8 +12,11 @@
 
 #include <stdexcept>
 
+#include "type/type.hpp"
+
 namespace tnn {
 namespace cuda {
+namespace sdpa {
 
 template <typename T>
 __global__ void compute_attention_scores_kernel(const T* q, const T* k, T* scores, size_t seq_len,
@@ -27,11 +30,11 @@ __global__ void compute_attention_scores_kernel(const T* q, const T* k, T* score
     const T* q_ptr = q + batch_heads_idx * seq_len * head_dim + i * head_dim;
     const T* k_ptr = k + batch_heads_idx * seq_len * head_dim + j * head_dim;
 
-    T val = q_ptr[d] * k_ptr[d];
+    float val = static_cast<float>(q_ptr[d]) * static_cast<float>(k_ptr[d]);
     __syncthreads();
 
     extern __shared__ char shared_mem[];
-    T* shared = reinterpret_cast<T*>(shared_mem);
+    float* shared = reinterpret_cast<float*>(shared_mem);
     shared[d] = val;
     __syncthreads();
 
@@ -43,11 +46,11 @@ __global__ void compute_attention_scores_kernel(const T* q, const T* k, T* score
     }
 
     if (d == 0) {
-      T score = shared[0] * scale;
+      float score = shared[0] * scale;
       if (is_causal && j > i) {
         score = -1e9f;
       }
-      scores[batch_heads_idx * seq_len * seq_len + i * seq_len + j] = score;
+      scores[batch_heads_idx * seq_len * seq_len + i * seq_len + j] = static_cast<T>(score);
     }
   }
 }
@@ -60,25 +63,25 @@ __global__ void softmax_kernel(T* scores, T* attn_weights, size_t seq_len, size_
   if (j < seq_len) {
     T* score_ptr = scores + batch_heads_idx * seq_len * seq_len + i * seq_len;
 
-    T max_val = -1e9f;
+    float max_val = -1e9f;
     for (int k = 0; k < seq_len; ++k) {
-      max_val = max(max_val, score_ptr[k]);
+      max_val = max(max_val, static_cast<float>(score_ptr[k]));
     }
     __syncthreads();
 
-    T exp_val = exp(score_ptr[j] - max_val);
-    T sum_exp = 0;
+    float exp_val = expf(static_cast<float>(score_ptr[j]) - max_val);
+    float sum_exp = 0.0f;
     for (int k = 0; k < seq_len; ++k) {
       if (k == j) {
         sum_exp += exp_val;
       } else {
-        sum_exp += exp(score_ptr[k] - max_val);
+        sum_exp += expf(static_cast<float>(score_ptr[k]) - max_val);
       }
     }
     __syncthreads();
 
     attn_weights[batch_heads_idx * seq_len * seq_len + i * seq_len + j] =
-        exp_val / (sum_exp + 1e-9f);
+        static_cast<T>(exp_val / (sum_exp + 1e-9f));
   }
 }
 
@@ -120,10 +123,11 @@ void run_forward(const T* q, const T* k, const T* v, T* output, size_t batch_siz
     for (size_t b = 0; b < batch_size; ++b) {
       for (size_t h = 0; h < num_heads; ++h) {
         size_t batch_heads_idx = b * num_heads + h;
+        int thread_count = head_dim < 512 ? static_cast<int>(head_dim) : 512;
 
         dim3 grid(seq_len, seq_len);
-        dim3 block(min((int)head_dim, 512));
-        size_t shared_mem = head_dim * sizeof(T);
+        dim3 block(thread_count);
+        size_t shared_mem = head_dim * sizeof(float);
         compute_attention_scores_kernel<T><<<grid, block, shared_mem>>>(
             q, k, scores, seq_len, head_dim, attn_scale, is_causal, batch_heads_idx);
 
@@ -133,7 +137,7 @@ void run_forward(const T* q, const T* k, const T* v, T* output, size_t batch_siz
             <<<softmax_grid, softmax_block>>>(scores, attn_weights, seq_len, batch_heads_idx);
 
         dim3 output_grid(seq_len);
-        dim3 output_block(min((int)head_dim, 512));
+        dim3 output_block(thread_count);
         attention_output_kernel<T><<<output_grid, output_block>>>(attn_weights, v, output, seq_len,
                                                                   head_dim, batch_heads_idx);
       }
@@ -177,10 +181,11 @@ void run_backward(const T* q, const T* k, const T* v, const T* output, const T* 
     for (size_t b = 0; b < batch_size; ++b) {
       for (size_t h = 0; h < num_heads; ++h) {
         size_t batch_heads_idx = b * num_heads + h;
+        int thread_count = head_dim < 512 ? static_cast<int>(head_dim) : 512;
 
         dim3 grid(seq_len, seq_len);
-        dim3 block(min((int)head_dim, 512));
-        size_t shared_mem = head_dim * sizeof(T);
+        dim3 block(thread_count);
+        size_t shared_mem = head_dim * sizeof(float);
         compute_attention_scores_kernel<T><<<grid, block, shared_mem>>>(
             q, k, scores, seq_len, head_dim, attn_scale, is_causal, batch_heads_idx);
 
@@ -205,18 +210,17 @@ void run_backward(const T* q, const T* k, const T* v, const T* output, const T* 
   cudaFree(grad_scores);
 }
 
-template void run_forward<float>(const float*, const float*, const float*, float*, size_t, size_t,
-                                 size_t, size_t, float, bool);
-template void run_forward<double>(const double*, const double*, const double*, double*, size_t,
-                                  size_t, size_t, size_t, float, bool);
+// Match the dtypes dispatched by SDPALayerImpl.
+#define INSTANTIATE(T)                                                                           \
+  template void run_forward<T>(const T*, const T*, const T*, T*, size_t, size_t, size_t, size_t, \
+                               float, bool);                                                     \
+  template void run_backward<T>(const T*, const T*, const T*, const T*, const T*, T*, T*, T*,    \
+                                size_t, size_t, size_t, size_t, float, bool);
+#include "macros/floating_type_instantiation.hpp"
 
-template void run_backward<float>(const float*, const float*, const float*, const float*,
-                                  const float*, float*, float*, float*, size_t, size_t, size_t,
-                                  size_t, float, bool);
-template void run_backward<double>(const double*, const double*, const double*, const double*,
-                                   const double*, double*, double*, double*, size_t, size_t, size_t,
-                                   size_t, float, bool);
+#undef INSTANTIATE
 
+}  // namespace sdpa
 }  // namespace cuda
 }  // namespace tnn
 

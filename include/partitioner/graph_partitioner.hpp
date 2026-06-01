@@ -18,15 +18,18 @@ struct GraphPartition {
 
 class GraphPartitioner {
 public:
-  explicit GraphPartitioner(std::vector<size_t> layer_counts);
+  explicit GraphPartitioner(std::vector<double> layer_ratios);
+  explicit GraphPartitioner(std::initializer_list<double> layer_ratios)
+      : GraphPartitioner(std::vector<double>(layer_ratios)) {}
+  explicit GraphPartitioner(std::vector<size_t> layer_ratios);
 
   std::vector<GraphPartition> partition(const Graph &graph) const;
-  const std::vector<size_t> &layer_counts() const { return layer_counts_; }
+  const std::vector<double> &layer_ratios() const { return layer_ratios_; }
 
 private:
-  void validate_partitioning(size_t total_layers) const;
+  std::vector<size_t> resolve_layer_counts(size_t total_layers) const;
 
-  std::vector<size_t> layer_counts_;
+  std::vector<double> layer_ratios_;
 };
 
 }  // namespace tnn
