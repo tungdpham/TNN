@@ -10,8 +10,6 @@
 #include <memory>
 #include <string>
 
-#include "nn/activations_impl/gelu.hpp"
-#include "nn/activations_impl/relu.hpp"
 #include "nn/blocks_impl/attention_block.hpp"
 #include "nn/blocks_impl/flash_attention_block.hpp"
 #include "nn/layers_impl/avgpool2d_layer.hpp"
@@ -244,6 +242,7 @@ Node gpt_block(Node input, Shape &shape, size_t embed_dim, size_t num_heads, siz
 
 Graph finalize_graph(Graph graph, IAllocator &allocator, const Node &output) {
   output->set_uid("output");
+  graph.set_output(output);
   graph.compile(allocator);
   return graph;
 }

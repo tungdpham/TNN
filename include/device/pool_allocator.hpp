@@ -13,9 +13,6 @@
 #include "device/dptr.hpp"
 #include "device/flow.hpp"
 #include "device/iallocator.hpp"
-#ifndef NDEBUG
-#include <iostream>
-#endif
 
 namespace tnn {
 
@@ -104,9 +101,6 @@ private:
       free_blocks_.erase(it);
       return block;
     }
-#ifndef NDEBUG
-    std::cout << "PoolAllocator: Allocating new buffer of size " << size << " bytes.\n";
-#endif
     void *ptr = device_.allocateAlignedMemory(size, DEFAULT_ALIGNMENT);
     return new device_storage(device_, ptr, size, DEFAULT_ALIGNMENT);
   }

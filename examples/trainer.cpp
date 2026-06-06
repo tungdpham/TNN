@@ -80,8 +80,8 @@ signed main(int argc, char *argv[]) {
   auto optimizer = OptimizerFactory::create_adam(train_config.lr_initial, adam_beta1, adam_beta2,
                                                  adam_eps, weight_decay, adamw != 0);
 
-  std::string lr_scheduler = "warmup_cosine";
-  Env::get("LR_SCHEDULER", lr_scheduler);
+  std::string scheduler_type = "warmup_cosine";
+  Env::get("SCHEDULER_TYPE", scheduler_type);
 
   int step_lr_epochs = 5;
   float step_lr_gamma = 0.1f;
@@ -121,7 +121,7 @@ signed main(int argc, char *argv[]) {
   if (step_size == 0) step_size = 1;
 
   auto scheduler =
-      (lr_scheduler == "warmup_cosine" || lr_scheduler == "cosine")
+      (scheduler_type == "warmup_cosine" || scheduler_type == "cosine")
           ? SchedulerFactory::create_warmup_cosine(optimizer.get(),
                                                    static_cast<size_t>(warmup_steps), total_steps,
                                                    cosine_start_lr, cosine_eta_min)

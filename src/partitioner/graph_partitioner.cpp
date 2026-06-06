@@ -1,5 +1,6 @@
 #include "partitioner/graph_partitioner.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <map>
 #include <numeric>
@@ -7,6 +8,7 @@
 #include <set>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace tnn {
 namespace {
@@ -96,47 +98,68 @@ Node ensure_partition_node(Graph &graph, const std::string &uid,
   return node;
 }
 
-GraphPartition build_partition(const Vec<Edge> &edges, size_t start_layer) {
+GraphPartition build_partition(const Graph &graph, const Vec<Edge> &edges, size_t start_layer) {
+  const Vec<Edge> sorted_edges = topologically_sorted_edges(graph);
+  const size_t end_layer = start_layer + edges.size();
+
   GraphPartition partition;
   partition.start_layer = start_layer;
   partition.layer_count = edges.size();
 
   std::unordered_map<std::string, Node> uid_to_node;
-  std::unordered_map<std::string, size_t> in_degree;
-  std::unordered_map<std::string, size_t> out_degree;
   std::vector<std::string> node_order;
+  std::unordered_set<std::string> produced_in_partition;
+  std::unordered_set<std::string> consumed_in_partition;
+  std::unordered_set<std::string> consumed_later;
 
   for (const auto &edge : edges) {
     Vec<Node> producers;
     producers.reserve(edge->producers().size());
     for (const auto &producer : edge->producers()) {
       const std::string &uid = producer->uid();
-      in_degree.try_emplace(uid, 0);
-      out_degree.try_emplace(uid, 0);
+      consumed_in_partition.insert(uid);
       producers.push_back(ensure_partition_node(partition.graph, uid, uid_to_node, node_order));
-      ++out_degree[uid];
     }
 
     Vec<Node> consumers;
     consumers.reserve(edge->consumers().size());
     for (const auto &consumer : edge->consumers()) {
       const std::string &uid = consumer->uid();
-      in_degree.try_emplace(uid, 0);
-      out_degree.try_emplace(uid, 0);
+      produced_in_partition.insert(uid);
       consumers.push_back(ensure_partition_node(partition.graph, uid, uid_to_node, node_order));
-      ++in_degree[uid];
     }
 
     partition.graph.add_edge(edge->layer(), producers, consumers);
   }
 
+  for (size_t edge_index = end_layer; edge_index < sorted_edges.size(); ++edge_index) {
+    const Edge &later_edge = sorted_edges[edge_index];
+    for (const auto &producer : later_edge->producers()) {
+      const std::string &uid = producer->uid();
+      if (produced_in_partition.count(uid) > 0) {
+        consumed_later.insert(uid);
+      }
+    }
+  }
+
   for (const auto &uid : node_order) {
-    if (in_degree[uid] == 0) {
+    if (consumed_in_partition.count(uid) > 0 && produced_in_partition.count(uid) == 0) {
       partition.input_uids.push_back(uid);
     }
-    if (out_degree[uid] == 0) {
+
+    const bool produced_here = produced_in_partition.count(uid) > 0;
+    const bool consumed_here = consumed_in_partition.count(uid) > 0;
+    const bool needed_by_later_partition = consumed_later.count(uid) > 0;
+    if (produced_here && (!consumed_here || needed_by_later_partition)) {
       partition.output_uids.push_back(uid);
     }
+  }
+
+  for (const auto &uid : partition.input_uids) {
+    partition.graph.set_input(uid_to_node.at(uid));
+  }
+  for (const auto &uid : partition.output_uids) {
+    partition.graph.set_output(uid_to_node.at(uid));
   }
 
   return partition;
@@ -169,7 +192,7 @@ std::vector<GraphPartition> GraphPartitioner::partition(const Graph &graph) cons
       partition_edges.push_back(sorted_edges[offset + i]);
     }
 
-    partitions.push_back(build_partition(partition_edges, offset));
+    partitions.push_back(build_partition(graph, partition_edges, offset));
     offset += layer_count;
   }
 

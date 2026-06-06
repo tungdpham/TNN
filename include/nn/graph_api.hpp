@@ -34,60 +34,68 @@ public:
   const std::string &uid() const { return uid_; }
   void set_uid(const std::string &uid) { uid_ = uid; }
 
-  const Tensor &data() const { return data_; }
-  int data_ref_count() const { return data_ref_count_; }
-  void set_data(const Tensor &data, int ref_count) {
-    data_ = data;
-    data_ref_count_ = ref_count;
+  const Tensor &data(size_t mb_id) const { return data_.at(mb_id).tensor; }
+  int data_ref_count(size_t mb_id) const { return data_.at(mb_id).ref_count; }
+  void set_data(size_t mb_id, const Tensor &data, int ref_count) {
+    data_[mb_id] = {data, ref_count};
   }
-  bool decrement_data_ref_count() {
-    if (data_ref_count_ > 0) {
-      --data_ref_count_;
-      if (data_ref_count_ == 0) {
-        data_ = Tensor();  // Release the tensor when ref count reaches zero
+  bool decrement_data_ref_count(size_t mb_id) {
+    if (data_.at(mb_id).ref_count > 0) {
+      --data_[mb_id].ref_count;
+      if (data_[mb_id].ref_count == 0) {
+        data_[mb_id].tensor = nullptr;  // Release the tensor when ref count reaches zero
         return true;
       }
     }
     return false;
   }
 
-  const Tensor &grad() const { return grad_; }
-  int grad_ref_count() const { return grad_ref_count_; }
-  void set_grad(const Tensor &grad, int ref_count) {
-    grad_ = grad;
-    grad_ref_count_ = ref_count;
+  const Tensor &grad(size_t mb_id) const { return grad_.at(mb_id).tensor; }
+  int grad_ref_count(size_t mb_id) const { return grad_.at(mb_id).ref_count; }
+  void set_grad(size_t mb_id, const Tensor &grad, int ref_count) {
+    grad_[mb_id] = {grad, ref_count};
   }
-  bool decrement_grad_ref_count() {
-    if (grad_ref_count_ > 0) {
-      --grad_ref_count_;
-      if (grad_ref_count_ == 0) {
-        grad_ = Tensor();  // Release the tensor when ref count reaches zero
+  void accumulate_grad(size_t mb_id, const Tensor &grad, int ref_count) {
+    if (grad_.count(mb_id) == 0 || grad_[mb_id].tensor == nullptr) {
+      grad_[mb_id] = {grad, ref_count};
+    } else {
+      grad_[mb_id].tensor += grad;  // Accumulate the new gradient
+    }
+  }
+  bool decrement_grad_ref_count(size_t mb_id) {
+    if (grad_.at(mb_id).ref_count > 0) {
+      --grad_[mb_id].ref_count;
+      if (grad_[mb_id].ref_count == 0) {
+        grad_[mb_id].tensor = nullptr;
         return true;
       }
     }
     return false;
   }
+  void zero_grads() { grad_.clear(); }
 
 private:
+  struct Entry {
+    Tensor tensor;
+    int ref_count = 0;
+  };
   Graph *graph_;
   std::string uid_;
-  Tensor data_;
-  int data_ref_count_ = 0;
-  Tensor grad_;
-  int grad_ref_count_ = 0;
+  std::map<size_t, Entry> data_;
+  std::map<size_t, Entry> grad_;
 };
 
-class InputMap {
+class TensorBundle {
 private:
   std::map<std::string, Tensor> inputs_;  // Map from uid -> Tensor
 
 public:
-  InputMap() = default;
+  TensorBundle() = default;
 
-  InputMap(std::initializer_list<std::pair<const std::string, Tensor>> init)
+  TensorBundle(std::initializer_list<std::pair<const std::string, Tensor>> init)
       : inputs_(init) {}
 
-  InputMap(std::initializer_list<std::pair<Node, Tensor>> init) {
+  TensorBundle(std::initializer_list<std::pair<Node, Tensor>> init) {
     for (const auto &pair : init) {
       inputs_[pair.first->uid()] = pair.second;
     }
@@ -111,7 +119,15 @@ public:
   void clear() { inputs_.clear(); }
 };
 
-using OutputMap = InputMap;
+template <typename Archiver>
+void archive(Archiver &archiver, const TensorBundle &bundle) {
+  uint64_t bundle_size = static_cast<uint64_t>(bundle.size());
+  archiver(bundle_size);
+  for (const auto &entry : bundle) {
+    archiver(entry.first);   // Serialize the UID
+    archiver(entry.second);  // Serialize the Tensor
+  }
+}
 
 class EdgeImpl {
 public:
@@ -204,28 +220,48 @@ public:
 
   Vec<Node> nodes() const { return nodes_; }
   Vec<Edge> edges() const { return edges_; }
+  Vec<std::string> input_uids() const {
+    Vec<std::string> uids;
+    uids.reserve(input_nodes_.size());
+    for (const auto &node : nodes_) {
+      if (is_input(node)) {
+        uids.push_back(node->uid());
+      }
+    }
+    return uids;
+  }
+  Vec<std::string> output_uids() const {
+    Vec<std::string> uids;
+    uids.reserve(output_nodes_.size());
+    for (const auto &node : nodes_) {
+      if (is_output(node)) {
+        uids.push_back(node->uid());
+      }
+    }
+    return uids;
+  }
   const Device &device() const { return context_->device(); }
   size_t cached_forward_plan_count() const { return forward_plan_cache_.size(); }
-  bool has_cached_forward_plan(const InputMap &input_map) const {
+  bool has_cached_forward_plan(const TensorBundle &input_map) const {
     return find_forward_plan(input_map) != nullptr;
   }
-  size_t cached_forward_plan_execution_count(const InputMap &input_map) const {
+  size_t cached_forward_plan_execution_count(const TensorBundle &input_map) const {
     const ForwardPlanCacheEntry *plan = find_forward_plan(input_map);
     return plan ? plan->execution_count : 0;
   }
-  bool cached_forward_plan_profiled(const InputMap &input_map) const {
+  bool cached_forward_plan_profiled(const TensorBundle &input_map) const {
     const ForwardPlanCacheEntry *plan = find_forward_plan(input_map);
     return plan ? plan->profiled : false;
   }
-  size_t cached_forward_plan_spsc_region_count(const InputMap &input_map) const {
+  size_t cached_forward_plan_spsc_region_count(const TensorBundle &input_map) const {
     const ForwardPlanCacheEntry *plan = find_forward_plan(input_map);
     return plan ? plan->regions.spsc_regions.size() : 0;
   }
-  size_t cached_forward_plan_mpsc_region_count(const InputMap &input_map) const {
+  size_t cached_forward_plan_mpsc_region_count(const TensorBundle &input_map) const {
     const ForwardPlanCacheEntry *plan = find_forward_plan(input_map);
     return plan ? plan->regions.mpsc_regions.size() : 0;
   }
-  size_t cached_forward_plan_profiled_edge_count(const InputMap &input_map) const {
+  size_t cached_forward_plan_profiled_edge_count(const TensorBundle &input_map) const {
     const ForwardPlanCacheEntry *plan = find_forward_plan(input_map);
     return plan ? plan->edge_profiles.size() : 0;
   }
@@ -480,7 +516,7 @@ public:
     nodes_ = std::move(sorted_nodes);
   }
 
-  OutputMap forward(InputMap &input_map, size_t mb_id = 0) {
+  TensorBundle forward(TensorBundle &input_map, size_t mb_id = 0) {
     ForwardPlanCacheEntry &plan = get_or_create_forward_plan(input_map);
     std::map<std::string, Node> uid_to_node;
     for (const auto &node : nodes_) {
@@ -492,7 +528,11 @@ public:
         throw std::runtime_error("Input UID not found in graph: " + uid);
       }
       auto node = it->second;
-      it->second->set_data(tensor, out_degree_[node]);
+      Tensor device_tensor = tensor;
+      if (tensor->device() != context_->device()) {
+        device_tensor = tensor->to_device(context_->device());
+      }
+      it->second->set_data(mb_id, device_tensor, out_degree_[node]);
     }
 
     size_t hook_id = 0;
@@ -505,10 +545,18 @@ public:
       hook_registered = true;
     }
 
+    TensorBundle output_map;
     for (size_t edge_index = 0; edge_index < edges_.size(); ++edge_index) {
       size_t usage_before = workspace_allocator_ ? workspace_allocator_->total_allocated() : 0;
       edge_peak_usage = usage_before;
       forward_edge(edges_[edge_index], mb_id);
+
+      for (const auto &consumer : edges_[edge_index]->consumers()) {
+        if (is_output(consumer)) {
+          output_map.set(consumer->uid(), consumer->data(mb_id));
+        }
+      }
+
       size_t usage_after = workspace_allocator_ ? workspace_allocator_->total_allocated() : 0;
 
       EdgeExecutionProfile &profile = plan.edge_profiles[edge_index];
@@ -524,17 +572,20 @@ public:
       workspace_allocator_->remove_allocation_hook(hook_id);
     }
 
-    OutputMap output_map;
-    auto outputs = this->outputs();
-    for (const auto &node : outputs) {
-      output_map.set(node->uid(), node->data());
-    }
     plan.execution_count++;
     plan.profiled = true;
+
+    // clean up boundary node data
+    for (Node &node : nodes_) {
+      if (node->data_ref_count(mb_id) == 0) {
+        node->set_data(mb_id, nullptr, 0);
+      }
+    }
+
     return output_map;
   }
 
-  OutputMap backward(InputMap &output_grad_map, size_t mb_id = 0) {
+  TensorBundle backward(TensorBundle &output_grad_map, size_t mb_id = 0) {
     std::map<std::string, Node> uid_to_node;
     for (const auto &node : nodes_) {
       uid_to_node[node->uid()] = node;
@@ -545,15 +596,28 @@ public:
         throw std::runtime_error("Output UID not found in graph: " + uid);
       }
       auto node = it->second;
-      it->second->set_grad(tensor, in_degree_[node]);
+      Tensor device_tensor = tensor;
+      if (tensor->device() != context_->device()) {
+        device_tensor = tensor->to_device(context_->device());
+      }
+      it->second->set_grad(mb_id, device_tensor, in_degree_[node]);
     }
+    TensorBundle input_grad_map;
     for (auto it = edges_.rbegin(); it != edges_.rend(); ++it) {
-      backward(*it, mb_id);
+      Edge &edge = *it;
+      backward(edge, mb_id);
+      for (auto &producer : edge->producers()) {
+        if (is_input(producer)) {
+          input_grad_map.set(producer->uid(), producer->grad(mb_id));
+        }
+      }
     }
-    OutputMap input_grad_map;
-    auto inputs = this->inputs();
-    for (const auto &node : inputs) {
-      input_grad_map.set(node->uid(), node->grad());
+
+    // clean up boundary node grads
+    for (Node &node : nodes_) {
+      if (node->grad_ref_count(mb_id) == 0) {
+        node->set_grad(mb_id, nullptr, 0);
+      }
     }
     return input_grad_map;
   }
@@ -598,16 +662,50 @@ public:
     }
   }
 
-  Node input(const std::string &uid = "input") { return make_node(uid); }
+  void set_input(Node node) {
+    if (std::find(nodes_.begin(), nodes_.end(), node) == nodes_.end()) {
+      throw std::runtime_error("Input node does not belong to graph");
+    }
+    input_nodes_.insert(node);
+  }
+
+  void set_output(Node node) {
+    if (std::find(nodes_.begin(), nodes_.end(), node) == nodes_.end()) {
+      throw std::runtime_error("Output node does not belong to graph");
+    }
+    output_nodes_.insert(node);
+  }
+
+  bool is_input(const Node &node) const { return input_nodes_.count(node) > 0; }
+
+  bool is_output(const Node &node) const { return output_nodes_.count(node) > 0; }
+
+  Node input(const std::string &uid = "input") {
+    Node node = make_node(uid);
+    set_input(node);
+    return node;
+  }
 
   template <typename... Args>
   std::array<Node, sizeof...(Args)> inputs(Args... uids) {
     return {make_node(uids)...};
   }
 
+  void zero_grads() {
+    for (const auto &node : nodes_) {
+      node->zero_grads();
+    }
+    context_->zero_grads();
+  }
+
+  Vec<Tensor> parameters() { return context_->parameters(); }
+  Vec<Tensor> gradients() { return context_->gradients(); }
+
 private:
   Vec<Node> nodes_;
   Vec<Edge> edges_;
+  std::set<Node> input_nodes_;
+  std::set<Node> output_nodes_;
   std::unique_ptr<GraphContext> context_;
   std::shared_ptr<DELAllocatorV2> workspace_allocator_;
   std::map<std::weak_ptr<NodeImpl>, int, std::owner_less<std::weak_ptr<NodeImpl>>> in_degree_;
@@ -627,7 +725,7 @@ private:
     return it == out_degree_.end() ? 0 : it->second;
   }
 
-  std::string make_forward_plan_key(const InputMap &input_map) const {
+  std::string make_forward_plan_key(const TensorBundle &input_map) const {
     std::ostringstream key_builder;
     key_builder << static_cast<int>(mode_);
     for (const auto &[uid, tensor] : input_map) {
@@ -649,12 +747,12 @@ private:
     return key_builder.str();
   }
 
-  const ForwardPlanCacheEntry *find_forward_plan(const InputMap &input_map) const {
+  const ForwardPlanCacheEntry *find_forward_plan(const TensorBundle &input_map) const {
     auto it = forward_plan_cache_.find(make_forward_plan_key(input_map));
     return it == forward_plan_cache_.end() ? nullptr : &it->second;
   }
 
-  ForwardPlanCacheEntry &get_or_create_forward_plan(const InputMap &input_map) {
+  ForwardPlanCacheEntry &get_or_create_forward_plan(const TensorBundle &input_map) {
     std::string key = make_forward_plan_key(input_map);
     auto [it, inserted] = forward_plan_cache_.try_emplace(key);
     if (inserted) {
@@ -680,29 +778,9 @@ private:
     return uid;
   }
 
-  Vec<Node> inputs() {
-    Vec<Node> input_nodes;
-    for (const auto &node : nodes_) {
-      auto it = in_degree_.find(node);
-      // If it's not in the map, its in-degree is effectively 0
-      if (it == in_degree_.end() || it->second == 0) {
-        input_nodes.push_back(node);
-      }
-    }
-    return input_nodes;
-  }
+  Vec<Node> inputs() { return Vec<Node>(input_nodes_.begin(), input_nodes_.end()); }
 
-  Vec<Node> outputs() {
-    Vec<Node> output_nodes;
-    for (const auto &node : nodes_) {
-      auto it = out_degree_.find(node);
-      // If it's not in the map, its out-degree is effectively 0
-      if (it == out_degree_.end() || it->second == 0) {
-        output_nodes.push_back(node);
-      }
-    }
-    return output_nodes;
-  }
+  Vec<Node> outputs() { return Vec<Node>(output_nodes_.begin(), output_nodes_.end()); }
 
   void on_add_edge(const Edge &edge) {
     for (const auto &producer : edge->producers()) {
@@ -717,32 +795,32 @@ private:
     Vec<ConstTensor> input_data;
     for (const auto &producer : edge->producers()) {
       // Accumulate data from producer to layer input
-      if (!producer->data()) {
+      if (!producer->data(mb_id)) {
         throw std::runtime_error("Null input data while forwarding graph");
       }
-      input_data.push_back(producer->data());
-      producer->decrement_data_ref_count();
+      input_data.push_back(producer->data(mb_id));
+      producer->decrement_data_ref_count(mb_id);
     }
     Vec<Tensor> output_data = edge->layer()->forward(input_data, mb_id);
     for (size_t i = 0; i < edge->consumers().size(); ++i) {
       Node consumer = edge->consumers()[i];
-      consumer->set_data(output_data[i], out_degree_[consumer]);
+      consumer->set_data(mb_id, output_data[i], out_degree_[consumer]);
     }
   }
 
   void backward(Edge &edge, size_t mb_id = 0) {
     Vec<ConstTensor> output_grads;
     for (const auto &consumer : edge->consumers()) {
-      if (!consumer->grad()) {
+      if (!consumer->grad(mb_id)) {
         throw std::runtime_error("Null output gradient while backwarding graph");
       }
-      output_grads.push_back(consumer->grad());
-      consumer->decrement_grad_ref_count();
+      output_grads.push_back(consumer->grad(mb_id));
+      consumer->decrement_grad_ref_count(mb_id);
     }
     Vec<Tensor> input_grads = edge->layer()->backward(output_grads, mb_id);
     for (size_t i = 0; i < edge->producers().size(); ++i) {
       Node producer = edge->producers()[i];
-      producer->set_grad(input_grads[i], in_degree_[producer]);
+      producer->accumulate_grad(mb_id, input_grads[i], in_degree_[producer]);
     }
   }
 };

@@ -63,12 +63,12 @@ signed main(int argc, char* argv[]) {
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 10e-4f, 3e-4f, false);
 
-  optimizer->attach(*graph.context());
+  optimizer->attach(graph);
 
   while (train_loader->get_batch(256, input, label)) {
     Tensor device_input = input->to_device(graph.context()->device());
-    InputMap inputs{{"input", device_input}};
-    OutputMap outputs = graph.forward(inputs);
+    TensorBundle inputs{{"input", device_input}};
+    TensorBundle outputs = graph.forward(inputs);
     Tensor device_output = outputs.get("output");
 
     float loss;
@@ -81,7 +81,7 @@ signed main(int argc, char* argv[]) {
     Tensor grad_output = create_like(device_output);
     criterion->compute_gradient(device_output, device_labels, grad_output);
 
-    InputMap grad_outputs{{"output", grad_output}};
+    TensorBundle grad_outputs{{"output", grad_output}};
     graph.backward(grad_outputs);
 
     optimizer->update();

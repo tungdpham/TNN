@@ -311,9 +311,9 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
     Tensor device_input = batch_data->to_device(model_device);
     auto device_labels = batch_labels->to_device(model_device);
 
-    InputMap inputs{{"input", device_input}};
+    TensorBundle inputs{{"input", device_input}};
 
-    OutputMap outputs = graph.forward(inputs);
+    TensorBundle outputs = graph.forward(inputs);
     Tensor predictions = outputs.get("output");
 
     size_t batch_size = 1;
@@ -355,7 +355,7 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
       loss_gradient->mul_scalar(1.0 / config.gradient_accumulation_steps);
     }
 
-    InputMap output_grads{{"output", loss_gradient}};
+    TensorBundle output_grads{{"output", loss_gradient}};
     graph.backward(output_grads);
 
     auto batch_end = chrono::high_resolution_clock::now();
@@ -538,8 +538,8 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       auto batch_start = chrono::high_resolution_clock::now();
       Tensor device_input = batch_data->to_device(model_device);
       Tensor device_labels = batch_labels->to_device(model_device);
-      InputMap inputs{{"input", device_input}};
-      OutputMap outputs = graph.forward(inputs);
+      TensorBundle inputs{{"input", device_input}};
+      TensorBundle outputs = graph.forward(inputs);
       Tensor predictions = outputs.get("output");
       float loss;
       criterion->compute_loss(predictions, device_labels, loss);
@@ -571,7 +571,7 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       if (config.gradient_accumulation_steps > 1) {
         loss_gradient->mul_scalar(1.0 / config.gradient_accumulation_steps);
       }
-      InputMap output_grads{{"output", loss_gradient}};
+      TensorBundle output_grads{{"output", loss_gradient}};
       graph.backward(output_grads);
 
       auto batch_end = chrono::high_resolution_clock::now();
@@ -644,7 +644,7 @@ void train_model(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
                  unique_ptr<BaseDataLoader> &val_loader, unique_ptr<Optimizer> &optimizer,
                  const unique_ptr<Loss> &criterion, unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config) {
-  optimizer->attach(*graph.context());
+  optimizer->attach(graph);
 
   cout << "Training batches: " << train_loader->size() / config.batch_size << endl;
   cout << "Validation batches: " << val_loader->size() / config.batch_size << endl;
@@ -683,8 +683,8 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
 
   while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
     Tensor device_input = batch_data->to_device(model_device);
-    InputMap inputs{{"input", device_input}};
-    OutputMap outputs = graph.forward(inputs);
+    TensorBundle inputs{{"input", device_input}};
+    TensorBundle outputs = graph.forward(inputs);
     Tensor predictions = outputs.get("output");
 
     device_batch_labels = batch_labels->to_device(model_device);

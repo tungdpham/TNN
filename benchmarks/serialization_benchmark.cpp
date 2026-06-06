@@ -22,7 +22,8 @@ signed main() {
   tensor->fill_random_normal(0.0, 0.5);
   Job job;
   job.mb_id = microbatch_id;
-  job.data = tensor->clone();
+  job.data = TensorBundle{{{"output", tensor}}};
+
   Message message(CommandType::FORWARD_JOB, std::move(job));
 
   auto &device_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
@@ -57,7 +58,7 @@ signed main() {
     size_t msg_size = sizer.size();
     std::cout << msg_size << " vs " << buffer.capacity() << std::endl;
     auto &deserialized_job = message.get<Job>();
-    auto &deserialized_tensor = deserialized_job.data;
+    Tensor deserialized_tensor = deserialized_job.data.get("output");
     std::cout << "Deserialized tensor size: " << deserialized_tensor->size() << std::endl;
     assert(deserialized_tensor->size() == data_size);
     std::cout << "Deserialized tensor dims: " << deserialized_tensor->dims() << std::endl;

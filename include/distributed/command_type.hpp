@@ -29,6 +29,7 @@ enum CommandType : uint16_t {
   // mode switching
   TRAIN_MODE,
   EVAL_MODE,
+  MODE_CHANGED,
   SHUTDOWN,
 
   // configuration

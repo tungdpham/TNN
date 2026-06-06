@@ -81,6 +81,19 @@ public:
     }
   }
 
+  void deserialize(Reader &reader, TensorBundle &bundle) {
+    uint64_t bundle_size = 0;
+    reader(bundle_size);
+    bundle.clear();
+    for (uint64_t i = 0; i < bundle_size; ++i) {
+      std::string uid;
+      reader(uid);
+      Tensor tensor;
+      deserialize(reader, tensor);
+      bundle.set(uid, tensor);
+    }
+  }
+
   void deserialize(Reader &reader, Job &job) {
     uint64_t mb_id;
     reader(mb_id);

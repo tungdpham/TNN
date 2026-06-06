@@ -33,7 +33,7 @@
 #include "nn/schedulers.hpp"
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
-#include "tensor/tensor.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 
@@ -99,12 +99,22 @@ public:
     auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
     std::istringstream graph_stream(config.graph_state, std::ios::binary);
     graph_ = std::make_unique<Graph>(Graph::load_state(graph_stream, allocator));
+    for (const Edge &edge : graph_->edges()) {
+      std::cout << "Input nodes: ";
+      for (const auto &producer : edge->producers()) {
+        std::cout << producer->uid() << " ";
+      }
+      std::cout << "| Layer: " << edge->layer()->name() << " | Output nodes: ";
+      for (const auto &consumer : edge->consumers()) {
+        std::cout << consumer->uid() << " ";
+      }
+      std::cout << std::endl;
+    }
     input_uids_ = config.input_uids;
     output_uids_ = config.output_uids;
 
-    OptimizerConfig optimizer_config = config.optimizer_config;
-    this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
-    this->optimizer_->attach(*graph_->context());
+    this->optimizer_ = OptimizerFactory::create_from_config(config.optimizer_config);
+    this->optimizer_->attach(*graph_);
 
     this->scheduler_ =
         SchedulerFactory::create_from_config(config.scheduler_config, this->optimizer_.get());
@@ -132,25 +142,19 @@ public:
   Communicator *get_communicator() const { return communicator_.get(); }
 
 protected:
-  virtual void process_message(Message &&message) {
+  void process_message(Message &&message) {
     switch (message.header().command_type) {
       case CommandType::FORWARD_JOB: {
-        if (input_uids_.size() != 1 || output_uids_.size() != 1) {
-          throw std::runtime_error("Worker only supports single-input single-output stage graphs");
-        }
         const Job &forward_job = message.get<Job>();
-        InputMap inputs{{input_uids_.front(), forward_job.data}};
-        auto outputs = graph_->forward(inputs);
-        Job output(outputs[output_uids_.front()], forward_job.mb_id);
-        message = Message(CommandType::FORWARD_JOB, std::move(output));
+        TensorBundle inputs = forward_job.data;
+        auto outputs = graph_->forward(inputs, forward_job.mb_id);
+        Job output_job(outputs, forward_job.mb_id);
+        message = Message(CommandType::FORWARD_JOB, std::move(output_job));
         communicator_->send_message(std::move(message), next_stage_endpoint_);
       } break;
       case CommandType::BACKWARD_JOB: {
-        if (input_uids_.size() != 1 || output_uids_.size() != 1) {
-          throw std::runtime_error("Worker only supports single-input single-output stage graphs");
-        }
         const Job &backward_job = message.get<Job>();
-        InputMap output_grads{{output_uids_.front(), backward_job.data}};
+        TensorBundle output_grads = backward_job.data;
         auto outputs = graph_->backward(output_grads, backward_job.mb_id);
         if (prev_stage_endpoint_ == Endpoint::empty()) {
           // only send backward complete if there is no previous stage
@@ -158,8 +162,8 @@ protected:
           communicator_->send_message(std::move(complete_msg), coordinator_endpoint_);
           break;
         }
-        Job output(outputs[input_uids_.front()], backward_job.mb_id);
-        message = Message(CommandType::BACKWARD_JOB, std::move(output));
+        Job output_job(outputs, backward_job.mb_id);
+        message = Message(CommandType::BACKWARD_JOB, std::move(output_job));
         communicator_->send_message(std::move(message), prev_stage_endpoint_);
       } break;
       case CommandType::UPDATE_PARAMETERS: {
@@ -176,12 +180,14 @@ protected:
         communicator_->send_message(std::move(response), coordinator_endpoint_);
       } break;
       case CommandType::TRAIN_MODE:
-        std::cout << "Stage " << id_ << " switching to TRAIN mode." << std::endl;
+        std::cout << fmt::format("Stage {}: Switching to TRAIN mode.", id_) << std::endl;
         this->graph_->set_mode(ExecutionMode::TRAIN);
+        communicator_->send_message(Message(CommandType::MODE_CHANGED), coordinator_endpoint_);
         break;
       case CommandType::EVAL_MODE:
-        std::cout << "Stage " << id_ << " switching to EVAL mode." << std::endl;
+        std::cout << fmt::format("Stage {}: Switching to EVAL mode.", id_) << std::endl;
         this->graph_->set_mode(ExecutionMode::EVAL);
+        communicator_->send_message(Message(CommandType::MODE_CHANGED), coordinator_endpoint_);
         break;
       case CommandType::STATUS_REQUEST: {
         throw std::runtime_error("Not implemented yet");
@@ -190,7 +196,7 @@ protected:
       case CommandType::PRINT_LR: {
         if (scheduler_) {
           float lr = scheduler_->get_lr();
-          std::cout << "Stage " << id_ << " current learning rate: " << lr << std::endl;
+          std::cout << fmt::format("Stage {}: Current learning rate: {:.6e}", id_, lr) << std::endl;
           Message response(CommandType::LR_PRINTED, std::monostate{});
           communicator_->send_message(std::move(response), coordinator_endpoint_);
         } else {

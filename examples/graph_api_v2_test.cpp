@@ -208,7 +208,7 @@ signed main() {
   auto criterion = LossFactory::create_crossentropy(true, 1e-15);
   auto optimizer = OptimizerFactory::create_adam(0.001f, 0.9f, 0.999f);
 
-  optimizer->attach(*graph->context());
+  optimizer->attach(*graph);
 
   int epochs = 20;
   for (int i = 0; i < epochs; ++i) {
@@ -222,7 +222,7 @@ signed main() {
       data = data->to_device(getGPU());
       labels = labels->to_device(getGPU());
 
-      auto input_map = InputMap({
+      auto input_map = TensorBundle({
           {"input", data},
       });
 
@@ -236,7 +236,7 @@ signed main() {
       criterion->compute_loss(output, labels, loss);
       criterion->compute_gradient(output, labels, grad_output);
 
-      InputMap output_grad_map({
+      TensorBundle output_grad_map({
           {"output", grad_output},
       });
 
@@ -258,7 +258,7 @@ signed main() {
     while (val_loader->get_batch(256, data, labels)) {
       data = data->to_device(getGPU());
       labels = labels->to_device(getGPU());
-      auto input_map = InputMap({
+      auto input_map = TensorBundle({
           {"input", data},
       });
 
