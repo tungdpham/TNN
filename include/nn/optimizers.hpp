@@ -14,6 +14,7 @@
 
 #include "common/config.hpp"
 #include "device/task.hpp"
+#include "nn/graph_api.hpp"
 #include "nn/graph_context.hpp"
 #include "optimizers_impl/cpu/adam_kernels.hpp"
 #include "optimizers_impl/cpu/sgd_kernels.hpp"
@@ -31,10 +32,10 @@ public:
       : learning_rate_(learning_rate) {}
   virtual ~Optimizer() = default;
 
-  void attach(GraphContext &context) {
-    context_ = &context;
-    auto params = context.parameters();
-    auto grads = context.gradients();
+  void attach(Graph &graph) {
+    graph_ = &graph;
+    auto params = graph.parameters();
+    auto grads = graph.gradients();
     if (params.size() != grads.size()) {
       throw std::invalid_argument("Parameters and gradients size mismatch in optimizer attach" +
                                   std::to_string(params.size()) + " vs " +
@@ -49,7 +50,12 @@ public:
 
   virtual void update() = 0;
 
-  void zero_grads() { context_->zero_grads(); }
+  void zero_grads() {
+    if (!graph_) {
+      throw std::runtime_error("Optimizer not attached to any graph or graph has been destroyed");
+    }
+    graph_->zero_grads();
+  }
 
   void set_learning_rate(float lr) { learning_rate_ = lr; }
   float get_learning_rate() const { return learning_rate_; }
@@ -60,7 +66,7 @@ public:
 
 protected:
   float learning_rate_;
-  GraphContext *context_;
+  Graph *graph_;
   Vec<Tensor> parameters_;
   Vec<Tensor> gradients_;
 

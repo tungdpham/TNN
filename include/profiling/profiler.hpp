@@ -121,7 +121,7 @@ void archive(Archiver &archiver, Profiler &profiler) {
   int64_t start_time_count;
   archiver(start_time_count);
   profiler.init_start_time(Clock::time_point(Clock::duration(start_time_count)));
-  size_t event_count = 0;
+  uint32_t event_count = 0;
   archiver(event_count);
   events.resize(event_count);
   if (event_count > 0) {

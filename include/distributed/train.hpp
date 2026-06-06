@@ -60,15 +60,22 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
 
   while (get_next_batch(*train_loader, prefetcher.get(), config.batch_size, batch_data,
                         batch_labels)) {
-    Vec<Tensor> micro_batch_inputs;
-    ops::split(batch_data, micro_batch_inputs, config.num_microbatches);
+    Vec<Tensor> splitted_inputs;
+    ops::split(batch_data, splitted_inputs, config.num_microbatches);
+    Vec<TensorBundle> micro_batch_inputs;
+    for (size_t i = 0; i < splitted_inputs.size(); ++i) {
+      micro_batch_inputs.push_back(TensorBundle{{{"input", splitted_inputs[i]}}});
+    }
     Vec<Tensor> micro_batch_labels;
     ops::split(batch_labels, micro_batch_labels, config.num_microbatches);
 
     auto process_start = std::chrono::high_resolution_clock::now();
-    // Select pipeline schedule. Async overlaps microbatches; sync disables overlap.
-    auto [loss, corrects] = coordinator.async_train_batch(
-        micro_batch_inputs, micro_batch_labels, criterion, config.gradient_accumulation_steps);
+    auto [loss, corrects] =
+        config.async_pipeline
+            ? coordinator.async_train_batch(micro_batch_inputs, micro_batch_labels, criterion,
+                                            config.gradient_accumulation_steps)
+            : coordinator.sync_train_batch(micro_batch_inputs, micro_batch_labels, criterion,
+                                           config.gradient_accumulation_steps);
 
     double ppl = std::exp(static_cast<double>(loss));
 
@@ -158,7 +165,7 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
   coordinator.set_training(false);
 
   while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
-    Vec<Tensor> micro_batch_inputs{std::move(batch_data)};
+    Vec<TensorBundle> micro_batch_inputs{TensorBundle{{{"input", batch_data}}}};
     Vec<Tensor> micro_batch_labels{std::move(batch_labels)};
     auto [val_loss, val_correct] =
         config.async_pipeline
@@ -233,15 +240,22 @@ inline void train_semi_async_step(Coordinator &coordinator,
       get_next_batch(*train_loader, prefetcher.get(), config.batch_size, batch_data, batch_labels);
     }
 
-    Vec<Tensor> micro_batch_inputs;
-    ops::split(batch_data, micro_batch_inputs, config.num_microbatches);
+    Vec<Tensor> splitted_inputs;
+    ops::split(batch_data, splitted_inputs, config.num_microbatches);
+    Vec<TensorBundle> micro_batch_inputs;
+    for (size_t i = 0; i < splitted_inputs.size(); ++i) {
+      micro_batch_inputs.push_back(TensorBundle{{{"input", splitted_inputs[i]}}});
+    }
     Vec<Tensor> micro_batch_labels;
     ops::split(batch_labels, micro_batch_labels, config.num_microbatches);
 
     auto process_start = std::chrono::high_resolution_clock::now();
-    // Select pipeline schedule. Async overlaps microbatches; sync disables overlap.
-    auto [loss, corrects] = coordinator.async_train_batch(
-        micro_batch_inputs, micro_batch_labels, criterion, config.gradient_accumulation_steps);
+    auto [loss, corrects] =
+        config.async_pipeline
+            ? coordinator.async_train_batch(micro_batch_inputs, micro_batch_labels, criterion,
+                                            config.gradient_accumulation_steps)
+            : coordinator.sync_train_batch(micro_batch_inputs, micro_batch_labels, criterion,
+                                           config.gradient_accumulation_steps);
     double ppl = std::exp(static_cast<double>(loss));
 
     size_t class_samples = 1;

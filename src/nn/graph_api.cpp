@@ -20,7 +20,7 @@ namespace tnn {
 namespace {
 
 constexpr std::array<char, 4> kGraphStateMagic{'T', 'N', 'N', 'G'};
-constexpr std::uint32_t kGraphStateVersion = 1;
+constexpr std::uint32_t kGraphStateVersion = 2;
 
 template <typename T>
 void write_binary(std::ostream &stream, const T &value) {
@@ -71,6 +71,33 @@ void save_layer_config(std::ostream &stream, const std::shared_ptr<LayerImpl> &l
   write_string(stream, config_json.dump());
 }
 
+void save_node_index_set(std::ostream &stream, const std::set<Node> &nodes,
+                         const std::unordered_map<NodeImpl *, size_t> &node_indices,
+                         const char *context) {
+  write_binary(stream, nodes.size());
+  for (const auto &node : nodes) {
+    const auto it = node_indices.find(node.get());
+    if (it == node_indices.end()) {
+      throw std::runtime_error(std::string("Internal error while saving graph ") + context +
+                               " node state");
+    }
+    write_binary(stream, it->second);
+  }
+}
+
+void load_node_index_set(std::istream &stream, Graph &graph, const Vec<Node> &nodes,
+                         const char *context, const std::function<void(const Node &)> &mark_node) {
+  const size_t count = read_binary<size_t>(stream);
+  for (size_t i = 0; i < count; ++i) {
+    const size_t node_index = read_binary<size_t>(stream);
+    if (node_index >= nodes.size()) {
+      throw std::runtime_error(std::string("Graph state references an invalid ") + context +
+                               " node index");
+    }
+    mark_node(nodes[node_index]);
+  }
+}
+
 }  // namespace
 
 void Graph::save_state(std::ostream &stream) const {
@@ -106,6 +133,9 @@ void Graph::save_state(std::ostream &stream) const {
   for (const auto &node : nodes_) {
     write_string(stream, node->uid());
   }
+
+  save_node_index_set(stream, input_nodes_, node_indices, "input");
+  save_node_index_set(stream, output_nodes_, node_indices, "output");
 
   write_binary(stream, unique_layers.size());
   for (const auto &layer : unique_layers) {
@@ -167,7 +197,7 @@ Graph Graph::load_state(std::istream &stream, IAllocator &allocator) {
   }
 
   const std::uint32_t version = read_binary<std::uint32_t>(stream);
-  if (version != kGraphStateVersion) {
+  if (version != 1 && version != kGraphStateVersion) {
     throw std::runtime_error("Unsupported graph state version: " + std::to_string(version));
   }
 
@@ -178,6 +208,13 @@ Graph Graph::load_state(std::istream &stream, IAllocator &allocator) {
   nodes.reserve(node_count);
   for (size_t i = 0; i < node_count; ++i) {
     nodes.push_back(graph.make_node(read_string(stream)));
+  }
+
+  if (version >= 2) {
+    load_node_index_set(stream, graph, nodes, "input",
+                        [&graph](const Node &node) { graph.set_input(node); });
+    load_node_index_set(stream, graph, nodes, "output",
+                        [&graph](const Node &node) { graph.set_output(node); });
   }
 
   const size_t layer_count = read_binary<size_t>(stream);
@@ -218,6 +255,17 @@ Graph Graph::load_state(std::istream &stream, IAllocator &allocator) {
     }
 
     graph.add_edge(layers[layer_index], producers, consumers);
+  }
+
+  if (version == 1) {
+    for (const auto &node : nodes) {
+      if (graph.node_in_degree(node) == 0) {
+        graph.set_input(node);
+      }
+      if (graph.node_out_degree(node) == 0) {
+        graph.set_output(node);
+      }
+    }
   }
 
   graph.compile(allocator);

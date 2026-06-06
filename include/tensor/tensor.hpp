@@ -614,10 +614,10 @@ public:
     return result;
   }
 
-  void print_data() const {
+  void print_data(std::string name = "Tensor") const {
     Tensor cpu_tensor = to_device(getHost());
     size_t total_elements = cpu_tensor->size();
-    std::cout << "TensorImpl data (shape " << cpu_tensor->shape_str() << "):\n";
+    std::cout << name << " data (shape " << cpu_tensor->shape_str() << "):\n";
     DISPATCH_ANY_DTYPE(dtype_, T, {
       T *data = cpu_tensor->data_as<T>();
       for (size_t i = 0; i < total_elements; ++i) {
@@ -627,11 +627,11 @@ public:
     std::cout << std::endl;
   }
 
-  void head(size_t n = 10) const {
+  void head(size_t n = 10, std::string name = "Tensor") const {
     Tensor cpu_tensor = to_device(getHost());
     size_t total_elements = cpu_tensor->size();
     n = std::min(n, total_elements);
-    std::cout << "TensorImpl head (first " << n << " elements of shape " << cpu_tensor->shape_str()
+    std::cout << name << " head (first " << n << " elements of shape " << cpu_tensor->shape_str()
               << "):\n";
     DISPATCH_ANY_DTYPE(dtype_, T, {
       T *data = cpu_tensor->data_as<T>();
@@ -738,6 +738,26 @@ inline Tensor operator*(double scalar, const ConstTensor &rhs) {
   Tensor result = rhs->clone();
   result->mul_scalar(scalar);
   return result;
+}
+
+inline Tensor operator+=(Tensor &lhs, const ConstTensor &rhs) {
+  lhs->add(rhs);
+  return lhs;
+}
+
+inline Tensor operator-=(Tensor &lhs, const ConstTensor &rhs) {
+  lhs->sub(rhs);
+  return lhs;
+}
+
+inline Tensor operator*=(Tensor &lhs, const ConstTensor &rhs) {
+  lhs->mul(rhs);
+  return lhs;
+}
+
+inline Tensor operator/=(Tensor &lhs, const ConstTensor &rhs) {
+  lhs->div(rhs);
+  return lhs;
 }
 
 }  // namespace tnn

@@ -75,8 +75,8 @@ int main(int argc, char **argv) {
       model_input->at<float>({0, j}) = static_cast<float>(current_tokens[start_token_idx + j]);
     }
 
-    InputMap inputs{{"input", model_input}};
-    OutputMap outputs = graph.forward(inputs);
+    TensorBundle inputs{{"input", model_input}};
+    TensorBundle outputs = graph.forward(inputs);
     Tensor output = outputs.get("output");
 
     // Transfer output to CPU for sampling

@@ -13,6 +13,7 @@
 #include "device/pool_allocator.hpp"
 #include "distributed/message.hpp"
 #include "distributed/tcp_communicator.hpp"
+#include "nn/graph_api.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 
@@ -173,7 +174,9 @@ int main(int argc, char *argv[]) {
     master_tensor->copy_to(tensor);
     Job job;
     job.mb_id = 10;
-    job.data = std::move(tensor);
+    job.data = TensorBundle({
+        {"input", std::move(tensor)},
+    });
     Message message(CommandType::FORWARD_JOB, std::move(job));
     communicator.send_message(std::move(message), peer_endpoint);
   }
