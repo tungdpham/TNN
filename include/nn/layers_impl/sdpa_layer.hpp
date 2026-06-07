@@ -12,7 +12,7 @@
 #include <unordered_map>
 
 #include "device/task.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 

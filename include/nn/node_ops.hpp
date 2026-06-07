@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layers_impl/add_layer.hpp"
 #include "nn/layers_impl/div_layer.hpp"
 #include "nn/layers_impl/mul_layer.hpp"

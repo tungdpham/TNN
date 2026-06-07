@@ -13,7 +13,7 @@
 #include "device/pool_allocator.hpp"
 #include "distributed/message.hpp"
 #include "distributed/tcp_communicator.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 

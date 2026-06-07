@@ -34,9 +34,6 @@ CsvLogger::CsvLogger(const std::string &model_name, const std::string &log_dir,
   epoch_logger_.set_log_file(epoch_path);
   epoch_logger_.set_pattern("%v");
 
-  // Build deterministic metric order for stable CSV logs.
-  // Dynamic ordering caused column/value mismatches during incremental builds.
-
   train_step_metrics_ = {"epoch",    "step",           "timestamp_ms", "loss",       "batch_loss",
                          "avg_loss", "avg_perplexity", "accuracy_pct", "perplexity", "time_ms"};
 

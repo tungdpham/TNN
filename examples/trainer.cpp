@@ -6,7 +6,7 @@
 #include "device/device_manager.hpp"
 #include "nn/example_graphs.hpp"
 #include "nn/example_models.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"

@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "nn/graph_api.hpp"
+#include "nn/tensor_bundle.hpp"
 
 namespace tnn {
 struct Job {

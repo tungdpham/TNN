@@ -8,7 +8,7 @@
 #include "device/device_manager.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/example_graphs.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layers.hpp"
 #include "partitioner/graph_partitioner.hpp"
 #include "tensor/tensor.hpp"

@@ -1,6 +1,6 @@
 #include "device/device_manager.hpp"
 #include "device/pool_allocator.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layers.hpp"
 #include "nn/layers_impl/legacy_dense_layer.hpp"
 #include "nn/loss.hpp"

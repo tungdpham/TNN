@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 
 namespace tnn::test {
 

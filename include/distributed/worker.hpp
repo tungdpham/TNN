@@ -27,7 +27,7 @@
 #include "job.hpp"
 #include "message.hpp"
 #include "nn/blocks_impl/sequential.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layers.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
