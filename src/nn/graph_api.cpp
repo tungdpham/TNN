@@ -5,14 +5,13 @@
  * project root for the full license text.
  */
 
-#include "nn/graph_api.hpp"
-
 #include <array>
 #include <cstdint>
 #include <istream>
 #include <ostream>
 #include <unordered_map>
 
+#include "nn/graph.hpp"
 #include "nn/layers.hpp"
 #include "tensor/tensor_factory.hpp"
 

@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 
 namespace tnn {
 

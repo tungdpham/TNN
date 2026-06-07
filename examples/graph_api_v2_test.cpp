@@ -3,7 +3,7 @@
 #include "data_loading/data_loader_factory.hpp"
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/metrics.hpp"

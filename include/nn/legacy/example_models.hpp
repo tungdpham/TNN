@@ -10,7 +10,7 @@
 #include <iosfwd>
 
 #include "nn/blocks_impl/sequential.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layers.hpp"
 
 namespace tnn {

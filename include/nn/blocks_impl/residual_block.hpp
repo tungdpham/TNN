@@ -15,7 +15,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "nn/block.hpp"
 #include "nn/blocks_impl/sequential.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layer.hpp"
 
 namespace tnn {

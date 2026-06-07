@@ -14,7 +14,7 @@
 
 #include "common/config.hpp"
 #include "device/task.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/graph_context.hpp"
 #include "optimizers_impl/cpu/adam_kernels.hpp"
 #include "optimizers_impl/cpu/sgd_kernels.hpp"

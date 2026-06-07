@@ -12,7 +12,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 
 namespace tnn {
 

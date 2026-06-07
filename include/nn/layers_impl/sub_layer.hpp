@@ -9,7 +9,7 @@
 #include <memory>
 #include <string>
 
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 

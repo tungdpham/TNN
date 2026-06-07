@@ -5,7 +5,7 @@
 #include "device/device_manager.hpp"
 #include "nn/blocks_impl/attention_block.hpp"
 #include "nn/example_models.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layers.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
 #include "nn/loss.hpp"

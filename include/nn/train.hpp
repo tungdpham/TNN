@@ -12,7 +12,7 @@
 #include "data_loading/regression_data_loader.hpp"
 #include "device/device_type.hpp"
 #include "nn/csv_logger.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"

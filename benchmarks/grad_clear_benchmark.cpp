@@ -1,7 +1,7 @@
 #include "device/device_manager.hpp"
 #include "nn/blocks_impl/sequential.hpp"
 #include "nn/example_models.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 using namespace tnn;
 using namespace std;
 

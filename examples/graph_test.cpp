@@ -1,10 +1,11 @@
+#include "nn/graph.hpp"
+
 #include <getopt.h>
 
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_type.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/example_models.hpp"
-#include "nn/graph_api.hpp"
 #include "nn/metrics.hpp"
 #include "nn/train.hpp"
 

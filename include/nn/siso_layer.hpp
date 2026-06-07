@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layer.hpp"
 
 namespace tnn {

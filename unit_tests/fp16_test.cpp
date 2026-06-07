@@ -2,7 +2,7 @@
 
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
-#include "nn/graph_api.hpp"
+#include "nn/graph.hpp"
 #include "nn/layers.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
 #include "type/type.hpp"
