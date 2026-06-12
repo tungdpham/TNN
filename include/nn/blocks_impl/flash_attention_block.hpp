@@ -38,32 +38,26 @@ private:
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> flash_attention_forward_task(
       cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
-      const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
-      const Tensor &attn_heads, const Tensor &stats_tensor, const Tensor &workspace,
-      flowHandle_t handle) const;
+      const Tensor &q_heads, const Tensor &k_heads, const Tensor &v_heads, Tensor &attn_heads,
+      Tensor &stats_tensor, Tensor &workspace, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> flash_attention_backward_task(
       cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
-      const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
-      const ConstTensor &attn_heads, const ConstTensor &grad_attn_heads,
-      const ConstTensor &stats_tensor, const Tensor &grad_q_heads, const Tensor &grad_k_heads,
-      const Tensor &grad_v_heads, const Tensor &workspace, flowHandle_t handle) const;
+      const Tensor &q_heads, const Tensor &k_heads, const Tensor &v_heads, const Tensor &attn_heads,
+      Tensor &grad_attn_heads, Tensor &stats_tensor, Tensor &grad_q_heads, Tensor &grad_k_heads,
+      Tensor &grad_v_heads, Tensor &workspace, flowHandle_t handle) const;
 
-  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
-  Tensor cudnn_backward(const ConstTensor &grad_output, size_t mb_id);
+  Tensor cudnn_forward(const Tensor &input, size_t mb_id);
+  Tensor cudnn_backward(const Tensor &grad_output, size_t mb_id);
 
   mutable std::unordered_map<size_t, cuda::cudnn_flash_attention::feHandle_t *> fe_handle_cache;
 #endif
   mutable std::unordered_map<size_t, AttentionStats> stats_cache;
 
-  Vec<LayerImpl *> layers() override {
-    return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
-  }
-
   // Expects input: [batch_size, seq_len, embed_dim], output: [batch_size, seq_len, embed_dim]
-  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id = 0) override;
-  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0) override;
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id = 0) override;
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id = 0) override;
 
 public:
   FlashAttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal = true,
@@ -77,6 +71,8 @@ public:
   LayerConfig get_config() const override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
   static std::shared_ptr<FlashAttentionBlockImpl> create_from_config(const LayerConfig &config);
+
+  Vec<Layer> layers() override { return {q_proj_, k_proj_, v_proj_, out_proj_}; }
 
   Node operator()(const Node &input) {
     if (!input) {

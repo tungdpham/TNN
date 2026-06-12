@@ -21,16 +21,29 @@ private:
   Tensor class_token_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> forward_task(const ConstTensor &input, const Tensor &output,
-                                     const ConstTensor &class_token, size_t batch_size,
-                                     size_t seq_len, size_t embed_dim, flowHandle_t handle) const;
+  std::unique_ptr<Task> forward_task(const Tensor &input, Tensor &output, const Tensor &class_token,
+                                     size_t batch_size, size_t seq_len, size_t embed_dim,
+                                     flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> backward_task(const ConstTensor &grad_output, const Tensor &grad_input,
-                                      const Tensor &class_token_gradients,
-                                      const ConstTensor &class_token, size_t batch_size,
-                                      size_t seq_len, size_t embed_dim, flowHandle_t handle) const;
+  std::unique_ptr<Task> backward_task(const Tensor &grad_output, Tensor &grad_input,
+                                      Tensor &class_token_gradients, const Tensor &class_token,
+                                      size_t batch_size, size_t seq_len, size_t embed_dim,
+                                      flowHandle_t handle) const;
 
+  void init_impl() override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+
+public:
+  explicit ClassTokenLayerImpl(size_t embed_dim, const std::string &name = "class_token");
+
+  static constexpr const char *TYPE_NAME = "class_token";
+
+  std::string type() const override { return TYPE_NAME; }
+  LayerConfig get_config() const override;
+
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
     auto token_desc = ParamDescriptor{
@@ -43,21 +56,6 @@ private:
     return descriptors;
   }
 
-  void init_impl() override;
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
-
-public:
-  explicit ClassTokenLayerImpl(size_t embed_dim, const std::string &name = "class_token");
-
-  static constexpr const char *TYPE_NAME = "class_token";
-
-  std::string type() const override { return TYPE_NAME; }
-  LayerConfig get_config() const override;
-
-  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-
-public:
   static std::shared_ptr<ClassTokenLayerImpl> create_from_config(const LayerConfig &config);
 };
 

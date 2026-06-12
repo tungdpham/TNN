@@ -28,12 +28,12 @@ signed main() {
 
   graph.compile(allocator);
 
-  Tensor input_data = make_tensor<float>({128, 224, 224, 3}, getGPU());
-  input_data->fill_random_normal(0.5f, 0.2f, 676767);
+  Tensor input_data = Tensor({128, 224, 224, 3}, DType_t::FP32, getGPU());
+  input_data.fill_random_normal(0.5f, 0.2f, 676767);
   // cold pass
-  auto conv2d_output = conv_layer->forward({input_data})[0];
-  auto batchnorm_output = bn_layer->forward({conv2d_output})[0];
-  auto maxpool_output = maxpool_layer->forward({batchnorm_output})[0];
+  auto conv2d_output = conv_layer.forward({input_data})[0];
+  auto batchnorm_output = bn_layer.forward({conv2d_output})[0];
+  auto maxpool_output = maxpool_layer.forward({batchnorm_output})[0];
   Flow *flow = getGPU().getFlow(defaultFlowHandle);
   flow->synchronize();
 
@@ -42,9 +42,9 @@ signed main() {
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    conv2d_output = conv_layer->forward({input_data})[0];
-    batchnorm_output = bn_layer->forward({conv2d_output})[0];
-    maxpool_output = maxpool_layer->forward({batchnorm_output})[0];
+    conv2d_output = conv_layer.forward({input_data})[0];
+    batchnorm_output = bn_layer.forward({conv2d_output})[0];
+    maxpool_output = maxpool_layer.forward({batchnorm_output})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 

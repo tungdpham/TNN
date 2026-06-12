@@ -40,24 +40,13 @@ private:
 
   std::unordered_map<size_t, Vec<Vec<size_t>>> input_shapes_cache_;
 
-  Vec<size_t> compute_execution_order(const Vec<ConstTensor> &inputs, size_t mb_id);
+  Vec<size_t> compute_execution_order(const Vec<Tensor> &inputs, size_t mb_id);
 
-  SequenceMemInfo measure_sequence_memory(size_t seq_idx, ConstTensor input, size_t mb_id);
+  SequenceMemInfo measure_sequence_memory(size_t seq_idx, Tensor input, size_t mb_id);
 
 protected:
-  Vec<LayerImpl *> layers() override {
-    Vec<LayerImpl *> layers;
-    for (auto &seq : sequences_) {
-      layers.push_back(seq.get());
-    }
-    if (join_layer_) {
-      layers.push_back(join_layer_.get());
-    }
-    return layers;
-  }
-
-  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) override;
-  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) override;
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id) override;
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) override;
 
 public:
   /**
@@ -77,12 +66,19 @@ public:
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
 
   void print_summary(const Vec<Vec<size_t>> &input_shapes) const;
-
-  Vec<SequentialImpl *> get_sequences();
-  LayerImpl *get_join_layer();
-
   LayerConfig get_config() const override;
   static std::shared_ptr<MSequentialImpl> create_from_config(const LayerConfig &config);
+
+  Vec<Layer> layers() override {
+    Vec<Layer> all_layers;
+    for (const auto &seq : sequences_) {
+      all_layers.push_back(seq);
+    }
+    if (join_layer_) {
+      all_layers.push_back(join_layer_);
+    }
+    return all_layers;
+  }
 
   Node operator()(const Vec<Node> &inputs) {
     if (inputs.empty()) {

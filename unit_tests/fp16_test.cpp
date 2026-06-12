@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "device/device_manager.hpp"
-#include "nn/example_models.hpp"
+#include "device/pool_allocator.hpp"
 #include "nn/graph.hpp"
 #include "nn/layers.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
@@ -12,18 +12,18 @@ using namespace synet;
 
 class FP16Test : public ::testing::Test {
 protected:
-  void SetUp() override { ExampleModels::register_defaults(); }
+  void SetUp() override {}
 };
 
 TEST_F(FP16Test, Dense) {
   auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
 
   auto fp32_dense_layer = DenseLayer(128, 64, false, "fp32_dense");
-  fp32_dense_layer->set_io_dtype(DType_t::FP32);
+  fp32_dense_layer.set_io_dtype(DType_t::FP32);
 
   auto fp16_dense_layer = DenseLayer(128, 64, false, "fp16_dense");
-  fp16_dense_layer->set_io_dtype(DType_t::FP16);
-  fp16_dense_layer->set_param_dtype(DType_t::FP16);
+  fp16_dense_layer.set_io_dtype(DType_t::FP16);
+  fp16_dense_layer.set_param_dtype(DType_t::FP16);
 
   Graph graph;
   Node input = graph.make_node("input");
@@ -33,42 +33,42 @@ TEST_F(FP16Test, Dense) {
   fp16_output->set_uid("fp16_output");
   graph.compile(allocator);
 
-  auto fp16_params = fp16_dense_layer->parameters();
-  auto fp32_params = fp32_dense_layer->parameters();
+  auto fp16_params = fp16_dense_layer.parameters();
+  auto fp32_params = fp32_dense_layer.parameters();
   for (size_t i = 0; i < fp16_params.size(); ++i) {
     Tensor cpu_fp16_param = fp16_params[i]->to_host();
     Tensor cpu_fp32_param = fp32_params[i]->to_host();
-    fp16 *fp16_data = cpu_fp16_param->data_as<fp16>();
-    float *fp32_data = cpu_fp32_param->data_as<float>();
-    for (size_t j = 0; j < cpu_fp16_param->size(); ++j) {
+    fp16 *fp16_data = cpu_fp16_param.data_as<fp16>();
+    float *fp32_data = cpu_fp32_param.data_as<float>();
+    for (size_t j = 0; j < cpu_fp16_param.size(); ++j) {
       fp32_data[j] = static_cast<float>(fp16_data[j]);
     }
-    cpu_fp32_param->copy_to(fp32_params[i]);
+    cpu_fp32_param.copy_to(*fp32_params[i]);
   }
 
-  Tensor fp16_input = make_tensor(DType_t::FP16, {32, 128}, getHost());
-  fp16_input->fill_random_uniform(0.0f, 1.0f);
-  Tensor fp32_input = make_tensor(DType_t::FP32, {32, 128}, getHost());
+  Tensor fp16_input = Tensor({32, 128}, DType_t::FP16, getHost());
+  fp16_input.fill_random_normal(0.0f, 1.0f);
+  Tensor fp32_input = Tensor({32, 128}, DType_t::FP32, getHost());
 
-  fp16 *input_data = fp16_input->data_as<fp16>();
-  float *input_data_fp32 = fp32_input->data_as<float>();
-  for (size_t i = 0; i < fp16_input->size(); ++i) {
+  fp16 *input_data = fp16_input.data_as<fp16>();
+  float *input_data_fp32 = fp32_input.data_as<float>();
+  for (size_t i = 0; i < fp16_input.size(); ++i) {
     input_data_fp32[i] = static_cast<float>(input_data[i]);
   }
 
-  Tensor input_fp32 = fp32_input->to_device(getGPU());
-  Tensor input_fp16 = fp16_input->to_device(getGPU());
+  Tensor input_fp32 = fp32_input.to_device(getGPU());
+  Tensor input_fp16 = fp16_input.to_device(getGPU());
 
-  Tensor output_fp32 = fp32_dense_layer->forward({input_fp32})[0];
-  Tensor output_fp16 = fp16_dense_layer->forward({input_fp16})[0];
+  Tensor output_fp32 = fp32_dense_layer.forward({input_fp32})[0];
+  Tensor output_fp16 = fp16_dense_layer.forward({input_fp16})[0];
 
-  Tensor cpu_output_fp32 = output_fp32->to_host();
-  Tensor cpu_output_fp16 = output_fp16->to_host();
+  Tensor cpu_output_fp32 = output_fp32.to_host();
+  Tensor cpu_output_fp16 = output_fp16.to_host();
 
-  float *output_data_fp32 = cpu_output_fp32->data_as<float>();
-  fp16 *output_data_fp16 = cpu_output_fp16->data_as<fp16>();
+  float *output_data_fp32 = cpu_output_fp32.data_as<float>();
+  fp16 *output_data_fp16 = cpu_output_fp16.data_as<fp16>();
   constexpr double tolerance = 1e-4;
-  for (size_t i = 0; i < cpu_output_fp32->size(); ++i) {
+  for (size_t i = 0; i < cpu_output_fp32.size(); ++i) {
     EXPECT_NEAR(static_cast<double>(output_data_fp32[i]), static_cast<double>(output_data_fp16[i]),
                 tolerance)
         << "At index " << i;

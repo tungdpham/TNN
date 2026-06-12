@@ -63,7 +63,7 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
         }
 
         T scale = 1.0f / std::sqrt(static_cast(D));
-        cpu::gemm(Q_block->data_as(), K_block->data_as(), S_ij->data_as(), br, bc, D, true, false,
+        cpu::gemm(Q_block.data_as(), K_block.data_as(), S_ij.data_as(), br, bc, D, true, false,
                   scale, 0.0f);
 
         if (is_causal) {
@@ -104,7 +104,7 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
           }
         }
 
-        cpu::gemm(V_block->data_as(), P_ij->data_as(), PV->data_as(), D, br, bc, false, true, 1.0f,
+        cpu::gemm(V_block.data_as(), P_ij.data_as(), PV.data_as(), D, br, bc, false, true, 1.0f,
                   0.0f);
 
         for (size_t r = 0; r < br; ++r) {

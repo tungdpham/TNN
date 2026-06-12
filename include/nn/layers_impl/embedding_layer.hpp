@@ -23,17 +23,30 @@ private:
   Tensor weight_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_forward_impl(const ConstTensor &input, const ConstTensor &weight,
-                                             const Tensor &output, size_t num_indices,
-                                             size_t vocab_size, size_t embed_dim,
-                                             size_t padding_idx, flowHandle_t handle) const;
+  std::unique_ptr<Task> compute_forward_impl(const Tensor &input, const Tensor &weight,
+                                             Tensor &output, size_t num_indices, size_t vocab_size,
+                                             size_t embed_dim, size_t padding_idx,
+                                             flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_backward_impl(const ConstTensor &input,
-                                              const ConstTensor &grad_output,
-                                              const Tensor &grad_weight, size_t num_indices,
+  std::unique_ptr<Task> compute_backward_impl(const Tensor &input, const Tensor &grad_output,
+                                              Tensor &grad_weight, size_t num_indices,
                                               size_t vocab_size, size_t embed_dim,
                                               size_t padding_idx, flowHandle_t handle) const;
+
+  void init_impl() override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+
+public:
+  EmbeddingLayerImpl(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",
+                     size_t padding_idx = static_cast<size_t>(-1));
+
+  static constexpr const char *TYPE_NAME = "embedding";
+
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
+  std::string type() const override { return TYPE_NAME; }
+  LayerConfig get_config() const override;
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
@@ -46,20 +59,6 @@ private:
     descriptors.push_back(weight_desc);
     return descriptors;
   }
-
-  void init_impl() override;
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
-
-public:
-  EmbeddingLayerImpl(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",
-                     size_t padding_idx = static_cast<size_t>(-1));
-
-  static constexpr const char *TYPE_NAME = "embedding";
-
-  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-  std::string type() const override { return TYPE_NAME; }
-  LayerConfig get_config() const override;
 
   static std::shared_ptr<EmbeddingLayerImpl> create_from_config(const LayerConfig &config);
 };

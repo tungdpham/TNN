@@ -48,8 +48,8 @@ private:
 
 #ifdef USE_DNNL
   void build_dnnl_handle(const Vec<size_t> &input_shape) const;
-  Tensor dnnl_forward(const ConstTensor &input, size_t mb_id);
-  Tensor dnnl_backward(const ConstTensor &grad_output, size_t mb_id);
+  Tensor dnnl_forward(const Tensor &input, size_t mb_id);
+  Tensor dnnl_backward(const Tensor &grad_output, size_t mb_id);
 
   mutable std::unordered_map<size_t, cpu::dnnl_batchnorm::dnnlBNHandle_t *> dnnl_handle_cache;
   mutable std::unordered_map<size_t, BatchNormStats> dnnl_stats_cache;
@@ -62,35 +62,51 @@ private:
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> forward_training_task(
-      cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const ConstTensor &input,
-      const Tensor &output, const ConstTensor &gamma, const ConstTensor &beta,
-      const Tensor &prev_running_mean, const Tensor &prev_running_var,
-      const Tensor &next_running_mean, const Tensor &next_running_var, const Tensor &batch_mean,
-      const Tensor &batch_invar, const Tensor &relu_mask, const Tensor &workspace,
+      cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const Tensor &input,
+      Tensor &output, const Tensor &gamma, const Tensor &beta, const Tensor &prev_running_mean,
+      const Tensor &prev_running_var, Tensor &next_running_mean, Tensor &next_running_var,
+      Tensor &batch_mean, Tensor &batch_invar, Tensor &relu_mask, Tensor &workspace,
       flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> forward_inference_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
-                                               BatchNormStats &stats, const ConstTensor &input,
-                                               const Tensor &output, const ConstTensor &gamma,
-                                               const ConstTensor &beta,
-                                               const ConstTensor &saved_mean,
-                                               const ConstTensor &saved_var,
-                                               const Tensor &workspace, flowHandle_t handle);
+                                               BatchNormStats &stats, const Tensor &input,
+                                               Tensor &output, const Tensor &gamma,
+                                               const Tensor &beta, const Tensor &saved_mean,
+                                               const Tensor &saved_var, Tensor &workspace,
+                                               flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
-                                      BatchNormStats &stats, const ConstTensor &grad_output,
-                                      const ConstTensor &relu_mask, const ConstTensor &input,
-                                      const Tensor &grad_input, const ConstTensor &gamma,
-                                      const Tensor &gamma_gradients, const Tensor &beta_gradients,
-                                      const ConstTensor &batch_mean, const ConstTensor &batch_var,
-                                      const Tensor &workspace, flowHandle_t handle);
+                                      BatchNormStats &stats, const Tensor &grad_output,
+                                      const Tensor &relu_mask, const Tensor &input,
+                                      Tensor &grad_input, const Tensor &gamma,
+                                      Tensor &gamma_gradients, Tensor &beta_gradients,
+                                      const Tensor &batch_mean, const Tensor &batch_invar,
+                                      Tensor &workspace, flowHandle_t handle);
 
-  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
-  Tensor cudnn_backward(const ConstTensor &grad_output, size_t mb_id);
+  Tensor cudnn_forward(const Tensor &input, size_t mb_id);
+  Tensor cudnn_backward(const Tensor &grad_output, size_t mb_id);
 #endif
 
+  Tensor def_forward(const Tensor &input, size_t mb_id);
+  Tensor def_backward(const Tensor &grad_output, size_t mb_id);
+
+  void init_impl() override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+
+public:
+  explicit BatchNormLayerImpl(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
+                              bool affine = true, bool use_relu = false,
+                              const std::string &name = "batchnorm");
+  ~BatchNormLayerImpl() override;
+
+  static constexpr const char *TYPE_NAME = "batchnorm";
+
+  std::string type() const override { return TYPE_NAME; }
+  LayerConfig get_config() const override;
+  static std::shared_ptr<BatchNormLayerImpl> create_from_config(const LayerConfig &config);
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
     auto gamma_desc = ParamDescriptor{
@@ -123,26 +139,6 @@ private:
     descriptors.push_back(running_var_desc);
     return descriptors;
   }
-
-  Tensor def_forward(const ConstTensor &input, size_t mb_id);
-  Tensor def_backward(const ConstTensor &grad_output, size_t mb_id);
-
-  void init_impl() override;
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
-
-public:
-  explicit BatchNormLayerImpl(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
-                              bool affine = true, bool use_relu = false,
-                              const std::string &name = "batchnorm");
-  ~BatchNormLayerImpl() override;
-
-  static constexpr const char *TYPE_NAME = "batchnorm";
-
-  std::string type() const override { return TYPE_NAME; }
-  LayerConfig get_config() const override;
-  static std::shared_ptr<BatchNormLayerImpl> create_from_config(const LayerConfig &config);
-
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 };
 

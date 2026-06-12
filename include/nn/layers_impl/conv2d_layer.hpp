@@ -45,29 +45,28 @@ private:
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> conv2d_forward_task(cuda::cudnn_conv2d::feHandle_t *fe_handle,
-                                            ConvolutionStats &stats, const ConstTensor &input,
-                                            const Tensor &output, const ConstTensor &weights,
-                                            const ConstTensor &bias, const Tensor &workspace,
+                                            ConvolutionStats &stats, const Tensor &input,
+                                            Tensor &output, const Tensor &weights,
+                                            const Tensor &bias, Tensor &workspace,
                                             size_t batch_size, size_t input_h, size_t input_w,
                                             size_t output_h, size_t output_w,
                                             flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> conv2d_backward_weights_and_bias_task(
-      cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const ConstTensor &input,
-      const ConstTensor &grad_output, const Tensor &weight_gradients, const Tensor &bias_gradients,
-      const Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
+      cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const Tensor &input,
+      const Tensor &grad_output, Tensor &weight_gradients, Tensor &bias_gradients,
+      Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
       size_t output_w, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> conv2d_backward_data_task(
-      cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats,
-      const ConstTensor &grad_output, const ConstTensor &weights, const Tensor &grad_input,
-      const Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
-      size_t output_w, flowHandle_t handle) const;
+      cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const Tensor &grad_output,
+      const Tensor &weights, Tensor &grad_input, Tensor &workspace, size_t batch_size,
+      size_t input_h, size_t input_w, size_t output_h, size_t output_w, flowHandle_t handle) const;
 
-  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
-  Tensor cudnn_backward(const ConstTensor &current_gradient, size_t mb_id);
+  Tensor cudnn_forward(const Tensor &input, size_t mb_id);
+  Tensor cudnn_backward(const Tensor &current_gradient, size_t mb_id);
 
   mutable std::unordered_map<size_t, cuda::cudnn_conv2d::feHandle_t *> fe_handle_cache;
   mutable std::unordered_map<size_t, ConvolutionStats> stats_cache;
@@ -75,16 +74,32 @@ private:
 
 #ifdef USE_DNNL
   void build_dnnl_handle(const Vec<size_t> &input_shape) const;
-  Tensor dnnl_forward(const ConstTensor &input, size_t mb_id);
-  Tensor dnnl_backward(const ConstTensor &grad_output, size_t mb_id);
+  Tensor dnnl_forward(const Tensor &input, size_t mb_id);
+  Tensor dnnl_backward(const Tensor &grad_output, size_t mb_id);
 
   mutable std::unordered_map<size_t, cpu::dnnl_conv2d::dnnlHandle_t *> dnnl_handle_cache;
   mutable std::unordered_map<size_t, ConvolutionStats> dnnl_stats_cache;
 #endif
 
-  Tensor def_forward(const ConstTensor &input, size_t mb_id);
-  Tensor def_backward(const ConstTensor &grad_output, size_t mb_id);
+  Tensor def_forward(const Tensor &input, size_t mb_id);
+  Tensor def_backward(const Tensor &grad_output, size_t mb_id);
 
+  void init_impl() override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+
+public:
+  static constexpr const char *TYPE_NAME = "conv2d";
+
+  Conv2DLayerImpl(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
+                  size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
+                  bool use_bias = true, const std::string &name = "conv2d");
+
+  ~Conv2DLayerImpl();
+
+  std::string type() const override { return TYPE_NAME; }
+  LayerConfig get_config() const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
     auto weight_desc = ParamDescriptor{
@@ -105,24 +120,6 @@ private:
     }
     return descriptors;
   }
-
-  void init_impl() override;
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
-
-public:
-  static constexpr const char *TYPE_NAME = "conv2d";
-
-  Conv2DLayerImpl(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
-                  size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
-                  bool use_bias = true, const std::string &name = "conv2d");
-
-  ~Conv2DLayerImpl();
-
-  std::string type() const override { return TYPE_NAME; }
-  LayerConfig get_config() const override;
-  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
-
   static std::shared_ptr<Conv2DLayerImpl> create_from_config(const LayerConfig &config);
 };
 

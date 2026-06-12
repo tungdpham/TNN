@@ -18,15 +18,15 @@ namespace detail {
 
 // Precision implementation
 template <typename T>
-inline float compute_precision_impl(const ConstTensor &predictions, const ConstTensor &targets,
+inline float compute_precision_impl(const Tensor &predictions, const Tensor &targets,
                                     size_t batch_size, size_t num_classes, int class_id) {
-  if (predictions->device_type() == DeviceType::CPU) {
-    return cpu::metrics::compute_precision(predictions->data_as<T>(), targets->data_as<int>(),
+  if (predictions.device_type() == DeviceType::CPU) {
+    return cpu::metrics::compute_precision(predictions.data_as<T>(), targets.data_as<int>(),
                                            batch_size, num_classes, class_id);
   }
 #ifdef USE_CUDA
   else {
-    return cuda::metrics::compute_precision(predictions->data_as<T>(), targets->data_as<int>(),
+    return cuda::metrics::compute_precision(predictions.data_as<T>(), targets.data_as<int>(),
                                             batch_size, num_classes, class_id);
   }
 #endif
@@ -35,15 +35,15 @@ inline float compute_precision_impl(const ConstTensor &predictions, const ConstT
 
 // Recall implementation
 template <typename T>
-inline float compute_recall_impl(const ConstTensor &predictions, const ConstTensor &targets,
+inline float compute_recall_impl(const Tensor &predictions, const Tensor &targets,
                                  size_t batch_size, size_t num_classes, int class_id) {
-  if (predictions->device_type() == DeviceType::CPU) {
-    return cpu::metrics::compute_recall(predictions->data_as<T>(), targets->data_as<int>(),
+  if (predictions.device_type() == DeviceType::CPU) {
+    return cpu::metrics::compute_recall(predictions.data_as<T>(), targets.data_as<int>(),
                                         batch_size, num_classes, class_id);
   }
 #ifdef USE_CUDA
   else {
-    return cuda::metrics::compute_recall(predictions->data_as<T>(), targets->data_as<int>(),
+    return cuda::metrics::compute_recall(predictions.data_as<T>(), targets.data_as<int>(),
                                          batch_size, num_classes, class_id);
   }
 #endif
@@ -52,15 +52,15 @@ inline float compute_recall_impl(const ConstTensor &predictions, const ConstTens
 
 // F1 Score implementation
 template <typename T>
-inline float compute_f1_score_impl(const ConstTensor &predictions, const ConstTensor &targets,
+inline float compute_f1_score_impl(const Tensor &predictions, const Tensor &targets,
                                    size_t batch_size, size_t num_classes, int class_id) {
-  if (predictions->device_type() == DeviceType::CPU) {
-    return cpu::metrics::compute_f1_score(predictions->data_as<T>(), targets->data_as<int>(),
+  if (predictions.device_type() == DeviceType::CPU) {
+    return cpu::metrics::compute_f1_score(predictions.data_as<T>(), targets.data_as<int>(),
                                           batch_size, num_classes, class_id);
   }
 #ifdef USE_CUDA
   else {
-    return cuda::metrics::compute_f1_score(predictions->data_as<T>(), targets->data_as<int>(),
+    return cuda::metrics::compute_f1_score(predictions.data_as<T>(), targets.data_as<int>(),
                                            batch_size, num_classes, class_id);
   }
 #endif
@@ -69,15 +69,15 @@ inline float compute_f1_score_impl(const ConstTensor &predictions, const ConstTe
 
 // Perplexity implementation
 template <typename T>
-inline float compute_perplexity_impl(const ConstTensor &predictions, const ConstTensor &targets,
+inline float compute_perplexity_impl(const Tensor &predictions, const Tensor &targets,
                                      size_t batch_size, size_t num_classes) {
-  if (predictions->device_type() == DeviceType::CPU) {
-    return cpu::metrics::compute_perplexity(predictions->data_as<T>(), targets->data_as<int>(),
+  if (predictions.device_type() == DeviceType::CPU) {
+    return cpu::metrics::compute_perplexity(predictions.data_as<T>(), targets.data_as<int>(),
                                             batch_size, num_classes);
   }
 #ifdef USE_CUDA
   else {
-    return cuda::metrics::compute_perplexity(predictions->data_as<T>(), targets->data_as<int>(),
+    return cuda::metrics::compute_perplexity(predictions.data_as<T>(), targets.data_as<int>(),
                                              batch_size, num_classes);
   }
 #endif
@@ -86,15 +86,15 @@ inline float compute_perplexity_impl(const ConstTensor &predictions, const Const
 
 // Top-K Accuracy implementation
 template <typename T>
-inline float compute_top_k_accuracy_impl(const ConstTensor &predictions, const ConstTensor &targets,
+inline float compute_top_k_accuracy_impl(const Tensor &predictions, const Tensor &targets,
                                          size_t batch_size, size_t num_classes, int k) {
-  if (predictions->device_type() == DeviceType::CPU) {
-    return cpu::metrics::compute_top_k_accuracy(predictions->data_as<T>(), targets->data_as<int>(),
+  if (predictions.device_type() == DeviceType::CPU) {
+    return cpu::metrics::compute_top_k_accuracy(predictions.data_as<T>(), targets.data_as<int>(),
                                                 batch_size, num_classes, k);
   }
 #ifdef USE_CUDA
   else {
-    return cuda::metrics::compute_top_k_accuracy(predictions->data_as<T>(), targets->data_as<int>(),
+    return cuda::metrics::compute_top_k_accuracy(predictions.data_as<T>(), targets.data_as<int>(),
                                                  batch_size, num_classes, k);
   }
 #endif
@@ -103,15 +103,15 @@ inline float compute_top_k_accuracy_impl(const ConstTensor &predictions, const C
 
 // Mean Absolute Error implementation
 template <typename T>
-inline float compute_mae_impl(const ConstTensor &predictions, const ConstTensor &targets,
+inline float compute_mae_impl(const Tensor &predictions, const Tensor &targets,
                               size_t total_elements) {
-  if (predictions->device_type() == DeviceType::CPU) {
-    return cpu::metrics::compute_mae(predictions->data_as<T>(), targets->data_as<T>(),
+  if (predictions.device_type() == DeviceType::CPU) {
+    return cpu::metrics::compute_mae(predictions.data_as<T>(), targets.data_as<T>(),
                                      total_elements);
   }
 #ifdef USE_CUDA
   else {
-    return cuda::metrics::compute_mae(predictions->data_as<T>(), targets->data_as<T>(),
+    return cuda::metrics::compute_mae(predictions.data_as<T>(), targets.data_as<T>(),
                                       total_elements);
   }
 #endif
@@ -120,15 +120,15 @@ inline float compute_mae_impl(const ConstTensor &predictions, const ConstTensor 
 
 // Mean Squared Error implementation
 template <typename T>
-inline float compute_mse_impl(const ConstTensor &predictions, const ConstTensor &targets,
+inline float compute_mse_impl(const Tensor &predictions, const Tensor &targets,
                               size_t total_elements) {
-  if (predictions->device_type() == DeviceType::CPU) {
-    return cpu::metrics::compute_mse(predictions->data_as<T>(), targets->data_as<T>(),
+  if (predictions.device_type() == DeviceType::CPU) {
+    return cpu::metrics::compute_mse(predictions.data_as<T>(), targets.data_as<T>(),
                                      total_elements);
   }
 #ifdef USE_CUDA
   else {
-    return cuda::metrics::compute_mse(predictions->data_as<T>(), targets->data_as<T>(),
+    return cuda::metrics::compute_mse(predictions.data_as<T>(), targets.data_as<T>(),
                                       total_elements);
   }
 #endif
@@ -137,15 +137,15 @@ inline float compute_mse_impl(const ConstTensor &predictions, const ConstTensor 
 
 // Class corrects implementation
 template <typename T>
-inline int compute_class_corrects_impl(const ConstTensor &predictions, const ConstTensor &targets,
+inline int compute_class_corrects_impl(const Tensor &predictions, const Tensor &targets,
                                        size_t batch_size, size_t num_classes, float threshold) {
-  if (predictions->device_type() == DeviceType::CPU) {
-    return cpu::metrics::compute_class_corrects(predictions->data_as<T>(), targets->data_as<int>(),
+  if (predictions.device_type() == DeviceType::CPU) {
+    return cpu::metrics::compute_class_corrects(predictions.data_as<T>(), targets.data_as<int>(),
                                                 batch_size, num_classes, threshold);
   }
 #ifdef USE_CUDA
   else {
-    return cuda::metrics::compute_class_corrects(predictions->data_as<T>(), targets->data_as<int>(),
+    return cuda::metrics::compute_class_corrects(predictions.data_as<T>(), targets.data_as<int>(),
                                                  batch_size, num_classes, threshold);
   }
 #endif
@@ -161,15 +161,15 @@ inline int compute_class_corrects_impl(const ConstTensor &predictions, const Con
  * @param class_id The class ID to compute precision for (-1 for macro-average across all classes)
  * @return Precision score
  */
-inline float compute_precision(const ConstTensor &predictions, const ConstTensor &targets,
+inline float compute_precision(const Tensor &predictions, const Tensor &targets,
                                int class_id = -1) {
   size_t batch_size = 1;
-  for (size_t i = 0; i < predictions->dims() - 1; ++i) {
-    batch_size *= predictions->shape()[i];
+  for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+    batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions->shape().back();
+  const size_t num_classes = predictions.shape().back();
 
-  DISPATCH_DTYPE(predictions->data_type(), T,
+  DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_precision_impl<T>(predictions, targets, batch_size,
                                                           num_classes, class_id));
 }
@@ -181,15 +181,14 @@ inline float compute_precision(const ConstTensor &predictions, const ConstTensor
  * @param class_id The class ID to compute recall for (-1 for macro-average across all classes)
  * @return Recall score
  */
-inline float compute_recall(const ConstTensor &predictions, const ConstTensor &targets,
-                            int class_id = -1) {
+inline float compute_recall(const Tensor &predictions, const Tensor &targets, int class_id = -1) {
   size_t batch_size = 1;
-  for (size_t i = 0; i < predictions->dims() - 1; ++i) {
-    batch_size *= predictions->shape()[i];
+  for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+    batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions->shape().back();
+  const size_t num_classes = predictions.shape().back();
 
-  DISPATCH_DTYPE(predictions->data_type(), T,
+  DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_recall_impl<T>(predictions, targets, batch_size,
                                                        num_classes, class_id));
 }
@@ -201,15 +200,14 @@ inline float compute_recall(const ConstTensor &predictions, const ConstTensor &t
  * @param class_id The class ID to compute F1 score for (-1 for macro-average across all classes)
  * @return F1 score
  */
-inline float compute_f1_score(const ConstTensor &predictions, const ConstTensor &targets,
-                              int class_id = -1) {
+inline float compute_f1_score(const Tensor &predictions, const Tensor &targets, int class_id = -1) {
   size_t batch_size = 1;
-  for (size_t i = 0; i < predictions->dims() - 1; ++i) {
-    batch_size *= predictions->shape()[i];
+  for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+    batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions->shape().back();
+  const size_t num_classes = predictions.shape().back();
 
-  DISPATCH_DTYPE(predictions->data_type(), T,
+  DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_f1_score_impl<T>(predictions, targets, batch_size,
                                                          num_classes, class_id));
 }
@@ -220,15 +218,15 @@ inline float compute_f1_score(const ConstTensor &predictions, const ConstTensor 
  * @param targets Tensor of shape [batch_size] containing ground truth class indices
  * @return Perplexity score
  */
-inline float compute_perplexity(const ConstTensor &predictions, const ConstTensor &targets) {
+inline float compute_perplexity(const Tensor &predictions, const Tensor &targets) {
   size_t batch_size = 1;
-  for (size_t i = 0; i < predictions->dims() - 1; ++i) {
-    batch_size *= predictions->shape()[i];
+  for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+    batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions->shape().back();
+  const size_t num_classes = predictions.shape().back();
 
   DISPATCH_DTYPE(
-      predictions->data_type(), T,
+      predictions.data_type(), T,
       return detail::compute_perplexity_impl<T>(predictions, targets, batch_size, num_classes));
 }
 
@@ -239,15 +237,14 @@ inline float compute_perplexity(const ConstTensor &predictions, const ConstTenso
  * @param k Number of top predictions to consider
  * @return Top-K accuracy
  */
-inline float compute_top_k_accuracy(const ConstTensor &predictions, const ConstTensor &targets,
-                                    int k = 5) {
+inline float compute_top_k_accuracy(const Tensor &predictions, const Tensor &targets, int k = 5) {
   size_t batch_size = 1;
-  for (size_t i = 0; i < predictions->dims() - 1; ++i) {
-    batch_size *= predictions->shape()[i];
+  for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+    batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions->shape().back();
+  const size_t num_classes = predictions.shape().back();
 
-  DISPATCH_DTYPE(predictions->data_type(), T,
+  DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_top_k_accuracy_impl<T>(predictions, targets, batch_size,
                                                                num_classes, k));
 }
@@ -258,13 +255,13 @@ inline float compute_top_k_accuracy(const ConstTensor &predictions, const ConstT
  * @param targets Tensor containing ground truth values
  * @return MAE score
  */
-inline float compute_mae(const ConstTensor &predictions, const ConstTensor &targets) {
+inline float compute_mae(const Tensor &predictions, const Tensor &targets) {
   size_t total_elements = 1;
-  for (size_t i = 0; i < predictions->dims(); ++i) {
-    total_elements *= predictions->shape()[i];
+  for (size_t i = 0; i < predictions.dims(); ++i) {
+    total_elements *= predictions.shape()[i];
   }
 
-  DISPATCH_DTYPE(predictions->data_type(), T,
+  DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_mae_impl<T>(predictions, targets, total_elements));
 }
 
@@ -274,13 +271,13 @@ inline float compute_mae(const ConstTensor &predictions, const ConstTensor &targ
  * @param targets Tensor containing ground truth values
  * @return MSE score
  */
-inline float compute_mse(const ConstTensor &predictions, const ConstTensor &targets) {
+inline float compute_mse(const Tensor &predictions, const Tensor &targets) {
   size_t total_elements = 1;
-  for (size_t i = 0; i < predictions->dims(); ++i) {
-    total_elements *= predictions->shape()[i];
+  for (size_t i = 0; i < predictions.dims(); ++i) {
+    total_elements *= predictions.shape()[i];
   }
 
-  DISPATCH_DTYPE(predictions->data_type(), T,
+  DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_mse_impl<T>(predictions, targets, total_elements));
 }
 
@@ -290,7 +287,7 @@ inline float compute_mse(const ConstTensor &predictions, const ConstTensor &targ
  * @param targets Tensor containing ground truth values
  * @return RMSE score
  */
-inline float compute_rmse(const ConstTensor &predictions, const ConstTensor &targets) {
+inline float compute_rmse(const Tensor &predictions, const Tensor &targets) {
   return std::sqrt(compute_mse(predictions, targets));
 }
 
@@ -301,15 +298,15 @@ inline float compute_rmse(const ConstTensor &predictions, const ConstTensor &tar
  * @param threshold Threshold for classification (default: 0.0, not used for argmax)
  * @return Number of correct predictions
  */
-inline int compute_class_corrects(const ConstTensor &predictions, const ConstTensor &targets,
+inline int compute_class_corrects(const Tensor &predictions, const Tensor &targets,
                                   float threshold = 0.0f) {
   size_t batch_size = 1;
-  for (size_t i = 0; i < predictions->dims() - 1; ++i) {
-    batch_size *= predictions->shape()[i];
+  for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+    batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions->shape().back();
+  const size_t num_classes = predictions.shape().back();
 
-  DISPATCH_DTYPE(predictions->data_type(), T,
+  DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_class_corrects_impl<T>(predictions, targets, batch_size,
                                                                num_classes, threshold));
 }

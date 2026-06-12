@@ -122,11 +122,6 @@ class DivLayerImpl;
 #include "layers_impl/groupnorm_layer.hpp"
 #include "layers_impl/layer_norm_layer.hpp"
 #include "layers_impl/leaky_relu_layer.hpp"
-#include "layers_impl/legacy_avgpool2d_layer.hpp"
-#include "layers_impl/legacy_batchnorm_layer.hpp"
-#include "layers_impl/legacy_conv2d_layer.hpp"
-#include "layers_impl/legacy_dense_layer.hpp"
-#include "layers_impl/legacy_maxpool2d_layer.hpp"
 #include "layers_impl/linear_layer.hpp"
 #include "layers_impl/maxpool2d_layer.hpp"
 #include "layers_impl/positional_embedding_layer.hpp"
@@ -142,8 +137,6 @@ class DivLayerImpl;
 #include "nn/layers_impl/add_layer.hpp"
 #include "nn/layers_impl/div_layer.hpp"
 #include "nn/layers_impl/identity_layer.hpp"
-#include "nn/layers_impl/legacy_conv2d_layer.hpp"
-#include "nn/layers_impl/legacy_dense_layer.hpp"
 #include "nn/layers_impl/mul_layer.hpp"
 #include "nn/layers_impl/sub_layer.hpp"
 
@@ -198,14 +191,9 @@ public:
     register_layer_type<MaxPool2DLayerImpl>();
     register_layer_type<AvgPool2DLayerImpl>();
     register_layer_type<BatchNormLayerImpl>();
-    register_layer_type<LegacyConv2DLayerImpl>();
-    register_layer_type<LegacyMaxPool2DLayerImpl>();
-    register_layer_type<LegacyAvgPool2DLayerImpl>();
-    register_layer_type<LegacyBatchNormLayerImpl>();
     register_layer_type<DropoutLayerImpl>();
     register_layer_type<GroupNormLayerImpl>();
     register_layer_type<LayerNormLayerImpl>();
-    register_layer_type<LegacyDenseLayerImpl>();
     register_layer_type<FlattenLayerImpl>();
     register_layer_type<ClassTokenLayerImpl>();
     register_layer_type<PositionalEmbeddingLayerImpl>();
@@ -252,9 +240,9 @@ std::unique_ptr<LayerType> load_config(std::istream &file) {
 }
 
 inline void load_params(std::istream &file, LayerImpl &layer) {
-  Vec<Tensor> params = layer.parameters();
+  Vec<ParamDescriptor> params = layer.param_descriptors();
   for (auto &param : params) {
-    load_into(file, param);
+    load_into(file, *param.data_ptr);
   }
 }
 
@@ -262,5 +250,3 @@ inline std::unordered_map<std::string, std::function<Layer(const LayerConfig &)>
     LayerFactory::creators_;
 
 }  // namespace synet
-
-#include "nn/layer_builder.hpp"  // IWYU pragma: export

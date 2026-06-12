@@ -142,11 +142,11 @@ private:
     const size_t actual_batch_size =
         std::min(batch_size, access_order_.size() - this->current_index_);
 
-    batch_data =
-        make_tensor<T>({actual_batch_size, cifar100_constants::IMAGE_HEIGHT,
-                        cifar100_constants::IMAGE_WIDTH, cifar100_constants::NUM_CHANNELS});
+    batch_data = Tensor({actual_batch_size, cifar100_constants::IMAGE_HEIGHT,
+                         cifar100_constants::IMAGE_WIDTH, cifar100_constants::NUM_CHANNELS},
+                        dtype_of<T>());
 
-    batch_labels = make_tensor<int>({actual_batch_size});
+    batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
@@ -164,13 +164,13 @@ private:
             const size_t src_idx =
                 c * cifar100_constants::IMAGE_HEIGHT * cifar100_constants::IMAGE_WIDTH +
                 h * cifar100_constants::IMAGE_WIDTH + w;
-            batch_data->at<T>({i, h, w, c}) =
+            batch_data.at<T>({i, h, w, c}) =
                 static_cast<T>(pixels[src_idx] / cifar100_constants::NORMALIZATION_FACTOR);
           }
         }
       }
 
-      batch_labels->at<int>({i}) = static_cast<int>(label);
+      batch_labels.at<int>({i}) = static_cast<int>(label);
     }
 
     this->apply_augmentation(batch_data, batch_labels);

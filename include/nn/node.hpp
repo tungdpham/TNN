@@ -24,11 +24,12 @@ public:
   void set_data(size_t mb_id, const Tensor &data, int ref_count) {
     data_[mb_id] = {data, ref_count};
   }
+  void clear_data(size_t mb_id) { data_.erase(mb_id); }
   bool decrement_data_ref_count(size_t mb_id) {
     if (data_.at(mb_id).ref_count > 0) {
       --data_[mb_id].ref_count;
       if (data_[mb_id].ref_count == 0) {
-        data_[mb_id].tensor = nullptr;  // Release the tensor when ref count reaches zero
+        data_[mb_id].tensor = Tensor();  // Release the tensor when ref count reaches zero
         return true;
       }
     }
@@ -40,8 +41,9 @@ public:
   void set_grad(size_t mb_id, const Tensor &grad, int ref_count) {
     grad_[mb_id] = {grad, ref_count};
   }
+  void clear_grad(size_t mb_id) { grad_.erase(mb_id); }
   void accumulate_grad(size_t mb_id, const Tensor &grad, int ref_count) {
-    if (grad_.count(mb_id) == 0 || grad_[mb_id].tensor == nullptr) {
+    if (grad_.count(mb_id) == 0) {
       grad_[mb_id] = {grad, ref_count};
     } else {
       grad_[mb_id].tensor += grad;  // Accumulate the new gradient
@@ -51,7 +53,7 @@ public:
     if (grad_.at(mb_id).ref_count > 0) {
       --grad_[mb_id].ref_count;
       if (grad_[mb_id].ref_count == 0) {
-        grad_[mb_id].tensor = nullptr;
+        grad_[mb_id].tensor = Tensor();
         return true;
       }
     }

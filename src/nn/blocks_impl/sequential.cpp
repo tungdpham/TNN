@@ -23,11 +23,11 @@
 #include "type/type.hpp"
 
 namespace synet {
-Vec<Tensor> SequentialImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> SequentialImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot forward through empty sequential model");
   }
-  Vec<ConstTensor> current_inputs = inputs;
+  Vec<Tensor> current_inputs = inputs;
   Vec<Tensor> current_outputs;
   if (layers_.size() % 2 == 0) {
     // assuming we are on the reverse side of input, flip so output of last layer is always opposite
@@ -35,8 +35,8 @@ Vec<Tensor> SequentialImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t 
     allocator_->flip();
   }
   for (size_t i = 0; i < layers_.size(); ++i) {
-    current_outputs = layers_[i]->forward(current_inputs, mb_id);
-    current_inputs = Vec<ConstTensor>(current_outputs.begin(), current_outputs.end());
+    current_outputs = layers_[i].forward(current_inputs, mb_id);
+    current_inputs = Vec<Tensor>(current_outputs.begin(), current_outputs.end());
     if (i != layers_.size() - 1) {
       allocator_->flip();
     }
@@ -44,19 +44,19 @@ Vec<Tensor> SequentialImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t 
   return current_outputs;
 }
 
-Vec<Tensor> SequentialImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> SequentialImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot backward through empty sequential model");
   }
-  Vec<ConstTensor> current_gradients = grad_outputs;
+  Vec<Tensor> current_gradients = grad_outputs;
   Vec<Tensor> grad_inputs;
   if (layers_.size() % 2 == 0) {
     // flip so grad output of last layer is always opposite side of input.
     allocator_->flip();
   }
   for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
-    grad_inputs = layers_[i]->backward(current_gradients, mb_id);
-    current_gradients = Vec<ConstTensor>(grad_inputs.begin(), grad_inputs.end());
+    grad_inputs = layers_[i].backward(current_gradients, mb_id);
+    current_gradients = Vec<Tensor>(grad_inputs.begin(), grad_inputs.end());
     if (i != 0) {
       allocator_->flip();  // algorithm 1 definitely applies
     }
@@ -75,7 +75,7 @@ Vec<Vec<size_t>> SequentialImpl::output_shapes(const Vec<Vec<size_t>> &input_sha
 
   Vec<Vec<size_t>> current_shapes = input_shapes;
   for (const auto &layer : layers_) {
-    current_shapes = layer->output_shapes(current_shapes);
+    current_shapes = layer.output_shapes(current_shapes);
   }
 
   return current_shapes;
@@ -107,18 +107,16 @@ void SequentialImpl::print_summary(const Vec<size_t> &input_shape) const {
   for (size_t i = 0; i < layers_.size(); ++i) {
     const auto &layer = layers_[i];
     std::cout << std::left << std::setw(20)
-              << (layer->get_config().name.empty() ? layer->type() : layer->get_config().name);
+              << (layer.get_config().name.empty() ? layer.type() : layer.get_config().name);
 
     std::cout << std::setw(20) << format_shape(current_shape);
 
-    auto output_shape = layer->output_shapes({current_shape})[0];
+    auto output_shape = layer.output_shapes({current_shape})[0];
     std::cout << std::setw(20) << format_shape(output_shape) << "\n";
-    current_shape = layer->output_shapes({current_shape})[0];
+    current_shape = layer.output_shapes({current_shape})[0];
   }
   std::cout << std::string(100, '-') << "\n";
 }
-
-Vec<LayerImpl *> SequentialImpl::get_layers() { return this->layers(); }
 
 LayerConfig SequentialImpl::get_config() const {
   LayerConfig config;
@@ -126,7 +124,7 @@ LayerConfig SequentialImpl::get_config() const {
   config.type = TYPE_NAME;
   nlohmann::json layers_config = nlohmann::json::array();
   for (const auto &layer : layers_) {
-    auto layer_config = layer->get_config();
+    auto layer_config = layer.get_config();
     layers_config.push_back(layer_config.to_json());
   }
   config.set("layers", layers_config);

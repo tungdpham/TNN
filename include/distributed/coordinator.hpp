@@ -38,27 +38,30 @@ namespace synet {
 enum class ParallelMode_t { DATA, PIPELINE };
 
 struct CoordinatorConfig {
-  ParallelMode_t parallel_mode = ParallelMode_t::DATA;
   Graph model;
   std::unique_ptr<Optimizer> optimizer;
   std::unique_ptr<Scheduler> scheduler;
   std::unique_ptr<GraphPartitioner> partitioner;
-  std::unique_ptr<Worker> local_worker = nullptr;
   Endpoint coordinator_endpoint;
+  std::unique_ptr<Worker> local_worker = nullptr;
   Vec<Endpoint> worker_endpoints;
+  ParallelMode_t parallel_mode = ParallelMode_t::PIPELINE;
 };
 
 class Coordinator {
 public:
-  Coordinator(CoordinatorConfig config)
-      : parallel_mode_(config.parallel_mode),
-        model_(std::move(config.model)),
-        optimizer_(std::move(config.optimizer)),
-        scheduler_(std::move(config.scheduler)),
-        partitioner_(std::move(config.partitioner)),
-        local_worker_(std::move(config.local_worker)),
-        coordinator_endpoint_(config.coordinator_endpoint),
-        worker_endpoints_(config.worker_endpoints) {
+  Coordinator(Graph model, std::unique_ptr<Optimizer> optimizer,
+              std::unique_ptr<Scheduler> scheduler, std::unique_ptr<GraphPartitioner> partitioner,
+              std::unique_ptr<Worker> local_worker, Endpoint coordinator_endpoint,
+              Vec<Endpoint> worker_endpoints, ParallelMode_t parallel_mode)
+      : parallel_mode_(parallel_mode),
+        model_(std::move(model)),
+        optimizer_(std::move(optimizer)),
+        scheduler_(std::move(scheduler)),
+        partitioner_(std::move(partitioner)),
+        local_worker_(std::move(local_worker)),
+        coordinator_endpoint_(std::move(coordinator_endpoint)),
+        worker_endpoints_(std::move(worker_endpoints)) {
     if (local_worker_) {
       std::thread worker_thread([this]() { local_worker_->start(); });
       worker_thread.detach();
@@ -209,7 +212,7 @@ public:
           Job &job = forward_msg.get<Job>();
           Tensor predictions = job.data.get("output");
           Tensor targets = microbatch_labels[job.mb_id];
-          Tensor device_targets = targets->to_device(predictions->device());
+          Tensor device_targets = targets.to_device(predictions.device());
           float loss = 0.0f;
           criterion->compute_loss(predictions, device_targets, loss);
           loss *= (1.0f / num_microbatches);  // Average loss across microbatches
@@ -217,11 +220,10 @@ public:
 
           total_loss += loss;
           PoolAllocator &allocator =
-              PoolAllocator::instance(predictions->device(), defaultFlowHandle);
-          Tensor grad_output =
-              make_tensor(allocator, predictions->data_type(), predictions->shape());
+              PoolAllocator::instance(predictions.device(), defaultFlowHandle);
+          Tensor grad_output(predictions.shape(), predictions.data_type(), allocator);
           criterion->compute_gradient(predictions, device_targets, grad_output);
-          grad_output->mul_scalar(1.0 / (num_microbatches * accumulation_steps));
+          grad_output.mul_scalar(1.0 / (num_microbatches * accumulation_steps));
 
           TensorBundle grad_outputs{{{"output", grad_output}}};
           backward(std::move(grad_outputs), job.mb_id);
@@ -274,7 +276,7 @@ public:
           Job &job = forward_msg.get<Job>();
           Tensor predictions = job.data.get("output");
           Tensor targets = microbatch_labels[job.mb_id];
-          Tensor device_targets = targets->to_device(predictions->device());
+          Tensor device_targets = targets.to_device(predictions.device());
           float loss = 0.0f;
           criterion->compute_loss(predictions, device_targets, loss);
           loss *= (1.0f / num_microbatches);  // Average loss across microbatches
@@ -339,7 +341,7 @@ public:
       Job &job = forward_msg.get<Job>();
       Tensor predictions = job.data.get("output");
       Tensor targets = microbatch_labels[i];
-      Tensor device_targets = targets->to_device(predictions->device());
+      Tensor device_targets = targets.to_device(predictions.device());
 
       float loss = 0.0f;
       criterion->compute_loss(predictions, device_targets, loss);
@@ -347,10 +349,10 @@ public:
       total_loss += loss;
       total_corrects += compute_class_corrects(predictions, device_targets);
 
-      PoolAllocator &allocator = PoolAllocator::instance(predictions->device(), defaultFlowHandle);
-      Tensor grad_output = make_tensor(allocator, predictions->data_type(), predictions->shape());
+      PoolAllocator &allocator = PoolAllocator::instance(predictions.device(), defaultFlowHandle);
+      Tensor grad_output(predictions.shape(), predictions.data_type(), allocator);
       criterion->compute_gradient(predictions, device_targets, grad_output);
-      grad_output->mul_scalar(1.0 / (num_microbatches * accumulation_steps));
+      grad_output.mul_scalar(1.0 / (num_microbatches * accumulation_steps));
 
       TensorBundle grad_outputs{{{"output", grad_output}}};
       backward(std::move(grad_outputs), i);
@@ -417,7 +419,7 @@ public:
       Job &job = forward_msg.get<Job>();
       Tensor predictions = job.data.get("output");
       Tensor targets = microbatch_labels[i];
-      Tensor device_targets = targets->to_device(predictions->device());
+      Tensor device_targets = targets.to_device(predictions.device());
 
       float loss = 0.0f;
       criterion->compute_loss(predictions, device_targets, loss);

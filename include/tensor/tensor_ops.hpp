@@ -12,11 +12,11 @@ namespace synet {
 namespace ops {
 
 template <typename T>
-std::unique_ptr<Task> im2col_t(const ConstTensor &input_tensor, const Tensor &col_data,
-                               size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
-                               size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
+std::unique_ptr<Task> im2col_t(const Tensor &input_tensor, Tensor &col_data, size_t kernel_h,
+                               size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
+                               size_t pad_h = 0, size_t pad_w = 0,
                                flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input_tensor->shape();
+  const auto &shape = input_tensor.shape();
   const size_t batch_size = shape[0];
   const size_t channels = shape[1];
   const size_t height = shape[2];
@@ -27,19 +27,19 @@ std::unique_ptr<Task> im2col_t(const ConstTensor &input_tensor, const Tensor &co
   const size_t output_h = (padded_h - kernel_h) / stride_h + 1;
   const size_t output_w = (padded_w - kernel_w) / stride_w + 1;
 
-  const T *input_data = input_tensor->data_as<T>();
-  T *col_data_ptr = col_data->data_as<T>();
+  const T *input_data = input_tensor.data_as<T>();
+  T *col_data_ptr = col_data.data_as<T>();
 
-  if (input_tensor->device_type() == DeviceType::CPU) {
+  if (input_tensor.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, synet::cpu::cpu_im2col<T>, input_data, col_data_ptr, batch_size,
                            channels, height, width, kernel_h, kernel_w, stride_h, stride_w, pad_h,
                            pad_w, output_h, output_w);
   }
 #ifdef USE_CUDA
-  else if (input_tensor->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, synet::cuda::cuda_im2col<T>, input_data, col_data_ptr, batch_size,
-                            channels, height, width, kernel_h, kernel_w, stride_h, stride_w, pad_h,
-                            pad_w, output_h, output_w);
+  else if (input_tensor.device_type() == DeviceType::GPU) {
+    return create_cuda_task(handle, synet::cuda::cuda_im2col<T>, input_data, col_data_ptr,
+                            batch_size, channels, height, width, kernel_h, kernel_w, stride_h,
+                            stride_w, pad_h, pad_w, output_h, output_w);
   }
 #endif
   else {
@@ -47,24 +47,24 @@ std::unique_ptr<Task> im2col_t(const ConstTensor &input_tensor, const Tensor &co
   }
 }
 
-inline std::unique_ptr<Task> im2col(const ConstTensor &input_tensor, const Tensor &col_data,
-                                    size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
-                                    size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
+inline std::unique_ptr<Task> im2col(const Tensor &input_tensor, Tensor &col_data, size_t kernel_h,
+                                    size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
+                                    size_t pad_h = 0, size_t pad_w = 0,
                                     flowHandle_t handle = defaultFlowHandle) {
-  if (col_data->device_type() != input_tensor->device_type()) {
+  if (col_data.device_type() != input_tensor.device_type()) {
     throw std::runtime_error("im2col: Mismatched device types between col_data and input_tensor");
   }
 
-  if (input_tensor->data_type() != col_data->data_type()) {
+  if (input_tensor.data_type() != col_data.data_type()) {
     throw std::runtime_error("im2col: Mismatched data types between col_data and input_tensor");
   }
 
-  const auto &shape = input_tensor->shape();
+  const auto &shape = input_tensor.shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("im2col: Input tensor must be 4-dimensional (NCHW)");
   }
 
-  DType_t dtype = input_tensor->data_type();
+  DType_t dtype = input_tensor.data_type();
 
   DISPATCH_ANY_DTYPE(dtype, T,
                      return im2col_t<T>(input_tensor, col_data, kernel_h, kernel_w, stride_h,
@@ -72,26 +72,25 @@ inline std::unique_ptr<Task> im2col(const ConstTensor &input_tensor, const Tenso
 }
 
 template <typename T>
-std::unique_ptr<Task> col2im_t(const ConstTensor &col_data, const Tensor &result_data,
-                               size_t batch_size, size_t channels, size_t height, size_t width,
-                               size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
-                               size_t pad_h, size_t pad_w,
-                               flowHandle_t handle = defaultFlowHandle) {
+std::unique_ptr<Task> col2im_t(const Tensor &col_data, Tensor &result_data, size_t batch_size,
+                               size_t channels, size_t height, size_t width, size_t kernel_h,
+                               size_t kernel_w, size_t stride_h, size_t stride_w, size_t pad_h,
+                               size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
   const size_t padded_h = height + 2 * pad_h;
   const size_t padded_w = width + 2 * pad_w;
   const size_t output_h = (padded_h - kernel_h) / stride_h + 1;
   const size_t output_w = (padded_w - kernel_w) / stride_w + 1;
 
-  const T *col_data_ptr = col_data->data_as<T>();
-  T *result_data_ptr = result_data->data_as<T>();
+  const T *col_data_ptr = col_data.data_as<T>();
+  T *result_data_ptr = result_data.data_as<T>();
 
-  if (col_data->device_type() == DeviceType::CPU) {
+  if (col_data.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, synet::cpu::cpu_col2im<T>, col_data_ptr, result_data_ptr,
                            batch_size, channels, height, width, kernel_h, kernel_w, stride_h,
                            stride_w, pad_h, pad_w, output_h, output_w);
   }
 #ifdef USE_CUDA
-  else if (col_data->device_type() == DeviceType::GPU) {
+  else if (col_data.device_type() == DeviceType::GPU) {
     return create_cuda_task(handle, synet::cuda::cuda_col2im<T>, col_data_ptr, result_data_ptr,
                             batch_size, channels, height, width, kernel_h, kernel_w, stride_h,
                             stride_w, pad_h, pad_w, output_h, output_w);
@@ -102,20 +101,19 @@ std::unique_ptr<Task> col2im_t(const ConstTensor &col_data, const Tensor &result
   }
 }
 
-inline std::unique_ptr<Task> col2im(const ConstTensor &col_data, const Tensor &result_data,
-                                    size_t batch_size, size_t channels, size_t height, size_t width,
-                                    size_t kernel_h, size_t kernel_w, size_t stride_h,
-                                    size_t stride_w, size_t pad_h, size_t pad_w,
-                                    flowHandle_t handle = defaultFlowHandle) {
-  if (col_data->device_type() != result_data->device_type()) {
+inline std::unique_ptr<Task> col2im(const Tensor &col_data, Tensor &result_data, size_t batch_size,
+                                    size_t channels, size_t height, size_t width, size_t kernel_h,
+                                    size_t kernel_w, size_t stride_h, size_t stride_w, size_t pad_h,
+                                    size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
+  if (col_data.device_type() != result_data.device_type()) {
     throw std::runtime_error("col2im: Mismatched device types between col_data and result_data");
   }
 
-  if (col_data->data_type() != result_data->data_type()) {
+  if (col_data.data_type() != result_data.data_type()) {
     throw std::runtime_error("col2im: Mismatched data types between col_data and result_data");
   }
 
-  DType_t dtype = col_data->data_type();
+  DType_t dtype = col_data.data_type();
 
   DISPATCH_ANY_DTYPE(
       dtype, T,
@@ -124,23 +122,23 @@ inline std::unique_ptr<Task> col2im(const ConstTensor &col_data, const Tensor &r
 }
 
 template <typename T>
-std::unique_ptr<Task> pad_t(const ConstTensor &input, const Tensor &result, size_t pad_h,
-                            size_t pad_w, T value = T(0), flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input->shape();
+std::unique_ptr<Task> pad_t(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
+                            T value = T(0), flowHandle_t handle = defaultFlowHandle) {
+  const auto &shape = input.shape();
   const size_t batch_size = shape[0];
   const size_t channels = shape[1];
   const size_t height = shape[2];
   const size_t width = shape[3];
 
-  const T *input_data = input->data_as<T>();
-  T *result_data = result->data_as<T>();
+  const T *input_data = input.data_as<T>();
+  T *result_data = result.data_as<T>();
 
-  if (input->device_type() == DeviceType::CPU) {
+  if (input.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, synet::cpu::cpu_pad<T>, input_data, result_data, batch_size,
                            channels, height, width, pad_h, pad_w, value);
   }
 #ifdef USE_CUDA
-  else if (input->device_type() == DeviceType::GPU) {
+  else if (input.device_type() == DeviceType::GPU) {
     return create_cuda_task(handle, synet::cuda::cuda_pad<T>, input_data, result_data, batch_size,
                             channels, height, width, pad_h, pad_w, value);
   }
@@ -150,30 +148,30 @@ std::unique_ptr<Task> pad_t(const ConstTensor &input, const Tensor &result, size
   }
 }
 
-inline std::unique_ptr<Task> pad(const ConstTensor &input, const Tensor &result, size_t pad_h,
-                                 size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
-  if (input->device_type() != result->device_type()) {
+inline std::unique_ptr<Task> pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
+                                 flowHandle_t handle = defaultFlowHandle) {
+  if (input.device_type() != result.device_type()) {
     throw std::runtime_error("pad: Mismatched device types between input and result");
   }
 
-  if (input->data_type() != result->data_type()) {
+  if (input.data_type() != result.data_type()) {
     throw std::runtime_error("pad: Mismatched data types between input and result");
   }
 
-  const auto &shape = input->shape();
+  const auto &shape = input.shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("pad: Input tensor must be 4-dimensional (NCHW)");
   }
 
-  DType_t dtype = input->data_type();
+  DType_t dtype = input.data_type();
 
   DISPATCH_ANY_DTYPE(dtype, T, return pad_t<T>(input, result, pad_h, pad_w, T(0), handle));
 }
 
 template <typename T>
-std::unique_ptr<Task> unpad_t(const ConstTensor &input, const Tensor &result, size_t pad_h,
-                              size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input->shape();
+std::unique_ptr<Task> unpad_t(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
+                              flowHandle_t handle = defaultFlowHandle) {
+  const auto &shape = input.shape();
   const size_t batch_size = shape[0];
   const size_t channels = shape[1];
   const size_t padded_height = shape[2];
@@ -182,15 +180,15 @@ std::unique_ptr<Task> unpad_t(const ConstTensor &input, const Tensor &result, si
   const size_t height = padded_height - 2 * pad_h;
   const size_t width = padded_width - 2 * pad_w;
 
-  const T *input_data = input->data_as<T>();
-  T *result_data = result->data_as<T>();
+  const T *input_data = input.data_as<T>();
+  T *result_data = result.data_as<T>();
 
-  if (input->device_type() == DeviceType::CPU) {
+  if (input.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, synet::cpu::cpu_unpad<T>, input_data, result_data, batch_size,
                            channels, height, width, pad_h, pad_w);
   }
 #ifdef USE_CUDA
-  else if (input->device_type() == DeviceType::GPU) {
+  else if (input.device_type() == DeviceType::GPU) {
     return create_cuda_task(handle, synet::cuda::cuda_unpad<T>, input_data, result_data, batch_size,
                             channels, height, width, pad_h, pad_w);
   }
@@ -200,17 +198,17 @@ std::unique_ptr<Task> unpad_t(const ConstTensor &input, const Tensor &result, si
   }
 }
 
-inline std::unique_ptr<Task> unpad(const ConstTensor &input, const Tensor &result, size_t pad_h,
-                                   size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
-  if (input->device_type() != result->device_type()) {
+inline std::unique_ptr<Task> unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
+                                   flowHandle_t handle = defaultFlowHandle) {
+  if (input.device_type() != result.device_type()) {
     throw std::runtime_error("unpad: Mismatched device types between input and result");
   }
 
-  if (input->data_type() != result->data_type()) {
+  if (input.data_type() != result.data_type()) {
     throw std::runtime_error("unpad: Mismatched data types between input and result");
   }
 
-  const auto &shape = input->shape();
+  const auto &shape = input.shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("unpad: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -222,16 +220,16 @@ inline std::unique_ptr<Task> unpad(const ConstTensor &input, const Tensor &resul
     throw std::invalid_argument("Padding size too large for unpadding");
   }
 
-  DType_t dtype = input->data_type();
+  DType_t dtype = input.data_type();
 
   DISPATCH_ANY_DTYPE(dtype, T, return unpad_t<T>(input, result, pad_h, pad_w, handle));
 }
 
 template <typename T>
-std::unique_ptr<Task> crop_t(const ConstTensor &input, const Tensor &result, const size_t start_h,
+std::unique_ptr<Task> crop_t(const Tensor &input, Tensor &result, const size_t start_h,
                              const size_t start_w, const size_t end_h, const size_t end_w,
                              flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input->shape();
+  const auto &shape = input.shape();
   const size_t batch_size = shape[0];
   const size_t channels = shape[1];
   const size_t height = shape[2];
@@ -240,15 +238,15 @@ std::unique_ptr<Task> crop_t(const ConstTensor &input, const Tensor &result, con
   const size_t new_height = end_h - start_h + 1;
   const size_t new_width = end_w - start_w + 1;
 
-  const T *input_data = input->data_as<T>();
-  T *result_data = result->data_as<T>();
+  const T *input_data = input.data_as<T>();
+  T *result_data = result.data_as<T>();
 
-  if (input->device_type() == DeviceType::CPU) {
+  if (input.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, synet::cpu::cpu_crop<T>, input_data, result_data, batch_size,
                            channels, height, width, start_h, start_w, new_height, new_width);
   }
 #ifdef USE_CUDA
-  else if (input->device_type() == DeviceType::GPU) {
+  else if (input.device_type() == DeviceType::GPU) {
     return create_cuda_task(handle, synet::cuda::cuda_crop<T>, input_data, result_data, batch_size,
                             channels, height, width, start_h, start_w, new_height, new_width);
   }
@@ -258,18 +256,18 @@ std::unique_ptr<Task> crop_t(const ConstTensor &input, const Tensor &result, con
   }
 }
 
-inline std::unique_ptr<Task> crop(const ConstTensor &input, const Tensor &result,
-                                  const size_t start_h, const size_t start_w, const size_t end_h,
-                                  const size_t end_w, flowHandle_t handle = defaultFlowHandle) {
-  if (input->device_type() != result->device_type()) {
+inline std::unique_ptr<Task> crop(const Tensor &input, Tensor &result, const size_t start_h,
+                                  const size_t start_w, const size_t end_h, const size_t end_w,
+                                  flowHandle_t handle = defaultFlowHandle) {
+  if (input.device_type() != result.device_type()) {
     throw std::runtime_error("crop: Mismatched device types between input and result");
   }
 
-  if (input->data_type() != result->data_type()) {
+  if (input.data_type() != result.data_type()) {
     throw std::runtime_error("crop: Mismatched data types between input and result");
   }
 
-  const auto &shape = input->shape();
+  const auto &shape = input.shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("crop: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -281,17 +279,16 @@ inline std::unique_ptr<Task> crop(const ConstTensor &input, const Tensor &result
     throw std::invalid_argument("Invalid crop dimensions");
   }
 
-  DType_t dtype = input->data_type();
+  DType_t dtype = input.data_type();
 
   DISPATCH_ANY_DTYPE(dtype, T,
                      return crop_t<T>(input, result, start_h, start_w, end_h, end_w, handle));
 }
 
 template <typename T>
-std::unique_ptr<Task> slice_batch_t(const ConstTensor &input, const Tensor &result,
-                                    size_t start_batch, size_t end_batch,
-                                    flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input->shape();
+std::unique_ptr<Task> slice_batch_t(const Tensor &input, Tensor &result, size_t start_batch,
+                                    size_t end_batch, flowHandle_t handle = defaultFlowHandle) {
+  const auto &shape = input.shape();
   size_t batch_stride = 1;
   for (size_t i = 1; i < shape.size(); ++i) {
     batch_stride *= shape[i];
@@ -299,19 +296,19 @@ std::unique_ptr<Task> slice_batch_t(const ConstTensor &input, const Tensor &resu
 
   Vec<size_t> result_shape = shape;
   result_shape[0] = end_batch - start_batch;
-  result->resize(result_shape);
+  result = Tensor(result_shape, input.data_type(), input.allocator());
 
-  const T *input_data = input->data_as<T>();
-  T *result_data = result->data_as<T>();
+  const T *input_data = input.data_as<T>();
+  T *result_data = result.data_as<T>();
 
   const size_t copy_size = (end_batch - start_batch) * batch_stride;
 
-  if (input->device_type() == DeviceType::CPU) {
+  if (input.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, ops::cpu::copy<T>, &input_data[start_batch * batch_stride],
                            result_data, copy_size);
   }
 #ifdef USE_CUDA
-  else if (input->device_type() == DeviceType::GPU) {
+  else if (input.device_type() == DeviceType::GPU) {
     return create_cuda_task(handle, ops::cuda::cuda_copy<T>,
                             &input_data[start_batch * batch_stride], result_data, copy_size);
   }
@@ -321,34 +318,34 @@ std::unique_ptr<Task> slice_batch_t(const ConstTensor &input, const Tensor &resu
   }
 }
 
-inline std::unique_ptr<Task> slice_batch(const ConstTensor &input, const Tensor &result,
-                                         size_t start_batch, size_t end_batch,
+inline std::unique_ptr<Task> slice_batch(const Tensor &input, Tensor &result, size_t start_batch,
+                                         size_t end_batch,
                                          flowHandle_t handle = defaultFlowHandle) {
-  if (input->device_type() != result->device_type()) {
+  if (input.device_type() != result.device_type()) {
     throw std::runtime_error("slice_batch: Mismatched device types between input and result");
   }
 
-  if (input->data_type() != result->data_type()) {
+  if (input.data_type() != result.data_type()) {
     throw std::runtime_error("slice_batch: Mismatched data types between input and result");
   }
 
-  const auto &shape = input->shape();
+  const auto &shape = input.shape();
   const size_t batch_size = shape[0];
 
   if (end_batch > batch_size || start_batch > end_batch) {
     throw std::invalid_argument("Invalid batch slice range");
   }
 
-  DType_t dtype = input->data_type();
+  DType_t dtype = input.data_type();
 
   DISPATCH_ANY_DTYPE(dtype, T,
                      return slice_batch_t<T>(input, result, start_batch, end_batch, handle));
 }
 
 template <typename T>
-std::unique_ptr<Task> split_t(const ConstTensor &input, Vec<Tensor> &results, size_t num_splits,
+std::unique_ptr<Task> split_t(const Tensor &input, Vec<Tensor> &results, size_t num_splits,
                               flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input->shape();
+  const auto &shape = input.shape();
   const size_t batch_size = shape[0];
 
   results.clear();
@@ -364,7 +361,7 @@ std::unique_ptr<Task> split_t(const ConstTensor &input, Vec<Tensor> &results, si
     split_shape[0] = end - start;
 
     // Create a properly initialized tensor for this split
-    Tensor split_tensor = make_tensor<T>(split_shape, input->device());
+    Tensor split_tensor = Tensor(split_shape, input.data_type(), input.allocator());
     slice_batch_t<T>(input, split_tensor, start, end, handle);
     results.push_back(split_tensor);
   }
@@ -372,27 +369,27 @@ std::unique_ptr<Task> split_t(const ConstTensor &input, Vec<Tensor> &results, si
   return nullptr;
 }
 
-inline std::unique_ptr<Task> split(const ConstTensor &input, Vec<Tensor> &results,
-                                   size_t num_splits, flowHandle_t handle = defaultFlowHandle) {
-  const auto &shape = input->shape();
+inline std::unique_ptr<Task> split(const Tensor &input, Vec<Tensor> &results, size_t num_splits,
+                                   flowHandle_t handle = defaultFlowHandle) {
+  const auto &shape = input.shape();
   const size_t batch_size = shape[0];
 
   if (num_splits == 0 || num_splits > batch_size) {
     throw std::invalid_argument("Invalid number of splits");
   }
 
-  DType_t dtype = input->data_type();
+  DType_t dtype = input.data_type();
 
   DISPATCH_ANY_DTYPE(dtype, T, return split_t<T>(input, results, num_splits, handle));
 }
 
 template <typename T>
-std::unique_ptr<Task> transpose_2d_t(const ConstTensor &input, const Tensor &output, size_t rows,
-                                     size_t cols, flowHandle_t handle = defaultFlowHandle) {
-  const T *input_data = input->data_as<T>();
-  T *output_data = output->data_as<T>();
+std::unique_ptr<Task> transpose_2d_t(const Tensor &input, Tensor &output, size_t rows, size_t cols,
+                                     flowHandle_t handle = defaultFlowHandle) {
+  const T *input_data = input.data_as<T>();
+  T *output_data = output.data_as<T>();
 
-  const auto &device = input->device();
+  const auto &device = input.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
@@ -401,8 +398,8 @@ std::unique_ptr<Task> transpose_2d_t(const ConstTensor &input, const Tensor &out
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(handle, synet::cuda::cuda_transpose_2d<T>, input_data, output_data, rows,
-                            cols);
+    return create_cuda_task(handle, synet::cuda::cuda_transpose_2d<T>, input_data, output_data,
+                            rows, cols);
   }
 #endif
   else {
@@ -410,40 +407,38 @@ std::unique_ptr<Task> transpose_2d_t(const ConstTensor &input, const Tensor &out
   }
 }
 
-inline std::unique_ptr<Task> transpose_2d(const ConstTensor &input, const Tensor &output,
-                                          size_t rows, size_t cols,
-                                          flowHandle_t handle = defaultFlowHandle) {
-  if (output->device() != input->device()) {
+inline std::unique_ptr<Task> transpose_2d(const Tensor &input, Tensor &output, size_t rows,
+                                          size_t cols, flowHandle_t handle = defaultFlowHandle) {
+  if (output.device() != input.device()) {
     throw std::runtime_error("transpose_2d: Input and output must be on the same device");
   }
 
-  if (input->data_type() != output->data_type()) {
+  if (input.data_type() != output.data_type()) {
     throw std::runtime_error("transpose_2d: Mismatched data types between input and output");
   }
 
-  DType_t dtype = input->data_type();
+  DType_t dtype = input.data_type();
 
   DISPATCH_ANY_DTYPE(dtype, T, return transpose_2d_t<T>(input, output, rows, cols, handle));
 }
 
 template <typename T>
-std::unique_ptr<Task> nchw_to_cnhw_t(const ConstTensor &input, const Tensor &output, size_t n,
-                                     size_t c, size_t h, size_t w,
-                                     flowHandle_t handle = defaultFlowHandle) {
-  const T *input_data = input->data_as<T>();
-  T *output_data = output->data_as<T>();
+std::unique_ptr<Task> nchw_to_cnhw_t(const Tensor &input, Tensor &output, size_t n, size_t c,
+                                     size_t h, size_t w, flowHandle_t handle = defaultFlowHandle) {
+  const T *input_data = input.data_as<T>();
+  T *output_data = output.data_as<T>();
 
-  const auto &device = input->device();
+  const auto &device = input.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(handle, synet::cpu::cpu_nchw_to_cnhw<T>, input_data, output_data, n, c, h,
-                           w);
+    return create_cpu_task(handle, synet::cpu::cpu_nchw_to_cnhw<T>, input_data, output_data, n, c,
+                           h, w);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(handle, synet::cuda::cuda_nchw_to_cnhw<T>, input_data, output_data, n, c,
-                            h, w);
+    return create_cuda_task(handle, synet::cuda::cuda_nchw_to_cnhw<T>, input_data, output_data, n,
+                            c, h, w);
   }
 #endif
   else {
@@ -451,40 +446,39 @@ std::unique_ptr<Task> nchw_to_cnhw_t(const ConstTensor &input, const Tensor &out
   }
 }
 
-inline std::unique_ptr<Task> nchw_to_cnhw(const ConstTensor &input, const Tensor &output, size_t n,
-                                          size_t c, size_t h, size_t w,
+inline std::unique_ptr<Task> nchw_to_cnhw(const Tensor &input, Tensor &output, size_t n, size_t c,
+                                          size_t h, size_t w,
                                           flowHandle_t handle = defaultFlowHandle) {
-  if (output->device() != input->device()) {
+  if (output.device() != input.device()) {
     throw std::runtime_error("nchw_to_cnhw: Input and output must be on the same device");
   }
 
-  if (input->data_type() != output->data_type()) {
+  if (input.data_type() != output.data_type()) {
     throw std::runtime_error("nchw_to_cnhw: Mismatched data types between input and output");
   }
 
-  DType_t dtype = input->data_type();
+  DType_t dtype = input.data_type();
 
   DISPATCH_ANY_DTYPE(dtype, T, return nchw_to_cnhw_t<T>(input, output, n, c, h, w, handle));
 }
 
 template <typename T>
-std::unique_ptr<Task> cnhw_to_nchw_t(const ConstTensor &input, const Tensor &output, size_t n,
-                                     size_t c, size_t h, size_t w,
-                                     flowHandle_t handle = defaultFlowHandle) {
-  const T *input_data = input->data_as<T>();
-  T *output_data = output->data_as<T>();
+std::unique_ptr<Task> cnhw_to_nchw_t(const Tensor &input, Tensor &output, size_t n, size_t c,
+                                     size_t h, size_t w, flowHandle_t handle = defaultFlowHandle) {
+  const T *input_data = input.data_as<T>();
+  T *output_data = output.data_as<T>();
 
-  const auto &device = input->device();
+  const auto &device = input.device();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(handle, synet::cpu::cpu_cnhw_to_nchw<T>, input_data, output_data, n, c, h,
-                           w);
+    return create_cpu_task(handle, synet::cpu::cpu_cnhw_to_nchw<T>, input_data, output_data, n, c,
+                           h, w);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(handle, synet::cuda::cuda_cnhw_to_nchw<T>, input_data, output_data, n, c,
-                            h, w);
+    return create_cuda_task(handle, synet::cuda::cuda_cnhw_to_nchw<T>, input_data, output_data, n,
+                            c, h, w);
   }
 #endif
   else {
@@ -492,18 +486,18 @@ std::unique_ptr<Task> cnhw_to_nchw_t(const ConstTensor &input, const Tensor &out
   }
 }
 
-inline std::unique_ptr<Task> cnhw_to_nchw(const ConstTensor &input, const Tensor &output, size_t n,
-                                          size_t c, size_t h, size_t w,
+inline std::unique_ptr<Task> cnhw_to_nchw(const Tensor &input, Tensor &output, size_t n, size_t c,
+                                          size_t h, size_t w,
                                           flowHandle_t handle = defaultFlowHandle) {
-  if (output->device() != input->device()) {
+  if (output.device() != input.device()) {
     throw std::runtime_error("cnhw_to_nchw: Input and output must be on the same device");
   }
 
-  if (input->data_type() != output->data_type()) {
+  if (input.data_type() != output.data_type()) {
     throw std::runtime_error("cnhw_to_nchw: Mismatched data types between input and output");
   }
 
-  DType_t dtype = input->data_type();
+  DType_t dtype = input.data_type();
 
   DISPATCH_ANY_DTYPE(dtype, T, return cnhw_to_nchw_t<T>(input, output, n, c, h, w, handle));
 }

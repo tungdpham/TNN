@@ -178,8 +178,8 @@ int main(int argc, char *argv[]) {
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
 
   for (int i = 0; i < 4; i++) {
-    Tensor tensor = make_tensor<float>({128, 512, 16, 16});
-    tensor->fill_random_normal(0.0f, .2f, 12345);
+    Tensor tensor = Tensor({128, 512, 16, 16}, DType_t::FP32);
+    tensor.fill_random_normal(0.0f, .2f, 12345);
     Job job;
     job.mb_id = 0;
     job.data = TensorBundle{{{"output", tensor}}};

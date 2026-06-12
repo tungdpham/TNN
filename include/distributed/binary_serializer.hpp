@@ -74,10 +74,10 @@ public:
     for (uint64_t i = 0; i < shape_size; ++i) {
       reader(shape[i]);
     }
-    tensor = make_tensor(allocator_, dtype, Vec<size_t>(shape.begin(), shape.end()));
-    if (tensor->size() > 0) {
-      auto dptr = tensor->data_ptr();
-      reader(make_blob(dptr.get<unsigned char>(), tensor->size() * dtype_size, dptr.device()));
+    tensor = Tensor(Vec<size_t>(shape.begin(), shape.end()), dtype, allocator_);
+    if (tensor.size() > 0) {
+      auto dptr = tensor.data_ptr();
+      reader(make_blob(dptr.get<unsigned char>(), tensor.size() * dtype_size, dptr.device()));
     }
   }
 

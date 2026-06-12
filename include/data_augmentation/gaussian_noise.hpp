@@ -21,7 +21,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {
@@ -36,11 +36,11 @@ private:
   void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
 
-    if (data->dims() != 4) return;
+    if (data.dims() != 4) return;
 
-    const size_t batch_size = data->dimension(0);
-    const size_t spatial_size = data->stride(0);
-    T *ptr = data->data_as<T>();
+    const size_t batch_size = data.dimension(0);
+    const size_t spatial_size = data.stride(0);
+    T *ptr = data.data_as<T>();
 
     // Pre-compute per-batch apply flags sequentially to avoid data races
     std::vector<bool> apply_flags(batch_size);

@@ -36,17 +36,17 @@ void LayerImpl::init() {
   initialized_ = true;
 }
 
-Vec<Tensor> LayerImpl::forward(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> LayerImpl::forward(const Vec<Tensor> &inputs, size_t mb_id) {
   if (!initialized_) {
     throw std::runtime_error("LayerImpl must be initialized before calling forward");
   }
   is_fwd_ = true;
-  Vec<ConstTensor> current_inputs;
+  Vec<Tensor> current_inputs;
   for (auto &input : inputs) {
-    if (input->device() == this->device())
+    if (input.device() == this->device())
       current_inputs.push_back(input);
     else
-      current_inputs.push_back(input->to_device(this->device()));
+      current_inputs.push_back(input.to_device(this->device()));
   }
   Vec<Tensor> outputs = forward_impl(current_inputs, mb_id);
 #ifndef NDEBUG
@@ -55,17 +55,17 @@ Vec<Tensor> LayerImpl::forward(const Vec<ConstTensor> &inputs, size_t mb_id) {
   return outputs;
 }
 
-Vec<Tensor> LayerImpl::backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> LayerImpl::backward(const Vec<Tensor> &grad_outputs, size_t mb_id) {
   if (!initialized_) {
     throw std::runtime_error("LayerImpl must be initialized before calling backward");
   }
   is_fwd_ = false;
-  Vec<ConstTensor> current_grad_outputs;
+  Vec<Tensor> current_grad_outputs;
   for (auto &grad : grad_outputs) {
-    if (grad->device() == this->device())
+    if (grad.device() == this->device())
       current_grad_outputs.push_back(grad);
     else
-      current_grad_outputs.push_back(grad->to_device(this->device()));
+      current_grad_outputs.push_back(grad.to_device(this->device()));
   }
   auto grad_inputs = backward_impl(current_grad_outputs, mb_id);
   clear_cache(mb_id);
@@ -140,51 +140,33 @@ void LayerImpl::save_state(std::ofstream &file) {
   auto descs = param_descriptors();
   for (const auto &desc : descs) {
     Tensor param = *desc.data_ptr;
-    param->save(file);
+    param.save(file);
   }
-}
-
-Vec<Tensor> LayerImpl::parameters() {
-  Vec<Tensor> params;
-  auto descs = this->param_descriptors();
-  for (const auto &desc : descs) {
-    params.push_back(*desc.data_ptr);
-  }
-  return params;
-}
-
-Vec<Tensor> LayerImpl::gradients() {
-  Vec<Tensor> grads;
-  auto descs = this->param_descriptors();
-  for (const auto &desc : descs) {
-    grads.push_back(*desc.grad_ptr);
-  }
-  return grads;
 }
 
 Tensor LayerImpl::get_tensor(const Vec<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
-  return make_tensor(*allocator_, dtype, shape);
+  return Tensor(shape, dtype, *allocator_);
 }
 
-void LayerImpl::set_immutable_cache(size_t mb_id, const std::string &key, ConstTensor value) {
+void LayerImpl::set_immutable_cache(size_t mb_id, const std::string &key, const Tensor &value) {
   if (!is_training_) {
     return;  // no need to cache in inference mode
   }
-  immutable_cache_[{mb_id, key}] = std::move(value);
+  immutable_cache_[{mb_id, key}] = value;
 }
 
-ConstTensor &LayerImpl::get_immutable_cache(size_t mb_id, const std::string &key) {
+const Tensor &LayerImpl::get_immutable_cache(size_t mb_id, const std::string &key) {
   return immutable_cache_[{mb_id, key}];
 }
 
-void LayerImpl::set_mutable_cache(size_t mb_id, const std::string &key, Tensor value) {
+void LayerImpl::set_mutable_cache(size_t mb_id, const std::string &key, Tensor &value) {
   if (!is_training_) {
     return;  // no need to cache in inference mode
   }
-  mutable_cache_[{mb_id, key}] = std::move(value);
+  mutable_cache_[{mb_id, key}] = value;
 }
 
 Tensor &LayerImpl::get_mutable_cache(size_t mb_id, const std::string &key) {

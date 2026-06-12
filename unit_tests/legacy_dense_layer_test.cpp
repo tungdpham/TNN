@@ -47,26 +47,24 @@ protected:
     }
   }
 
-  void verify_output_shape(const ConstTensor &input, const ConstTensor &output,
-                           size_t output_features) {
-    auto input_shape = input->shape();
-    auto output_shape = output->shape();
+  void verify_output_shape(const Tensor &input, Tensor &output, size_t output_features) {
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
     size_t batch_size = input_shape[0];
 
     EXPECT_EQ(output_shape[0], batch_size);
     EXPECT_EQ(output_shape[1], output_features);
   }
 
-  void verify_forward_result(const ConstTensor &input, const ConstTensor &output,
-                             const ConstTensor &weights, const ConstTensor bias,
-                             float tolerance = 1e-4f) {
-    const float *input_data = input->data_as<float>();
-    const float *output_data = output->data_as<float>();
-    const float *weight_data = weights->data_as<float>();
-    const float *bias_data = bias ? bias->data_as<float>() : nullptr;
+  void verify_forward_result(const Tensor &input, Tensor &output, const Tensor &weights,
+                             const Tensor bias, float tolerance = 1e-4f) {
+    const float *input_data = input.data_as<float>();
+    const float *output_data = output.data_as<float>();
+    const float *weight_data = weights.data_as<float>();
+    const float *bias_data = bias ? bias.data_as<float>() : nullptr;
 
-    auto input_shape = input->shape();
-    auto output_shape = output->shape();
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
     size_t batch_size = input_shape[0];
     size_t input_features = input_shape[1];
     size_t output_features = output_shape[1];
@@ -88,19 +86,19 @@ protected:
     }
   }
 
-  void verify_gradient_shape(const ConstTensor &grad_output, const ConstTensor &grad_input,
-                             const ConstTensor &original_input) {
-    EXPECT_EQ(grad_input->shape(), original_input->shape());
+  void verify_gradient_shape(const Tensor &grad_output, Tensor &grad_input,
+                             const Tensor &original_input) {
+    EXPECT_EQ(grad_input.shape(), original_input.shape());
   }
 
-  void verify_backward_result(const ConstTensor &grad_output, const ConstTensor &grad_input,
-                              const ConstTensor &weights, float tolerance = 1e-4f) {
-    const float *grad_output_data = grad_output->data_as<float>();
-    const float *grad_input_data = grad_input->data_as<float>();
-    const float *weight_data = weights->data_as<float>();
+  void verify_backward_result(const Tensor &grad_output, Tensor &grad_input, const Tensor &weights,
+                              float tolerance = 1e-4f) {
+    const float *grad_output_data = grad_output.data_as<float>();
+    const float *grad_input_data = grad_input.data_as<float>();
+    const float *weight_data = weights.data_as<float>();
 
-    auto grad_input_shape = grad_input->shape();
-    auto grad_output_shape = grad_output->shape();
+    auto grad_input_shape = grad_input.shape();
+    auto grad_output_shape = grad_output.shape();
     size_t batch_size = grad_input_shape[0];
     size_t input_features = grad_input_shape[1];
     size_t output_features = grad_output_shape[1];
@@ -130,18 +128,18 @@ TEST_F(LegacyDenseLayerTest, BasicForwardPass) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(dense_layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 10}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = dense_layer->forward({input})[0];
+  Tensor output = dense_layer.forward({input})[0];
 
   verify_output_shape(input, output, 5);
-  auto output_shape = output->shape();
+  auto output_shape = output.shape();
   EXPECT_EQ(output_shape[0], 2);
   EXPECT_EQ(output_shape[1], 5);
 
-  auto params = dense_layer->parameters();
-  verify_forward_result(input, output, params[0], params.size() > 1 ? params[1] : nullptr);
+  auto params = dense_layer.parameters();
+  verify_forward_result(input, output, *params[0], params.size() > 1 ? *params[1] : Tensor());
 }
 
 TEST_F(LegacyDenseLayerTest, ForwardPassSingleBatch) {
@@ -150,16 +148,16 @@ TEST_F(LegacyDenseLayerTest, ForwardPassSingleBatch) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 20}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({1, 20}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 10);
-  auto output_shape = output->shape();
+  auto output_shape = output.shape();
   EXPECT_EQ(output_shape[0], 1);
   EXPECT_EQ(output_shape[1], 10);
 }
@@ -170,13 +168,13 @@ TEST_F(LegacyDenseLayerTest, ForwardPassMultiBatch) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({4, 15}, getHost());
-  input->fill(0.5f);
+  Tensor input = Tensor({4, 15}, DType_t::FP32, getHost());
+  input.fill(0.5f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 8);
-  auto output_shape = output->shape();
+  auto output_shape = output.shape();
   EXPECT_EQ(output_shape[0], 4);
   EXPECT_EQ(output_shape[1], 8);
 }
@@ -187,13 +185,13 @@ TEST_F(LegacyDenseLayerTest, ForwardPassLargeLayer) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 128}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({2, 128}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 64);
-  auto output_shape = output->shape();
+  auto output_shape = output.shape();
   EXPECT_EQ(output_shape[1], 64);
 }
 
@@ -203,13 +201,13 @@ TEST_F(LegacyDenseLayerTest, ForwardPassWithBias) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 10}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({1, 10}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 5);
-  auto out_shape = output->shape();
+  auto out_shape = output.shape();
   EXPECT_EQ(out_shape[1], 5);
 }
 
@@ -219,13 +217,13 @@ TEST_F(LegacyDenseLayerTest, ForwardPassWithoutBias) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 10}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({1, 10}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 5);
-  auto out_shape = output->shape();
+  auto out_shape = output.shape();
   EXPECT_EQ(out_shape[1], 5);
 }
 
@@ -235,13 +233,13 @@ TEST_F(LegacyDenseLayerTest, ForwardPassVariableInput) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 6}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 6}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i % 5);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 3);
 }
@@ -252,22 +250,22 @@ TEST_F(LegacyDenseLayerTest, BasicBackwardPass) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 10}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
-  auto grad_input_shape = grad_input->shape();
+  auto grad_input_shape = grad_input.shape();
   EXPECT_EQ(grad_input_shape[1], 10);
 
-  auto params = layer->parameters();
-  verify_backward_result(grad_output, grad_input, params[0]);
+  auto params = layer.parameters();
+  verify_backward_result(grad_output, grad_input, *params[0]);
 }
 
 TEST_F(LegacyDenseLayerTest, BackwardPassSingleBatch) {
@@ -276,18 +274,18 @@ TEST_F(LegacyDenseLayerTest, BackwardPassSingleBatch) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 20}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({1, 20}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
-  auto grad_input_shape = grad_input->shape();
+  auto grad_input_shape = grad_input.shape();
   EXPECT_EQ(grad_input_shape[0], 1);
 }
 
@@ -297,18 +295,18 @@ TEST_F(LegacyDenseLayerTest, BackwardPassMultiBatch) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({4, 15}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({4, 15}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
-  auto grad_input_shape = grad_input->shape();
+  auto grad_input_shape = grad_input.shape();
   EXPECT_EQ(grad_input_shape[0], 4);
 }
 
@@ -318,24 +316,24 @@ TEST_F(LegacyDenseLayerTest, BackwardPassVariableGradient) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 8}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 8}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  float *grad_data = grad_output->data_as<float>();
-  for (size_t i = 0; i < grad_output->size(); ++i) {
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  float *grad_data = grad_output.data_as<float>();
+  for (size_t i = 0; i < grad_output.size(); ++i) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
-  EXPECT_EQ(grad_input->shape(), input->shape());
+  EXPECT_EQ(grad_input.shape(), input.shape());
 }
 
 TEST_F(LegacyDenseLayerTest, BackwardPassWithBias) {
@@ -344,15 +342,15 @@ TEST_F(LegacyDenseLayerTest, BackwardPassWithBias) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 10}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
@@ -363,15 +361,15 @@ TEST_F(LegacyDenseLayerTest, BackwardPassWithoutBias) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 10}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
@@ -382,7 +380,7 @@ TEST_F(LegacyDenseLayerTest, ComputeOutputShape) {
   Vec<size_t> input_shape = {2, 128};
   Vec<size_t> expected_shape = {2, 64};
 
-  Vec<size_t> output_shape = layer->output_shapes({input_shape})[0];
+  Vec<size_t> output_shape = layer.output_shapes({input_shape})[0];
 
   EXPECT_EQ(output_shape, expected_shape);
 }
@@ -390,7 +388,7 @@ TEST_F(LegacyDenseLayerTest, ComputeOutputShape) {
 TEST_F(LegacyDenseLayerTest, GetConfig) {
   auto layer = LegacyDenseLayer(100, 50, true, "test_dense_config");
 
-  LayerConfig config = layer->get_config();
+  LayerConfig config = layer.get_config();
 
   EXPECT_EQ(config.name, "test_dense_config");
   EXPECT_EQ(config.get<size_t>("input_features"), 100);
@@ -405,10 +403,10 @@ TEST_F(LegacyDenseLayerTest, CreateFromConfig) {
   config.set("output_features", size_t(32));
   config.set("use_bias", true);
 
-  auto layer = LegacyDenseLayerImpl::create_from_config(config);
+  auto layer = LegacyDenseLayer::create_from_config(config);
 
   EXPECT_NE(layer, nullptr);
-  EXPECT_EQ(layer->type(), "legacy_dense");
+  EXPECT_EQ(layer.type(), "legacy_dense");
 }
 
 TEST_F(LegacyDenseLayerTest, EdgeCaseSmallLayer) {
@@ -417,12 +415,12 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseSmallLayer) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 2}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({1, 2}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  auto out_shape = output->shape();
+  auto out_shape = output.shape();
   EXPECT_EQ(out_shape[1], 1);
   EXPECT_EQ(out_shape[0], 1);
 }
@@ -433,15 +431,15 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseZeroGradient) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 10}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(0.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(0.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
@@ -452,10 +450,10 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseLargeValues) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 10}, getHost());
-  input->fill(1e6f);
+  Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
+  input.fill(1e6f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 5);
 }
@@ -466,13 +464,13 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseNegativeValues) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 8}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({1, 8}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 4);
 }
@@ -483,13 +481,13 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseLargeBatch) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({32, 20}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({32, 20}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 10);
-  auto output_shape = output->shape();
+  auto output_shape = output.shape();
   EXPECT_EQ(output_shape[0], 32);
 }
 
@@ -499,10 +497,10 @@ TEST_F(LegacyDenseLayerTest, NumericalStabilitySmallValues) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 10}, getHost());
-  input->fill(1e-6f);
+  Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
+  input.fill(1e-6f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 5);
 }
@@ -513,15 +511,15 @@ TEST_F(LegacyDenseLayerTest, BackwardNumericalStability) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 10}, getHost());
-  input->fill(1e-6f);
+  Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
+  input.fill(1e-6f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1e-6f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1e-6f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
@@ -532,13 +530,13 @@ TEST_F(LegacyDenseLayerTest, NumericalStabilityMixedValues) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 10}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = (i % 2 == 0) ? 1e6f : 1e-6f;
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 5);
 }
@@ -549,21 +547,21 @@ TEST_F(LegacyDenseLayerTest, MultipleForwardBackwardPasses) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input1 = make_tensor<float>({2, 10}, getHost());
-  input1->fill(1.0f);
+  Tensor input1 = Tensor({2, 10}, DType_t::FP32, getHost());
+  input1.fill(1.0f);
 
-  Tensor output1 = layer->forward({input1})[0];
+  Tensor output1 = layer.forward({input1})[0];
 
-  Tensor gradient1 = make_tensor<float>(output1->shape(), getHost());
-  gradient1->fill(1.0f);
-  Tensor grad_input1 = layer->backward({gradient1})[0];
+  Tensor gradient1 = Tensor(output1.shape(), DType_t::FP32, getHost());
+  gradient1.fill(1.0f);
+  Tensor grad_input1 = layer.backward({gradient1})[0];
 
-  Tensor input2 = make_tensor<float>({2, 10}, getHost());
-  input2->fill(2.0f);
-  Tensor output2 = layer->forward({input2})[0];
-  Tensor gradient2 = make_tensor<float>(output2->shape(), getHost());
-  gradient2->fill(1.0f);
-  Tensor grad_input2 = layer->backward({gradient2})[0];
+  Tensor input2 = Tensor({2, 10}, DType_t::FP32, getHost());
+  input2.fill(2.0f);
+  Tensor output2 = layer.forward({input2})[0];
+  Tensor gradient2 = Tensor(output2.shape(), DType_t::FP32, getHost());
+  gradient2.fill(1.0f);
+  Tensor grad_input2 = layer.backward({gradient2})[0];
 
   verify_gradient_shape(gradient2, grad_input2, input2);
 }

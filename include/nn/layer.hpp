@@ -10,6 +10,13 @@
 
 #include <cstddef>
 #include <cstring>
+#include <map>
+#include <memory>
+#include <numeric>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "common/config.hpp"
 #include "device/del_allocator_v2.hpp"
@@ -96,8 +103,8 @@ public:
   EngineType get_engine_type() const;
 
   void init();
-  Vec<Tensor> forward(const Vec<ConstTensor> &inputs, size_t mb_id = 0);
-  Vec<Tensor> backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0);
+  Vec<Tensor> forward(const Vec<Tensor> &inputs, size_t mb_id = 0);
+  Vec<Tensor> backward(const Vec<Tensor> &grad_outputs, size_t mb_id = 0);
 
   // Note: have to call init again after changing param dtype
   LayerImpl &set_allocator(DELAllocatorV2 &allocator);
@@ -121,8 +128,20 @@ public:
   virtual std::string type() const = 0;
   virtual LayerConfig get_config() const = 0;
 
-  Vec<Tensor> parameters();
-  Vec<Tensor> gradients();
+  Vec<Tensor *> parameters() {
+    Vec<Tensor *> params;
+    for (const auto &desc : param_descriptors()) {
+      params.push_back(desc.data_ptr);
+    }
+    return params;
+  }
+  Vec<Tensor *> gradients() {
+    Vec<Tensor *> grads;
+    for (const auto &desc : param_descriptors()) {
+      grads.push_back(desc.grad_ptr);
+    }
+    return grads;
+  }
   void clear_cache(size_t mb_id);
 
   const Device &device() const {
@@ -142,8 +161,9 @@ protected:
   virtual void on_set_io_dtype(DType_t dtype) {}
   virtual void on_set_param_dtype(DType_t dtype) {}
   virtual void on_set_compute_dtype(DType_t dtype) {}
-  virtual Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) = 0;
-  virtual Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) = 0;
+  virtual Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id) = 0;
+  virtual Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) = 0;
+  virtual void on_clear_cache(size_t mb_id) {}
 
 protected:
   bool initialized_ = false;
@@ -153,7 +173,7 @@ protected:
   bool is_fwd_ = false;
   bool use_seed_ = false;
   unsigned long long srand_seed_ = 0;
-  std::map<std::pair<size_t, std::string>, ConstTensor> immutable_cache_;
+  std::map<std::pair<size_t, std::string>, Tensor> immutable_cache_;
   std::map<std::pair<size_t, std::string>, Tensor> mutable_cache_;
   flowHandle_t flow_handle_;
   std::string name_;
@@ -162,9 +182,9 @@ protected:
   DType_t compute_dtype_ = DType_t::FP32;  // data type for internal computations
 
   // helpers
-  void set_immutable_cache(size_t mb_id, const std::string &key, ConstTensor value);
-  ConstTensor &get_immutable_cache(size_t mb_id, const std::string &key);
-  void set_mutable_cache(size_t mb_id, const std::string &key, Tensor value);
+  void set_immutable_cache(size_t mb_id, const std::string &key, const Tensor &value);
+  const Tensor &get_immutable_cache(size_t mb_id, const std::string &key);
+  void set_mutable_cache(size_t mb_id, const std::string &key, Tensor &value);
   Tensor &get_mutable_cache(size_t mb_id, const std::string &key);
   Tensor get_tensor(const Vec<size_t> &shape, DType_t dtype);
 };
@@ -179,20 +199,23 @@ public:
 
   LayerRef() = default;
 
+  LayerRef(std::nullptr_t)
+      : impl_(nullptr) {}
+
   LayerRef(std::shared_ptr<LayerType> layer)
-      : layer_(layer) {}
+      : impl_(layer) {}
 
   template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, LayerType *>>>
   LayerRef(std::shared_ptr<U> layer)
-      : layer_(std::move(layer)) {}
+      : impl_(std::move(layer)) {}
 
   template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, LayerType *>>>
   LayerRef(const LayerRef<U> &other)
-      : layer_(std::static_pointer_cast<LayerType>(other.layer_)) {}
+      : impl_(std::static_pointer_cast<LayerType>(other.impl_)) {}
 
   template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, LayerType *>>>
   LayerRef(LayerRef<U> &&other)
-      : layer_(std::static_pointer_cast<LayerType>(std::move(other.layer_))) {}
+      : impl_(std::static_pointer_cast<LayerType>(std::move(other.impl_))) {}
 
   template <typename T, typename U = typename std::decay_t<T>::impl_type,
             std::enable_if_t<std::is_convertible_v<U *, LayerType *> &&
@@ -200,34 +223,32 @@ public:
                                  !std::is_same_v<std::decay_t<T>, LayerRef<U>>,
                              int> = 0>
   LayerRef(T &&other)
-      : layer_(
-            std::static_pointer_cast<LayerType>(static_cast<const LayerRef<U> &>(other).layer_)) {}
+      : impl_(std::static_pointer_cast<LayerType>(static_cast<const LayerRef<U> &>(other).impl_)) {}
 
   template <typename... Args>
   LayerRef(Args &&...args)
-      : layer_(std::make_shared<LayerType>(std::forward<Args>(args)...)) {}
+      : impl_(std::make_shared<LayerType>(std::forward<Args>(args)...)) {}
 
-  LayerType *operator->() const { return layer_.get(); }
-  LayerType &operator*() const { return *layer_; }
+  LayerType &operator*() const { return *impl_; }
 
-  operator std::shared_ptr<LayerType>() const { return layer_; }
-  LayerType *get() const { return layer_.get(); }
-  LayerType *release() { return layer_.release(); }
+  operator std::shared_ptr<LayerType>() const { return impl_; }
+  LayerType *get() const { return impl_.get(); }
+  LayerType *release() { return impl_.release(); }
 
-  explicit operator bool() const { return layer_ != nullptr; }
-  bool operator!() const { return layer_ == nullptr; }
+  explicit operator bool() const { return impl_ != nullptr; }
+  bool operator!() const { return impl_ == nullptr; }
 
-  bool operator==(const LayerRef &other) const { return layer_ == other.layer_; }
-  bool operator!=(const LayerRef &other) const { return layer_ != other.layer_; }
+  bool operator==(const LayerRef &other) const { return impl_ == other.impl_; }
+  bool operator!=(const LayerRef &other) const { return impl_ != other.impl_; }
 
   template <typename U>
   bool is() const {
-    return std::dynamic_pointer_cast<U>(layer_) != nullptr;
+    return std::dynamic_pointer_cast<U>(impl_) != nullptr;
   }
 
   template <typename U>
   auto as() const -> LayerRef<U> {
-    auto casted = std::dynamic_pointer_cast<U>(layer_);
+    auto casted = std::dynamic_pointer_cast<U>(impl_);
     if (!casted) {
       throw std::runtime_error("LayerRef: incompatible layer cast");
     }
@@ -236,14 +257,180 @@ public:
 
   template <typename... Args>
   decltype(auto) operator()(Args &&...args) const {
-    if (!layer_) {
-      throw std::runtime_error("LayerRef: underlying shared_ptr is null");
+    check_layer("operator()");
+    return (*impl_)(std::forward<Args>(args)...);
+  }
+
+  void set_engine_type(EngineType engine_type) {
+    check_layer("set_engine_type");
+    impl_->set_engine_type(engine_type);
+  }
+
+  EngineType get_engine_type() const {
+    check_layer("get_engine_type");
+    return impl_->get_engine_type();
+  }
+
+  void init() {
+    check_layer("init");
+    impl_->init();
+  }
+
+  Vec<Tensor> forward(const Vec<Tensor> &inputs, size_t mb_id = 0) {
+    check_layer("forward");
+    return impl_->forward(inputs, mb_id);
+  }
+
+  Vec<Tensor> backward(const Vec<Tensor> &grad_outputs, size_t mb_id = 0) {
+    check_layer("backward");
+    return impl_->backward(grad_outputs, mb_id);
+  }
+
+  LayerRef &set_allocator(DELAllocatorV2 &allocator) {
+    check_layer("set_allocator");
+    impl_->set_allocator(allocator);
+    return *this;
+  }
+
+  DELAllocatorV2 *get_allocator() const {
+    check_layer("get_allocator");
+    return impl_->get_allocator();
+  }
+
+  LayerRef &set_flow_handle(flowHandle_t handle) {
+    check_layer("set_flow_handle");
+    impl_->set_flow_handle(handle);
+    return *this;
+  }
+
+  flowHandle_t get_flow_handle() const {
+    check_layer("get_flow_handle");
+    return impl_->get_flow_handle();
+  }
+
+  LayerRef &set_seed(unsigned long long seed) {
+    check_layer("set_seed");
+    impl_->set_seed(seed);
+    return *this;
+  }
+
+  LayerRef &set_io_dtype(DType_t dtype) {
+    check_layer("set_io_dtype");
+    impl_->set_io_dtype(dtype);
+    return *this;
+  }
+
+  DType_t get_io_dtype() const {
+    check_layer("get_io_dtype");
+    return impl_->get_io_dtype();
+  }
+
+  LayerRef &set_param_dtype(DType_t dtype) {
+    check_layer("set_param_dtype");
+    impl_->set_param_dtype(dtype);
+    return *this;
+  }
+
+  DType_t get_param_dtype() const {
+    check_layer("get_param_dtype");
+    return impl_->get_param_dtype();
+  }
+
+  LayerRef &set_compute_dtype(DType_t dtype) {
+    check_layer("set_compute_dtype");
+    impl_->set_compute_dtype(dtype);
+    return *this;
+  }
+
+  DType_t get_compute_dtype() const {
+    check_layer("get_compute_dtype");
+    return impl_->get_compute_dtype();
+  }
+
+  LayerRef &set_training(bool training) {
+    check_layer("set_training");
+    impl_->set_training(training);
+    return *this;
+  }
+
+  bool is_training() const {
+    check_layer("is_training");
+    return impl_->is_training();
+  }
+
+  Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
+    check_layer("output_shapes");
+    return impl_->output_shapes(input_shapes);
+  }
+
+  std::string name() const {
+    check_layer("name");
+    return impl_->name();
+  }
+
+  void save_state(std::ofstream &file) {
+    check_layer("save_state");
+    impl_->save_state(file);
+  }
+
+  Vec<ParamDescriptor> param_descriptors() {
+    check_layer("param_descriptors");
+    return impl_->param_descriptors();
+  }
+
+  const std::vector<ParamDescriptor> param_descriptors() const {
+    check_layer("param_descriptors");
+    return impl_->param_descriptors();
+  }
+
+  std::string type() const {
+    check_layer("type");
+    return impl_->type();
+  }
+
+  LayerConfig get_config() const {
+    check_layer("get_config");
+    return impl_->get_config();
+  }
+
+  Vec<Tensor *> parameters() {
+    check_layer("parameters");
+    return impl_->parameters();
+  }
+
+  Vec<Tensor *> gradients() {
+    check_layer("gradients");
+    return impl_->gradients();
+  }
+
+  void clear_cache(size_t mb_id) {
+    check_layer("clear_cache");
+    impl_->clear_cache(mb_id);
+  }
+
+  const Device &device() const {
+    check_layer("device");
+    return impl_->device();
+  }
+
+  static LayerRef<LayerType> create_from_config(const LayerConfig &config) {
+    std::shared_ptr<LayerType> layer = LayerType::create_from_config(config);
+    if (!layer) {
+      throw std::runtime_error("LayerRef: create_from_config returned nullptr");
     }
-    return (*layer_)(std::forward<Args>(args)...);
+    return LayerRef<LayerType>(std::move(layer));
   }
 
 protected:
-  std::shared_ptr<LayerType> layer_;
+  std::shared_ptr<LayerType> impl_;
+
+private:
+  void check_layer(const char *method_name) const {
+    if (!impl_) {
+      throw std::runtime_error(
+          fmt::format("LayerRef {}: underlying shared_ptr is null", method_name));
+    }
+  }
 };
 
 class Layer : public LayerRef<LayerImpl> {

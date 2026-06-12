@@ -5,6 +5,6 @@ namespace synet {
 // lib ver
 const char *get_version() { return "0.1.0"; }
 
-const char *get_build_info() { return "SYNET - Tensor Neural Network Library"; }
+const char *get_build_info() { return "SYNET - Graph Neural Network Library"; }
 
 }  // namespace synet

@@ -34,16 +34,8 @@ private:
   std::unordered_map<size_t, Tensor> pre_activation_cache_;
   std::string activation_type_;
 
-  Vec<LayerImpl *> layers() override {
-    Vec<LayerImpl *> all_layers = {main_path_.get()};
-    if (shortcut_path_) {
-      all_layers.push_back(shortcut_path_.get());
-    }
-    return all_layers;
-  }
-
-  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id = 0) override;
-  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0) override;
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id = 0) override;
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id = 0) override;
 
 public:
   /**
@@ -69,6 +61,14 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   static std::shared_ptr<ResidualBlockImpl> create_from_config(const LayerConfig &config);
+
+  Vec<Layer> layers() override {
+    Vec<Layer> all_layers = {main_path_};
+    if (shortcut_path_) {
+      all_layers.push_back(shortcut_path_);
+    }
+    return all_layers;
+  }
 
   Node operator()(const Node &input) {
     if (!input) {

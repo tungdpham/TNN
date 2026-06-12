@@ -102,20 +102,20 @@ Vec<Vec<size_t>> SDPALayerImpl::output_shapes(const Vec<Vec<size_t>> &input_shap
   return {q_shape};
 }
 
-Vec<Tensor> SDPALayerImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> SDPALayerImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
   if (inputs.size() != 3) {
     throw std::runtime_error("SDPALayerImpl: expected exactly 3 inputs (Q, K, V)");
   }
 
-  const ConstTensor &q = inputs[0];
-  const ConstTensor &k = inputs[1];
-  const ConstTensor &v = inputs[2];
+  const Tensor &q = inputs[0];
+  const Tensor &k = inputs[1];
+  const Tensor &v = inputs[2];
 
-  if (q->dims() != 4) {
+  if (q.dims() != 4) {
     throw std::runtime_error("SDPALayerImpl: Q must be 4D (B, H, S, D)");
   }
 
-  const auto &q_shape = q->shape();
+  const auto &q_shape = q.shape();
   const size_t batch_size = q_shape[0];
   const size_t num_heads = q_shape[1];
   const size_t seq_len = q_shape[2];
@@ -123,8 +123,8 @@ Vec<Tensor> SDPALayerImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t m
 
   // Validate K and V shapes
   {
-    const auto &k_shape = k->shape();
-    const auto &v_shape = v->shape();
+    const auto &k_shape = k.shape();
+    const auto &v_shape = v.shape();
     if (k_shape != q_shape || v_shape != q_shape) {
       throw std::runtime_error("SDPALayerImpl: Q, K, V must have same shape");
     }
@@ -142,7 +142,7 @@ Vec<Tensor> SDPALayerImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t m
   }
 
 #ifdef USE_CUDNN
-  if (q->device_type() == DeviceType::GPU) {
+  if (q.device_type() == DeviceType::GPU) {
     cudnn_forward(q, k, v, output, mb_id);
     return {output};
   }
@@ -164,12 +164,12 @@ Vec<Tensor> SDPALayerImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t m
   return {output};
 }
 
-Vec<Tensor> SDPALayerImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> SDPALayerImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
   if (grad_outputs.size() != 1) {
     throw std::runtime_error("SDPALayerImpl: expected exactly 1 grad output");
   }
 
-  const ConstTensor &grad_output = grad_outputs[0];
+  const Tensor &grad_output = grad_outputs[0];
 
   // Retrieve cached forward pass data
   auto it_shapes = micro_batch_q_shapes_.find(mb_id);
@@ -183,9 +183,9 @@ Vec<Tensor> SDPALayerImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, s
   const size_t seq_len = q_shape[2];
   const size_t head_dim = q_shape[3];
 
-  const ConstTensor &q = this->get_immutable_cache(mb_id, "q");
-  const ConstTensor &k = this->get_immutable_cache(mb_id, "k");
-  const ConstTensor &v = this->get_immutable_cache(mb_id, "v");
+  const Tensor &q = this->get_immutable_cache(mb_id, "q");
+  const Tensor &k = this->get_immutable_cache(mb_id, "k");
+  const Tensor &v = this->get_immutable_cache(mb_id, "v");
 
   // Allocate gradient tensors
   Tensor grad_q = get_tensor(q_shape, this->io_dtype_);
@@ -193,8 +193,8 @@ Vec<Tensor> SDPALayerImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, s
   Tensor grad_v = get_tensor(q_shape, this->io_dtype_);
 
 #ifdef USE_CUDNN
-  if (grad_output->device_type() == DeviceType::GPU) {
-    const Tensor &output = this->get_mutable_cache(mb_id, "output");
+  if (grad_output.device_type() == DeviceType::GPU) {
+    Tensor &output = this->get_mutable_cache(mb_id, "output");
     cudnn_backward(q, k, v, output, grad_output, grad_q, grad_k, grad_v, mb_id);
     // Clear cached data
     micro_batch_q_shapes_.erase(mb_id);
@@ -203,7 +203,7 @@ Vec<Tensor> SDPALayerImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, s
 #endif
 
   const Tensor &attn_weights = this->get_mutable_cache(mb_id, "attn_weights");
-  if (attn_weights == nullptr) {
+  if (!attn_weights) {
     throw std::runtime_error("SDPALayerImpl: missing cached attention weights for backward");
   }
 
@@ -225,31 +225,31 @@ Vec<Tensor> SDPALayerImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, s
 
 template <typename IO_T>
 std::unique_ptr<Task> SDPALayerImpl::compute_sdpa_forward_impl(
-    const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const Tensor &output,
-    const Tensor &scores, const Tensor &attn_weights, size_t batch_size, size_t num_heads,
-    size_t seq_len, size_t head_dim, flowHandle_t handle, size_t mb_id) const {
+    const Tensor &q, const Tensor &k, const Tensor &v, Tensor &output, Tensor &scores,
+    Tensor &attn_weights, size_t batch_size, size_t num_heads, size_t seq_len, size_t head_dim,
+    flowHandle_t handle, size_t mb_id) const {
   using AccT = typename TypeTraits<IO_T>::ComputePrecision;
 
-  if (q->data_type() != dtype_of<IO_T>() || k->data_type() != dtype_of<IO_T>() ||
-      v->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>() ||
-      attn_weights->data_type() != dtype_of<IO_T>()) {
+  if (q.data_type() != dtype_of<IO_T>() || k.data_type() != dtype_of<IO_T>() ||
+      v.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>() ||
+      attn_weights.data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("SDPALayerImpl: data type mismatch in forward pass");
   }
-  if (scores->data_type() != sdpa_workspace_dtype<IO_T>()) {
+  if (scores.data_type() != sdpa_workspace_dtype<IO_T>()) {
     throw std::runtime_error("SDPALayerImpl: score workspace dtype mismatch in forward pass");
   }
 
-  if (q->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::sdpa::run_forward<IO_T>, q->data_as<IO_T>(),
-                           k->data_as<IO_T>(), v->data_as<IO_T>(), output->data_as<IO_T>(),
-                           scores->data_as<AccT>(), attn_weights->data_as<IO_T>(), batch_size,
+  if (q.device_type() == DeviceType::CPU) {
+    return create_cpu_task(handle, cpu::sdpa::run_forward<IO_T>, q.data_as<IO_T>(),
+                           k.data_as<IO_T>(), v.data_as<IO_T>(), output.data_as<IO_T>(),
+                           scores.data_as<AccT>(), attn_weights.data_as<IO_T>(), batch_size,
                            num_heads, seq_len, head_dim, attn_scale_, is_causal_);
   }
 #ifdef USE_CUDA
-  else if (q->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, cuda::sdpa::run_forward<IO_T>, q->data_as<IO_T>(),
-                            k->data_as<IO_T>(), v->data_as<IO_T>(), output->data_as<IO_T>(),
-                            scores->data_as<AccT>(), attn_weights->data_as<IO_T>(), batch_size,
+  else if (q.device_type() == DeviceType::GPU) {
+    return create_cuda_task(handle, cuda::sdpa::run_forward<IO_T>, q.data_as<IO_T>(),
+                            k.data_as<IO_T>(), v.data_as<IO_T>(), output.data_as<IO_T>(),
+                            scores.data_as<AccT>(), attn_weights.data_as<IO_T>(), batch_size,
                             num_heads, seq_len, head_dim, attn_scale_, is_causal_);
   }
 #endif
@@ -260,35 +260,35 @@ std::unique_ptr<Task> SDPALayerImpl::compute_sdpa_forward_impl(
 
 template <typename IO_T>
 std::unique_ptr<Task> SDPALayerImpl::compute_sdpa_backward_impl(
-    const ConstTensor &q, const ConstTensor &k, const ConstTensor &v,
-    const ConstTensor &attn_weights, const ConstTensor &grad_output, const Tensor &grad_scores,
-    const Tensor &grad_q, const Tensor &grad_k, const Tensor &grad_v, size_t batch_size,
-    size_t num_heads, size_t seq_len, size_t head_dim, flowHandle_t handle, size_t mb_id) const {
+    const Tensor &q, const Tensor &k, const Tensor &v, const Tensor &attn_weights,
+    const Tensor &grad_output, Tensor &grad_scores, Tensor &grad_q, Tensor &grad_k, Tensor &grad_v,
+    size_t batch_size, size_t num_heads, size_t seq_len, size_t head_dim, flowHandle_t handle,
+    size_t mb_id) const {
   using AccT = typename TypeTraits<IO_T>::ComputePrecision;
 
-  if (q->data_type() != dtype_of<IO_T>() || grad_output->data_type() != dtype_of<IO_T>() ||
-      attn_weights->data_type() != dtype_of<IO_T>() || grad_q->data_type() != dtype_of<IO_T>() ||
-      grad_k->data_type() != dtype_of<IO_T>() || grad_v->data_type() != dtype_of<IO_T>()) {
+  if (q.data_type() != dtype_of<IO_T>() || grad_output.data_type() != dtype_of<IO_T>() ||
+      attn_weights.data_type() != dtype_of<IO_T>() || grad_q.data_type() != dtype_of<IO_T>() ||
+      grad_k.data_type() != dtype_of<IO_T>() || grad_v.data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("SDPALayerImpl: data type mismatch in backward pass");
   }
-  if (grad_scores->data_type() != sdpa_workspace_dtype<IO_T>()) {
+  if (grad_scores.data_type() != sdpa_workspace_dtype<IO_T>()) {
     throw std::runtime_error("SDPALayerImpl: grad-score workspace dtype mismatch in backward pass");
   }
 
-  if (grad_output->device_type() == DeviceType::CPU) {
-    return create_cpu_task(
-        handle, cpu::sdpa::run_backward<IO_T>, q->data_as<IO_T>(), k->data_as<IO_T>(),
-        v->data_as<IO_T>(), attn_weights->data_as<IO_T>(), grad_output->data_as<IO_T>(),
-        grad_scores->data_as<AccT>(), grad_q->data_as<IO_T>(), grad_k->data_as<IO_T>(),
-        grad_v->data_as<IO_T>(), batch_size, num_heads, seq_len, head_dim, attn_scale_, is_causal_);
+  if (grad_output.device_type() == DeviceType::CPU) {
+    return create_cpu_task(handle, cpu::sdpa::run_backward<IO_T>, q.data_as<IO_T>(),
+                           k.data_as<IO_T>(), v.data_as<IO_T>(), attn_weights.data_as<IO_T>(),
+                           grad_output.data_as<IO_T>(), grad_scores.data_as<AccT>(),
+                           grad_q.data_as<IO_T>(), grad_k.data_as<IO_T>(), grad_v.data_as<IO_T>(),
+                           batch_size, num_heads, seq_len, head_dim, attn_scale_, is_causal_);
   }
 #ifdef USE_CUDA
-  else if (grad_output->device_type() == DeviceType::GPU) {
-    return create_cuda_task(
-        handle, cuda::sdpa::run_backward<IO_T>, q->data_as<IO_T>(), k->data_as<IO_T>(),
-        v->data_as<IO_T>(), attn_weights->data_as<IO_T>(), grad_output->data_as<IO_T>(),
-        grad_scores->data_as<AccT>(), grad_q->data_as<IO_T>(), grad_k->data_as<IO_T>(),
-        grad_v->data_as<IO_T>(), batch_size, num_heads, seq_len, head_dim, attn_scale_, is_causal_);
+  else if (grad_output.device_type() == DeviceType::GPU) {
+    return create_cuda_task(handle, cuda::sdpa::run_backward<IO_T>, q.data_as<IO_T>(),
+                            k.data_as<IO_T>(), v.data_as<IO_T>(), attn_weights.data_as<IO_T>(),
+                            grad_output.data_as<IO_T>(), grad_scores.data_as<AccT>(),
+                            grad_q.data_as<IO_T>(), grad_k.data_as<IO_T>(), grad_v.data_as<IO_T>(),
+                            batch_size, num_heads, seq_len, head_dim, attn_scale_, is_causal_);
   }
 #endif
   else {
@@ -297,9 +297,9 @@ std::unique_ptr<Task> SDPALayerImpl::compute_sdpa_backward_impl(
 }
 
 #ifdef USE_CUDNN
-void SDPALayerImpl::cudnn_forward(const ConstTensor &q, const ConstTensor &k, const ConstTensor &v,
-                                  const Tensor &output, size_t mb_id) {
-  const auto &q_shape = q->shape();
+void SDPALayerImpl::cudnn_forward(const Tensor &q, const Tensor &k, const Tensor &v, Tensor &output,
+                                  size_t mb_id) {
+  const auto &q_shape = q.shape();
   size_t batch_size = q_shape[0];
   size_t num_heads = q_shape[1];
   size_t seq_len = q_shape[2];
@@ -319,7 +319,7 @@ void SDPALayerImpl::cudnn_forward(const ConstTensor &q, const ConstTensor &k, co
     cudnnHandle_t cudnn_handle = CUDAContext::getCudnnHandle();
 
     // Convert dtype
-    cudnnDataType_t io_data_type = cuda::cudnn::to_cudnn_datatype(q->data_type());
+    cudnnDataType_t io_data_type = cuda::cudnn::to_cudnn_datatype(q.data_type());
     cudnnDataType_t compute_data_type = cuda::cudnn::to_cudnn_datatype(this->compute_dtype_);
 
     // Initialize cuDNN flash attention handle
@@ -347,15 +347,14 @@ void SDPALayerImpl::cudnn_forward(const ConstTensor &q, const ConstTensor &k, co
 
   // Call cuDNN flash attention forward
   create_cuda_task(this->flow_handle_, cuda::cudnn_flash_attention::run_forward, fe_handle, stats,
-                   q->data(), k->data(), v->data(), output->data(), stats_tensor->data(),
-                   workspace->data());
+                   q.data(), k.data(), v.data(), output.data(), stats_tensor.data(),
+                   workspace.data());
 }
 
-void SDPALayerImpl::cudnn_backward(const ConstTensor &q, const ConstTensor &k, const ConstTensor &v,
-                                   const ConstTensor &output, const ConstTensor &grad_output,
-                                   const Tensor &grad_q, const Tensor &grad_k, const Tensor &grad_v,
-                                   size_t mb_id) {
-  const auto &q_shape = q->shape();
+void SDPALayerImpl::cudnn_backward(const Tensor &q, const Tensor &k, const Tensor &v,
+                                   const Tensor &output, const Tensor &grad_output, Tensor &grad_q,
+                                   Tensor &grad_k, Tensor &grad_v, size_t mb_id) {
+  const auto &q_shape = q.shape();
   size_t batch_size = q_shape[0];
   size_t num_heads = q_shape[1];
   size_t seq_len = q_shape[2];
@@ -373,9 +372,9 @@ void SDPALayerImpl::cudnn_backward(const ConstTensor &q, const ConstTensor &k, c
 
   // Call cuDNN flash attention backward
   create_cuda_task(this->flow_handle_, cuda::cudnn_flash_attention::run_backward, fe_handle, stats,
-                   q->data(), k->data(), v->data(), output->data(), grad_output->data(),
-                   stats_tensor->data(), grad_q->data(), grad_k->data(), grad_v->data(),
-                   workspace->data());
+                   q.data(), k.data(), v.data(), output.data(), grad_output.data(),
+                   stats_tensor.data(), grad_q.data(), grad_k.data(), grad_v.data(),
+                   workspace.data());
 }
 #endif
 

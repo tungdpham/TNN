@@ -85,13 +85,13 @@ private:
         std::min(batch_size, sample_list_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data = make_tensor<T>(
-        allocator_, {actual_batch_size, imagenet100_constants::IMAGE_HEIGHT,
-                     imagenet100_constants::IMAGE_WIDTH, imagenet100_constants::NUM_CHANNELS});
-    batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
+    batch_data = Tensor({actual_batch_size, imagenet100_constants::IMAGE_HEIGHT,
+                         imagenet100_constants::IMAGE_WIDTH, imagenet100_constants::NUM_CHANNELS},
+                        dtype_of<T>(), allocator_);
+    batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
 
-    T *batch_raw = batch_data->data_as<T>();
-    int *labels_raw = batch_labels->data_as<int>();
+    T *batch_raw = batch_data.data_as<T>();
+    int *labels_raw = batch_labels.data_as<int>();
     const size_t image_size = imagenet100_constants::IMAGE_SIZE;
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {

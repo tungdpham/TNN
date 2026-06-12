@@ -21,14 +21,12 @@
 #include <memory>
 
 #include "data_loading/batch_prefetcher.hpp"
-#include "device/del_allocator_v2.hpp"
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/csv_logger.hpp"
 #include "nn/metrics.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "type/type.hpp"
-#include "utils/env.hpp"
 
 using namespace std;
 
@@ -128,74 +126,6 @@ void TrainingConfig::print_config() const {
   cout << "  Optimizer Type: " << optimizer_config.type << endl;
   cout << "  Scheduler Type: " << scheduler_config.type << endl;
   cout << "  Loss Type: " << loss_config.type << endl;
-}
-
-void TrainingConfig::load_from_env() {
-  // Get training parameters from environment or use defaults
-  Env::get("EPOCHS", epochs);
-  Env::get("BATCH_SIZE", batch_size);
-  Env::get("MAX_STEPS", max_steps);
-  Env::get("SYNET_TRAIN_MODE", train_mode);
-  Env::get("TRAIN_MODE", train_mode);
-  train_mode = normalize_train_mode(train_mode);
-  Env::get("LR_INITIAL", lr_initial);
-  Env::get("GRADIENT_ACCUMULATION_STEPS", gradient_accumulation_steps);
-  Env::get("PROGRESS_PRINT_INTERVAL", progress_print_interval);
-  string profiler_type_str = "NONE";
-  Env::get("PROFILER_TYPE", profiler_type_str);
-  if (profiler_type_str == "NORMAL") {
-    profiler_type = ProfilerType::NORMAL;
-  } else if (profiler_type_str == "CUMULATIVE") {
-    profiler_type = ProfilerType::CUMULATIVE;
-  } else {
-    profiler_type = ProfilerType::NONE;
-  }
-  Env::get("NUM_THREADS", num_threads);
-  Env::get("PRINT_LAYER_PROFILING", print_layer_profiling);
-  Env::get("PRINT_LAYER_MEMORY_USAGE", print_layer_memory_usage);
-  Env::get("NUM_MICROBATCHES", num_microbatches);
-  string device_type_str = "CPU";
-  Env::get("DEVICE_TYPE", device_type_str);
-  device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
-  Env::get("MODEL_NAME", model_name);
-  Env::get("MODEL_PATH", model_path);
-  Env::get("DATASET_NAME", dataset_name);
-  Env::get("DATASET_PATH", dataset_path);
-  string io_dtype_str = dtype_to_string(io_dtype);
-  Env::get("IO_DTYPE", io_dtype_str);
-  io_dtype = string_to_dtype(io_dtype_str);
-  string param_dtype_str = dtype_to_string(param_dtype);
-  Env::get("PARAM_DTYPE", param_dtype_str);
-  param_dtype = string_to_dtype(param_dtype_str);
-  string compute_dtype_str = dtype_to_string(compute_dtype);
-  Env::get("COMPUTE_DTYPE", compute_dtype_str);
-  compute_dtype = string_to_dtype(compute_dtype_str);
-
-  // Ablation flags. Prefer SYNET_* names, but also accept legacy short names.
-  Env::get("SYNET_PREFETCH_DATA", prefetch_data);
-  Env::get("PREFETCH_DATA", prefetch_data);
-  Env::get("SYNET_PREFETCH_DEPTH", prefetch_depth);
-  Env::get("PREFETCH_DEPTH", prefetch_depth);
-  Env::get("SYNET_ASYNC_PIPELINE", async_pipeline);
-  Env::get("ASYNC_PIPELINE", async_pipeline);
-  Env::get("SYNET_AUGMENTATION", augmentation);
-  Env::get("AUGMENTATION", augmentation);
-
-  // Parse LogMode settings
-  Env::get("LOG_LOSS", log_mode.log_loss);
-  Env::get("LOG_ACCURACY", log_mode.log_accuracy);
-  Env::get("LOG_PRECISION", log_mode.log_precision);
-  Env::get("LOG_RECALL", log_mode.log_recall);
-  Env::get("LOG_F1_SCORE", log_mode.log_f1_score);
-  Env::get("LOG_PERPLEXITY", log_mode.log_perplexity);
-  Env::get("LOG_TOP_K_ACCURACY", log_mode.log_top_k_accuracy);
-  Env::get("LOG_MAE", log_mode.log_mae);
-  Env::get("LOG_MSE", log_mode.log_mse);
-  Env::get("LOG_RMSE", log_mode.log_rmse);
-
-  Env::get<string>("OPTIMIZER_TYPE", optimizer_config.type);
-  Env::get<string>("SCHEDULER_TYPE", scheduler_config.type);
-  Env::get<string>("LOSS_TYPE", loss_config.type);
 }
 
 void TrainingConfig::load_from_json(const string &config_path) {
@@ -308,8 +238,8 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
          (config.max_steps == -1 || num_batches < config.max_steps)) {
     auto batch_start = chrono::high_resolution_clock::now();
     ++num_batches;
-    Tensor device_input = batch_data->to_device(model_device);
-    auto device_labels = batch_labels->to_device(model_device);
+    Tensor device_input = batch_data.to_device(model_device);
+    auto device_labels = batch_labels.to_device(model_device);
 
     TensorBundle inputs{{"input", device_input}};
 
@@ -317,8 +247,8 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
     Tensor predictions = outputs.get("output");
 
     size_t batch_size = 1;
-    for (size_t i = 0; i < predictions->dims() - 1; ++i) {
-      batch_size *= predictions->shape()[i];
+    for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+      batch_size *= predictions.shape()[i];
     }
     total_class_num += batch_size;
 
@@ -346,13 +276,13 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
       step_metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_labels, 5);
     }
 
-    Tensor loss_gradient = make_tensor(mem_pool, batch_data->data_type(), predictions->shape());
+    Tensor loss_gradient = Tensor(predictions.shape(), batch_data.data_type(), mem_pool);
     criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
-    predictions = nullptr;  // free prediction buffer early
+    predictions = Tensor();  // free prediction buffer early
 
     if (config.gradient_accumulation_steps > 1) {
-      loss_gradient->mul_scalar(1.0 / config.gradient_accumulation_steps);
+      loss_gradient.mul_scalar(1.0 / config.gradient_accumulation_steps);
     }
 
     TensorBundle output_grads{{"output", loss_gradient}};
@@ -536,8 +466,8 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
         }
       }
       auto batch_start = chrono::high_resolution_clock::now();
-      Tensor device_input = batch_data->to_device(model_device);
-      Tensor device_labels = batch_labels->to_device(model_device);
+      Tensor device_input = batch_data.to_device(model_device);
+      Tensor device_labels = batch_labels.to_device(model_device);
       TensorBundle inputs{{"input", device_input}};
       TensorBundle outputs = graph.forward(inputs);
       Tensor predictions = outputs.get("output");
@@ -565,11 +495,11 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
             compute_top_k_accuracy(predictions, device_labels, 5);
       }
 
-      Tensor loss_gradient = make_tensor(mem_pool, batch_data->data_type(), predictions->shape());
+      Tensor loss_gradient = Tensor(predictions.shape(), batch_data.data_type(), mem_pool);
       criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
       if (config.gradient_accumulation_steps > 1) {
-        loss_gradient->mul_scalar(1.0 / config.gradient_accumulation_steps);
+        loss_gradient.mul_scalar(1.0 / config.gradient_accumulation_steps);
       }
       TensorBundle output_grads{{"output", loss_gradient}};
       graph.backward(output_grads);
@@ -586,8 +516,8 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       }
 
       size_t num_samples = 1;
-      for (size_t i = 0; i < predictions->dims() - 1; ++i) {
-        num_samples *= predictions->shape()[i];
+      for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+        num_samples *= predictions.shape()[i];
       }
 
       double batch_acc_pct = corrects * 100.0 / num_samples;
@@ -682,12 +612,12 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
   Tensor device_batch_labels;
 
   while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
-    Tensor device_input = batch_data->to_device(model_device);
+    Tensor device_input = batch_data.to_device(model_device);
     TensorBundle inputs{{"input", device_input}};
     TensorBundle outputs = graph.forward(inputs);
     Tensor predictions = outputs.get("output");
 
-    device_batch_labels = batch_labels->to_device(model_device);
+    device_batch_labels = batch_labels.to_device(model_device);
     float loss;
     criterion->compute_loss(predictions, device_batch_labels, loss);
     val_loss += loss;

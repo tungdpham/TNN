@@ -38,64 +38,63 @@ AttentionBlockImpl::AttentionBlockImpl(size_t embed_dim, size_t num_heads, bool 
   head_dim_ = embed_dim / num_heads;
 }
 
-Vec<Tensor> AttentionBlockImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
-  const ConstTensor &input = inputs[0];
-  const auto &input_shape = input->shape();
+Vec<Tensor> AttentionBlockImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
+  const Tensor &input = inputs[0];
+  const auto &input_shape = input.shape();
 
   size_t batch_size = input_shape[0];
   size_t seq_len = input_shape[1];
 
-  if (this->is_training_) {
-    ConstTensor &cached_input = this->get_immutable_cache(mb_id, "input");
-    cached_input = input;
+  if (is_training_) {
+    set_immutable_cache(mb_id, "input", input);
   }
 
-  Tensor q = q_proj_->forward({input}, mb_id)[0];
-  Tensor k = k_proj_->forward({input}, mb_id)[0];
-  Tensor v = v_proj_->forward({input}, mb_id)[0];
+  Tensor q = q_proj_.forward({input}, mb_id)[0];
+  Tensor k = k_proj_.forward({input}, mb_id)[0];
+  Tensor v = v_proj_.forward({input}, mb_id)[0];
 
-  Tensor attn_out = this->get_tensor(input_shape, io_dtype_);
+  Tensor attn_out = get_tensor(input_shape, io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_attention_forward, q, k, v, attn_out, batch_size, seq_len,
                                  defaultFlowHandle);
 
-  return out_proj_->forward({attn_out}, mb_id);
+  return out_proj_.forward({attn_out}, mb_id);
 }
 
-Vec<Tensor> AttentionBlockImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
-  const ConstTensor &grad_output = grad_outputs[0];
-  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
+Vec<Tensor> AttentionBlockImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
+  const Tensor &grad_output = grad_outputs[0];
+  const Tensor &input = get_immutable_cache(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
   }
 
-  size_t batch_size = input->dimension(0);
-  size_t seq_len = input->dimension(1);
+  size_t batch_size = input.dimension(0);
+  size_t seq_len = input.dimension(1);
 
-  Tensor q = q_proj_->forward({input}, mb_id)[0];
-  Tensor k = k_proj_->forward({input}, mb_id)[0];
-  Tensor v = v_proj_->forward({input}, mb_id)[0];
+  Tensor q = q_proj_.forward({input}, mb_id)[0];
+  Tensor k = k_proj_.forward({input}, mb_id)[0];
+  Tensor v = v_proj_.forward({input}, mb_id)[0];
 
-  Tensor d_attn_out = out_proj_->backward({grad_output}, mb_id)[0];
+  Tensor d_attn_out = out_proj_.backward({grad_output}, mb_id)[0];
 
-  Tensor dq = this->get_tensor(q->shape(), io_dtype_);
-  Tensor dk = this->get_tensor(k->shape(), io_dtype_);
-  Tensor dv = this->get_tensor(v->shape(), io_dtype_);
+  Tensor dq = get_tensor(q.shape(), io_dtype_);
+  Tensor dk = get_tensor(k.shape(), io_dtype_);
+  Tensor dv = get_tensor(v.shape(), io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_attention_backward, q, k, v, d_attn_out, dq, dk, dv,
                                  batch_size, seq_len, defaultFlowHandle);
 
-  Tensor dq_in = q_proj_->backward({dq}, mb_id)[0];
-  Tensor dk_in = k_proj_->backward({dk}, mb_id)[0];
-  Tensor dv_in = v_proj_->backward({dv}, mb_id)[0];
+  Tensor dq_in = q_proj_.backward({dq}, mb_id)[0];
+  Tensor dk_in = k_proj_.backward({dk}, mb_id)[0];
+  Tensor dv_in = v_proj_.backward({dv}, mb_id)[0];
 
-  Tensor grad_input = this->get_tensor(input->shape(), io_dtype_);
-  size_t size = dq_in->size();
+  Tensor grad_input = get_tensor(input.shape(), io_dtype_);
+  size_t size = dq_in.size();
 
-  DISPATCH_IO_DTYPE(ops::add, dq_in->data_ptr(), dk_in->data_ptr(), grad_input->data_ptr(), size,
+  DISPATCH_IO_DTYPE(ops::add, dq_in.data_ptr(), dk_in.data_ptr(), grad_input.data_ptr(), size,
                     defaultFlowHandle);
-  DISPATCH_IO_DTYPE(ops::add, grad_input->data_ptr(), dv_in->data_ptr(), grad_input->data_ptr(),
-                    size, defaultFlowHandle);
+  DISPATCH_IO_DTYPE(ops::add, grad_input.data_ptr(), dv_in.data_ptr(), grad_input.data_ptr(), size,
+                    defaultFlowHandle);
 
   return {grad_input};
 }
@@ -106,10 +105,10 @@ Vec<Vec<size_t>> AttentionBlockImpl::output_shapes(const Vec<Vec<size_t>> &input
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> AttentionBlockImpl::compute_attention_forward(
-    const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const Tensor &output,
-    size_t batch_size, size_t seq_len, flowHandle_t handle) {
-  if (q->data_type() != dtype_of<IO_T>() || k->data_type() != dtype_of<IO_T>() ||
-      v->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
+    const Tensor &q, const Tensor &k, const Tensor &v, Tensor &output, size_t batch_size,
+    size_t seq_len, flowHandle_t handle) {
+  if (q.data_type() != dtype_of<IO_T>() || k.data_type() != dtype_of<IO_T>() ||
+      v.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("AttentionBlock IO tensor dtype mismatch with dispatch IO_T");
   }
 
@@ -121,18 +120,18 @@ std::unique_ptr<Task> AttentionBlockImpl::compute_attention_forward(
     size_t L = seq_len;
     size_t batch_count = batch_size * num_heads_;
 
-    Tensor q_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
-    Tensor k_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
-    Tensor v_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor q_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor k_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor v_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
 
-    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, q->data_as<IO_T>(),
-                     q_heads->data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
-    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, k->data_as<IO_T>(),
-                     k_heads->data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
-    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, v->data_as<IO_T>(),
-                     v_heads->data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
+    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, q.data_as<IO_T>(),
+                     q_heads.data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
+    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, k.data_as<IO_T>(),
+                     k_heads.data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
+    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, v.data_as<IO_T>(),
+                     v_heads.data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
 
-    Tensor scores = this->get_tensor({batch_count, L, L}, io_dtype_);
+    Tensor scores = get_tensor({batch_count, L, L}, io_dtype_);
 
     Compute_T alpha = static_cast<Compute_T>(1.0 / std::sqrt(static_cast<double>(head_dim_)));
 
@@ -141,34 +140,34 @@ std::unique_ptr<Task> AttentionBlockImpl::compute_attention_forward(
     size_t strideC = L * L;
 
     create_cuda_task(handle, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
-                     q_heads->data_as<IO_T>(), k_heads->data_as<IO_T>(), scores->data_as<IO_T>(), L,
-                     L, head_dim_, false, true, alpha, static_cast<Compute_T>(0.0), head_dim_,
+                     q_heads.data_as<IO_T>(), k_heads.data_as<IO_T>(), scores.data_as<IO_T>(), L, L,
+                     head_dim_, false, true, alpha, static_cast<Compute_T>(0.0), head_dim_,
                      head_dim_, L, strideA, strideB, strideC, batch_count);
 
     if (is_causal_) {
-      create_cuda_task(handle, cuda::apply_causal_mask<IO_T>, scores->data_as<IO_T>(), batch_count,
+      create_cuda_task(handle, cuda::apply_causal_mask<IO_T>, scores.data_as<IO_T>(), batch_count,
                        L, static_cast<IO_T>(-INFINITY));
     }
 
     auto cudnn_handle = CUDAContext::getCudnnHandle();
 
-    create_cuda_task(handle, cuda::softmax_forward<IO_T>, cudnn_handle, scores->data_as<IO_T>(),
-                     scores->data_as<IO_T>(), batch_count * L, L);
+    create_cuda_task(handle, cuda::softmax_forward<IO_T>, cudnn_handle, scores.data_as<IO_T>(),
+                     scores.data_as<IO_T>(), batch_count * L, L);
 
-    Tensor attn_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor attn_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
 
     strideA = L * L;
     strideB = L * head_dim_;
     strideC = L * head_dim_;
 
     create_cuda_task(handle, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
-                     scores->data_as<IO_T>(), v_heads->data_as<IO_T>(), attn_heads->data_as<IO_T>(),
-                     L, head_dim_, L, false, false, static_cast<Compute_T>(1.0),
+                     scores.data_as<IO_T>(), v_heads.data_as<IO_T>(), attn_heads.data_as<IO_T>(), L,
+                     head_dim_, L, false, false, static_cast<Compute_T>(1.0),
                      static_cast<Compute_T>(0.0), L, head_dim_, head_dim_, strideA, strideB,
                      strideC, batch_count);
 
-    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, attn_heads->data_as<IO_T>(),
-                     output->data_as<IO_T>(), batch_size, num_heads_, L, head_dim_);
+    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, attn_heads.data_as<IO_T>(),
+                     output.data_as<IO_T>(), batch_size, num_heads_, L, head_dim_);
     return nullptr;
   }
 #endif
@@ -180,13 +179,12 @@ std::unique_ptr<Task> AttentionBlockImpl::compute_attention_forward(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> AttentionBlockImpl::compute_attention_backward(
-    const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const ConstTensor &d_attn_out,
-    const Tensor &dq, const Tensor &dk, const Tensor &dv, size_t batch_size, size_t seq_len,
-    flowHandle_t handle) {
-  if (q->data_type() != dtype_of<IO_T>() || k->data_type() != dtype_of<IO_T>() ||
-      v->data_type() != dtype_of<IO_T>() || d_attn_out->data_type() != dtype_of<IO_T>() ||
-      dq->data_type() != dtype_of<IO_T>() || dk->data_type() != dtype_of<IO_T>() ||
-      dv->data_type() != dtype_of<IO_T>()) {
+    const Tensor &q, const Tensor &k, const Tensor &v, Tensor &d_attn_out, Tensor &dq, Tensor &dk,
+    Tensor &dv, size_t batch_size, size_t seq_len, flowHandle_t handle) {
+  if (q.data_type() != dtype_of<IO_T>() || k.data_type() != dtype_of<IO_T>() ||
+      v.data_type() != dtype_of<IO_T>() || d_attn_out.data_type() != dtype_of<IO_T>() ||
+      dq.data_type() != dtype_of<IO_T>() || dk.data_type() != dtype_of<IO_T>() ||
+      dv.data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("AttentionBlock IO tensor dtype mismatch with dispatch IO_T");
   }
 
@@ -195,93 +193,93 @@ std::unique_ptr<Task> AttentionBlockImpl::compute_attention_backward(
   }
 #ifdef USE_CUDA
   else if (get_engine_type() == EngineType::CUDA) {
-    auto q_raw = q->data_as<IO_T>();
-    auto k_raw = k->data_as<IO_T>();
-    auto v_raw = v->data_as<IO_T>();
-    auto d_out_raw = d_attn_out->data_as<IO_T>();
+    auto q_raw = q.data_as<IO_T>();
+    auto k_raw = k.data_as<IO_T>();
+    auto v_raw = v.data_as<IO_T>();
+    auto d_out_raw = d_attn_out.data_as<IO_T>();
 
-    auto dq_ptr = dq->data_as<IO_T>();
-    auto dk_ptr = dk->data_as<IO_T>();
-    auto dv_ptr = dv->data_as<IO_T>();
+    auto dq_ptr = dq.data_as<IO_T>();
+    auto dk_ptr = dk.data_as<IO_T>();
+    auto dv_ptr = dv.data_as<IO_T>();
 
     size_t L = seq_len;
     size_t batch_count = batch_size * num_heads_;
     Compute_T alpha = static_cast<Compute_T>(1.0 / std::sqrt(static_cast<double>(head_dim_)));
 
-    Tensor q_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
-    Tensor k_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
-    Tensor v_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor q_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor k_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor v_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
 
-    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, q_raw, q_heads->data_as<IO_T>(),
+    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, q_raw, q_heads.data_as<IO_T>(),
                      batch_size, L, num_heads_, head_dim_);
-    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, k_raw, k_heads->data_as<IO_T>(),
+    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, k_raw, k_heads.data_as<IO_T>(),
                      batch_size, L, num_heads_, head_dim_);
-    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, v_raw, v_heads->data_as<IO_T>(),
+    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, v_raw, v_heads.data_as<IO_T>(),
                      batch_size, L, num_heads_, head_dim_);
 
-    Tensor scores = this->get_tensor({batch_count, L, L}, io_dtype_);
+    Tensor scores = get_tensor({batch_count, L, L}, io_dtype_);
 
     create_cuda_task(handle, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
-                     q_heads->data_as<IO_T>(), k_heads->data_as<IO_T>(), scores->data_as<IO_T>(), L,
-                     L, head_dim_, false, true, alpha, static_cast<Compute_T>(0.0), head_dim_,
+                     q_heads.data_as<IO_T>(), k_heads.data_as<IO_T>(), scores.data_as<IO_T>(), L, L,
+                     head_dim_, false, true, alpha, static_cast<Compute_T>(0.0), head_dim_,
                      head_dim_, L, L * head_dim_, L * head_dim_, L * L, batch_count);
 
     if (is_causal_) {
-      create_cuda_task(handle, cuda::apply_causal_mask<IO_T>, scores->data_as<IO_T>(), batch_count,
+      create_cuda_task(handle, cuda::apply_causal_mask<IO_T>, scores.data_as<IO_T>(), batch_count,
                        L, static_cast<IO_T>(-INFINITY));
     }
 
     auto cudnn_handle = CUDAContext::getCudnnHandle();
 
-    create_cuda_task(handle, cuda::softmax_forward<IO_T>, cudnn_handle, scores->data_as<IO_T>(),
-                     scores->data_as<IO_T>(), batch_count * L, L);
+    create_cuda_task(handle, cuda::softmax_forward<IO_T>, cudnn_handle, scores.data_as<IO_T>(),
+                     scores.data_as<IO_T>(), batch_count * L, L);
 
-    Tensor d_attn_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor d_attn_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, d_out_raw,
-                     d_attn_heads->data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
+                     d_attn_heads.data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
 
-    Tensor dv_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor dv_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     create_cuda_task(handle, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
-                     scores->data_as<IO_T>(), d_attn_heads->data_as<IO_T>(),
-                     dv_heads->data_as<IO_T>(), L, head_dim_, L, true, false,
-                     static_cast<Compute_T>(1.0), static_cast<Compute_T>(0.0), L, head_dim_,
-                     head_dim_, L * L, L * head_dim_, L * head_dim_, batch_count);
+                     scores.data_as<IO_T>(), d_attn_heads.data_as<IO_T>(), dv_heads.data_as<IO_T>(),
+                     L, head_dim_, L, true, false, static_cast<Compute_T>(1.0),
+                     static_cast<Compute_T>(0.0), L, head_dim_, head_dim_, L * L, L * head_dim_,
+                     L * head_dim_, batch_count);
 
-    Tensor dscores = this->get_tensor({batch_count, L, L}, io_dtype_);
+    Tensor dscores = get_tensor({batch_count, L, L}, io_dtype_);
 
     create_cuda_task(handle, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
-                     d_attn_heads->data_as<IO_T>(), v_heads->data_as<IO_T>(),
-                     dscores->data_as<IO_T>(), L, L, head_dim_, false, true,
-                     static_cast<Compute_T>(1.0), static_cast<Compute_T>(0.0), head_dim_, head_dim_,
-                     L, L * head_dim_, L * head_dim_, L * L, batch_count);
+                     d_attn_heads.data_as<IO_T>(), v_heads.data_as<IO_T>(), dscores.data_as<IO_T>(),
+                     L, L, head_dim_, false, true, static_cast<Compute_T>(1.0),
+                     static_cast<Compute_T>(0.0), head_dim_, head_dim_, L, L * head_dim_,
+                     L * head_dim_, L * L, batch_count);
 
-    Tensor dattn = this->get_tensor({batch_count, L, L}, io_dtype_);
+    Tensor dattn = get_tensor({batch_count, L, L}, io_dtype_);
 
-    create_cuda_task(handle, cuda::softmax_backward<IO_T>, cudnn_handle, scores->data_as<IO_T>(),
-                     dscores->data_as<IO_T>(), dattn->data_as<IO_T>(), batch_count * L, L);
+    create_cuda_task(handle, cuda::softmax_backward<IO_T>, cudnn_handle, scores.data_as<IO_T>(),
+                     dscores.data_as<IO_T>(), dattn.data_as<IO_T>(), batch_count * L, L);
 
     if (is_causal_) {
-      create_cuda_task(handle, cuda::apply_causal_mask<IO_T>, dattn->data_as<IO_T>(), batch_count,
-                       L, static_cast<IO_T>(0.0));
+      create_cuda_task(handle, cuda::apply_causal_mask<IO_T>, dattn.data_as<IO_T>(), batch_count, L,
+                       static_cast<IO_T>(0.0));
     }
 
-    Tensor dq_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor dq_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     create_cuda_task(handle, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
-                     dattn->data_as<IO_T>(), k_heads->data_as<IO_T>(), dq_heads->data_as<IO_T>(), L,
+                     dattn.data_as<IO_T>(), k_heads.data_as<IO_T>(), dq_heads.data_as<IO_T>(), L,
                      head_dim_, L, false, false, alpha, static_cast<Compute_T>(0.0), L, head_dim_,
                      head_dim_, L * L, L * head_dim_, L * head_dim_, batch_count);
 
-    Tensor dk_heads = this->get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor dk_heads = get_tensor({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     create_cuda_task(handle, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
-                     dattn->data_as<IO_T>(), q_heads->data_as<IO_T>(), dk_heads->data_as<IO_T>(), L,
+                     dattn.data_as<IO_T>(), q_heads.data_as<IO_T>(), dk_heads.data_as<IO_T>(), L,
                      head_dim_, L, true, false, alpha, static_cast<Compute_T>(0.0), L, head_dim_,
                      head_dim_, L * L, L * head_dim_, L * head_dim_, batch_count);
 
-    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, dq_heads->data_as<IO_T>(), dq_ptr,
+    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, dq_heads.data_as<IO_T>(), dq_ptr,
                      batch_size, num_heads_, L, head_dim_);
-    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, dk_heads->data_as<IO_T>(), dk_ptr,
+    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, dk_heads.data_as<IO_T>(), dk_ptr,
                      batch_size, num_heads_, L, head_dim_);
-    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, dv_heads->data_as<IO_T>(), dv_ptr,
+    create_cuda_task(handle, cuda::permute_heads<IO_T, IO_T>, dv_heads.data_as<IO_T>(), dv_ptr,
                      batch_size, num_heads_, L, head_dim_);
 
     return nullptr;
@@ -295,8 +293,8 @@ std::unique_ptr<Task> AttentionBlockImpl::compute_attention_backward(
 
 LayerConfig AttentionBlockImpl::get_config() const {
   LayerConfig config;
-  config.name = this->name_;
-  config.type = this->type();
+  config.name = name_;
+  config.type = type();
   config.set("embed_dim", embed_dim_);
   config.set("num_heads", num_heads_);
   config.set("is_causal", is_causal_);

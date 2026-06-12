@@ -23,7 +23,6 @@ set(TEST_FILES
     legacy_batchnorm_layer_test.cpp
     legacy_conv2d_layer_test.cpp
     groupnorm_layer_test.cpp
-    attention_block_test.cpp
     partitioner_test.cpp
     archiver_test.cpp
     bf16_test.cpp

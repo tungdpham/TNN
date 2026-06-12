@@ -14,8 +14,8 @@
 
 #include "device/device_manager.hpp"
 #include "device/pool_allocator.hpp"
-#include "test_graph_utils.hpp"
 #include "tensor/tensor.hpp"
+#include "test_graph_utils.hpp"
 
 using namespace synet;
 
@@ -48,10 +48,9 @@ protected:
   }
 
   // Verify forward pass output shape
-  void verify_output_shape(const ConstTensor &input, const ConstTensor &output, size_t pool_h,
-                           size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,
-                           size_t pad_w) {
-    auto input_shape = input->shape();
+  void verify_output_shape(const Tensor &input, Tensor &output, size_t pool_h, size_t pool_w,
+                           size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
+    auto input_shape = input.shape();
     size_t batch_size = input_shape[0];
     size_t channels = input_shape[1];
     size_t input_h = input_shape[2];
@@ -60,7 +59,7 @@ protected:
     size_t expected_h = (input_h + 2 * pad_h - pool_h) / stride_h + 1;
     size_t expected_w = (input_w + 2 * pad_w - pool_w) / stride_w + 1;
 
-    auto output_shape = output->shape();
+    auto output_shape = output.shape();
     EXPECT_EQ(output_shape[0], batch_size);
     EXPECT_EQ(output_shape[1], channels);
     EXPECT_EQ(output_shape[2], expected_h);
@@ -68,10 +67,10 @@ protected:
   }
 
   // Verify backward pass grad_output shape
-  void verify_gradient_shape(const ConstTensor &grad_output, const ConstTensor &grad_input,
-                             const ConstTensor &original_input) {
-    auto grad_input_shape = grad_input->shape();
-    auto original_input_shape = original_input->shape();
+  void verify_gradient_shape(const Tensor &grad_output, Tensor &grad_input,
+                             const Tensor &original_input) {
+    auto grad_input_shape = grad_input.shape();
+    auto original_input_shape = original_input.shape();
     EXPECT_EQ(grad_input_shape[0], original_input_shape[0]);
     EXPECT_EQ(grad_input_shape[1], original_input_shape[1]);
     EXPECT_EQ(grad_input_shape[2], original_input_shape[2]);
@@ -79,16 +78,15 @@ protected:
   }
 
   // Verify backward pass numerical correctness
-  void verify_backward_result(const ConstTensor &input, const ConstTensor &grad_output,
-                              const ConstTensor &grad_input, size_t pool_h, size_t pool_w,
-                              size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
-                              float tolerance = 1e-5f) {
-    const float *input_data = input->data_as<float>();
-    const float *grad_output_data = grad_output->data_as<float>();
-    const float *grad_input_data = grad_input->data_as<float>();
+  void verify_backward_result(const Tensor &input, const Tensor &grad_output, Tensor &grad_input,
+                              size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,
+                              size_t pad_h, size_t pad_w, float tolerance = 1e-5f) {
+    const float *input_data = input.data_as<float>();
+    const float *grad_output_data = grad_output.data_as<float>();
+    const float *grad_input_data = grad_input.data_as<float>();
 
-    auto input_shape = input->shape();
-    auto grad_output_shape = grad_output->shape();
+    auto input_shape = input.shape();
+    auto grad_output_shape = grad_output.shape();
     size_t batch_size = input_shape[0];
     size_t channels = input_shape[1];
     size_t input_h = input_shape[2];
@@ -96,7 +94,7 @@ protected:
     size_t output_h = grad_output_shape[2];
     size_t output_w = grad_output_shape[3];
 
-    Vec<float> expected_grad_input(grad_input->size(), 0.0f);
+    Vec<float> expected_grad_input(grad_input.size(), 0.0f);
 
     // For each output position, route grad_output to the max input position
     for (size_t n = 0; n < batch_size; ++n) {
@@ -135,21 +133,21 @@ protected:
       }
     }
 
-    for (size_t i = 0; i < grad_input->size(); ++i) {
+    for (size_t i = 0; i < grad_input.size(); ++i) {
       EXPECT_NEAR(grad_input_data[i], expected_grad_input[i], tolerance)
           << "Gradient mismatch at index " << i;
     }
   }
 
   // Verify that max values are correctly selected
-  void verify_max_selection(const ConstTensor &input, const ConstTensor &output, size_t pool_h,
-                            size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,
-                            size_t pad_w, float tolerance = 1e-5f) {
-    const float *input_data = input->data_as<float>();
-    const float *output_data = output->data_as<float>();
+  void verify_max_selection(const Tensor &input, Tensor &output, size_t pool_h, size_t pool_w,
+                            size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
+                            float tolerance = 1e-5f) {
+    const float *input_data = input.data_as<float>();
+    const float *output_data = output.data_as<float>();
 
-    auto input_shape = input->shape();
-    auto output_shape = output->shape();
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
     size_t batch_size = input_shape[0];
     size_t channels = input_shape[1];
     size_t input_h = input_shape[2];
@@ -192,23 +190,22 @@ protected:
 // Forward Pass Tests
 
 TEST_F(LegacyMaxPool2DLayerTest, BasicForwardPass) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
   verify_max_selection(input, output, 2, 2, 2, 2, 0, 0);
 
-  const float *output_data = output->data_as<float>();
+  const float *output_data = output.data_as<float>();
   EXPECT_NEAR(output_data[0], 6.0f, 1e-5f);   // max of [1,2,5,6]
   EXPECT_NEAR(output_data[1], 8.0f, 1e-5f);   // max of [3,4,7,8]
   EXPECT_NEAR(output_data[2], 14.0f, 1e-5f);  // max of [9,10,13,14]
@@ -216,37 +213,35 @@ TEST_F(LegacyMaxPool2DLayerTest, BasicForwardPass) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithStride) {
-  auto layer_layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 0, 0, "test_maxpool_stride");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 0, 0, "test_maxpool_stride");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 5, 5}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 5, 5}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 25; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 3, 3, 1, 1, 0, 0);
   verify_max_selection(input, output, 3, 3, 1, 1, 0, 0);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithPadding) {
-  auto layer_layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 1, 1, "test_maxpool_padding");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 1, 1, "test_maxpool_padding");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 3, 3}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 3, 3}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 9; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
-  Tensor output = layer->forward({input})[0];
+  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 3, 3, 1, 1, 1, 1);
   EXPECT_EQ(output_shape[2], 3);
@@ -254,81 +249,77 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithPadding) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassMultiChannel) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_multichannel");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_multichannel");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 2, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 2, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 32; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
-  EXPECT_EQ(output->shape()[1], 2);
-  EXPECT_EQ(output->shape()[2], 2);
-  EXPECT_EQ(output->shape()[3], 2);
+  EXPECT_EQ(output.shape()[1], 2);
+  EXPECT_EQ(output.shape()[2], 2);
+  EXPECT_EQ(output.shape()[3], 2);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassMultiBatch) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_multibatch");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_multibatch");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({2, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 32; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  auto output_vec = layer->forward({input});
+  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
+  Tensor output = Tensor(output_shape, DType_t::FP32, getHost());
+  auto output_vec = layer.forward({input});
   output = output_vec[0];
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
-  EXPECT_EQ(output->shape()[0], 2);
+  EXPECT_EQ(output.shape()[0], 2);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassNonSquarePooling) {
-  auto layer_layer = LegacyMaxPool2DLayer(3, 2, 2, 2, 0, 0, "test_maxpool_nonsquare");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(3, 2, 2, 2, 0, 0, "test_maxpool_nonsquare");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 6, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 6, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 24; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  auto output_vec = layer->forward({input});
+  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
+  Tensor output = Tensor(output_shape, DType_t::FP32, getHost());
+  auto output_vec = layer.forward({input});
   output = output_vec[0];
 
   verify_output_shape(input, output, 3, 2, 2, 2, 0, 0);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassUniformValues) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_uniform");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_uniform");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  input->fill(5.0f);
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  input.fill(5.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
 
-  const float *output_data = output->data_as<float>();
-  for (size_t i = 0; i < output->size(); ++i) {
+  const float *output_data = output.data_as<float>();
+  for (size_t i = 0; i < output.size(); ++i) {
     EXPECT_NEAR(output_data[i], 5.0f, 1e-5f);
   }
 }
@@ -336,158 +327,152 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassUniformValues) {
 // Backward Pass Tests
 
 TEST_F(LegacyMaxPool2DLayerTest, BasicBackwardPass) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_backward");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_backward");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>({1, 1, 2, 2}, getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
-  EXPECT_EQ(grad_input->shape(), input->shape());
+  EXPECT_EQ(grad_input.shape(), input.shape());
 
   // Verify numerical correctness
   verify_backward_result(input, grad_output, grad_input, 2, 2, 2, 2, 0, 0);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardPassWithPadding) {
-  auto layer_layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 1, 1, "test_maxpool_backward_pad");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 1, 1, "test_maxpool_backward_pad");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 3, 3}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 3, 3}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 9; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
-  EXPECT_EQ(grad_input->shape(), input->shape());
+  EXPECT_EQ(grad_input.shape(), input.shape());
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardPassMultiChannel) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_backward_multichannel");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_backward_multichannel");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 2, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 2, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 32; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
-  auto grad_input_shape = grad_input->shape();
+  auto grad_input_shape = grad_input.shape();
   EXPECT_EQ(grad_input_shape[1], 2);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardPassMultiBatch) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_backward_multibatch");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_backward_multibatch");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({2, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({2, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 32; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
-  auto grad_input_shape = grad_input->shape();
+  auto grad_input_shape = grad_input.shape();
   EXPECT_EQ(grad_input_shape[0], 2);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardPassVariableGradient) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 1, 1, 0, 0, "test_maxpool_backward_var");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 1, 1, 0, 0, "test_maxpool_backward_var");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 3, 3}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 3, 3}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 9; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  auto output_vec = layer->forward({input});
+  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
+  Tensor output = Tensor(output_shape, DType_t::FP32, getHost());
+  auto output_vec = layer.forward({input});
   output = output_vec[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  float *grad_data = grad_output->data_as<float>();
-  for (size_t i = 0; i < grad_output->size(); ++i) {
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  float *grad_data = grad_output.data_as<float>();
+  for (size_t i = 0; i < grad_output.size(); ++i) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
-  EXPECT_EQ(grad_input->shape(), input->shape());
+  EXPECT_EQ(grad_input.shape(), input.shape());
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardPassGradientRouting) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_grad_routing");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_grad_routing");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>({1, 1, 2, 2}, getHost());
-  float *grad_data = grad_output->data_as<float>();
+  Tensor grad_output = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
+  float *grad_data = grad_output.data_as<float>();
   grad_data[0] = 1.0f;
   grad_data[1] = 2.0f;
   grad_data[2] = 3.0f;
   grad_data[3] = 4.0f;
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 
   // Verify that gradients are routed to max positions only
-  const float *grad_input_data = grad_input->data_as<float>();
+  const float *grad_input_data = grad_input.data_as<float>();
 
   // Position 5 (value 6) should get grad_output 1.0
   EXPECT_NEAR(grad_input_data[5], 1.0f, 1e-5f);
@@ -505,34 +490,31 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassGradientRouting) {
 // Configuration Tests
 
 TEST_F(LegacyMaxPool2DLayerTest, ComputeOutputShape) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_shape");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_maxpool_shape");
 
   Vec<size_t> input_shape = {2, 3, 8, 8};
   Vec<size_t> expected_shape = {2, 3, 4, 4};
 
-  Vec<size_t> output_shape = layer->compute_output_shape(input_shape);
+  Vec<size_t> output_shape = layer.output_shapes({input_shape})[0];
 
   EXPECT_EQ(output_shape, expected_shape);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ComputeOutputShapeWithPadding) {
-  auto layer_layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 1, 1, "test_maxpool_shape_pad");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(3, 3, 1, 1, 1, 1, "test_maxpool_shape_pad");
 
   Vec<size_t> input_shape = {1, 1, 5, 5};
   Vec<size_t> expected_shape = {1, 1, 5, 5};
 
-  Vec<size_t> output_shape = layer->compute_output_shape(input_shape);
+  Vec<size_t> output_shape = layer.output_shapes({input_shape})[0];
 
   EXPECT_EQ(output_shape, expected_shape);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, GetConfig) {
-  auto layer_layer = LegacyMaxPool2DLayer(3, 4, 2, 1, 1, 2, "test_maxpool_config");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(3, 4, 2, 1, 1, 2, "test_maxpool_config");
 
-  LayerConfig config = layer->get_config();
+  LayerConfig config = layer.get_config();
 
   EXPECT_EQ(config.name, "test_maxpool_config");
   EXPECT_EQ(config.get<size_t>("pool_h"), 3);
@@ -553,98 +535,94 @@ TEST_F(LegacyMaxPool2DLayerTest, CreateFromConfig) {
   config.set("pad_h", size_t(0));
   config.set("pad_w", size_t(0));
 
-  auto layer = LegacyMaxPool2DLayerImpl::create_from_config(config);
+  auto layer = LegacyMaxPool2DLayer::create_from_config(config);
 
   EXPECT_NE(layer, nullptr);
-  EXPECT_EQ(layer->type(), "maxpool2d");
+  EXPECT_EQ(layer.type(), "maxpool2d");
 }
 
 // Edge Cases
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseGlobalMaxPooling) {
-  auto layer_layer = LegacyMaxPool2DLayer(4, 4, 1, 1, 0, 0, "test_global_maxpool");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(4, 4, 1, 1, 0, 0, "test_global_maxpool");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  auto output_shape = output->shape();
+  auto output_shape = output.shape();
 
   EXPECT_EQ(output_shape[2], 1);
   EXPECT_EQ(output_shape[3], 1);
-  EXPECT_NEAR(output->data_as<float>()[0], 16.0f, 1e-5f);
+  EXPECT_NEAR(output.data_as<float>()[0], 16.0f, 1e-5f);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseZeroGradient) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_zero_gradient");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_zero_gradient");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(0.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(0.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 
-  const float *grad_input_data = grad_input->data_as<float>();
-  for (size_t i = 0; i < grad_input->size(); ++i) {
+  const float *grad_input_data = grad_input.data_as<float>();
+  for (size_t i = 0; i < grad_input.size(); ++i) {
     EXPECT_NEAR(grad_input_data[i], 0.0f, 1e-5f);
   }
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseLargeValues) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_large_values");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_large_values");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 1e6f * static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
   verify_max_selection(input, output, 2, 2, 2, 2, 0, 0);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseNegativeValues) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_negative_values");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_negative_values");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = -static_cast<float>(17 - i);
   }
 
-  Vec<size_t> output_shape = layer->compute_output_shape(input->shape());
-  Tensor output = make_tensor<float>(output_shape, getHost());
-  auto output_vec = layer->forward({input});
+  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
+  Tensor output = Tensor(output_shape, DType_t::FP32, getHost());
+  auto output_vec = layer.forward({input});
   output = output_vec[0];
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
   verify_max_selection(input, output, 2, 2, 2, 2, 0, 0);
 
-  const float *output_data = output->data_as<float>();
+  const float *output_data = output.data_as<float>();
   EXPECT_NEAR(output_data[0], -12.0f, 1e-5f);  // max of [-17,-16,-13,-12]
   EXPECT_NEAR(output_data[1], -10.0f, 1e-5f);  // max of [-15,-14,-11,-10]
   EXPECT_NEAR(output_data[2], -4.0f, 1e-5f);   // max of [-9,-8,-5,-4]
@@ -652,18 +630,17 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseNegativeValues) {
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseMixedSignValues) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_mixed_values");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_mixed_values");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = (i % 2 == 0) ? static_cast<float>(i) : -static_cast<float>(i);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
   verify_max_selection(input, output, 2, 2, 2, 2, 0, 0);
@@ -672,53 +649,50 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseMixedSignValues) {
 // Numerical Stability Tests
 
 TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilitySmallValues) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_small_values");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_small_values");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 1e-6f * static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
   verify_max_selection(input, output, 2, 2, 2, 2, 0, 0);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, BackwardNumericalStability) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_backward_stability");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_backward_stability");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 1e-6f * static_cast<float>(i + 1);
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1e-6f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1e-6f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilityExtremeValues) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_extreme_values");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_extreme_values");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
-  Tensor input = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
+  Tensor input = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
   input_data[0] = -1e10f;
   input_data[5] = 1e10f;
   for (int i = 1; i < 16; ++i) {
@@ -727,36 +701,35 @@ TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilityExtremeValues) {
     }
   }
 
-  Tensor output = layer->forward({input})[0];
+  Tensor output = layer.forward({input})[0];
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
-  EXPECT_NEAR(output->data_as<float>()[0], 1e10f, 1e5f);
+  EXPECT_NEAR(output.data_as<float>()[0], 1e10f, 1e5f);
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, MultipleForwardBackwardPasses) {
-  auto layer_layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_multiple_passes");
-  LegacyMaxPool2DLayerImpl *layer = layer_layer.get();
+  auto layer = LegacyMaxPool2DLayer(2, 2, 2, 2, 0, 0, "test_multiple_passes");
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  auto graph = test::compile_single_layer(layer_layer, allocator);
+  auto graph = test::compile_single_layer(layer, allocator);
 
   // First pass
-  Tensor input1 = make_tensor<float>({1, 1, 4, 4}, getHost());
-  input1->fill(1.0f);
-  Tensor output1 = layer->forward({input1})[0];
-  Tensor gradient1 = make_tensor<float>(output1->shape(), getHost());
-  gradient1->fill(1.0f);
-  Tensor grad_input1 = layer->backward({gradient1})[0];
+  Tensor input1 = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  input1.fill(1.0f);
+  Tensor output1 = layer.forward({input1})[0];
+  Tensor gradient1 = Tensor(output1.shape(), DType_t::FP32, getHost());
+  gradient1.fill(1.0f);
+  Tensor grad_input1 = layer.backward({gradient1})[0];
 
   // Second pass
-  Tensor input2 = make_tensor<float>({1, 1, 4, 4}, getHost());
-  float *input_data2 = input2->data_as<float>();
+  Tensor input2 = Tensor({1, 1, 4, 4}, DType_t::FP32, getHost());
+  float *input_data2 = input2.data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data2[i] = static_cast<float>(i + 1);
   }
-  Tensor output2 = layer->forward({input2})[0];
-  Tensor gradient2 = make_tensor<float>(output2->shape(), getHost());
-  gradient2->fill(1.0f);
-  Tensor grad_input2 = layer->backward({gradient2})[0];
+  Tensor output2 = layer.forward({input2})[0];
+  Tensor gradient2 = Tensor(output2.shape(), DType_t::FP32, getHost());
+  gradient2.fill(1.0f);
+  Tensor grad_input2 = layer.backward({gradient2})[0];
 
   verify_gradient_shape(gradient2, grad_input2, input2);
 }

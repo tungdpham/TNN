@@ -55,15 +55,15 @@ FlashAttentionBlockImpl::~FlashAttentionBlockImpl() {
 #endif
 }
 
-Vec<Tensor> FlashAttentionBlockImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
-  const ConstTensor &input = inputs[0];
+Vec<Tensor> FlashAttentionBlockImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
+  const Tensor &input = inputs[0];
 
-  if (input->dims() != 3) {
+  if (input.dims() != 3) {
     throw std::invalid_argument("FlashAttentionBlock: Input must be 3D (B, S, E) but got " +
-                                std::to_string(input->dims()) + "D");
+                                std::to_string(input.dims()) + "D");
   }
 
-  size_t embed_dim = input->dimension(2);
+  size_t embed_dim = input.dimension(2);
 
   if (embed_dim != embed_dim_) {
     throw std::invalid_argument("FlashAttentionBlock: Input embed_dim mismatch");
@@ -104,30 +104,27 @@ void FlashAttentionBlockImpl::build_graph(const Vec<size_t> &input_shape) const 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> FlashAttentionBlockImpl::flash_attention_forward_task(
     cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
-    const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
-    const Tensor &attn_heads, const Tensor &stats_tensor, const Tensor &workspace,
-    flowHandle_t handle) const {
+    const Tensor &q_heads, const Tensor &k_heads, const Tensor &v_heads, Tensor &attn_heads,
+    Tensor &stats_tensor, Tensor &workspace, flowHandle_t handle) const {
   return create_cuda_task(defaultFlowHandle, cuda::cudnn_flash_attention::run_forward, fe_handle,
-                          stats, q_heads->data(), k_heads->data(), v_heads->data(),
-                          attn_heads->data(), stats_tensor->data(), workspace->data());
+                          stats, q_heads.data(), k_heads.data(), v_heads.data(), attn_heads.data(),
+                          stats_tensor.data(), workspace.data());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> FlashAttentionBlockImpl::flash_attention_backward_task(
     cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
-    const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
-    const ConstTensor &attn_heads, const ConstTensor &grad_attn_heads,
-    const ConstTensor &stats_tensor, const Tensor &grad_q_heads, const Tensor &grad_k_heads,
-    const Tensor &grad_v_heads, const Tensor &workspace, flowHandle_t handle) const {
+    const Tensor &q_heads, const Tensor &k_heads, const Tensor &v_heads, const Tensor &attn_heads,
+    Tensor &grad_attn_heads, Tensor &stats_tensor, Tensor &grad_q_heads, Tensor &grad_k_heads,
+    Tensor &grad_v_heads, Tensor &workspace, flowHandle_t handle) const {
   return create_cuda_task(defaultFlowHandle, cuda::cudnn_flash_attention::run_backward, fe_handle,
-                          stats, q_heads->data(), k_heads->data(), v_heads->data(),
-                          attn_heads->data(), grad_attn_heads->data(), stats_tensor->data(),
-                          grad_q_heads->data(), grad_k_heads->data(), grad_v_heads->data(),
-                          workspace->data());
+                          stats, q_heads.data(), k_heads.data(), v_heads.data(), attn_heads.data(),
+                          grad_attn_heads.data(), stats_tensor.data(), grad_q_heads.data(),
+                          grad_k_heads.data(), grad_v_heads.data(), workspace.data());
 }
 
-Tensor FlashAttentionBlockImpl::cudnn_forward(const ConstTensor &input, size_t mb_id) {
-  const auto &input_shape = input->shape();
+Tensor FlashAttentionBlockImpl::cudnn_forward(const Tensor &input, size_t mb_id) {
+  const auto &input_shape = input.shape();
   size_t batch_size = input_shape[0];
   size_t seq_len = input_shape[1];
 
@@ -157,20 +154,18 @@ Tensor FlashAttentionBlockImpl::cudnn_forward(const ConstTensor &input, size_t m
   Tensor k_heads = this->get_tensor({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
   Tensor v_heads = this->get_tensor({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
-  Tensor q = q_proj_->forward({input}, mb_id)[0];
-  Tensor k = k_proj_->forward({input}, mb_id)[0];
-  Tensor v = v_proj_->forward({input}, mb_id)[0];
+  Tensor q = q_proj_.forward({input}, mb_id)[0];
+  Tensor k = k_proj_.forward({input}, mb_id)[0];
+  Tensor v = v_proj_.forward({input}, mb_id)[0];
 
   DISPATCH_DTYPE(io_dtype_, T, {
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, q->data_as<T>(),
-                     q_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, k->data_as<T>(),
-                     k_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, v->data_as<T>(),
-                     v_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, q.data_as<T>(),
+                     q_heads.data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, k.data_as<T>(),
+                     k_heads.data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, v.data_as<T>(),
+                     v_heads.data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
   });
-
-  q = k = v = nullptr;  // free up memory
 
   {
     size_t workspace_size = stats.fwd_workspace_size;
@@ -180,21 +175,19 @@ Tensor FlashAttentionBlockImpl::cudnn_forward(const ConstTensor &input, size_t m
                                    v_heads, attn_heads, stats_tensor, workspace, defaultFlowHandle);
   }
 
-  q_heads = k_heads = v_heads = nullptr;  // free up memory
-
   DISPATCH_DTYPE(io_dtype_, T, {
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, attn_heads->data_as<bf16>(),
-                     attn_out->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, attn_heads.data_as<bf16>(),
+                     attn_out.data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
   });
 
   allocator_->flip();  // flip back so attn_out is on opposite side as input for algorithm 1
 
-  Tensor output = out_proj_->forward({attn_out}, mb_id)[0];
+  Tensor output = out_proj_.forward({attn_out}, mb_id)[0];
   return output;
 }
 
-Tensor FlashAttentionBlockImpl::cudnn_backward(const ConstTensor &grad_output, size_t mb_id) {
-  const auto &grad_shape = grad_output->shape();
+Tensor FlashAttentionBlockImpl::cudnn_backward(const Tensor &grad_output, size_t mb_id) {
+  const auto &grad_shape = grad_output.shape();
   size_t batch_size = grad_shape[0];
   size_t seq_len = grad_shape[1];
 
@@ -204,9 +197,9 @@ Tensor FlashAttentionBlockImpl::cudnn_backward(const ConstTensor &grad_output, s
   auto &stats = stats_cache[shape_key];
 
   // Get cached forward tensors
-  ConstTensor &input = this->get_immutable_cache(mb_id, "input");
-  const Tensor &attn_out = this->get_mutable_cache(mb_id, "attn_out");
-  const Tensor &stats_tensor = this->get_mutable_cache(mb_id, "stats_tensor");
+  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+  Tensor &attn_out = this->get_mutable_cache(mb_id, "attn_out");
+  Tensor &stats_tensor = this->get_mutable_cache(mb_id, "stats_tensor");
 
   Tensor grad_input = this->get_tensor({batch_size, seq_len, embed_dim_}, io_dtype_);
 
@@ -220,12 +213,11 @@ Tensor FlashAttentionBlockImpl::cudnn_backward(const ConstTensor &grad_output, s
       this->get_tensor({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
   {  // Backprop through out_proj
-    Tensor grad_attn_out = out_proj_->backward({grad_output}, mb_id)[0];
+    Tensor grad_attn_out = out_proj_.backward({grad_output}, mb_id)[0];
     // Convert to head layout and FP16
     DISPATCH_DTYPE(io_dtype_, T, {
-      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, grad_attn_out->data_as<T>(),
-                       grad_attn_heads->data_as<bf16>(), batch_size, seq_len, num_heads_,
-                       head_dim_);
+      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, grad_attn_out.data_as<T>(),
+                       grad_attn_heads.data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
     });
   }
 
@@ -245,19 +237,19 @@ Tensor FlashAttentionBlockImpl::cudnn_backward(const ConstTensor &grad_output, s
 
   {
     // Recompute Q, K, V from cached input (trading compute for memory)
-    Tensor q = q_proj_->forward({input}, mb_id)[0];
-    Tensor k = k_proj_->forward({input}, mb_id)[0];
-    Tensor v = v_proj_->forward({input}, mb_id)[0];
+    Tensor q = q_proj_.forward({input}, mb_id)[0];
+    Tensor k = k_proj_.forward({input}, mb_id)[0];
+    Tensor v = v_proj_.forward({input}, mb_id)[0];
 
     DISPATCH_DTYPE(io_dtype_, T, {
-      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, q->data_as<T>(),
-                       q_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
-      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, k->data_as<T>(),
-                       k_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
-      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, v->data_as<T>(),
-                       v_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
-      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, attn_out->data_as<T>(),
-                       attn_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, q.data_as<T>(),
+                       q_heads.data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, k.data_as<T>(),
+                       k_heads.data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, v.data_as<T>(),
+                       v_heads.data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+      create_cuda_task(defaultFlowHandle, cuda::permute_heads<T, bf16>, attn_out.data_as<T>(),
+                       attn_heads.data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
     });
   }
 
@@ -272,45 +264,38 @@ Tensor FlashAttentionBlockImpl::cudnn_backward(const ConstTensor &grad_output, s
                                    defaultFlowHandle);
   }
 
-  q_heads = k_heads = v_heads = attn_heads = grad_attn_heads = nullptr;  // free up memory
-
   // Convert gradients back from head layout
 
   DISPATCH_DTYPE(io_dtype_, T, {
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, grad_q_heads->data_as<bf16>(),
-                     grad_q->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, grad_k_heads->data_as<bf16>(),
-                     grad_k->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
-    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, grad_v_heads->data_as<bf16>(),
-                     grad_v->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, grad_q_heads.data_as<bf16>(),
+                     grad_q.data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, grad_k_heads.data_as<bf16>(),
+                     grad_k.data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
+    create_cuda_task(defaultFlowHandle, cuda::permute_heads<bf16, T>, grad_v_heads.data_as<bf16>(),
+                     grad_v.data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
   });
-
-  grad_q_heads = grad_k_heads = grad_v_heads = nullptr;  // free up memory
 
   allocator_->flip();
 
   // Backprop through separate Q, K, V projections
-  Tensor grad_q_in = q_proj_->backward({grad_q}, mb_id)[0];
-  Tensor grad_k_in = k_proj_->backward({grad_k}, mb_id)[0];
-  Tensor grad_v_in = v_proj_->backward({grad_v}, mb_id)[0];
-
-  grad_q = grad_k = grad_v = nullptr;  // free up memory
+  Tensor grad_q_in = q_proj_.backward({grad_q}, mb_id)[0];
+  Tensor grad_k_in = k_proj_.backward({grad_k}, mb_id)[0];
+  Tensor grad_v_in = v_proj_.backward({grad_v}, mb_id)[0];
 
   // Sum the gradients
-  size_t size = grad_q_in->size();
+  size_t size = grad_q_in.size();
 
-  DISPATCH_IO_DTYPE(ops::add, grad_q_in->data_ptr(), grad_k_in->data_ptr(), grad_input->data_ptr(),
+  DISPATCH_IO_DTYPE(ops::add, grad_q_in.data_ptr(), grad_k_in.data_ptr(), grad_input.data_ptr(),
                     size, defaultFlowHandle);
-  DISPATCH_IO_DTYPE(ops::add, grad_input->data_ptr(), grad_v_in->data_ptr(), grad_input->data_ptr(),
+  DISPATCH_IO_DTYPE(ops::add, grad_input.data_ptr(), grad_v_in.data_ptr(), grad_input.data_ptr(),
                     size, defaultFlowHandle);
 
   return grad_input;
 }
 #endif
 
-Vec<Tensor> FlashAttentionBlockImpl::backward_impl(const Vec<ConstTensor> &grad_outputs,
-                                                   size_t mb_id) {
-  const ConstTensor &grad_output = grad_outputs[0];
+Vec<Tensor> FlashAttentionBlockImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
+  const Tensor &grad_output = grad_outputs[0];
 
 #ifdef USE_CUDNN
   if (get_engine_type() == EngineType::CUDA) {

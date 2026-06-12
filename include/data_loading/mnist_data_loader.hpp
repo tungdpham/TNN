@@ -159,10 +159,10 @@ private:
         std::min(batch_size, access_order_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data =
-        make_tensor<T>(allocator_, {actual_batch_size, mnist_constants::IMAGE_HEIGHT,
-                                    mnist_constants::IMAGE_WIDTH, mnist_constants::NUM_CHANNELS});
-    batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
+    batch_data = Tensor({actual_batch_size, mnist_constants::IMAGE_HEIGHT,
+                         mnist_constants::IMAGE_WIDTH, mnist_constants::NUM_CHANNELS},
+                        dtype_of<T>(), allocator_);
+    batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
@@ -179,11 +179,11 @@ private:
 
       // Store in NHWC (H, W, C=1) order
       for (size_t j = 0; j < mnist_constants::IMAGE_SIZE; ++j) {
-        batch_data->at<T>({i, j / mnist_constants::IMAGE_WIDTH, j % mnist_constants::IMAGE_WIDTH,
-                           0}) = static_cast<T>(pixel_buf[j]);
+        batch_data.at<T>({i, j / mnist_constants::IMAGE_WIDTH, j % mnist_constants::IMAGE_WIDTH,
+                          0}) = static_cast<T>(pixel_buf[j]);
       }
 
-      batch_labels->at<int>({i}) = label;
+      batch_labels.at<int>({i}) = label;
     }
 
     this->apply_augmentation(batch_data, batch_labels);

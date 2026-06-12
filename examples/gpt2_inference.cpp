@@ -5,9 +5,8 @@
 #include <vector>
 
 #include "data_loading/open_webtext_data_loader.hpp"
-#include "nn/example_models.hpp"
+#include "nn/example_graphs.hpp"
 #include "tensor/tensor.hpp"
-#include "tensor/tensor_factory.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "utils/env.hpp"
 
@@ -33,10 +32,10 @@ int main(int argc, char **argv) {
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   cout << "Using device: " << (device_type == DeviceType::GPU ? "GPU" : "CPU") << endl;
 
-  // Create model using ExampleModels or load from file
+  // Create model using ExampleGraphs or load from file
   const Device &device = device_type == DeviceType::GPU ? getGPU() : getHost();
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
-  Graph graph = load_or_create_model("gpt2", model_path, allocator);
+  Graph graph = load_or_create_graph("gpt2", model_path, allocator);
 
   size_t seq_len = 512;
 
@@ -56,7 +55,7 @@ int main(int argc, char **argv) {
   size_t prompt_len = 30;
   vector<int> current_tokens;
   for (size_t i = 0; i < prompt_len; ++i) {
-    current_tokens.push_back(static_cast<int>(raw_input->at<float>({0, i})));
+    current_tokens.push_back(static_cast<int>(raw_input.at<float>({0, i})));
   }
 
   cout << "\n[PROMPT]: " << tokenizer.decode(current_tokens) << endl;
@@ -64,15 +63,15 @@ int main(int argc, char **argv) {
 
   size_t num_to_generate = 50;
   for (size_t i = 0; i < num_to_generate; ++i) {
-    Tensor model_input = make_tensor<float>({1, seq_len});
-    std::fill(model_input->data_as<float>(), model_input->data_as<float>() + model_input->size(),
+    Tensor model_input = Tensor({1, seq_len}, DType_t::FP32);
+    std::fill(model_input.data_as<float>(), model_input.data_as<float>() + model_input.size(),
               0.0f);
 
     size_t tokens_to_use = std::min(current_tokens.size(), seq_len);
     size_t start_token_idx = current_tokens.size() - tokens_to_use;
 
     for (size_t j = 0; j < tokens_to_use; ++j) {
-      model_input->at<float>({0, j}) = static_cast<float>(current_tokens[start_token_idx + j]);
+      model_input.at<float>({0, j}) = static_cast<float>(current_tokens[start_token_idx + j]);
     }
 
     TensorBundle inputs{{"input", model_input}};
@@ -80,12 +79,12 @@ int main(int argc, char **argv) {
     Tensor output = outputs.get("output");
 
     // Transfer output to CPU for sampling
-    Tensor cpu_output = output->to_host();
+    Tensor cpu_output = output.to_host();
 
     size_t vocab_size = tokenizer.vocab_size();
     size_t last_step_idx = tokens_to_use - 1;
 
-    const float *logits = cpu_output->data_as<float>() + (last_step_idx * vocab_size);
+    const float *logits = cpu_output.data_as<float>() + (last_step_idx * vocab_size);
 
     // Check for NaNs
     if (std::isnan(logits[0])) {

@@ -21,27 +21,27 @@ ReLULayerImpl::ReLULayerImpl(const std::string &name)
     : SISOLayerImpl(name),
       activation_(std::make_unique<ReLU>()) {}
 
-Tensor ReLULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
-  Tensor output = get_tensor(input->shape(), io_dtype_);
-  const size_t num_elements = input->size();
+Tensor ReLULayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+  Tensor output = get_tensor(input.shape(), io_dtype_);
+  const size_t num_elements = input.size();
 
   if (this->is_training_) {
-    Tensor mask = this->get_tensor(input->shape(), DType_t::UINT8_T);
+    Tensor mask = this->get_tensor(input.shape(), DType_t::UINT8_T);
     set_mutable_cache(mb_id, "mask", mask);
 
     // Fused kernel: compute ReLU and mask in a single pass
-    if (input->device_type() == DeviceType::CPU) {
-      DISPATCH_DTYPE(input->data_type(), T, {
+    if (input.device_type() == DeviceType::CPU) {
+      DISPATCH_DTYPE(input.data_type(), T, {
         create_cpu_task(this->flow_handle_, cpu::relu::relu_forward_with_mask<T>,
-                        input->data_as<T>(), output->data_as<T>(), mask->data_as<uint8_t>(),
+                        input.data_as<T>(), output.data_as<T>(), mask.data_as<uint8_t>(),
                         num_elements);
       });
     }
 #ifdef USE_CUDA
-    else if (input->device_type() == DeviceType::GPU) {
-      DISPATCH_DTYPE(input->data_type(), T, {
+    else if (input.device_type() == DeviceType::GPU) {
+      DISPATCH_DTYPE(input.data_type(), T, {
         create_cuda_task(this->flow_handle_, cuda::relu::relu_forward_with_mask<T>,
-                         input->data_as<T>(), output->data_as<T>(), mask->data_as<uint8_t>(),
+                         input.data_as<T>(), output.data_as<T>(), mask.data_as<uint8_t>(),
                          num_elements);
       });
     }
@@ -57,28 +57,28 @@ Tensor ReLULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor ReLULayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
-  const ConstTensor &mask = this->get_mutable_cache(mb_id, "mask");
+Tensor ReLULayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+  Tensor &mask = this->get_mutable_cache(mb_id, "mask");
   if (!mask) {
     throw std::runtime_error("No cached mask found for backward pass in ReLULayerImpl");
   }
 
-  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
-  const size_t num_elements = grad_output->size();
+  Tensor grad_input = get_tensor(grad_output.shape(), io_dtype_);
+  const size_t num_elements = grad_output.size();
 
-  if (grad_output->device_type() == DeviceType::CPU) {
-    DISPATCH_DTYPE(grad_output->data_type(), T, {
+  if (grad_output.device_type() == DeviceType::CPU) {
+    DISPATCH_DTYPE(grad_output.data_type(), T, {
       create_cpu_task(this->flow_handle_, cpu::relu::relu_backward_with_mask<T>,
-                      grad_output->data_as<T>(), grad_input->data_as<T>(), mask->data_as<uint8_t>(),
+                      grad_output.data_as<T>(), grad_input.data_as<T>(), mask.data_as<uint8_t>(),
                       num_elements);
     });
   }
 #ifdef USE_CUDA
-  else if (grad_output->device_type() == DeviceType::GPU) {
-    DISPATCH_DTYPE(grad_output->data_type(), T, {
+  else if (grad_output.device_type() == DeviceType::GPU) {
+    DISPATCH_DTYPE(grad_output.data_type(), T, {
       create_cuda_task(this->flow_handle_, cuda::relu::relu_backward_with_mask<T>,
-                       grad_output->data_as<T>(), grad_input->data_as<T>(),
-                       mask->data_as<uint8_t>(), num_elements);
+                       grad_output.data_as<T>(), grad_input.data_as<T>(), mask.data_as<uint8_t>(),
+                       num_elements);
     });
   }
 #endif

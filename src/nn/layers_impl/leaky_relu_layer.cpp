@@ -16,28 +16,28 @@ LeakyReLULayerImpl::LeakyReLULayerImpl(float negative_slope, const std::string &
       activation_(std::make_unique<LeakyReLU>(negative_slope)),
       negative_slope_(negative_slope) {}
 
-Tensor LeakyReLULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
-  Tensor output = get_tensor(input->shape(), io_dtype_);
+Tensor LeakyReLULayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+  Tensor output = get_tensor(input.shape(), io_dtype_);
 
   if (this->is_training_) {
     // Cache boolean mask (1 byte per element) instead of full input
-    Tensor mask = this->get_tensor(input->shape(), DType_t::UINT8_T);
+    Tensor mask = this->get_tensor(input.shape(), DType_t::UINT8_T);
     set_mutable_cache(mb_id, "mask", mask);
 
     // Compute LeakyReLU and mask
     activation_->apply(input, output);
 
     // Compute mask: 1 where input > 0, 0 otherwise
-    const size_t num_elements = input->size();
-    if (input->device_type() == DeviceType::CPU) {
-      const float *input_data = input->data_as<float>();
-      uint8_t *mask_data = mask->data_as<uint8_t>();
+    const size_t num_elements = input.size();
+    if (input.device_type() == DeviceType::CPU) {
+      const float *input_data = input.data_as<float>();
+      uint8_t *mask_data = mask.data_as<uint8_t>();
       for (size_t i = 0; i < num_elements; ++i) {
         mask_data[i] = (input_data[i] > 0.0f) ? 1 : 0;
       }
     }
 #ifdef USE_CUDA
-    else if (input->device_type() == DeviceType::GPU) {
+    else if (input.device_type() == DeviceType::GPU) {
       throw std::runtime_error("LeakyReLULayerImpl: GPU mask computation not yet implemented");
     }
 #endif
@@ -48,27 +48,27 @@ Tensor LeakyReLULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) 
   return output;
 }
 
-Tensor LeakyReLULayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
-  const ConstTensor &mask = this->get_mutable_cache(mb_id, "mask");
+Tensor LeakyReLULayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+  Tensor &mask = this->get_mutable_cache(mb_id, "mask");
   if (!mask) {
     throw std::runtime_error("No cached mask found for backward pass in LeakyReLULayerImpl");
   }
 
-  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
+  Tensor grad_input = get_tensor(grad_output.shape(), io_dtype_);
 
   // Gradient: grad_input = grad_output * (mask ? 1.0 : negative_slope)
-  const size_t num_elements = grad_output->size();
-  if (grad_output->device_type() == DeviceType::CPU) {
-    const float *grad_out_data = grad_output->data_as<float>();
-    const uint8_t *mask_data = mask->data_as<uint8_t>();
-    float *grad_in_data = grad_input->data_as<float>();
+  const size_t num_elements = grad_output.size();
+  if (grad_output.device_type() == DeviceType::CPU) {
+    const float *grad_out_data = grad_output.data_as<float>();
+    const uint8_t *mask_data = mask.data_as<uint8_t>();
+    float *grad_in_data = grad_input.data_as<float>();
     for (size_t i = 0; i < num_elements; ++i) {
       float slope = mask_data[i] ? 1.0f : negative_slope_;
       grad_in_data[i] = grad_out_data[i] * slope;
     }
   }
 #ifdef USE_CUDA
-  else if (grad_output->device_type() == DeviceType::GPU) {
+  else if (grad_output.device_type() == DeviceType::GPU) {
     throw std::runtime_error("LeakyReLULayerImpl: GPU backward not yet implemented");
   }
 #endif

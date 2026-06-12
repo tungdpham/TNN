@@ -17,11 +17,11 @@ namespace synet {
 class TransposeLayerImpl : public SISOLayerImpl {
 private:
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> permute(const ConstTensor &input, const Tensor &output, size_t B, size_t L,
-                                size_t H, size_t D, flowHandle_t handle) const;
+  std::unique_ptr<Task> permute(const Tensor &input, Tensor &output, size_t B, size_t L, size_t H,
+                                size_t D, flowHandle_t handle) const;
 
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
 
 public:
   TransposeLayerImpl(const std::string &name = "transpose");

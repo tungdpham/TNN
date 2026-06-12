@@ -25,16 +25,8 @@ private:
   Vec<Layer> layers_;
 
 protected:
-  Vec<LayerImpl *> layers() override {
-    Vec<LayerImpl *> layers;
-    for (auto &layer : layers_) {
-      layers.push_back(layer.get());
-    }
-    return layers;
-  }
-
-  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) override;
-  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) override;
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id) override;
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) override;
 
 public:
   explicit SequentialImpl(Vec<Layer> layers = {}, const std::string &name = "sequential");
@@ -53,9 +45,10 @@ public:
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
   void print_summary(const Vec<size_t> &input_shape) const;
-  Vec<LayerImpl *> get_layers();
   LayerConfig get_config() const override;
   static std::shared_ptr<SequentialImpl> create_from_config(const LayerConfig &config);
+
+  Vec<Layer> layers() override { return layers_; }
 
   Node operator()(const Node &input) {
     if (!input) {
@@ -78,6 +71,10 @@ public:
 
   explicit Sequential(std::initializer_list<Layer> layers, const std::string &name = "sequential")
       : Sequential(Vec<Layer>(layers), name) {}
+
+  Vec<Layer> layers() { return impl_->layers(); }
+
+  void print_summary(const Vec<size_t> &input_shape) const { impl_->print_summary(input_shape); }
 
   using LayerRef<SequentialImpl>::LayerRef;
 };

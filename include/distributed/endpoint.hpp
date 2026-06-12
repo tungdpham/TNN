@@ -18,6 +18,35 @@ class Communicator;
 
 enum class CommunicationType { IN_PROCESS, TCP, ROCE, NONE };
 
+inline CommunicationType parse_communication_type(const std::string &type_str) {
+  if (type_str == "in_process") {
+    return CommunicationType::IN_PROCESS;
+  } else if (type_str == "tcp") {
+    return CommunicationType::TCP;
+  } else if (type_str == "roce") {
+    return CommunicationType::ROCE;
+  } else if (type_str == "none") {
+    return CommunicationType::NONE;
+  } else {
+    throw std::invalid_argument("Unknown communication type: " + type_str);
+  }
+}
+
+inline std::string communication_type_to_string(CommunicationType type) {
+  switch (type) {
+    case CommunicationType::IN_PROCESS:
+      return "in_process";
+    case CommunicationType::TCP:
+      return "tcp";
+    case CommunicationType::ROCE:
+      return "roce";
+    case CommunicationType::NONE:
+      return "none";
+    default:
+      return "unknown";
+  }
+}
+
 struct Endpoint {
 private:
   CommunicationType type_;
@@ -172,47 +201,45 @@ public:
 
   nlohmann::json to_json() const {
     nlohmann::json j;
-    j["type_"] = static_cast<int>(type_);
-    nlohmann::json param_json = nlohmann::json::object();
+    j["type"] = communication_type_to_string(type_);
 
     for (const auto &pair : parameters_) {
       const auto &key = pair.first;
       const auto &val = pair.second;
 
       if (val.type() == typeid(std::string)) {
-        param_json[key] = std::any_cast<std::string>(val);
+        j[key] = std::any_cast<std::string>(val);
       } else if (val.type() == typeid(const char *)) {
-        param_json[key] = std::string(std::any_cast<const char *>(val));
+        j[key] = std::string(std::any_cast<const char *>(val));
       } else if (val.type() == typeid(int)) {
-        param_json[key] = std::any_cast<int>(val);
+        j[key] = std::any_cast<int>(val);
       } else if (val.type() == typeid(double)) {
-        param_json[key] = std::any_cast<double>(val);
+        j[key] = std::any_cast<double>(val);
       } else if (val.type() == typeid(float)) {
-        param_json[key] = std::any_cast<float>(val);
+        j[key] = std::any_cast<float>(val);
       }
     }
 
-    j["parameters_"] = param_json;
     return j;
   }
 
   static Endpoint from_json(const nlohmann::json &j) {
     Endpoint endpoint;
-    endpoint.type_ = static_cast<CommunicationType>(j.at("type_").get<int>());
+    endpoint.type_ = parse_communication_type(j.at("type").get<std::string>());
 
-    if (j.contains("parameters_")) {
-      for (auto &[key, value] : j["parameters_"].items()) {
-        if (value.is_string()) {
-          endpoint.parameters_[key] = value.get<std::string>();
-        } else if (value.is_number_integer()) {
-          endpoint.parameters_[key] = value.get<int>();
-        } else if (value.is_number_float()) {
-          endpoint.parameters_[key] = value.get<double>();
-        } else if (value.is_boolean()) {
-          endpoint.parameters_[key] = value.get<bool>();
-        }
+    for (auto &[key, value] : j.items()) {
+      if (key == "type") continue;
+      if (value.is_string()) {
+        endpoint.parameters_[key] = value.get<std::string>();
+      } else if (value.is_number_integer()) {
+        endpoint.parameters_[key] = value.get<int>();
+      } else if (value.is_number_float()) {
+        endpoint.parameters_[key] = value.get<double>();
+      } else if (value.is_boolean()) {
+        endpoint.parameters_[key] = value.get<bool>();
       }
     }
+
     return endpoint;
   }
 };

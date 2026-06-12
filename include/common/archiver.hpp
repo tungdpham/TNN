@@ -19,18 +19,20 @@ struct ExactType {
     requires(std::is_same_v<T, U>);
 };
 
-template <typename T, typename Derived>
-concept ModifiableArchivable = requires(T& t, IArchiver<Derived>& a) { archive(a, t); };
-
-template <typename T, typename Derived>
-concept ConstArchivable = requires(const T& t, IArchiver<Derived>& a) { archive(a, t); };
-
-template <typename T, typename Derived>
-concept Archivable = ModifiableArchivable<T, Derived> || ConstArchivable<T, Derived>;
-
 template <typename T>
 concept TriviallyArchivable = (std::is_fundamental_v<T> || std::is_enum_v<T>) &&
                               !std::is_pointer_v<T>;  // add more primitive types if needed
+
+template <typename T, typename Derived>
+concept ModifiableArchivable =
+    !TriviallyArchivable<T> && requires(T& t, IArchiver<Derived>& a) { archive(a, t); };
+
+template <typename T, typename Derived>
+concept ConstArchivable =
+    !TriviallyArchivable<T> && requires(const T& t, IArchiver<Derived>& a) { archive(a, t); };
+
+template <typename T, typename Derived>
+concept Archivable = ModifiableArchivable<T, Derived> || ConstArchivable<T, Derived>;
 
 template <typename T>
 struct is_blob : std::false_type {};

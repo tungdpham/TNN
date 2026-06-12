@@ -47,106 +47,106 @@ Node conv2d(Node input, Shape &shape, size_t out_channels, size_t kernel_h, size
             const std::string &name) {
   auto layer = Conv2DLayer(channels(shape), out_channels, kernel_h, kernel_w, stride_h, stride_w,
                            pad_h, pad_w, use_bias, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node batchnorm(Node input, Shape &shape, bool use_relu, const std::string &name) {
   auto layer =
       BatchNormLayer(channels(shape), dtype_eps(DType_t::FP32), 0.1f, true, use_relu, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node maxpool2d(Node input, Shape &shape, size_t pool_h, size_t pool_w, size_t stride_h,
                size_t stride_w, size_t pad_h, size_t pad_w, const std::string &name) {
   auto layer = MaxPool2DLayer(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node avgpool2d(Node input, Shape &shape, size_t pool_h, size_t pool_w, size_t stride_h,
                size_t stride_w, size_t pad_h, size_t pad_w, const std::string &name) {
   auto layer = AvgPool2DLayer(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node flatten(Node input, Shape &shape, int start_dim, int end_dim, const std::string &name) {
   auto layer = FlattenLayer(start_dim, end_dim, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node dense(Node input, Shape &shape, size_t output_features, bool use_bias,
            const std::string &name) {
   auto layer = DenseLayer(channels(shape), output_features, use_bias, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node relu(Node input, Shape &shape, const std::string &name) {
   auto layer = ReLULayer(name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node gelu(Node input, Shape &shape, const std::string &name) {
   auto layer = GELULayer(name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node layernorm(Node input, Shape &shape, float epsilon, bool affine, const std::string &name) {
   auto layer = LayerNormLayer(channels(shape), epsilon, affine, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node dropout(Node input, Shape &shape, float dropout_rate, const std::string &name) {
   auto layer = DropoutLayer(dropout_rate, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node embedding(Node input, Shape &shape, size_t vocab_size, size_t embed_dim,
                const std::string &name) {
   auto layer = EmbeddingLayer(vocab_size, embed_dim, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node positional_embedding(Node input, Shape &shape, size_t embed_dim, size_t seq_len,
                           const std::string &name) {
   auto layer = PositionalEmbeddingLayer(embed_dim, seq_len, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node class_token(Node input, Shape &shape, size_t embed_dim, const std::string &name) {
   auto layer = ClassTokenLayer(embed_dim, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node slice(Node input, Shape &shape, size_t axis, size_t start, size_t length,
            const std::string &name) {
   auto layer = SliceLayer(axis, start, length, name);
-  shape = layer->compute_output_shape(shape);
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node attention(Node input, Shape &shape, size_t embed_dim, size_t num_heads, bool is_causal,
                const std::string &name) {
   auto layer = AttentionBlock(embed_dim, num_heads, is_causal, name);
-  shape = layer->output_shapes({shape})[0];
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 
 Node flash_attention(Node input, Shape &shape, size_t embed_dim, size_t num_heads, bool is_causal,
                      const std::string &name) {
   auto layer = FlashAttentionBlock(embed_dim, num_heads, is_causal, name);
-  shape = layer->output_shapes({shape})[0];
+  shape = layer.output_shapes({shape})[0];
   return layer(input);
 }
 

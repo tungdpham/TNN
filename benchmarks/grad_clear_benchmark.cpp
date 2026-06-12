@@ -1,27 +1,21 @@
 #include "device/device_manager.hpp"
-#include "nn/blocks_impl/sequential.hpp"
-#include "nn/example_models.hpp"
+#include "device/pool_allocator.hpp"
+#include "nn/example_graphs.hpp"
 #include "nn/graph.hpp"
 using namespace synet;
 using namespace std;
 
 signed main() {
-  ExampleModels::register_defaults();
+  ExampleGraphs::register_defaults();
   auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
 
-  Sequential model = ExampleModels::create("gpt2_small");
-  model->set_seed(123456);
-  Graph graph;
-  auto input = graph.make_node("input");
-  auto output = model(input);
-  output->set_uid("output");
-  graph.compile(allocator);
+  Graph graph = ExampleGraphs::create("gpt2_small", allocator);
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    auto grads = model->gradients();
+    Vec<Tensor *> grads = graph.gradients();
     for (auto &grad : grads) {
       grad->fill(0.0);
     }

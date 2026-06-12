@@ -32,15 +32,14 @@ private:
   Tensor beta_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward(const ConstTensor &input, const Tensor &output,
-                                    const ConstTensor &gamma, const ConstTensor &beta,
-                                    size_t batch_size, size_t channels,
+  std::unique_ptr<Task> run_forward(const Tensor &input, Tensor &output, const Tensor &gamma,
+                                    const Tensor &beta, size_t batch_size, size_t channels,
                                     flowHandle_t handle = defaultFlowHandle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_backward(const ConstTensor &grad_output, const ConstTensor &input,
-                                     const ConstTensor &gamma, const Tensor &grad_input,
-                                     const Tensor &gamma_gradients, const Tensor &beta_gradients,
+  std::unique_ptr<Task> run_backward(const Tensor &grad_output, const Tensor &input,
+                                     const Tensor &gamma, Tensor &grad_input,
+                                     Tensor &gamma_gradients, Tensor &beta_gradients,
                                      size_t batch_size, size_t channels,
                                      flowHandle_t handle = defaultFlowHandle) const;
 
@@ -49,32 +48,49 @@ private:
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> cudnn_run_forward(cuda::cudnn_layer_norm::feHandle_t *fe_handle,
-                                          LayerNormStats &stats, const ConstTensor &input,
-                                          const Tensor &output, const ConstTensor &gamma,
-                                          const ConstTensor &beta, const Tensor &mean,
-                                          const Tensor &inv_variance, const Tensor &workspace,
+                                          LayerNormStats &stats, const Tensor &input,
+                                          Tensor &output, const Tensor &gamma, const Tensor &beta,
+                                          Tensor &mean, Tensor &inv_variance, Tensor &workspace,
                                           size_t batch_size, size_t channels,
                                           flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> cudnn_run_backward(cuda::cudnn_layer_norm::feHandle_t *fe_handle,
-                                           LayerNormStats &stats, const ConstTensor &grad_output,
-                                           const ConstTensor &input, const ConstTensor &gamma,
-                                           const Tensor &grad_input, const Tensor &gamma_gradients,
-                                           const Tensor &beta_gradients, const ConstTensor &mean,
-                                           const ConstTensor &inv_variance, const Tensor &workspace,
+                                           LayerNormStats &stats, const Tensor &grad_output,
+                                           const Tensor &input, const Tensor &gamma,
+                                           Tensor &grad_input, Tensor &gamma_gradients,
+                                           Tensor &beta_gradients, const Tensor &mean,
+                                           const Tensor &inv_variance, Tensor &workspace,
                                            size_t batch_size, size_t channels,
                                            flowHandle_t handle) const;
 
-  Tensor cudnn_forward(const ConstTensor &input, size_t mb_id);
-  Tensor cudnn_backward(const ConstTensor &grad_output, size_t mb_id);
+  Tensor cudnn_forward(const Tensor &input, size_t mb_id);
+  Tensor cudnn_backward(const Tensor &grad_output, size_t mb_id);
 
   mutable std::unordered_map<size_t, cuda::cudnn_layer_norm::feHandle_t *> fe_handle_cache;
 #endif
   mutable std::unordered_map<size_t, LayerNormStats> stats_cache;
 
-  Tensor def_forward(const ConstTensor &input, size_t mb_id = 0);
-  Tensor def_backward(const ConstTensor &grad_output, size_t mb_id = 0);
+  Tensor def_forward(const Tensor &input, size_t mb_id = 0);
+  Tensor def_backward(const Tensor &grad_output, size_t mb_id = 0);
+
+  void init_impl() override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+
+public:
+  explicit LayerNormLayerImpl(size_t normalized_shape, float epsilon = 1e-5f, bool affine = true,
+                              const std::string &name = "layer_norm");
+
+  ~LayerNormLayerImpl();
+
+  static constexpr const char *TYPE_NAME = "layer_norm";
+
+  std::string type() const override { return TYPE_NAME; }
+  LayerConfig get_config() const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
+    return input_shape;
+  }
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
@@ -97,23 +113,6 @@ private:
     return descriptors;
   }
 
-  void init_impl() override;
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
-
-public:
-  explicit LayerNormLayerImpl(size_t normalized_shape, float epsilon = 1e-5f, bool affine = true,
-                              const std::string &name = "layer_norm");
-
-  ~LayerNormLayerImpl();
-
-  static constexpr const char *TYPE_NAME = "layer_norm";
-
-  std::string type() const override { return TYPE_NAME; }
-  LayerConfig get_config() const override;
-  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
-    return input_shape;
-  }
   static std::shared_ptr<LayerNormLayerImpl> create_from_config(const LayerConfig &config);
 };
 

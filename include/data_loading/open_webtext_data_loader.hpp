@@ -22,8 +22,8 @@ private:
       return false;
     }
 
-    batch_data = make_tensor<T>(allocator_, {batch_size, context_length_});
-    batch_labels = make_tensor<int>(allocator_, {batch_size, context_length_});
+    batch_data = Tensor({batch_size, context_length_}, dtype_of<T>(), allocator_);
+    batch_labels = Tensor({batch_size, context_length_}, DType_t::INT32_T, allocator_);
 
     for (size_t b = 0; b < batch_size; ++b) {
       size_t start_pos;
@@ -35,10 +35,10 @@ private:
       }
 
       for (size_t i = 0; i < context_length_; ++i) {
-        batch_data->at<T>({b, i}) = static_cast<T>(mapped_data_[start_pos + i]);
+        batch_data.at<T>({b, i}) = static_cast<T>(mapped_data_[start_pos + i]);
         int token_id = static_cast<int>(mapped_data_[start_pos + i + 1]);
         // Store the token_id directly as an integer label
-        batch_labels->at<int>({b, i}) = token_id;
+        batch_labels.at<int>({b, i}) = token_id;
       }
     }
 

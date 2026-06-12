@@ -23,7 +23,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {
@@ -39,7 +39,7 @@ private:
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
     std::uniform_real_distribution<float> angle_dist(-max_angle_degrees_, max_angle_degrees_);
 
-    const auto shape = data->shape();
+    const auto shape = data.shape();
     if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
@@ -62,17 +62,17 @@ private:
   }
 
   template <typename T>
-  void rotate_image(const Tensor &data, size_t batch_idx, size_t height, size_t width,
-                    size_t channels, float angle_degrees) {
+  void rotate_image(Tensor &data, size_t batch_idx, size_t height, size_t width, size_t channels,
+                    float angle_degrees) {
     const float angle_rad = angle_degrees * M_PI / 180.0f;
     const float cos_angle = std::cos(angle_rad);
     const float sin_angle = std::sin(angle_rad);
     const float center_x = width / 2.0f;
     const float center_y = height / 2.0f;
 
-    auto rotated = make_tensor(data->data_type(), {1, height, width, channels}, data->device());
+    Tensor rotated(Vec<size_t>{1, height, width, channels}, data.data_type(), data.allocator());
 
-    rotated->fill(0.0);
+    rotated.fill(0.0);
 
     for (size_t y = 0; y < height; ++y) {
       for (size_t x = 0; x < width; ++x) {
@@ -90,15 +90,15 @@ private:
           float wy = src_y - y1;
 
           for (size_t c = 0; c < channels; ++c) {
-            T val1 = data->at<T>({batch_idx, y1, x1, c});
-            T val2 = data->at<T>({batch_idx, y1, x2, c});
-            T val3 = data->at<T>({batch_idx, y2, x1, c});
-            T val4 = data->at<T>({batch_idx, y2, x2, c});
+            T val1 = data.at<T>({batch_idx, y1, x1, c});
+            T val2 = data.at<T>({batch_idx, y1, x2, c});
+            T val3 = data.at<T>({batch_idx, y2, x1, c});
+            T val4 = data.at<T>({batch_idx, y2, x2, c});
 
-            rotated->at<T>({0, y, x, c}) = val1 * static_cast<T>(1 - wx) * static_cast<T>(1 - wy) +
-                                           val2 * static_cast<T>(wx) * static_cast<T>(1 - wy) +
-                                           val3 * static_cast<T>(1 - wx) * static_cast<T>(wy) +
-                                           val4 * static_cast<T>(wx) * static_cast<T>(wy);
+            rotated.at<T>({0, y, x, c}) = val1 * static_cast<T>(1 - wx) * static_cast<T>(1 - wy) +
+                                          val2 * static_cast<T>(wx) * static_cast<T>(1 - wy) +
+                                          val3 * static_cast<T>(1 - wx) * static_cast<T>(wy) +
+                                          val4 * static_cast<T>(wx) * static_cast<T>(wy);
           }
         }
       }
@@ -108,7 +108,7 @@ private:
     for (size_t h = 0; h < height; ++h) {
       for (size_t w = 0; w < width; ++w) {
         for (size_t c = 0; c < channels; ++c) {
-          data->at<T>({batch_idx, h, w, c}) = rotated->at<T>({0, h, w, c});
+          data.at<T>({batch_idx, h, w, c}) = rotated.at<T>({0, h, w, c});
         }
       }
     }

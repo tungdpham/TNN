@@ -24,17 +24,17 @@ signed main() {
 
   graph.compile(allocator);
 
-  Tensor input_data = make_tensor<float>({128, 224, 224, 16}, getGPU());
-  input_data->fill_random_normal(0.5f, 0.2f, 676767);
+  Tensor input_data = Tensor({128, 224, 224, 16}, DType_t::FP32, getGPU());
+  input_data.fill_random_normal(0.5f, 0.2f, 676767);
 
   // cold pass
-  Tensor output = conv_layer->forward({input_data})[0];
+  Tensor output = conv_layer.forward({input_data})[0];
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    output = conv_layer->forward({input_data})[0];
+    output = conv_layer.forward({input_data})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
@@ -49,15 +49,15 @@ signed main() {
   std::cout << "Conv2D Average time per forward pass: " << duration.count() / passes << " ms"
             << std::endl;
 
-  Tensor nchw_input = make_tensor<float>({128, 16, 224, 224}, getGPU());
-  nchw_input->fill_random_normal(0.5f, 0.2f, 676767);
+  Tensor nchw_input = Tensor({128, 16, 224, 224}, DType_t::FP32, getGPU());
+  nchw_input.fill_random_normal(0.5f, 0.2f, 676767);
   // legacy conv2d benchmark
   // cold pass
-  Tensor nchw_output = legacy_layer->forward({nchw_input})[0];
+  Tensor nchw_output = legacy_layer.forward({nchw_input})[0];
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    nchw_output = legacy_layer->forward({nchw_input})[0];
+    nchw_output = legacy_layer.forward({nchw_input})[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();

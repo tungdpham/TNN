@@ -23,19 +23,19 @@ Vec<Vec<size_t>> MulLayerImpl::output_shapes(const Vec<Vec<size_t>> &input_shape
   return {input_shapes[0]};
 }
 
-Vec<Tensor> MulLayerImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> MulLayerImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
   if (inputs.size() != 2) {
     throw std::runtime_error("MulLayerImpl: expected exactly 2 inputs");
   }
-  const ConstTensor &a = inputs[0];
-  const ConstTensor &b = inputs[1];
+  const Tensor &a = inputs[0];
+  const Tensor &b = inputs[1];
 
-  if (a->shape() != b->shape()) {
+  if (a.shape() != b.shape()) {
     throw std::runtime_error("MulLayerImpl: both inputs must have the same shape");
   }
 
-  Tensor output = get_tensor(a->shape(), io_dtype_);
-  const size_t n = a->size();
+  Tensor output = get_tensor(a.shape(), io_dtype_);
+  const size_t n = a.size();
 
   // Cache inputs for backward pass
   if (this->is_training_) {
@@ -43,29 +43,29 @@ Vec<Tensor> MulLayerImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb
     this->set_immutable_cache(mb_id, "b", b);
   }
 
-  DISPATCH_DTYPE(a->data_type(), T, {
-    ops::mul<T>(a->data_ptr(), b->data_ptr(), output->data_ptr(), n, this->flow_handle_);
+  DISPATCH_DTYPE(a.data_type(), T, {
+    ops::mul<T>(a.data_ptr(), b.data_ptr(), output.data_ptr(), n, this->flow_handle_);
   });
 
   return {output};
 }
 
-Vec<Tensor> MulLayerImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> MulLayerImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
   if (grad_outputs.size() != 1) {
     throw std::runtime_error("MulLayerImpl: expected exactly 1 grad output");
   }
-  const ConstTensor &grad_out = grad_outputs[0];
-  const ConstTensor &a = this->get_immutable_cache(mb_id, "a");
-  const ConstTensor &b = this->get_immutable_cache(mb_id, "b");
-  const size_t n = grad_out->size();
+  const Tensor &grad_out = grad_outputs[0];
+  const Tensor &a = this->get_immutable_cache(mb_id, "a");
+  const Tensor &b = this->get_immutable_cache(mb_id, "b");
+  const size_t n = grad_out.size();
 
   // grad_a = grad_out * b,  grad_b = grad_out * a
-  Tensor grad_a = get_tensor(grad_out->shape(), this->io_dtype_);
-  Tensor grad_b = get_tensor(grad_out->shape(), this->io_dtype_);
+  Tensor grad_a = get_tensor(grad_out.shape(), this->io_dtype_);
+  Tensor grad_b = get_tensor(grad_out.shape(), this->io_dtype_);
 
-  DISPATCH_DTYPE(grad_out->data_type(), T, {
-    ops::mul<T>(grad_out->data_ptr(), b->data_ptr(), grad_a->data_ptr(), n, this->flow_handle_);
-    ops::mul<T>(grad_out->data_ptr(), a->data_ptr(), grad_b->data_ptr(), n, this->flow_handle_);
+  DISPATCH_DTYPE(grad_out.data_type(), T, {
+    ops::mul<T>(grad_out.data_ptr(), b.data_ptr(), grad_a.data_ptr(), n, this->flow_handle_);
+    ops::mul<T>(grad_out.data_ptr(), a.data_ptr(), grad_b.data_ptr(), n, this->flow_handle_);
   });
 
   return {grad_a, grad_b};

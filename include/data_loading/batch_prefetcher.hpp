@@ -70,9 +70,8 @@ public:
 
   bool next(Tensor &batch_data, Tensor &batch_labels) {
     std::unique_lock<std::mutex> lock(mu_);
-    cv_not_empty_.wait(lock, [&] {
-      return stop_requested_ || finished_ || !queue_.empty() || error_;
-    });
+    cv_not_empty_.wait(lock,
+                       [&] { return stop_requested_ || finished_ || !queue_.empty() || error_; });
 
     if (error_) {
       std::rethrow_exception(error_);
@@ -99,9 +98,8 @@ private:
       while (true) {
         {
           std::unique_lock<std::mutex> lock(mu_);
-          cv_not_full_.wait(lock, [&] {
-            return stop_requested_ || queue_.size() < prefetch_depth_;
-          });
+          cv_not_full_.wait(lock,
+                            [&] { return stop_requested_ || queue_.size() < prefetch_depth_; });
 
           if (stop_requested_) {
             finished_ = true;
@@ -119,8 +117,8 @@ private:
         // shallow Tensor ownership surprises while the producer thread is
         // already loading/augmenting the next batch.
         if (batch.valid) {
-          batch.data = batch.data->clone();
-          batch.labels = batch.labels->clone();
+          batch.data = batch.data.clone();
+          batch.labels = batch.labels.clone();
         }
 
         {

@@ -73,10 +73,11 @@ private:
         std::min(batch_size, access_order_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data = make_tensor<T>(
-        allocator_, {actual_batch_size, tiny_imagenet_constants::IMAGE_HEIGHT,
-                     tiny_imagenet_constants::IMAGE_WIDTH, tiny_imagenet_constants::NUM_CHANNELS});
-    batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
+    batch_data = Tensor(
+        Vec<size_t>{actual_batch_size, tiny_imagenet_constants::IMAGE_HEIGHT,
+                    tiny_imagenet_constants::IMAGE_WIDTH, tiny_imagenet_constants::NUM_CHANNELS},
+        dtype_of<T>(), allocator_);
+    batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];
@@ -93,12 +94,12 @@ private:
             const size_t src_idx =
                 c * tiny_imagenet_constants::IMAGE_HEIGHT * tiny_imagenet_constants::IMAGE_WIDTH +
                 h * tiny_imagenet_constants::IMAGE_WIDTH + w;
-            batch_data->at<T>({i, h, w, c}) = static_cast<T>(chw_buf[src_idx]);
+            batch_data.at<T>({i, h, w, c}) = static_cast<T>(chw_buf[src_idx]);
           }
         }
       }
 
-      batch_labels->at<int>({i}) = class_index;
+      batch_labels.at<int>({i}) = class_index;
     });
 
     this->apply_augmentation(batch_data, batch_labels);

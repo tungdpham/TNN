@@ -26,31 +26,44 @@ private:
   Tensor bias_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_dense_forward(const ConstTensor &input, const ConstTensor &weights,
-                                              const Tensor &output, size_t batch_size,
+  std::unique_ptr<Task> compute_dense_forward(const Tensor &input, const Tensor &weights,
+                                              Tensor &output, size_t batch_size,
                                               size_t input_features, size_t output_features,
                                               flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_wgrad(const ConstTensor &input, const ConstTensor &grad_output,
-                                  const Tensor &weight_grad, size_t batch_size,
-                                  size_t input_features, size_t output_features,
-                                  flowHandle_t handle) const;
+  std::unique_ptr<Task> run_wgrad(const Tensor &input, const Tensor &grad_output,
+                                  Tensor &weight_grad, size_t batch_size, size_t input_features,
+                                  size_t output_features, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_dgrad(const ConstTensor &grad_output, const ConstTensor &weights,
-                                  const Tensor &grad_input, size_t batch_size,
-                                  size_t input_features, size_t output_features,
-                                  flowHandle_t handle) const;
+  std::unique_ptr<Task> run_dgrad(const Tensor &grad_output, const Tensor &weights,
+                                  Tensor &grad_input, size_t batch_size, size_t input_features,
+                                  size_t output_features, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_bgrad(const ConstTensor &grad_output, const Tensor &bias_gradient,
+  std::unique_ptr<Task> run_bgrad(const Tensor &grad_output, Tensor &bias_gradient,
                                   size_t batch_size, size_t output_features,
                                   flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> add_bias(const Tensor &output, const ConstTensor &bias, size_t batch_size,
+  std::unique_ptr<Task> add_bias(Tensor &output, const Tensor &bias, size_t batch_size,
                                  size_t output_features, flowHandle_t handle) const;
+
+  void init_impl() override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+
+public:
+  LegacyDenseLayerImpl(size_t input_features, size_t output_features, bool use_bias = true,
+                       const std::string &name = "legacy_dense");
+
+  static constexpr const char *TYPE_NAME = "legacy_dense";
+
+  std::string type() const override { return TYPE_NAME; }
+  LayerConfig get_config() const override;
+
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
@@ -72,21 +85,6 @@ private:
     }
     return descriptors;
   }
-
-  void init_impl() override;
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
-
-public:
-  LegacyDenseLayerImpl(size_t input_features, size_t output_features, bool use_bias = true,
-                       const std::string &name = "legacy_dense");
-
-  static constexpr const char *TYPE_NAME = "legacy_dense";
-
-  std::string type() const override { return TYPE_NAME; }
-  LayerConfig get_config() const override;
-
-  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
   static std::shared_ptr<LegacyDenseLayerImpl> create_from_config(const LayerConfig &config);
 };

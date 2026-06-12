@@ -33,33 +33,48 @@ private:
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
 
-  Tensor def_forward(const ConstTensor &input, size_t mb_id);
-  Tensor def_backward(const ConstTensor &grad_output, size_t mb_id);
+  Tensor def_forward(const Tensor &input, size_t mb_id);
+  Tensor def_backward(const Tensor &grad_output, size_t mb_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_inference_impl(const ConstTensor &input, const Tensor &output,
-                                           size_t batch_size, size_t channels, size_t spatial_size,
+  std::unique_ptr<Task> run_inference_impl(const Tensor &input, Tensor &output, size_t batch_size,
+                                           size_t channels, size_t spatial_size,
                                            flowHandle_t handle = defaultFlowHandle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_inference(const ConstTensor &input, const Tensor &output,
-                                      size_t batch_size, size_t channels, size_t spatial_size,
+  std::unique_ptr<Task> run_inference(const Tensor &input, Tensor &output, size_t batch_size,
+                                      size_t channels, size_t spatial_size,
                                       flowHandle_t handle = defaultFlowHandle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward(const ConstTensor &input, const Tensor &batch_mean,
-                                    const Tensor &batch_inv_std, const Tensor &running_mean,
-                                    const Tensor &running_var, const ConstTensor &gamma,
-                                    const ConstTensor &beta, const Tensor &output,
-                                    const Tensor &norm, size_t batch_size, size_t channels,
-                                    size_t spatial_size, flowHandle_t handle = defaultFlowHandle);
+  std::unique_ptr<Task> run_forward(const Tensor &input, Tensor &batch_mean, Tensor &batch_inv_std,
+                                    Tensor &running_mean, Tensor &running_var, const Tensor &gamma,
+                                    const Tensor &beta, Tensor &output, Tensor &norm,
+                                    size_t batch_size, size_t channels, size_t spatial_size,
+                                    flowHandle_t handle = defaultFlowHandle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_backward(const ConstTensor &grad_output, const ConstTensor &norm_input,
-                                     const ConstTensor &inv_std, const ConstTensor &gamma,
-                                     const Tensor &d_gamma, const Tensor &d_beta,
-                                     const Tensor &grad_input, size_t batch_size, size_t channels,
-                                     size_t spatial_size, flowHandle_t handle = defaultFlowHandle);
+  std::unique_ptr<Task> run_backward(const Tensor &grad_output, const Tensor &norm_input,
+                                     const Tensor &inv_std, const Tensor &gamma, Tensor &d_gamma,
+                                     Tensor &d_beta, Tensor &grad_input, size_t batch_size,
+                                     size_t channels, size_t spatial_size,
+                                     flowHandle_t handle = defaultFlowHandle);
+
+  void init_impl() override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+
+public:
+  explicit LegacyBatchNormLayerImpl(size_t num_features, float epsilon = 1e-5f,
+                                    float momentum = 0.1f, bool affine = true,
+                                    const std::string &name = "batchnorm");
+
+  static constexpr const char *TYPE_NAME = "legacy_batchnorm";
+
+  std::string type() const override { return TYPE_NAME; }
+  LayerConfig get_config() const override;
+
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
@@ -94,21 +109,6 @@ private:
     return descriptors;
   }
 
-  void init_impl() override;
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
-
-public:
-  explicit LegacyBatchNormLayerImpl(size_t num_features, float epsilon = 1e-5f,
-                                    float momentum = 0.1f, bool affine = true,
-                                    const std::string &name = "batchnorm");
-
-  static constexpr const char *TYPE_NAME = "legacy_batchnorm";
-
-  std::string type() const override { return TYPE_NAME; }
-  LayerConfig get_config() const override;
-
-  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   static std::shared_ptr<LegacyBatchNormLayerImpl> create_from_config(const LayerConfig &config);
 };
 

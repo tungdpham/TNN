@@ -20,8 +20,8 @@ private:
   std::unique_ptr<Tanh> activation_;
 
 protected:
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
 
 public:
   static constexpr const char *TYPE_NAME = "tanh";

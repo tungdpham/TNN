@@ -39,13 +39,13 @@ namespace {
 void expect_float_tensors_equal(const Tensor& actual, const Tensor& expected) {
   ASSERT_TRUE(actual);
   ASSERT_TRUE(expected);
-  EXPECT_EQ(actual->shape(), expected->shape());
-  EXPECT_EQ(actual->data_type(), expected->data_type());
-  EXPECT_EQ(actual->size(), expected->size());
+  EXPECT_EQ(actual.shape(), expected.shape());
+  EXPECT_EQ(actual.data_type(), expected.data_type());
+  EXPECT_EQ(actual.size(), expected.size());
 
-  const float* actual_data = actual->data_as<float>();
-  const float* expected_data = expected->data_as<float>();
-  for (size_t i = 0; i < expected->size(); ++i) {
+  const float* actual_data = actual.data_as<float>();
+  const float* expected_data = expected.data_as<float>();
+  for (size_t i = 0; i < expected.size(); ++i) {
     EXPECT_FLOAT_EQ(actual_data[i], expected_data[i]);
   }
 }
@@ -168,18 +168,18 @@ TEST_F(ArchiverTest, TestBoolArchiver) {
 }
 
 TEST_F(ArchiverTest, TestTensorArchiver) {
-  Tensor tensor = make_tensor(DType_t::FP32, {32, 512, 768});
+  Tensor tensor = Tensor({32, 512, 768}, DType_t::FP32);
 
-  tensor->fill_random_normal(0.0f, 1.0f);
+  tensor.fill_random_normal(0.0f, 1.0f);
 
   Sizer sizer;
   sizer(tensor);
   size_t expected_size = sizer.size();
   dptr buffer = allocator_.allocate(expected_size);
-  EXPECT_EQ(tensor->size(), tensor->capacity());
+  EXPECT_EQ(tensor.size(), tensor.capacity());
   EXPECT_EQ(sizer.size(), sizeof(DType_t) + sizeof(uint64_t) +
-                              sizeof(uint64_t) * tensor->shape().size() +
-                              tensor->size() * sizeof(float));
+                              sizeof(uint64_t) * tensor.shape().size() +
+                              tensor.size() * sizeof(float));
   Writer writer(buffer);
   writer(tensor);
 
@@ -188,13 +188,13 @@ TEST_F(ArchiverTest, TestTensorArchiver) {
   BinarySerializer bserializer(allocator_);
   bserializer.deserialize(reader, deserialized_tensor);
 
-  EXPECT_EQ(deserialized_tensor->shape(), tensor->shape());
-  EXPECT_EQ(deserialized_tensor->data_type(), tensor->data_type());
-  EXPECT_EQ(deserialized_tensor->device(), tensor->device());
-  EXPECT_EQ(deserialized_tensor->size(), tensor->size());
-  float* tensor_data = tensor->data_as<float>();
-  float* deserialized_tensor_data = deserialized_tensor->data_as<float>();
-  for (size_t i = 0; i < tensor->size(); ++i) {
+  EXPECT_EQ(deserialized_tensor.shape(), tensor.shape());
+  EXPECT_EQ(deserialized_tensor.data_type(), tensor.data_type());
+  EXPECT_EQ(deserialized_tensor.device(), tensor.device());
+  EXPECT_EQ(deserialized_tensor.size(), tensor.size());
+  float* tensor_data = tensor.data_as<float>();
+  float* deserialized_tensor_data = deserialized_tensor.data_as<float>();
+  for (size_t i = 0; i < tensor.size(); ++i) {
     EXPECT_FLOAT_EQ(deserialized_tensor_data[i], tensor_data[i]);
   }
 }
@@ -202,10 +202,10 @@ TEST_F(ArchiverTest, TestTensorArchiver) {
 TEST_F(ArchiverTest, TestJobArchiver) {
   Job job;
   job.mb_id = 123;
-  Tensor left = make_tensor(DType_t::FP32, {64, 256});
-  Tensor right = make_tensor(DType_t::FP32, {64, 128});
-  left->fill_random_normal(0.0f, 1.0f);
-  right->fill_random_normal(0.0f, 1.0f);
+  Tensor left = Tensor({64, 256}, DType_t::FP32);
+  Tensor right = Tensor({64, 128}, DType_t::FP32);
+  left.fill_random_normal(0.0f, 1.0f);
+  right.fill_random_normal(0.0f, 1.0f);
   job.data.set("left", left);
   job.data.set("right", right);
   Sizer sizer;
@@ -230,14 +230,14 @@ TEST_F(ArchiverTest, TestJobArchiver) {
     const Tensor& actual = deserialized_job.data.get(uid);
     ASSERT_TRUE(expected);
     ASSERT_TRUE(actual);
-    EXPECT_EQ(actual->shape(), expected->shape());
-    EXPECT_EQ(actual->data_type(), expected->data_type());
-    EXPECT_EQ(actual->device(), expected->device());
-    EXPECT_EQ(actual->size(), expected->size());
+    EXPECT_EQ(actual.shape(), expected.shape());
+    EXPECT_EQ(actual.data_type(), expected.data_type());
+    EXPECT_EQ(actual.device(), expected.device());
+    EXPECT_EQ(actual.size(), expected.size());
 
-    float* expected_data = expected->data_as<float>();
-    float* actual_data = actual->data_as<float>();
-    for (size_t i = 0; i < expected->size(); ++i) {
+    const float* expected_data = expected.data_as<float>();
+    const float* actual_data = actual.data_as<float>();
+    for (size_t i = 0; i < expected.size(); ++i) {
       EXPECT_FLOAT_EQ(actual_data[i], expected_data[i]);
     }
   }
@@ -263,15 +263,15 @@ TEST_F(ArchiverTest, TestMessageDataArchiver) {
 }
 
 TEST_F(ArchiverTest, LargeJobMessageSurvivesPacketSlicingAndReassembly) {
-  Tensor left_host = make_tensor(DType_t::FP32, {256, 64, 8, 8});
-  Tensor right_host = make_tensor(DType_t::FP32, {256, 64, 8, 8});
-  left_host->fill_random_normal(0.0f, 1.0f);
-  right_host->fill_random_normal(0.0f, 1.0f);
+  Tensor left_host = Tensor({256, 64, 8, 8}, DType_t::FP32);
+  Tensor right_host = Tensor({256, 64, 8, 8}, DType_t::FP32);
+  left_host.fill_random_normal(0.0f, 1.0f);
+  right_host.fill_random_normal(0.0f, 1.0f);
 
   Job job;
   job.mb_id = 77;
-  job.data.set("left", left_host->to_device(getGPU()));
-  job.data.set("right", right_host->to_device(getGPU()));
+  job.data.set("left", left_host.to_device(getGPU()));
+  job.data.set("right", right_host.to_device(getGPU()));
 
   Message original(CommandType::FORWARD_JOB, std::move(job));
 

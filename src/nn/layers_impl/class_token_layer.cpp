@@ -25,40 +25,42 @@ void ClassTokenLayerImpl::init_impl() {
   float bound = static_cast<float>(1.0 / std::sqrt(static_cast<double>(embed_dim_)));
 
   if (this->use_seed_) {
-    class_token_->fill_random_uniform(-bound, bound, this->srand_seed_);
+    class_token_.fill_random_uniform(-bound, bound, this->srand_seed_);
   } else {
-    class_token_->fill_random_uniform(-bound, bound);
+    class_token_.fill_random_uniform(-bound, bound);
   }
 
-  class_token_gradients_->fill(0.0f);
+  class_token_gradients_.fill(0.0f);
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> ClassTokenLayerImpl::forward_task(
-    const ConstTensor &input, const Tensor &output, const ConstTensor &class_token,
-    size_t batch_size, size_t seq_len, size_t embed_dim, flowHandle_t handle) const {
+std::unique_ptr<Task> ClassTokenLayerImpl::forward_task(const Tensor &input, Tensor &output,
+                                                        const Tensor &class_token,
+                                                        size_t batch_size, size_t seq_len,
+                                                        size_t embed_dim,
+                                                        flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "ClassTokenLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
+  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("ClassTokenLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (class_token->data_type() != dtype_of<Param_T>()) {
+  if (class_token.data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "ClassTokenLayerImpl class_token dtype mismatch with dispatch Param_T");
   }
 
   if (get_engine_type() == EngineType::CPU) {
     return create_cpu_task(handle, cpu::class_token::run_forward<Compute_T>,
-                           input->data_as<Compute_T>(), class_token->data_as<Compute_T>(),
-                           output->data_as<Compute_T>(), batch_size, seq_len, embed_dim);
+                           input.data_as<Compute_T>(), class_token.data_as<Compute_T>(),
+                           output.data_as<Compute_T>(), batch_size, seq_len, embed_dim);
   }
 #ifdef USE_CUDA
   else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle, cuda::class_token::run_forward<Compute_T>,
-                            input->data_as<Compute_T>(), class_token->data_as<Compute_T>(),
-                            output->data_as<Compute_T>(), batch_size, seq_len, embed_dim);
+                            input.data_as<Compute_T>(), class_token.data_as<Compute_T>(),
+                            output.data_as<Compute_T>(), batch_size, seq_len, embed_dim);
   }
 #endif
   else {
@@ -69,32 +71,32 @@ std::unique_ptr<Task> ClassTokenLayerImpl::forward_task(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> ClassTokenLayerImpl::backward_task(
-    const ConstTensor &grad_output, const Tensor &grad_input, const Tensor &class_token_gradients,
-    const ConstTensor &class_token, size_t batch_size, size_t seq_len, size_t embed_dim,
+    const Tensor &grad_output, Tensor &grad_input, Tensor &class_token_gradients,
+    const Tensor &class_token, size_t batch_size, size_t seq_len, size_t embed_dim,
     flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "ClassTokenLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (grad_output->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
+  if (grad_output.data_type() != dtype_of<IO_T>() || grad_input.data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("ClassTokenLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (class_token_gradients->data_type() != dtype_of<Param_T>()) {
+  if (class_token_gradients.data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "ClassTokenLayerImpl class_token_gradients dtype mismatch with dispatch Param_T");
   }
 
   if (get_engine_type() == EngineType::CPU) {
     return create_cpu_task(handle, cpu::class_token::run_backward<Compute_T>,
-                           grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
-                           class_token_gradients->data_as<Compute_T>(), batch_size, seq_len,
+                           grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(),
+                           class_token_gradients.data_as<Compute_T>(), batch_size, seq_len,
                            embed_dim);
   }
 #ifdef USE_CUDA
   else if (get_engine_type() == EngineType::CUDA) {
     return create_cuda_task(handle, cuda::class_token::run_backward<Compute_T>,
-                            grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
-                            class_token_gradients->data_as<Compute_T>(), batch_size, seq_len,
+                            grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(),
+                            class_token_gradients.data_as<Compute_T>(), batch_size, seq_len,
                             embed_dim);
   }
 #endif
@@ -104,20 +106,20 @@ std::unique_ptr<Task> ClassTokenLayerImpl::backward_task(
   return nullptr;
 }
 
-Tensor ClassTokenLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
-  if (input->dims() != 3) {
+Tensor ClassTokenLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+  if (input.dims() != 3) {
     throw std::runtime_error(
         "ClassTokenLayerImpl: Input tensor must have 3 dimensions (Batch, Seq, Embed)");
   }
-  size_t batch_size = input->dimension(0);
-  size_t seq_len = input->dimension(1);
-  size_t embed_dim = input->dimension(2);
+  size_t batch_size = input.dimension(0);
+  size_t seq_len = input.dimension(1);
+  size_t embed_dim = input.dimension(2);
 
   if (embed_dim != embed_dim_) {
     throw std::runtime_error("ClassTokenLayerImpl: Input embed_dim must match layer embed_dim");
   }
 
-  Tensor output = get_tensor({batch_size, seq_len + 1, embed_dim}, input->data_type());
+  Tensor output = get_tensor({batch_size, seq_len + 1, embed_dim}, input.data_type());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(forward_task, input, output, class_token_, batch_size, seq_len,
                                  embed_dim, this->flow_handle_);
@@ -125,17 +127,17 @@ Tensor ClassTokenLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id)
   return output;
 }
 
-Tensor ClassTokenLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
-  if (grad_output->dims() != 3) {
+Tensor ClassTokenLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+  if (grad_output.dims() != 3) {
     throw std::runtime_error(
         "ClassTokenLayerImpl: Gradient tensor must have 3 dimensions (Batch, Seq, Embed)");
   }
-  size_t batch_size = grad_output->dimension(0);
-  size_t seq_len_plus_1 = grad_output->dimension(1);
-  size_t embed_dim = grad_output->dimension(2);
+  size_t batch_size = grad_output.dimension(0);
+  size_t seq_len_plus_1 = grad_output.dimension(1);
+  size_t embed_dim = grad_output.dimension(2);
   size_t seq_len = seq_len_plus_1 - 1;
 
-  Tensor grad_input = get_tensor({batch_size, seq_len, embed_dim}, grad_output->data_type());
+  Tensor grad_input = get_tensor({batch_size, seq_len, embed_dim}, grad_output.data_type());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, grad_output, grad_input, class_token_gradients_,
                                  class_token_, batch_size, seq_len, embed_dim, this->flow_handle_);

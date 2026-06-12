@@ -165,13 +165,13 @@ int main(int argc, char *argv[]) {
   }
 
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
-  Tensor master_tensor = make_tensor<float>({N, H, W, C}, getHost());
-  master_tensor->fill_random_normal(0.0f, 1.0f, 123456);
-  // float *master_data = master_tensor->data_as<float>();
+  Tensor master_tensor = Tensor({N, H, W, C}, DType_t::FP32, getHost());
+  master_tensor.fill_random_normal(0.0f, 1.0f, 123456);
+  // float *master_data = master_tensor.data_as<float>();
 
   for (int i = 0; i < 4; i++) {
-    Tensor tensor = make_tensor<float>(master_tensor->shape(), getHost());
-    master_tensor->copy_to(tensor);
+    Tensor tensor = Tensor(master_tensor.shape(), DType_t::FP32, getHost());
+    master_tensor.copy_to(tensor);
     Job job;
     job.mb_id = 10;
     job.data = TensorBundle({

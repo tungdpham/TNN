@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cassert>
+#include <chrono>
 #include <iostream>
 #include <memory>
 #include <numeric>
@@ -17,26 +18,23 @@
 
 #include "common/blob.hpp"
 #include "device/device.hpp"
+#include "device/device_allocator.hpp"
 #include "device/dptr.hpp"
 #include "device/flow.hpp"
 #include "device/iallocator.hpp"
-#include "device/pool_allocator.hpp"
 #include "device/task.hpp"
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
 namespace synet {
 
-using Tensor = std::shared_ptr<class TensorImpl>;
-using ConstTensor = std::shared_ptr<const class TensorImpl>;
-
 /**
- * @brief A TensorImpl class dedicated for ML and DL applications.
+ * @brief A Tensor class dedicated for ML and DL applications.
  * Data layout is assumed to be row-major (C-style) by default.
- * Generic N-dimensional TensorImpl with various functions. How layers interpret
+ * Generic N-dimensional Tensor with various functions. How layers interpret
  * the dimensions is up to the layer's implementation.
  */
-class TensorImpl {
+class Tensor {
 protected:
   DType_t dtype_;
   sref<IAllocator> allocator_;
@@ -76,7 +74,8 @@ protected:
 
 public:
   // Constructors and Destructor
-  TensorImpl(IAllocator &allocator, DType_t dtype)
+  Tensor(DType_t dtype = DType_t::FP32,
+         IAllocator &allocator = DeviceAllocator::instance(getHost()))
       : dtype_(dtype),
         allocator_(allocator),
         data_size_(0) {
@@ -87,7 +86,8 @@ public:
     data_ = allocate_data(0);
   }
 
-  TensorImpl(IAllocator &allocator, DType_t dtype, std::initializer_list<size_t> shape_list)
+  Tensor(std::initializer_list<size_t> shape_list, DType_t dtype = DType_t::FP32,
+         IAllocator &allocator = DeviceAllocator::instance(getHost()))
       : dtype_(dtype),
         allocator_(allocator),
         shape_(shape_list) {
@@ -100,8 +100,8 @@ public:
     data_ = allocate_data(data_size_);
   }
 
-  TensorImpl(IAllocator &allocator, DType_t dtype, std::initializer_list<size_t> shape_list,
-             const dptr &data)
+  Tensor(std::initializer_list<size_t> shape_list, const dptr &data, DType_t dtype = DType_t::FP32,
+         IAllocator &allocator = DeviceAllocator::instance(getHost()))
       : dtype_(dtype),
         allocator_(allocator),
         shape_(shape_list) {
@@ -117,7 +117,8 @@ public:
     }
   }
 
-  TensorImpl(IAllocator &allocator, DType_t dtype, const Vec<size_t> &shape)
+  Tensor(const Vec<size_t> &shape, DType_t dtype = DType_t::FP32,
+         IAllocator &allocator = DeviceAllocator::instance(getHost()))
       : dtype_(dtype),
         allocator_(allocator),
         shape_(shape) {
@@ -130,7 +131,8 @@ public:
     data_ = allocate_data(data_size_);
   }
 
-  TensorImpl(IAllocator &allocator, DType_t dtype, const Vec<size_t> &shape, const dptr &data)
+  Tensor(const Vec<size_t> &shape, const dptr &data, DType_t dtype = DType_t::FP32,
+         IAllocator &allocator = DeviceAllocator::instance(getHost()))
       : dtype_(dtype),
         allocator_(allocator),
         shape_(shape) {
@@ -146,7 +148,8 @@ public:
     }
   }
 
-  TensorImpl(IAllocator &allocator, DType_t dtype, const Vec<size_t> &shape, dptr &&data)
+  Tensor(const Vec<size_t> &shape, dptr &&data, DType_t dtype = DType_t::FP32,
+         IAllocator &allocator = DeviceAllocator::instance(getHost()))
       : dtype_(dtype),
         allocator_(allocator),
         data_(std::move(data)),
@@ -159,9 +162,28 @@ public:
     compute_strides();
   }
 
-  ~TensorImpl() = default;
+  Tensor(DType_t dtype, const Device &device)
+      : Tensor(dtype, DeviceAllocator::instance(device)) {}
 
-  TensorImpl(const TensorImpl &other)
+  Tensor(std::initializer_list<size_t> shape_list, DType_t dtype, const Device &device)
+      : Tensor(shape_list, dtype, DeviceAllocator::instance(device)) {}
+
+  Tensor(std::initializer_list<size_t> shape_list, const dptr &data, DType_t dtype,
+         const Device &device)
+      : Tensor(shape_list, data, dtype, DeviceAllocator::instance(device)) {}
+
+  Tensor(const Vec<size_t> &shape, DType_t dtype, const Device &device)
+      : Tensor(shape, dtype, DeviceAllocator::instance(device)) {}
+
+  Tensor(const Vec<size_t> &shape, const dptr &data, DType_t dtype, const Device &device)
+      : Tensor(shape, data, dtype, DeviceAllocator::instance(device)) {}
+
+  Tensor(const Vec<size_t> &shape, dptr &&data, DType_t dtype, const Device &device)
+      : Tensor(shape, std::move(data), dtype, DeviceAllocator::instance(device)) {}
+
+  ~Tensor() = default;
+
+  Tensor(const Tensor &other)
       : dtype_(other.dtype_),
         allocator_(other.allocator_),
         data_size_(other.data_size_),
@@ -169,7 +191,7 @@ public:
         shape_(other.shape_),
         strides_(other.strides_) {}
 
-  TensorImpl(TensorImpl &&other) noexcept
+  Tensor(Tensor &&other) noexcept
       : dtype_(other.dtype_),
         allocator_(other.allocator_),
         data_size_(other.data_size_),
@@ -178,6 +200,8 @@ public:
         strides_(std::move(other.strides_)) {
     other.data_size_ = 0;
   }
+
+  explicit operator bool() const { return data_.get<void>() != nullptr; }
 
   void *data() { return data_.get<void>(); }
   const void *data() const { return data_.get<void>(); }
@@ -208,7 +232,7 @@ public:
   const dptr data_ptr() const { return data_; }
 
   // Operators
-  TensorImpl &operator=(const TensorImpl &other) {
+  Tensor &operator=(const Tensor &other) {
     if (this != &other) {
       dtype_ = other.dtype_;
       allocator_ = other.allocator_;
@@ -220,12 +244,12 @@ public:
     return *this;
   }
 
-  TensorImpl &operator=(TensorImpl &&other) noexcept {
+  Tensor &operator=(Tensor &&other) noexcept {
     if (this != &other) {
       dtype_ = other.dtype_;
       allocator_ = other.allocator_;
-      shape_ = std::move(other.shape_);
-      strides_ = std::move(other.strides_);
+      std::swap(shape_, other.shape_);
+      std::swap(strides_, other.strides_);
       data_ = std::move(other.data_);
       data_size_ = other.data_size_;
       other.data_size_ = 0;
@@ -233,7 +257,7 @@ public:
     return *this;
   }
 
-  bool same_shape(const TensorImpl &other) const { return shape_ == other.shape_; }
+  bool same_shape(const Tensor &other) const { return shape_ == other.shape_; }
 
   const Vec<size_t> &shape() const { return shape_; }
 
@@ -274,17 +298,17 @@ public:
     if (device() == target_device) {
       return clone();
     }
-    auto &allocator = PoolAllocator::instance(target_device, defaultFlowHandle);
+    auto &allocator = DeviceAllocator::instance(target_device);
     if (device_type() == DeviceType::CPU && target_device.device_type() == DeviceType::GPU) {
       Vec<size_t> shape_vec(shape_);
-      Tensor gpu_tensor = std::make_shared<TensorImpl>(allocator, dtype_, shape_vec);
-      DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, gpu_tensor->data_, data_size_));
+      Tensor gpu_tensor = Tensor(shape_vec, dtype_, allocator);
+      DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, gpu_tensor.data_, data_size_));
       return gpu_tensor;
     }
     if (device_type() == DeviceType::GPU && target_device.device_type() == DeviceType::CPU) {
       Vec<size_t> shape_vec(shape_);
-      Tensor cpu_tensor = std::make_shared<TensorImpl>(allocator, dtype_, shape_vec);
-      DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_));
+      Tensor cpu_tensor = Tensor(shape_vec, dtype_, allocator);
+      DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor.data_, data_size_));
       return cpu_tensor;
     }
     throw std::runtime_error("Unsupported device type for to_device()");
@@ -294,11 +318,10 @@ public:
     if (dtype_ == target_dtype) {
       return clone();
     }
-    auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
     Vec<size_t> shape_vec(shape_);
-    Tensor converted_tensor = std::make_shared<TensorImpl>(allocator, target_dtype, shape_vec);
+    Tensor converted_tensor = Tensor(shape_vec, target_dtype, allocator_);
     DISPATCH_ANY_DTYPE2(dtype_, target_dtype, T, U,
-                        ops::cast<T, U>(data_, converted_tensor->data_, data_size_));
+                        ops::cast<T, U>(data_, converted_tensor.data_, data_size_));
     return converted_tensor;
   }
 
@@ -306,23 +329,23 @@ public:
     if (device_type() == DeviceType::CPU) {
       return clone();
     }
-    auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
+    auto &allocator = DeviceAllocator::instance(getHost());
     Vec<size_t> shape_vec(shape_);
-    Tensor cpu_tensor = std::make_shared<TensorImpl>(allocator, dtype_, shape_vec);
-    DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_));
+    Tensor cpu_tensor = Tensor(shape_vec, dtype_, allocator);
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor.data_, data_size_));
     return cpu_tensor;
   }
 
-  Tensor clone() const { return std::make_shared<TensorImpl>(*allocator_, dtype_, shape_, data_); }
+  Tensor clone() const { return Tensor(shape_, data_, dtype_, *allocator_); }
 
   Tensor span(Vec<size_t> start_offset, Vec<size_t> span_sizes) const {
     if (start_offset.size() != shape_.size() || span_sizes.size() != shape_.size()) {
-      throw std::invalid_argument("Span offsets and sizes must match TensorImpl dimensions");
+      throw std::invalid_argument("Span offsets and sizes must match Tensor dimensions");
     }
 
     for (size_t i = 0; i < shape_.size(); ++i) {
       if (start_offset[i] + span_sizes[i] > shape_[i]) {
-        throw std::out_of_range("Span exceeds TensorImpl dimensions");
+        throw std::out_of_range("Span exceeds Tensor dimensions");
       }
     }
 
@@ -348,7 +371,7 @@ public:
     }
     size_t dtype_size = get_dtype_size(dtype_);
     dptr span_data = data_.span(offset * dtype_size, span_size * dtype_size);
-    return std::make_shared<TensorImpl>(allocator_, dtype_, span_sizes, std::move(span_data));
+    return Tensor(span_sizes, std::move(span_data), dtype_, *allocator_);
   }
 
   Vec<Tensor> split(size_t num_splits) const {
@@ -385,44 +408,44 @@ public:
   }
 
   // Arithmetic operations returning shared_ptr
-  void add(const ConstTensor &other) {
-    if (!same_shape(*other)) {
-      throw std::invalid_argument("TensorImpl shapes must match for addition");
+  void add(const Tensor &other) {
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for addition");
     }
-    if (dtype_ != other->dtype_) {
-      throw std::runtime_error("DType mismatch in TensorImpl addition");
+    if (dtype_ != other.dtype_) {
+      throw std::runtime_error("DType mismatch in Tensor addition");
     }
-    DISPATCH_ANY_DTYPE(dtype_, T, ops::add<T>(data_, other->data_, data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::add<T>(data_, other.data_, data_, data_size_));
   }
 
-  void sub(const ConstTensor &other) {
-    if (!same_shape(*other)) {
-      throw std::invalid_argument("TensorImpl shapes must match for subtraction");
+  void sub(const Tensor &other) {
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for subtraction");
     }
-    if (dtype_ != other->dtype_) {
-      throw std::runtime_error("DType mismatch in TensorImpl subtraction");
+    if (dtype_ != other.dtype_) {
+      throw std::runtime_error("DType mismatch in Tensor subtraction");
     }
-    DISPATCH_ANY_DTYPE(dtype_, T, ops::sub<T>(data_, other->data_, data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::sub<T>(data_, other.data_, data_, data_size_));
   }
 
-  void mul(const ConstTensor &other) {
-    if (!same_shape(*other)) {
-      throw std::invalid_argument("TensorImpl shapes must match for element-wise multiplication");
+  void mul(const Tensor &other) {
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
     }
-    if (dtype_ != other->dtype_) {
-      throw std::runtime_error("DType mismatch in TensorImpl multiplication");
+    if (dtype_ != other.dtype_) {
+      throw std::runtime_error("DType mismatch in Tensor multiplication");
     }
-    DISPATCH_ANY_DTYPE(dtype_, T, ops::mul<T>(data_, other->data_, data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::mul<T>(data_, other.data_, data_, data_size_));
   }
 
-  void div(const ConstTensor &other) {
-    if (!same_shape(*other)) {
-      throw std::invalid_argument("TensorImpl shapes must match for element-wise division");
+  void div(const Tensor &other) {
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for element-wise division");
     }
-    if (dtype_ != other->dtype_) {
-      throw std::runtime_error("DType mismatch in TensorImpl division");
+    if (dtype_ != other.dtype_) {
+      throw std::runtime_error("DType mismatch in Tensor division");
     }
-    DISPATCH_ANY_DTYPE(dtype_, T, ops::div<T>(data_, other->data_, data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::div<T>(data_, other.data_, data_, data_size_));
   }
 
   void add_scalar(double scalar) {
@@ -488,58 +511,27 @@ public:
 
   /**
    * @brief Copy between typed tensors
-   * @param target Target TensorImpl to copy data into
+   * @param target Target Tensor to copy data into
    */
   void copy_to(const Tensor &target) const {
-    if (dtype_ != target->dtype_) {
-      throw std::runtime_error("DType mismatch in TensorImpl copy");
+    if (dtype_ != target.dtype_) {
+      throw std::runtime_error("DType mismatch in Tensor copy");
     }
-    DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, target->data_, data_size_));
+    DISPATCH_ANY_DTYPE(dtype_, T, ops::cd_copy<T>(data_, target.data_, data_size_));
   }
 
   // unsafe version of copy_to that allows copying between different const ness
-  void share_from(const ConstTensor &source) {
-    if (dtype_ != source->dtype_) {
-      throw std::runtime_error("DType mismatch in TensorImpl share_from");
+  void share_from(const Tensor &source) {
+    if (dtype_ != source.dtype_) {
+      throw std::runtime_error("DType mismatch in Tensor share_from");
     }
-    data_ = source->data_;
-    data_size_ = source->data_size_;
-    shape_ = source->shape_;
-    strides_ = source->strides_;
+    data_ = source.data_;
+    data_size_ = source.data_size_;
+    shape_ = source.shape_;
+    strides_ = source.strides_;
   }
 
-  void resize(const Vec<size_t> &new_shape) {
-    if (new_shape == shape_) {
-      return;
-    }
-
-    size_t new_size =
-        std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
-    if (new_size != data_size_) {
-      data_ = allocate_data(new_size);
-      data_size_ = new_size;
-    }
-    shape_ = new_shape;
-    compute_strides();
-  }
-
-  /**
-   * Similar to resize but only reallocates if the new size is larger than
-   * the current allocated size. Good for caching.
-   */
-  void ensure(const Vec<size_t> &new_shape) {
-    size_t new_size =
-        std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
-    if (new_size * get_dtype_size(dtype_) > data_.capacity()) {
-      data_ = nullptr;  // free data
-      data_ = allocate_data(new_size);
-    }
-    data_size_ = new_size;
-    shape_ = new_shape;
-    compute_strides();
-  }
-
-  void copy_batch(TensorImpl &other, size_t src_batch_idx, size_t dest_batch_idx) {
+  void copy_batch(Tensor &other, size_t src_batch_idx, size_t dest_batch_idx) {
     size_t batch_size = shape_[0];
     if (dest_batch_idx >= batch_size || src_batch_idx >= other.shape_[0]) {
       throw std::invalid_argument("Invalid batch index for copy");
@@ -565,76 +557,14 @@ public:
                                     data_ + dest_offset * dtype_size, batch_stride));
   }
 
-  double min() const {
-    double result = 0.0;
-    DISPATCH_ANY_DTYPE(dtype_, T, {
-      auto cpu_tensor = to_device(getHost());
-      T min_val = cpu_tensor->data_.template get<T>()[0];
-      for (size_t i = 1; i < cpu_tensor->data_size_; ++i) {
-        if (cpu_tensor->data_.template get<T>()[i] < min_val) {
-          min_val = cpu_tensor->data_.template get<T>()[i];
-        }
-      }
-      result = static_cast<double>(min_val);
-    });
-    return result;
-  }
-
-  double max() const {
-    double result = 0.0;
-    DISPATCH_ANY_DTYPE(dtype_, T, {
-      auto cpu_tensor = to_device(getHost());
-      T max_val = cpu_tensor->data_as<T>()[0];
-      for (size_t i = 1; i < cpu_tensor->data_size_; ++i) {
-        if (cpu_tensor->data_as<T>()[i] > max_val) {
-          max_val = cpu_tensor->data_as<T>()[i];
-        }
-      }
-      result = static_cast<double>(max_val);
-    });
-    return result;
-  }
-
-  double mean() const {
-    double result = 0.0;
-    DISPATCH_ANY_DTYPE(dtype_, T, {
-      T sum = ops::sum<T>(data_, data_size_);
-      result = static_cast<double>((double)sum / (double)data_size_);
-    });
-    return result;
-  }
-
-  double variance() const {
-    double result = 0.0;
-    DISPATCH_ANY_DTYPE(dtype_, T, {
-      T m = static_cast<T>(mean());
-      T sum_sq_diff = ops::sum_squared_diff<T>(data_, m, data_size_);
-      result = static_cast<double>((double)sum_sq_diff / (double)data_size_);
-    });
-    return result;
-  }
-
-  void print_data(std::string name = "Tensor") const {
-    Tensor cpu_tensor = to_device(getHost());
-    size_t total_elements = cpu_tensor->size();
-    std::cout << name << " data (shape " << cpu_tensor->shape_str() << "):\n";
-    DISPATCH_ANY_DTYPE(dtype_, T, {
-      T *data = cpu_tensor->data_as<T>();
-      for (size_t i = 0; i < total_elements; ++i) {
-        std::cout << static_cast<float>(data[i]) << " ";
-      }
-    });
-    std::cout << std::endl;
-  }
-
   void head(size_t n = 10, std::string name = "Tensor") const {
     Tensor cpu_tensor = to_device(getHost());
-    size_t total_elements = cpu_tensor->size();
+    size_t total_elements = cpu_tensor.size();
     n = std::min(n, total_elements);
-    std::cout << name << " head (first " << n << " elements of shape " << cpu_tensor->shape_str()
+    std::cout << name << " head (first " << n << " elements of shape " << cpu_tensor.shape_str()
               << "):\n";
     DISPATCH_ANY_DTYPE(dtype_, T, {
-      T *data = cpu_tensor->data_as<T>();
+      T *data = cpu_tensor.data_as<T>();
       for (size_t i = 0; i < n; ++i) {
         std::cout << static_cast<float>(data[i]) << " ";
       }
@@ -671,92 +601,92 @@ public:
 
 template <typename Archiver>
 void archive(Archiver &archive, const Tensor &tensor) {
-  DType_t &dtype = tensor->data_type();
-  Vec<size_t> shape_vec = tensor->shape();
+  const DType_t &dtype = tensor.data_type();
+  Vec<size_t> shape_vec = tensor.shape();
   archive(dtype);
   archive(shape_vec);
-  dptr data_ptr = tensor->data_ptr();
-  archive(make_blob(data_ptr.get<unsigned char>(), tensor->size() * get_dtype_size(dtype),
-                    tensor->device()));
+  dptr data_ptr = tensor.data_ptr();
+  archive(make_blob(data_ptr.get<unsigned char>(), tensor.size() * get_dtype_size(dtype),
+                    tensor.device()));
 }
 
-inline Tensor operator+(const ConstTensor &lhs, const ConstTensor &rhs) {
-  Tensor result = lhs->clone();
-  result->add(rhs);
+inline Tensor operator+(const Tensor &lhs, const Tensor &rhs) {
+  Tensor result = lhs.clone();
+  result.add(rhs);
   return result;
 }
 
-inline Tensor operator-(const ConstTensor &lhs, const ConstTensor &rhs) {
-  Tensor result = lhs->clone();
-  result->sub(rhs);
+inline Tensor operator-(const Tensor &lhs, const Tensor &rhs) {
+  Tensor result = lhs.clone();
+  result.sub(rhs);
   return result;
 }
 
-inline Tensor operator*(const ConstTensor &lhs, const ConstTensor &rhs) {
-  Tensor result = lhs->clone();
-  result->mul(rhs);
+inline Tensor operator*(const Tensor &lhs, const Tensor &rhs) {
+  Tensor result = lhs.clone();
+  result.mul(rhs);
   return result;
 }
 
-inline Tensor operator/(const ConstTensor &lhs, const ConstTensor &rhs) {
-  Tensor result = lhs->clone();
-  result->div(rhs);
+inline Tensor operator/(const Tensor &lhs, const Tensor &rhs) {
+  Tensor result = lhs.clone();
+  result.div(rhs);
   return result;
 }
 
-inline Tensor operator+(const ConstTensor &lhs, double scalar) {
-  Tensor result = lhs->clone();
-  result->add_scalar(scalar);
+inline Tensor operator+(const Tensor &lhs, double scalar) {
+  Tensor result = lhs.clone();
+  result.add_scalar(scalar);
   return result;
 }
 
-inline Tensor operator-(const ConstTensor &lhs, double scalar) {
-  Tensor result = lhs->clone();
-  result->sub_scalar(scalar);
+inline Tensor operator-(const Tensor &lhs, double scalar) {
+  Tensor result = lhs.clone();
+  result.sub_scalar(scalar);
   return result;
 }
 
-inline Tensor operator*(const ConstTensor &lhs, double scalar) {
-  Tensor result = lhs->clone();
-  result->mul_scalar(scalar);
+inline Tensor operator*(const Tensor &lhs, double scalar) {
+  Tensor result = lhs.clone();
+  result.mul_scalar(scalar);
   return result;
 }
 
-inline Tensor operator/(const ConstTensor &lhs, double scalar) {
-  Tensor result = lhs->clone();
-  result->div_scalar(scalar);
+inline Tensor operator/(const Tensor &lhs, double scalar) {
+  Tensor result = lhs.clone();
+  result.div_scalar(scalar);
   return result;
 }
 
-inline Tensor operator+(double scalar, const ConstTensor &rhs) {
-  Tensor result = rhs->clone();
-  result->add_scalar(scalar);
+inline Tensor operator+(double scalar, const Tensor &rhs) {
+  Tensor result = rhs.clone();
+  result.add_scalar(scalar);
   return result;
 }
 
-inline Tensor operator*(double scalar, const ConstTensor &rhs) {
-  Tensor result = rhs->clone();
-  result->mul_scalar(scalar);
+inline Tensor operator*(double scalar, const Tensor &rhs) {
+  Tensor result = rhs.clone();
+  result.mul_scalar(scalar);
   return result;
 }
 
-inline Tensor operator+=(Tensor &lhs, const ConstTensor &rhs) {
-  lhs->add(rhs);
+inline Tensor operator+=(Tensor &lhs, const Tensor &rhs) {
+  lhs.add(rhs);
   return lhs;
 }
 
-inline Tensor operator-=(Tensor &lhs, const ConstTensor &rhs) {
-  lhs->sub(rhs);
+inline Tensor operator-=(Tensor &lhs, const Tensor &rhs) {
+  lhs.sub(rhs);
   return lhs;
 }
 
-inline Tensor operator*=(Tensor &lhs, const ConstTensor &rhs) {
-  lhs->mul(rhs);
+inline Tensor operator*=(Tensor &lhs, const Tensor &rhs) {
+  lhs.mul(rhs);
   return lhs;
 }
 
-inline Tensor operator/=(Tensor &lhs, const ConstTensor &rhs) {
-  lhs->div(rhs);
+inline Tensor operator/=(Tensor &lhs, const Tensor &rhs) {
+  lhs.div(rhs);
   return lhs;
 }
 

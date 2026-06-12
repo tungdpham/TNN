@@ -22,16 +22,16 @@ void PositionalEmbeddingLayerImpl::init_impl() {
   float bound = static_cast<float>(1.0 / std::sqrt(static_cast<double>(embed_dim_)));
 
   if (this->use_seed_) {
-    pos_embedding_->fill_random_uniform(-bound, bound, this->srand_seed_);
+    pos_embedding_.fill_random_normal(-bound, bound, this->srand_seed_);
   } else {
-    pos_embedding_->fill_random_uniform(-bound, bound);
+    pos_embedding_.fill_random_normal(-bound, bound);
   }
 
-  pos_embedding_gradients_->fill(0.0f);
+  pos_embedding_gradients_.fill(0.0f);
 }
 
-Tensor PositionalEmbeddingLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
-  const auto &shape = input->shape();
+Tensor PositionalEmbeddingLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+  const auto &shape = input.shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayerImpl: Input tensor must be at least 2D");
   }
@@ -58,8 +58,8 @@ Tensor PositionalEmbeddingLayerImpl::forward_impl(const ConstTensor &input, size
   return output;
 }
 
-Tensor PositionalEmbeddingLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
-  const auto &shape = grad_output->shape();
+Tensor PositionalEmbeddingLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+  const auto &shape = grad_output.shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayerImpl: Gradient tensor must be at least 2D");
   }
@@ -80,7 +80,7 @@ Tensor PositionalEmbeddingLayerImpl::backward_impl(const ConstTensor &grad_outpu
 
   Tensor grad_input = get_tensor(shape, io_dtype_);
 
-  grad_output->copy_to(grad_input);
+  grad_output.copy_to(grad_input);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(accumulate_pos_gradients, grad_output, pos_embedding_gradients_,
                                  this->flow_handle_);
@@ -90,25 +90,24 @@ Tensor PositionalEmbeddingLayerImpl::backward_impl(const ConstTensor &grad_outpu
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> PositionalEmbeddingLayerImpl::add_positional_embedding(
-    const ConstTensor &input, const Tensor &output, const ConstTensor &pos_embedding,
-    flowHandle_t handle) const {
+    const Tensor &input, Tensor &output, const Tensor &pos_embedding, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl mixed dtype dispatch not implemented "
         "(io/param/compute must match).");
   }
-  if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
+  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (pos_embedding->data_type() != dtype_of<Param_T>()) {
+  if (pos_embedding.data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl pos_embedding dtype mismatch with dispatch Param_T");
   }
 
   size_t sample_size = seq_len_ * embed_dim_;
   size_t batch_size = 1;
-  const auto &shape = input->shape();
+  const auto &shape = input.shape();
   for (size_t i = 0; i + 2 < shape.size(); ++i) {
     batch_size *= shape[i];
   }
@@ -117,9 +116,9 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::add_positional_embedding(
     // For CPU, we need to manually loop over batches and add
     for (size_t i = 0; i < batch_size; ++i) {
       create_cpu_task(handle, ops::cpu::add<Compute_T>,
-                      input->data_as<Compute_T>() + i * sample_size,
-                      pos_embedding->data_as<Compute_T>(),
-                      output->data_as<Compute_T>() + i * sample_size, sample_size);
+                      input.data_as<Compute_T>() + i * sample_size,
+                      pos_embedding.data_as<Compute_T>(),
+                      output.data_as<Compute_T>() + i * sample_size, sample_size);
     }
     return nullptr;
   }
@@ -128,9 +127,9 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::add_positional_embedding(
     // For GPU, we need to manually loop over batches and add
     for (size_t i = 0; i < batch_size; ++i) {
       create_cuda_task(handle, ops::cuda::cuda_add<Compute_T>,
-                       input->data_as<Compute_T>() + i * sample_size,
-                       pos_embedding->data_as<Compute_T>(),
-                       output->data_as<Compute_T>() + i * sample_size, sample_size);
+                       input.data_as<Compute_T>() + i * sample_size,
+                       pos_embedding.data_as<Compute_T>(),
+                       output.data_as<Compute_T>() + i * sample_size, sample_size);
     }
     return nullptr;
   }
@@ -142,18 +141,17 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::add_positional_embedding(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> PositionalEmbeddingLayerImpl::accumulate_pos_gradients(
-    const ConstTensor &grad_output, const Tensor &pos_embedding_gradients,
-    flowHandle_t handle) const {
+    const Tensor &grad_output, Tensor &pos_embedding_gradients, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl mixed dtype dispatch not implemented "
         "(io/param/compute must match).");
   }
-  if (grad_output->data_type() != dtype_of<IO_T>()) {
+  if (grad_output.data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl grad_output dtype mismatch with dispatch IO_T");
   }
-  if (pos_embedding_gradients->data_type() != dtype_of<Param_T>()) {
+  if (pos_embedding_gradients.data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl pos_embedding_gradients dtype mismatch with dispatch "
         "Param_T");
@@ -161,7 +159,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::accumulate_pos_gradients(
 
   size_t sample_size = seq_len_ * embed_dim_;
   size_t batch_size = 1;
-  const auto &shape = grad_output->shape();
+  const auto &shape = grad_output.shape();
   for (size_t i = 0; i + 2 < shape.size(); ++i) {
     batch_size *= shape[i];
   }
@@ -169,9 +167,9 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::accumulate_pos_gradients(
   if (get_engine_type() == EngineType::CPU) {
     for (size_t i = 0; i < batch_size; ++i) {
       create_cpu_task(handle, ops::cpu::add<Compute_T>,
-                      pos_embedding_gradients->data_as<Compute_T>(),
-                      grad_output->data_as<Compute_T>() + i * sample_size,
-                      pos_embedding_gradients->data_as<Compute_T>(), sample_size);
+                      pos_embedding_gradients.data_as<Compute_T>(),
+                      grad_output.data_as<Compute_T>() + i * sample_size,
+                      pos_embedding_gradients.data_as<Compute_T>(), sample_size);
     }
     return nullptr;
   }
@@ -179,9 +177,9 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::accumulate_pos_gradients(
   else if (get_engine_type() == EngineType::CUDA) {
     for (size_t i = 0; i < batch_size; ++i) {
       create_cuda_task(handle, ops::cuda::cuda_add<Compute_T>,
-                       pos_embedding_gradients->data_as<Compute_T>(),
-                       grad_output->data_as<Compute_T>() + i * sample_size,
-                       pos_embedding_gradients->data_as<Compute_T>(), sample_size);
+                       pos_embedding_gradients.data_as<Compute_T>(),
+                       grad_output.data_as<Compute_T>() + i * sample_size,
+                       pos_embedding_gradients.data_as<Compute_T>(), sample_size);
     }
     return nullptr;
   }

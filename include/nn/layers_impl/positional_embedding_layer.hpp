@@ -22,14 +22,28 @@ private:
   Tensor pos_embedding_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> add_positional_embedding(const ConstTensor &input, const Tensor &output,
-                                                 const ConstTensor &pos_embedding,
+  std::unique_ptr<Task> add_positional_embedding(const Tensor &input, Tensor &output,
+                                                 const Tensor &pos_embedding,
                                                  flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> accumulate_pos_gradients(const ConstTensor &grad_output,
-                                                 const Tensor &pos_embedding_gradients,
+  std::unique_ptr<Task> accumulate_pos_gradients(const Tensor &grad_output,
+                                                 Tensor &pos_embedding_gradients,
                                                  flowHandle_t handle) const;
+
+  void init_impl() override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+
+public:
+  explicit PositionalEmbeddingLayerImpl(size_t embed_dim, size_t seq_len,
+                                        const std::string &name = "pos_embedding");
+
+  static constexpr const char *TYPE_NAME = "pos_embedding";
+
+  std::string type() const override { return TYPE_NAME; }
+  LayerConfig get_config() const override;
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
@@ -42,20 +56,6 @@ private:
     descriptors.push_back(pos_emb_desc);
     return descriptors;
   }
-
-  void init_impl() override;
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
-
-public:
-  explicit PositionalEmbeddingLayerImpl(size_t embed_dim, size_t seq_len,
-                                        const std::string &name = "pos_embedding");
-
-  static constexpr const char *TYPE_NAME = "pos_embedding";
-
-  std::string type() const override { return TYPE_NAME; }
-  LayerConfig get_config() const override;
-  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
 public:
   static std::shared_ptr<PositionalEmbeddingLayerImpl> create_from_config(

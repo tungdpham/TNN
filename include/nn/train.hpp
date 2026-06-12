@@ -77,7 +77,6 @@ struct TrainingConfig {
   LossConfig loss_config;
 
   void print_config() const;
-  void load_from_env();
   void load_from_json(const std::string &config_path);
 };
 

@@ -47,19 +47,19 @@ protected:
     }
   }
 
-  void verify_output_shape(const ConstTensor &input, const ConstTensor &output) {
-    auto input_shape = input->shape();
-    auto output_shape = output->shape();
+  void verify_output_shape(const Tensor &input, Tensor &output) {
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
     EXPECT_EQ(output_shape[0], input_shape[0]);
     EXPECT_EQ(output_shape[1], input_shape[1]);
     EXPECT_EQ(output_shape[2], input_shape[2]);
     EXPECT_EQ(output_shape[3], input_shape[3]);
   }
 
-  void compute_group_statistics(const ConstTensor &input, size_t num_groups, Vec<float> &means,
+  void compute_group_statistics(const Tensor &input, size_t num_groups, Vec<float> &means,
                                 Vec<float> &vars) {
-    const float *data = input->data_as<float>();
-    auto input_shape = input->shape();
+    const float *data = input.data_as<float>();
+    auto input_shape = input.shape();
     size_t batch_size = input_shape[0];
     size_t channels = input_shape[1];
     size_t height = input_shape[2];
@@ -107,16 +107,16 @@ protected:
     }
   }
 
-  void verify_forward_result(const ConstTensor &input, const ConstTensor &output, size_t num_groups,
+  void verify_forward_result(const Tensor &input, Tensor &output, size_t num_groups,
                              const Vec<float> &expected_mean, const Vec<float> &expected_var,
-                             float epsilon, const ConstTensor gamma = nullptr,
-                             const ConstTensor beta = nullptr, float tolerance = 1e-4f) {
-    const float *input_data = input->data_as<float>();
-    const float *output_data = output->data_as<float>();
-    const float *gamma_data = gamma ? gamma->data_as<float>() : nullptr;
-    const float *beta_data = beta ? beta->data_as<float>() : nullptr;
+                             float epsilon, const Tensor gamma, const Tensor beta,
+                             float tolerance = 1e-4f) {
+    const float *input_data = input.data_as<float>();
+    const float *output_data = output.data_as<float>();
+    const float *gamma_data = gamma ? gamma.data_as<float>() : nullptr;
+    const float *beta_data = beta ? beta.data_as<float>() : nullptr;
 
-    auto input_shape = input->shape();
+    auto input_shape = input.shape();
     size_t batch_size = input_shape[0];
     size_t channels = input_shape[1];
     size_t height = input_shape[2];
@@ -161,22 +161,23 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
   auto layer = GroupNormLayer(num_groups, num_channels, 1e-5f, false, "test_gn");
 
   Graph graph = test::compile_single_layer(layer, allocator);
-  layer->set_training(true);
+  layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getHost());
+  Tensor input = Tensor({2, num_channels, 3, 3}, DType_t::FP32, getHost());
 
-  float *data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  float *data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     data[i] = static_cast<float>(i % 10);
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = layer->forward({input})[0];
+  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
+  Tensor output = layer.forward({input})[0];
   verify_output_shape(input, output);
 
   Vec<float> expected_mean, expected_var;
   compute_group_statistics(input, num_groups, expected_mean, expected_var);
-  verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f);
+  verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f, Tensor(),
+                        Tensor());
 }
 
 TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
@@ -187,27 +188,27 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
   auto layer = GroupNormLayer(num_groups, num_channels, 1e-5f, true, "test_gn_affine");
 
   Graph graph = test::compile_single_layer(layer, allocator);
-  layer->set_training(true);
+  layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getHost());
+  Tensor input = Tensor({2, num_channels, 3, 3}, DType_t::FP32, getHost());
 
-  float *data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  float *data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     data[i] = static_cast<float>(i % 10) + 1.0f;
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = layer->forward({input})[0];
+  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
+  Tensor output = layer.forward({input})[0];
   verify_output_shape(input, output);
 
   Vec<float> expected_mean, expected_var;
   compute_group_statistics(input, num_groups, expected_mean, expected_var);
 
-  Vec<Tensor> params = layer->parameters();
+  Vec<Tensor *> params = layer.parameters();
   ASSERT_EQ(params.size(), 2);
 
-  verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f, params[0],
-                        params[1]);
+  verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f, *params[0],
+                        *params[1]);
 }
 
 TEST_F(GroupNormLayerTest, SingleGroup) {
@@ -218,22 +219,23 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
   auto layer = GroupNormLayer(num_groups, num_channels, 1e-5f, false, "test_gn_single");
 
   Graph graph = test::compile_single_layer(layer, allocator);
-  layer->set_training(true);
+  layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, num_channels, 2, 2}, getHost());
+  Tensor input = Tensor({2, num_channels, 2, 2}, DType_t::FP32, getHost());
 
-  float *data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  float *data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     data[i] = static_cast<float>(i) + 1.0f;
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = layer->forward({input})[0];
+  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
+  Tensor output = layer.forward({input})[0];
   verify_output_shape(input, output);
 
   Vec<float> expected_mean, expected_var;
   compute_group_statistics(input, num_groups, expected_mean, expected_var);
-  verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f);
+  verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f, Tensor(),
+                        Tensor());
 }
 
 TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
@@ -244,22 +246,23 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
   auto layer = GroupNormLayer(num_groups, num_channels, 1e-5f, false, "test_gn_instance");
 
   Graph graph = test::compile_single_layer(layer, allocator);
-  layer->set_training(true);
+  layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getHost());
+  Tensor input = Tensor({2, num_channels, 3, 3}, DType_t::FP32, getHost());
 
-  float *data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  float *data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     data[i] = static_cast<float>((i * 3) % 7) + 0.5f;
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = layer->forward({input})[0];
+  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
+  Tensor output = layer.forward({input})[0];
   verify_output_shape(input, output);
 
   Vec<float> expected_mean, expected_var;
   compute_group_statistics(input, num_groups, expected_mean, expected_var);
-  verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f);
+  verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f, Tensor(),
+                        Tensor());
 }
 
 TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
@@ -270,33 +273,33 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   auto layer = GroupNormLayer(num_groups, num_channels, 1e-5f, true, "test_gn_backward");
 
   Graph graph = test::compile_single_layer(layer, allocator);
-  layer->set_training(true);
+  layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getHost());
+  Tensor input = Tensor({2, num_channels, 3, 3}, DType_t::FP32, getHost());
 
-  float *data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  float *data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     data[i] = static_cast<float>(i % 10) + 1.0f;
   }
 
-  Vec<size_t> output_shape = layer->output_shapes({input->shape()})[0];
-  Tensor output = layer->forward({input})[0];
+  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
+  Tensor output = layer.forward({input})[0];
 
-  Tensor grad_output = output->clone();
-  grad_output->fill(1.0f);
+  Tensor grad_output = output.clone();
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = layer->backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output})[0];
 
-  auto input_shape = input->shape();
-  auto grad_input_shape = grad_input->shape();
+  auto input_shape = input.shape();
+  auto grad_input_shape = grad_input.shape();
   EXPECT_EQ(grad_input_shape[0], input_shape[0]);
   EXPECT_EQ(grad_input_shape[1], input_shape[1]);
   EXPECT_EQ(grad_input_shape[2], input_shape[2]);
   EXPECT_EQ(grad_input_shape[3], input_shape[3]);
 
-  const float *grad_data = grad_input->data_as<float>();
+  const float *grad_data = grad_input.data_as<float>();
   bool has_nonzero = false;
-  for (size_t i = 0; i < grad_input->size(); ++i) {
+  for (size_t i = 0; i < grad_input.size(); ++i) {
     if (std::abs(grad_data[i]) > 1e-6f) {
       has_nonzero = true;
       break;
@@ -307,7 +310,7 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
 
 TEST_F(GroupNormLayerTest, InvalidConfiguration) {
   EXPECT_THROW(
-      { auto layer_layer = GroupNormLayer(3, 5, 1e-5f, true, "invalid"); }, std::invalid_argument);
+      { auto layer = GroupNormLayer(3, 5, 1e-5f, true, "invalid"); }, std::invalid_argument);
 }
 
 TEST_F(GroupNormLayerTest, ConfigurationRoundTrip) {

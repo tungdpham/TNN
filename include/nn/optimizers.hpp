@@ -13,6 +13,7 @@
 #include <string>
 
 #include "common/config.hpp"
+#include "device/pool_allocator.hpp"
 #include "device/task.hpp"
 #include "nn/graph.hpp"
 #include "nn/graph_context.hpp"
@@ -67,8 +68,8 @@ public:
 protected:
   float learning_rate_;
   Graph *graph_;
-  Vec<Tensor> parameters_;
-  Vec<Tensor> gradients_;
+  Vec<Tensor *> parameters_;
+  Vec<Tensor *> gradients_;
 
   virtual void on_attach() {}
 };
@@ -85,7 +86,7 @@ public:
 
     for (size_t i = 0; i < params.size(); ++i) {
       DISPATCH_DTYPE(params[i]->data_type(), T,
-                     update_impl<T>(params[i], grads[i], velocities_[i]));
+                     update_impl<T>(*params[i], *grads[i], velocities_[i]));
     }
   }
 
@@ -109,9 +110,10 @@ protected:
     if (momentum_ > 0.0f) {
       velocities_.resize(this->parameters_.size());
       for (size_t i = 0; i < this->parameters_.size(); ++i) {
-        velocities_[i] = make_tensor(this->parameters_[i]->data_type(),
-                                     this->parameters_[i]->shape(), this->parameters_[i]->device());
-        velocities_[i]->fill(0.0f);
+        velocities_[i] =
+            Tensor(this->parameters_[i]->shape(), this->parameters_[i]->data_type(),
+                   PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
+        velocities_[i].fill(0.0f);
       }
     }
   }
@@ -121,28 +123,28 @@ private:
   Vec<Tensor> velocities_;
 
   template <typename T>
-  void update_impl(const Tensor &param, const Tensor &grad, const Tensor &velocity) {
-    const size_t size = param->size();
+  void update_impl(Tensor &param, const Tensor &grad, Tensor &velocity) {
+    const size_t size = param.size();
 
-    if (param->device_type() == DeviceType::CPU) {
+    if (param.device_type() == DeviceType::CPU) {
       if (momentum_ > 0.0f) {
-        create_cpu_task(defaultFlowHandle, cpu::sgd::update_sgd_momentum<T>, param->data_as<T>(),
-                        grad->data_as<T>(), velocity->data_as<T>(), size, this->learning_rate_,
+        create_cpu_task(defaultFlowHandle, cpu::sgd::update_sgd_momentum<T>, param.data_as<T>(),
+                        grad.data_as<T>(), velocity.data_as<T>(), size, this->learning_rate_,
                         momentum_);
       } else {
-        create_cpu_task(defaultFlowHandle, cpu::sgd::update_sgd<T>, param->data_as<T>(),
-                        grad->data_as<T>(), size, this->learning_rate_);
+        create_cpu_task(defaultFlowHandle, cpu::sgd::update_sgd<T>, param.data_as<T>(),
+                        grad.data_as<T>(), size, this->learning_rate_);
       }
     }
 #ifdef USE_CUDA
-    else if (param->device_type() == DeviceType::GPU) {
+    else if (param.device_type() == DeviceType::GPU) {
       if (momentum_ > 0.0f) {
-        create_cuda_task(defaultFlowHandle, cuda::sgd::update_sgd_momentum<T>, param->data_as<T>(),
-                         grad->data_as<T>(), velocity->data_as<T>(), size, this->learning_rate_,
+        create_cuda_task(defaultFlowHandle, cuda::sgd::update_sgd_momentum<T>, param.data_as<T>(),
+                         grad.data_as<T>(), velocity.data_as<T>(), size, this->learning_rate_,
                          momentum_);
       } else {
-        create_cuda_task(defaultFlowHandle, cuda::sgd::update_sgd<T>, param->data_as<T>(),
-                         grad->data_as<T>(), size, this->learning_rate_);
+        create_cuda_task(defaultFlowHandle, cuda::sgd::update_sgd<T>, param.data_as<T>(),
+                         grad.data_as<T>(), size, this->learning_rate_);
       }
     }
 #endif
@@ -177,7 +179,7 @@ public:
     for (size_t i = 0; i < params.size(); ++i) {
       DISPATCH_DTYPE(
           params[i]->data_type(), T,
-          update_impl<T>(params[i], grads[i], m_[i], v_[i], bias_correction1, bias_correction2));
+          update_impl<T>(*params[i], *grads[i], m_[i], v_[i], bias_correction1, bias_correction2));
     }
   }
 
@@ -206,12 +208,12 @@ protected:
     m_.resize(this->parameters_.size());
     v_.resize(this->parameters_.size());
     for (size_t i = 0; i < this->parameters_.size(); ++i) {
-      m_[i] = make_tensor(this->parameters_[i]->data_type(), this->parameters_[i]->shape(),
-                          this->parameters_[i]->device());
-      m_[i]->fill(0.0f);
-      v_[i] = make_tensor(this->parameters_[i]->data_type(), this->parameters_[i]->shape(),
-                          this->parameters_[i]->device());
-      v_[i]->fill(0.0f);
+      m_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->data_type(),
+                     PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
+      m_[i].fill(0.0f);
+      v_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->data_type(),
+                     PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
+      v_[i].fill(0.0f);
     }
     t_ = 0;
   }
@@ -227,19 +229,19 @@ private:
   Vec<Tensor> v_;
 
   template <typename T>
-  void update_impl(const Tensor &param, const Tensor &grad, const Tensor &m, const Tensor &v,
-                   float bias_correction1, float bias_correction2) {
-    const size_t size = param->size();
-    if (param->device_type() == DeviceType::CPU) {
-      create_cpu_task(defaultFlowHandle, cpu::adam::update_adam<T>, param->data_as<T>(),
-                      grad->data_as<T>(), m->data_as<T>(), v->data_as<T>(), size,
-                      this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
-                      bias_correction2, weight_decay_, decouple_weight_decay_);
+  void update_impl(Tensor &param, const Tensor &grad, Tensor &m, Tensor &v, float bias_correction1,
+                   float bias_correction2) {
+    const size_t size = param.size();
+    if (param.device_type() == DeviceType::CPU) {
+      create_cpu_task(defaultFlowHandle, cpu::adam::update_adam<T>, param.data_as<T>(),
+                      grad.data_as<T>(), m.data_as<T>(), v.data_as<T>(), size, this->learning_rate_,
+                      beta1_, beta2_, epsilon_, bias_correction1, bias_correction2, weight_decay_,
+                      decouple_weight_decay_);
     }
 #ifdef USE_CUDA
-    else if (param->device_type() == DeviceType::GPU) {
-      create_cuda_task(defaultFlowHandle, cuda::adam::update_adam<T>, param->data_as<T>(),
-                       grad->data_as<T>(), m->data_as<T>(), v->data_as<T>(), size,
+    else if (param.device_type() == DeviceType::GPU) {
+      create_cuda_task(defaultFlowHandle, cuda::adam::update_adam<T>, param.data_as<T>(),
+                       grad.data_as<T>(), m.data_as<T>(), v.data_as<T>(), size,
                        this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
                        bias_correction2, weight_decay_, decouple_weight_decay_);
     }

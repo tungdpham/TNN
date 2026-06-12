@@ -28,10 +28,10 @@ bool check_nan_and_inf(const T *data, size_t size, const std::string &tensor_nam
 }
 
 template <typename T>
-bool check_nan_and_inf(const ConstTensor &tensor, const std::string &tensor_name = "") {
-  auto cpu_tensor = tensor->to_host();
-  size_t total_elements = cpu_tensor->size();
-  T *data = cpu_tensor->data_ptr().template get<T>();
+bool check_nan_and_inf(const Tensor &tensor, const std::string &tensor_name = "") {
+  auto cpu_tensor = tensor.to_host();
+  size_t total_elements = cpu_tensor.size();
+  T *data = cpu_tensor.data_ptr().template get<T>();
   if constexpr (std::is_floating_point_v<T>) {
     return check_nan_and_inf(data, total_elements, tensor_name);
   } else {
@@ -42,21 +42,20 @@ bool check_nan_and_inf(const ConstTensor &tensor, const std::string &tensor_name
   }
 }
 
-inline bool check_nan_and_inf(const ConstTensor &tensor, const std::string &tensor_name = "") {
-  DType_t dtype = tensor->data_type();
+inline bool check_nan_and_inf(const Tensor &tensor, const std::string &tensor_name = "") {
+  DType_t dtype = tensor.data_type();
   DISPATCH_DTYPE(dtype, T, return check_nan_and_inf<T>(tensor, tensor_name));
 }
 
 // Prints data density at ranges (2^-32, 2^-31, ..., 2^31, 2^32)
-inline void print_data_distribution(const ConstTensor &tensor,
-                                    const std::string &tensor_name = "") {
+inline void print_data_distribution(const Tensor &tensor, const std::string &tensor_name = "") {
   if (!tensor) {
     std::cerr << "Cannot print distribution of null tensor" << std::endl;
     return;
   }
 
-  Tensor cpu_tensor = tensor->to_host();
-  DType_t dtype = cpu_tensor->data_type();
+  Tensor cpu_tensor = tensor.to_host();
+  DType_t dtype = cpu_tensor.data_type();
 
   constexpr int min_exp = -32;
   constexpr int max_exp = 32;
@@ -72,8 +71,8 @@ inline void print_data_distribution(const ConstTensor &tensor,
       throw std::runtime_error("Failed to cast tensor in print_data_distribution");
     }
 
-    T *data = cpu_tensor->data_ptr().template get<T>();
-    size_t size = cpu_tensor->size();
+    T *data = cpu_tensor.data_ptr().template get<T>();
+    size_t size = cpu_tensor.size();
 
     for (size_t i = 0; i < size; ++i) {
       T val = data[i];
@@ -110,7 +109,7 @@ inline void print_data_distribution(const ConstTensor &tensor,
   }
 
   // Print distribution
-  size_t total = cpu_tensor->size();
+  size_t total = cpu_tensor.size();
   std::cout << "\nData Distribution for tensor: " << tensor_name << " (shape "
             << cpu_tensor->shape_str() << ", " << total << " elements):\n";
   std::cout << std::setw(20) << "Range" << std::setw(15) << "Count" << std::setw(15)

@@ -80,8 +80,8 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
     double ppl = std::exp(static_cast<double>(loss));
 
     size_t class_samples = 1;
-    for (size_t i = 0; i < batch_labels->dims(); ++i) {
-      class_samples *= static_cast<size_t>(batch_labels->shape()[i]);
+    for (size_t i = 0; i < batch_labels.dims(); ++i) {
+      class_samples *= static_cast<size_t>(batch_labels.shape()[i]);
     }
 
     total_loss += loss;
@@ -259,8 +259,8 @@ inline void train_semi_async_step(Coordinator &coordinator,
     double ppl = std::exp(static_cast<double>(loss));
 
     size_t class_samples = 1;
-    for (size_t i = 0; i < batch_labels->dims(); ++i) {
-      class_samples *= static_cast<size_t>(batch_labels->shape()[i]);
+    for (size_t i = 0; i < batch_labels.dims(); ++i) {
+      class_samples *= static_cast<size_t>(batch_labels.shape()[i]);
     }
 
     running_loss_sum += static_cast<double>(loss) * static_cast<double>(class_samples);

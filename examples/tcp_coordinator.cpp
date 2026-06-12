@@ -6,11 +6,11 @@
  */
 #include "distributed/tcp_coordinator.hpp"
 
+#include <getopt.h>
+
 #include <cstdlib>
 #include <iostream>
 #include <memory>
-#include <sstream>
-#include <vector>
 
 #include "data_loading/data_loader_factory.hpp"
 #include "device/pool_allocator.hpp"
@@ -20,17 +20,46 @@
 #include "distributed/train.hpp"
 #include "nn/example_graphs.hpp"
 #include "partitioner/graph_partitioner.hpp"
-#include "utils/env.hpp"
 
 using namespace synet;
 using namespace std;
 
-int main() {
+int main(int argc, char *argv[]) {
+  std::string config_path;
+  static struct option long_options[] = {
+      {"config", required_argument, 0, 'c'}, {"help", no_argument, 0, 'h'}, {0, 0, 0, 0}};
+
+  int opt;
+  while ((opt = getopt_long(argc, argv, "c:h", long_options, nullptr)) != -1) {
+    switch (opt) {
+      case 'c':
+        config_path = optarg;
+        break;
+      case 'h':
+        cout << "Usage: " << argv[0] << " [options]" << endl;
+        cout << "Options:" << endl;
+        cout << "  --config <path>    Path to the JSON configuration file" << endl;
+        cout << "  -h, --help         Show this help message" << endl;
+        return 0;
+      default:
+        return 1;
+    }
+  }
+
+  if (config_path.empty()) {
+    cerr << "Error: Configuration file path is required. Use --config <path> to specify it."
+         << endl;
+    return 1;
+  }
+
   ExampleGraphs::register_defaults();
 
   TrainingConfig train_config;
-  train_config.load_from_env();
+  train_config.load_from_json(config_path);
   train_config.print_config();
+
+  TCPConfig tcp_config;
+  tcp_config.load_from_json(config_path);
 
   const auto &device = DeviceManager::getInstance().getDevice(train_config.device_type);
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
@@ -38,7 +67,7 @@ int main() {
   Graph graph = load_or_create_graph(train_config.model_name, train_config.model_path, allocator);
 
   if (train_config.dataset_name.empty()) {
-    throw std::runtime_error("DATASET_NAME environment variable is not set!");
+    throw std::runtime_error("dataset_name variable is not set!");
   }
   auto [train_loader, val_loader] =
       DataLoaderFactory::create(train_config.dataset_name, train_config.dataset_path);
@@ -48,107 +77,23 @@ int main() {
   }
   train_loader->set_seed(123456);
 
-  auto criterion = LossFactory::create_crossentropy();
-  int adamw = 1;
-  float adam_beta1 = 0.9f;
-  float adam_beta2 = 0.95f;
-  float adam_eps = 1e-8f;
-  float weight_decay = 0.1f;
-  Env::get("ADAMW", adamw);
-  Env::get("ADAM_BETA1", adam_beta1);
-  Env::get("ADAM_BETA2", adam_beta2);
-  Env::get("ADAM_EPS", adam_eps);
-  Env::get("ADAM_EPSILON", adam_eps);
-  Env::get("WEIGHT_DECAY", weight_decay);
+  auto criterion = LossFactory::create_from_config(train_config.loss_config);
 
-  auto optimizer = OptimizerFactory::create_adam(train_config.lr_initial, adam_beta1, adam_beta2,
-                                                 adam_eps, weight_decay, adamw != 0);
-
-  std::string lr_scheduler = "warmup_cosine";
-  Env::get("SCHEDULER_TYPE", lr_scheduler);
-
-  int step_lr_epochs = 5;
-  float step_lr_gamma = 0.1f;
-  int step_lr_steps = 0;
-  Env::get("STEP_LR_EPOCHS", step_lr_epochs);
-  Env::get("STEP_LR_GAMMA", step_lr_gamma);
-  Env::get("STEP_LR_STEPS", step_lr_steps);
-
-  size_t steps_per_epoch = train_loader->size() / train_config.batch_size;
-  if (steps_per_epoch == 0) steps_per_epoch = 1;
-
-  size_t total_steps = 0;
-  if (train_config.max_steps > 0) {
-    total_steps = static_cast<size_t>(train_config.max_steps);
-  } else {
-    total_steps = steps_per_epoch * static_cast<size_t>(train_config.epochs);
-  }
-  if (total_steps == 0) total_steps = 1;
-
-  int warmup_steps = total_steps / 10;
-  float cosine_start_lr = 0.0f;
-  float cosine_eta_min = 0.0f;
-  Env::get("WARMUP_STEPS", warmup_steps);
-  Env::get("COSINE_START_LR", cosine_start_lr);
-  Env::get("COSINE_ETA_MIN", cosine_eta_min);
-  if (warmup_steps < 0) warmup_steps = 0;
-
-  size_t step_size = step_lr_steps > 0 ? static_cast<size_t>(step_lr_steps)
-                                       : static_cast<size_t>(step_lr_epochs) * steps_per_epoch;
-  if (step_size == 0) step_size = 1;
+  auto optimizer = OptimizerFactory::create_from_config(train_config.optimizer_config);
 
   auto scheduler =
-      (lr_scheduler == "warmup_cosine" || lr_scheduler == "cosine")
-          ? SchedulerFactory::create_warmup_cosine(optimizer.get(),
-                                                   static_cast<size_t>(warmup_steps), total_steps,
-                                                   cosine_start_lr, cosine_eta_min)
-          : SchedulerFactory::create_step_lr(optimizer.get(), step_size, step_lr_gamma);
+      SchedulerFactory::create_from_config(train_config.scheduler_config, optimizer.get());
 
-  std::cout << fmt::format(
-                   "Optimizer: {}, lr:{}, beta1:{}, beta2:{}, eps:{}, "
-                   "weight_decay:{}, "
-                   "scheduler:{}, warmup_steps:{}, total_steps:{}",
-                   optimizer->name(), train_config.lr_initial, adam_beta1, adam_beta2, adam_eps,
-                   weight_decay, scheduler->name(), warmup_steps, total_steps)
-            << std::endl;
-
-  std::string coordinator_host = "localhost";
-  int coordinator_port = 9000;
-  Env::get("COORDINATOR_HOST", coordinator_host);
-  Env::get("COORDINATOR_PORT", coordinator_port);
-  Endpoint coordinator_endpoint = Endpoint::tcp(coordinator_host, coordinator_port);
-
-  std::string local_worker_host = "localhost";
-  int local_worker_port = 8000;
-  Env::get("LOCAL_WORKER_HOST", local_worker_host);
-  Env::get("LOCAL_WORKER_PORT", local_worker_port);
-  Endpoint local_worker_endpoint = Endpoint::tcp(local_worker_host, local_worker_port);
-
-  int local_worker_position = 0;  // default to first
-  std::string position_str = "first";
-  Env::get("LOCAL_WORKER_POSITION", position_str);
-  if (position_str == "last") {
-    local_worker_position = 1;
-  }
-
-  std::string worker1_host = "localhost";
-  int worker1_port = 8001;
-  Env::get("WORKER1_HOST", worker1_host);
-  Env::get("WORKER1_PORT", worker1_port);
-  vector<Endpoint> endpoints = {
-      Endpoint::tcp(worker1_host, worker1_port),
-  };
-
-  if (local_worker_position) {
-    endpoints.push_back(local_worker_endpoint);
-  } else {
-    endpoints.insert(endpoints.begin(), local_worker_endpoint);
-  }
-
-  cout << "Configured " << endpoints.size() << " remote endpoints:" << endl;
-  for (const auto &ep : endpoints) {
+  cout << "Configured " << tcp_config.worker_endpoints.size() << " remote endpoints:" << endl;
+  for (const auto &ep : tcp_config.worker_endpoints) {
     cout << ep.to_json().dump(4) << endl;
   }
+
+  Endpoint coordinator_endpoint = Endpoint::tcp(tcp_config.host, tcp_config.port);
+  Endpoint local_worker_endpoint =
+      Endpoint::tcp(tcp_config.local_worker_host, tcp_config.local_worker_port);
+
+  tcp_config.worker_endpoints.push_back(local_worker_endpoint);
 
   cout << "Local worker endpoint: " << local_worker_endpoint.to_json().dump(4) << endl;
 
@@ -156,24 +101,19 @@ int main() {
   auto worker = std::make_unique<TCPWorker>(local_worker_endpoint,
                                             train_config.device_type == DeviceType::GPU);
 
-  // Parse partition split ratio from environment variable
-  std::string split_ratio_str = "2,1";
-  Env::get("PARTITION_SPLIT_RATIO", split_ratio_str);
-  std::vector<size_t> split_ratios;
-  std::stringstream ss(split_ratio_str);
-  std::string token;
-  while (std::getline(ss, token, ',')) {
-    split_ratios.push_back(static_cast<size_t>(std::stoi(token)));
-  }
+  auto partitioner = make_unique<GraphPartitioner>(tcp_config.partition_ratios);
 
-  auto partitioner = make_unique<GraphPartitioner>(split_ratios);
-
-  CoordinatorConfig config{
-      ParallelMode_t::PIPELINE, std::move(graph),  std::move(optimizer), std::move(scheduler),
-      std::move(partitioner),   std::move(worker), coordinator_endpoint, endpoints,
+  CoordinatorConfig coordinator_config{
+      std::move(graph),
+      std::move(optimizer),
+      std::move(scheduler),
+      std::move(partitioner),
+      coordinator_endpoint,
+      std::move(worker),
+      tcp_config.worker_endpoints,
   };
 
-  NetworkCoordinator coordinator(std::move(config));
+  NetworkCoordinator coordinator(std::move(tcp_config), std::move(coordinator_config));
 
   coordinator.initialize();
 

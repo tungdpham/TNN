@@ -28,12 +28,12 @@ int main() {
   std::vector<int> target_data = {0, 1, 2, 1};  // True classes
 
   // Create tensors
-  Tensor predictions = make_tensor<float>({4, 3});
-  Tensor targets = make_tensor<int>({4});
+  Tensor predictions = Tensor({4, 3}, DType_t::FP32);
+  Tensor targets = Tensor({4}, DType_t::INT32_T);
 
   // Copy data
-  std::copy(pred_data.begin(), pred_data.end(), predictions->data_as<float>());
-  std::copy(target_data.begin(), target_data.end(), targets->data_as<int>());
+  std::copy(pred_data.begin(), pred_data.end(), predictions.data_as<float>());
+  std::copy(target_data.begin(), target_data.end(), targets.data_as<int>());
 
   // Compute various metrics
   int correct = compute_class_corrects(predictions, targets);
@@ -68,11 +68,11 @@ int main() {
   std::vector<float> pred_reg = {2.5f, 0.0f, 2.1f, 7.8f};
   std::vector<float> target_reg = {3.0f, -0.5f, 2.0f, 8.0f};
 
-  Tensor reg_predictions = make_tensor<float>({4});
-  Tensor reg_targets = make_tensor<float>({4});
+  Tensor reg_predictions = Tensor({4}, DType_t::FP32);
+  Tensor reg_targets = Tensor({4}, DType_t::FP32);
 
-  std::copy(pred_reg.begin(), pred_reg.end(), reg_predictions->data_as<float>());
-  std::copy(target_reg.begin(), target_reg.end(), reg_targets->data_as<float>());
+  std::copy(pred_reg.begin(), pred_reg.end(), reg_predictions.data_as<float>());
+  std::copy(target_reg.begin(), target_reg.end(), reg_targets.data_as<float>());
 
   float mae = compute_mae(reg_predictions, reg_targets);
   float mse = compute_mse(reg_predictions, reg_targets);

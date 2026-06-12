@@ -31,25 +31,18 @@ private:
   DenseLayer out_proj_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_attention_forward(const ConstTensor &q, const ConstTensor &k,
-                                                  const ConstTensor &v, const Tensor &output,
-                                                  size_t batch_size, size_t seq_len,
+  std::unique_ptr<Task> compute_attention_forward(const Tensor &q, const Tensor &k, const Tensor &v,
+                                                  Tensor &output, size_t batch_size, size_t seq_len,
                                                   flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_attention_backward(const ConstTensor &q, const ConstTensor &k,
-                                                   const ConstTensor &v,
-                                                   const ConstTensor &d_attn_out, const Tensor &dq,
-                                                   const Tensor &dk, const Tensor &dv,
-                                                   size_t batch_size, size_t seq_len,
-                                                   flowHandle_t handle);
+  std::unique_ptr<Task> compute_attention_backward(const Tensor &q, const Tensor &k,
+                                                   const Tensor &v, Tensor &d_attn_out, Tensor &dq,
+                                                   Tensor &dk, Tensor &dv, size_t batch_size,
+                                                   size_t seq_len, flowHandle_t handle);
 
-  Vec<LayerImpl *> layers() override {
-    return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
-  }
-
-  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id = 0) override;
-  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0) override;
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id = 0) override;
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id = 0) override;
 
 public:
   AttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal = true,
@@ -62,6 +55,8 @@ public:
   LayerConfig get_config() const override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
   static std::shared_ptr<AttentionBlockImpl> create_from_config(const LayerConfig &config);
+
+  Vec<Layer> layers() override { return {q_proj_, k_proj_, v_proj_, out_proj_}; }
 
   Node operator()(const Node &input) {
     if (!input) {

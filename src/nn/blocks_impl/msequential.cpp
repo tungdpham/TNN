@@ -38,9 +38,9 @@ MSequentialImpl::MSequentialImpl(Vec<Sequential> sequences, Layer join_layer,
 }
 
 MSequentialImpl::SequenceMemInfo MSequentialImpl::measure_sequence_memory(size_t seq_idx,
-                                                                          ConstTensor input,
+                                                                          Tensor input,
                                                                           size_t mb_id) {
-  const auto &seq = sequences_[seq_idx];
+  auto &seq = sequences_[seq_idx];
 
   size_t m_prev = allocator_->total_allocated();
   size_t m_max = m_prev;
@@ -49,18 +49,17 @@ MSequentialImpl::SequenceMemInfo MSequentialImpl::measure_sequence_memory(size_t
     if (total_allocated > m_max) m_max = total_allocated;
   });
 
-  Vec<Tensor> trial_output = seq->forward({input}, mb_id);
+  Vec<Tensor> trial_output = seq.forward({input}, mb_id);
   this->device().getFlow(defaultFlowHandle)->synchronize();
   allocator_->remove_allocation_hook(hook_id);
 
   // Capture retained cost before cleanup: b_i = O_i + R_i
   size_t m_after = allocator_->total_allocated();
 
-  // Clear side effects: cached activations in each sub-layer and the sequence itself
-  for (auto *layer : seq->get_layers()) {
-    layer->clear_cache(mb_id);
+  for (Layer &layer : seq.layers()) {
+    layer.clear_cache(mb_id);
   }
-  seq->clear_cache(mb_id);
+  seq.clear_cache(mb_id);
   trial_output.clear();  // release output tensors back to the allocator
 
   SequenceMemInfo info;
@@ -72,7 +71,7 @@ MSequentialImpl::SequenceMemInfo MSequentialImpl::measure_sequence_memory(size_t
   return info;
 }
 
-Vec<size_t> MSequentialImpl::compute_execution_order(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<size_t> MSequentialImpl::compute_execution_order(const Vec<Tensor> &inputs, size_t mb_id) {
   if (inputs.size() != sequences_.size()) {
     throw std::runtime_error(
         fmt::format("MSequential: Expected {} inputs, got {}", sequences_.size(), inputs.size()));
@@ -105,7 +104,7 @@ Vec<size_t> MSequentialImpl::compute_execution_order(const Vec<ConstTensor> &inp
  * @param outputs Output tensors from the join layer
  * @param mb_id Micro-batch ID
  */
-Vec<Tensor> MSequentialImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> MSequentialImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
   if (sequences_.empty()) {
     throw std::runtime_error("Cannot forward through empty MSequential model");
   }
@@ -117,7 +116,7 @@ Vec<Tensor> MSequentialImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t
 
   Vec<Vec<size_t>> input_shapes(inputs.size());
   for (size_t i = 0; i < inputs.size(); ++i) {
-    input_shapes[i] = inputs[i]->shape();
+    input_shapes[i] = inputs[i].shape();
   }
   input_shapes_cache_[mb_id] = input_shapes;
 
@@ -130,34 +129,34 @@ Vec<Tensor> MSequentialImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t
 
   for (size_t order_idx = 0; order_idx < execution_order_.size(); ++order_idx) {
     size_t seq_idx = execution_order_[order_idx];
-    const auto &seq = sequences_[seq_idx];
+    auto &seq = sequences_[seq_idx];
 
-    ConstTensor input = inputs[seq_idx];
-    sequence_outputs[seq_idx] = seq->forward({input}, mb_id);
+    Tensor input = inputs[seq_idx];
+    sequence_outputs[seq_idx] = seq.forward({input}, mb_id);
   }
 
-  Vec<ConstTensor> join_inputs;
+  Vec<Tensor> join_inputs;
   join_inputs.reserve(sequence_outputs.size());
   for (auto &out : sequence_outputs) {
     join_inputs.insert(join_inputs.end(), out.begin(), out.end());
   }
 
-  Vec<Tensor> join_outputs = join_layer_->forward(join_inputs, mb_id);
+  Vec<Tensor> join_outputs = join_layer_.forward(join_inputs, mb_id);
 
   return join_outputs;
 }
 
-Vec<Tensor> MSequentialImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> MSequentialImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
   if (sequences_.empty()) {
     throw std::runtime_error("Cannot backward through empty MSequential model");
   }
 
-  Vec<Tensor> current_grads = join_layer_->backward(grad_outputs, mb_id);
+  Vec<Tensor> current_grads = join_layer_.backward(grad_outputs, mb_id);
 
   Vec<Tensor> grad_inputs(sequences_.size());
 
   for (int i = static_cast<int>(sequences_.size()) - 1; i >= 0; --i) {
-    grad_inputs[i] = sequences_[i]->backward({current_grads[i]}, mb_id)[0];
+    grad_inputs[i] = sequences_[i].backward({current_grads[i]}, mb_id)[0];
   }
 
   return grad_inputs;
@@ -173,11 +172,11 @@ Vec<Vec<size_t>> MSequentialImpl::output_shapes(const Vec<Vec<size_t>> &input_sh
   sequence_output_shapes.reserve(sequences_.size());
 
   for (size_t i = 0; i < sequences_.size(); ++i) {
-    Vec<Vec<size_t>> seq_out = sequences_[i]->output_shapes({{input_shapes[i]}});
+    Vec<Vec<size_t>> seq_out = sequences_[i].output_shapes({{input_shapes[i]}});
     sequence_output_shapes.push_back(seq_out[0]);
   }
 
-  return join_layer_->output_shapes(sequence_output_shapes);
+  return join_layer_.output_shapes(sequence_output_shapes);
 }
 
 void MSequentialImpl::print_summary(const Vec<Vec<size_t>> &input_shapes) const {
@@ -204,17 +203,16 @@ void MSequentialImpl::print_summary(const Vec<Vec<size_t>> &input_shapes) const 
   for (size_t i = 0; i < sequences_.size(); ++i) {
     std::cout << "\n--- Branch " << i << " (Input Shape: " << format_shape(input_shapes[i])
               << ") ---\n";
-    sequences_[i]->print_summary(input_shapes[i]);
+    sequences_[i].print_summary(input_shapes[i]);
   }
 
   std::cout << "\n--- Join LayerImpl ---\n";
-  std::cout << "Type: " << join_layer_->type() << "\n";
-  std::cout << "Name: " << (join_layer_->name().empty() ? "<unnamed>" : join_layer_->name())
-            << "\n";
+  std::cout << "Type: " << join_layer_.type() << "\n";
+  std::cout << "Name: " << (join_layer_.name().empty() ? "<unnamed>" : join_layer_.name()) << "\n";
 
   Vec<Vec<size_t>> seq_outputs;
   for (size_t i = 0; i < sequences_.size(); ++i) {
-    seq_outputs.push_back(sequences_[i]->output_shapes({{input_shapes[i]}})[0]);
+    seq_outputs.push_back(sequences_[i].output_shapes({{input_shapes[i]}})[0]);
   }
 
   std::cout << "Input shapes: ";
@@ -224,20 +222,9 @@ void MSequentialImpl::print_summary(const Vec<Vec<size_t>> &input_shapes) const 
   }
   std::cout << "\n";
 
-  Vec<Vec<size_t>> final_output = join_layer_->output_shapes(seq_outputs);
+  Vec<Vec<size_t>> final_output = join_layer_.output_shapes(seq_outputs);
   std::cout << "Output shape: " << format_shape(final_output[0]) << "\n";
 }
-
-Vec<SequentialImpl *> MSequentialImpl::get_sequences() {
-  Vec<SequentialImpl *> seqs;
-  seqs.reserve(sequences_.size());
-  for (auto &seq : sequences_) {
-    seqs.push_back(seq.get());
-  }
-  return seqs;
-}
-
-LayerImpl *MSequentialImpl::get_join_layer() { return join_layer_.get(); }
 
 LayerConfig MSequentialImpl::get_config() const {
   LayerConfig config;
@@ -246,13 +233,13 @@ LayerConfig MSequentialImpl::get_config() const {
 
   nlohmann::json sequences_config = nlohmann::json::array();
   for (const auto &seq : sequences_) {
-    auto seq_config = seq->get_config();
+    auto seq_config = seq.get_config();
     sequences_config.push_back(seq_config.to_json());
   }
   config.set("sequences", sequences_config);
 
   if (join_layer_) {
-    auto join_config = join_layer_->get_config();
+    auto join_config = join_layer_.get_config();
     config.set("join_layer", join_config.to_json());
   }
 

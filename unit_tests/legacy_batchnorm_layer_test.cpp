@@ -47,25 +47,24 @@ protected:
     }
   }
 
-  void verify_output_shape(const ConstTensor &input, const ConstTensor &output) {
-    auto input_shape = input->shape();
-    auto output_shape = output->shape();
+  void verify_output_shape(const Tensor &input, Tensor &output) {
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
     EXPECT_EQ(output_shape[0], input_shape[0]);
     EXPECT_EQ(output_shape[1], input_shape[1]);
     EXPECT_EQ(output_shape[2], input_shape[2]);
     EXPECT_EQ(output_shape[3], input_shape[3]);
   }
 
-  void verify_forward_result(const ConstTensor &input, const ConstTensor &output,
-                             const Vec<float> &expected_mean, const Vec<float> &expected_var,
-                             float epsilon, const ConstTensor gamma = nullptr,
-                             const ConstTensor beta = nullptr, float tolerance = 1e-4f) {
-    const float *input_data = input->data_as<float>();
-    const float *output_data = output->data_as<float>();
-    const float *gamma_data = gamma ? gamma->data_as<float>() : nullptr;
-    const float *beta_data = beta ? beta->data_as<float>() : nullptr;
+  void verify_forward_result(const Tensor &input, Tensor &output, const Vec<float> &expected_mean,
+                             const Vec<float> &expected_var, float epsilon, const Tensor gamma,
+                             const Tensor beta, float tolerance = 1e-4f) {
+    const float *input_data = input.data_as<float>();
+    const float *output_data = output.data_as<float>();
+    const float *gamma_data = gamma ? gamma.data_as<float>() : nullptr;
+    const float *beta_data = beta ? beta.data_as<float>() : nullptr;
 
-    auto input_shape = input->shape();
+    auto input_shape = input.shape();
     size_t batch_size = input_shape[0];
     size_t channels = input_shape[1];
     size_t height = input_shape[2];
@@ -95,9 +94,9 @@ protected:
     }
   }
 
-  void compute_batch_statistics(const ConstTensor &input, Vec<float> &means, Vec<float> &vars) {
-    const float *data = input->data_as<float>();
-    auto input_shape = input->shape();
+  void compute_batch_statistics(const Tensor &input, Vec<float> &means, Vec<float> &vars) {
+    const float *data = input.data_as<float>();
+    auto input_shape = input.shape();
     size_t batch_size = input_shape[0];
     size_t channels = input_shape[1];
     size_t height = input_shape[2];
@@ -144,22 +143,22 @@ TEST_F(LegacyBatchNormLayerTest, BasicForwardPassTraining) {
 
   auto bn_layer = LegacyBatchNormLayer(3, 1e-5f, 0.1f, false, "test_bn");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 3, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 3, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 
   Vec<float> means, vars;
   compute_batch_statistics(input, means, vars);
 
-  verify_forward_result(input, output, means, vars, 1e-5f);
+  verify_forward_result(input, output, means, vars, 1e-5f, Tensor(), Tensor());
 }
 
 TEST_F(LegacyBatchNormLayerTest, ForwardPassWithAffineTraining) {
@@ -167,25 +166,25 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassWithAffineTraining) {
 
   auto bn_layer = LegacyBatchNormLayer(3, 1e-5f, 0.1f, true, "test_bn_affine");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 3, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 3, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 
-  auto params = bn_layer->parameters();
+  auto params = bn_layer.parameters();
   EXPECT_EQ(params.size(), 4);
 
   Vec<float> means, vars;
   compute_batch_statistics(input, means, vars);
 
-  verify_forward_result(input, output, means, vars, 1e-5f, params[0], params[1]);
+  verify_forward_result(input, output, means, vars, 1e-5f, *params[0], *params[1]);
 }
 
 TEST_F(LegacyBatchNormLayerTest, ForwardPassSingleChannel) {
@@ -193,17 +192,17 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassSingleChannel) {
 
   auto bn_layer = LegacyBatchNormLayer(1, 1e-5f, 0.1f, false, "test_bn_single");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({4, 1, 8, 8}, getHost());
-  input->fill(2.5f);
+  Tensor input = Tensor({4, 1, 8, 8}, DType_t::FP32, getHost());
+  input.fill(2.5f);
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 
-  const float *output_data = output->data_as<float>();
-  for (size_t i = 0; i < output->size(); ++i) {
+  const float *output_data = output.data_as<float>();
+  for (size_t i = 0; i < output.size(); ++i) {
     EXPECT_NEAR(output_data[i], 0.0f, 1e-3f);
   }
 }
@@ -213,17 +212,17 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassMultiBatch) {
 
   auto bn_layer = LegacyBatchNormLayer(2, 1e-5f, 0.1f, false, "test_bn_multibatch");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({8, 2, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({8, 2, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>((i % 20) - 10);
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
-  auto output_shape = output->shape();
+  auto output_shape = output.shape();
 
   verify_output_shape(input, output);
   EXPECT_EQ(output_shape[0], 8);
@@ -234,17 +233,17 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassLargeFeatures) {
 
   auto bn_layer = LegacyBatchNormLayer(64, 1e-5f, 0.1f, true, "test_bn_large");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 64, 8, 8}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 64, 8, 8}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i % 100) / 10.0f;
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
-  auto output_shape = output->shape();
+  auto output_shape = output.shape();
 
   verify_output_shape(input, output);
   EXPECT_EQ(output_shape[1], 64);
@@ -255,21 +254,21 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassInference) {
 
   auto bn_layer = LegacyBatchNormLayer(3, 1e-5f, 0.1f, false, "test_bn_inference");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(false);
+  bn_layer.set_training(false);
 
-  Tensor input = make_tensor<float>({2, 3, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 3, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 
-  const float *output_data = output->data_as<float>();
+  const float *output_data = output.data_as<float>();
   float expected_scale = 1.0f / std::sqrt(1.0f + 1e-5f);
-  for (size_t i = 0; i < output->size(); ++i) {
+  for (size_t i = 0; i < output.size(); ++i) {
     EXPECT_NEAR(output_data[i], input_data[i] * expected_scale, 1e-3f);
   }
 }
@@ -279,12 +278,12 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassInferenceWithAffine) {
 
   auto bn_layer = LegacyBatchNormLayer(2, 1e-5f, 0.1f, true, "test_bn_inference_affine");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(false);
+  bn_layer.set_training(false);
 
-  Tensor input = make_tensor<float>({1, 2, 4, 4}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({1, 2, 4, 4}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 }
@@ -294,22 +293,22 @@ TEST_F(LegacyBatchNormLayerTest, BasicBackwardPass) {
 
   auto bn_layer = LegacyBatchNormLayer(2, 1e-5f, 0.1f, false, "test_bn_backward");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 2, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 2, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = bn_layer->backward({grad_output})[0];
+  Tensor grad_input = bn_layer.backward({grad_output})[0];
 
-  EXPECT_EQ(grad_input->shape(), input->shape());
+  EXPECT_EQ(grad_input.shape(), input.shape());
 }
 
 TEST_F(LegacyBatchNormLayerTest, BackwardPassWithAffine) {
@@ -317,27 +316,27 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassWithAffine) {
 
   auto bn_layer = LegacyBatchNormLayer(3, 1e-5f, 0.1f, true, "test_bn_backward_affine");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 3, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 3, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  float *grad_data = grad_output->data_as<float>();
-  for (size_t i = 0; i < grad_output->size(); ++i) {
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  float *grad_data = grad_output.data_as<float>();
+  for (size_t i = 0; i < grad_output.size(); ++i) {
     grad_data[i] = static_cast<float>(i % 5) / 5.0f;
   }
 
-  Tensor grad_input = bn_layer->backward({grad_output})[0];
+  Tensor grad_input = bn_layer.backward({grad_output})[0];
 
-  EXPECT_EQ(grad_input->shape(), input->shape());
+  EXPECT_EQ(grad_input.shape(), input.shape());
 
-  auto grads = bn_layer->gradients();
+  auto grads = bn_layer.gradients();
   EXPECT_EQ(grads.size(), 4);
 }
 
@@ -346,21 +345,21 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassMultiBatch) {
 
   auto bn_layer = LegacyBatchNormLayer(2, 1e-5f, 0.1f, false, "test_bn_backward_multibatch");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({8, 2, 4, 4}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({8, 2, 4, 4}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(1.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(1.0f);
 
-  Tensor grad_input = bn_layer->backward({grad_output})[0];
+  Tensor grad_input = bn_layer.backward({grad_output})[0];
 
-  auto grad_input_shape = grad_input->shape();
+  auto grad_input_shape = grad_input.shape();
   EXPECT_EQ(grad_input_shape[0], 8);
-  EXPECT_EQ(grad_input->shape(), input->shape());
+  EXPECT_EQ(grad_input.shape(), input.shape());
 }
 
 TEST_F(LegacyBatchNormLayerTest, BackwardPassZeroGradient) {
@@ -368,43 +367,41 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassZeroGradient) {
 
   auto bn_layer = LegacyBatchNormLayer(2, 1e-5f, 0.1f, true, "test_bn_backward_zero");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 2, 4, 4}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({2, 2, 4, 4}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
-  Tensor grad_output = make_tensor<float>(output->shape(), getHost());
-  grad_output->fill(0.0f);
+  Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
+  grad_output.fill(0.0f);
 
-  Tensor grad_input = bn_layer->backward({grad_output})[0];
+  Tensor grad_input = bn_layer.backward({grad_output})[0];
 
-  EXPECT_EQ(grad_input->shape(), input->shape());
+  EXPECT_EQ(grad_input.shape(), input.shape());
 
-  const float *grad_input_data = grad_input->data_as<float>();
-  for (size_t i = 0; i < grad_input->size(); ++i) {
+  const float *grad_input_data = grad_input.data_as<float>();
+  for (size_t i = 0; i < grad_input.size(); ++i) {
     EXPECT_NEAR(grad_input_data[i], 0.0f, 1e-5f);
   }
 }
 
 TEST_F(LegacyBatchNormLayerTest, ComputeOutputShape) {
   auto bn_layer = LegacyBatchNormLayer(16, 1e-5f, 0.1f, true, "test_bn_shape");
-  LegacyBatchNormLayerImpl *layer = bn_layer.get();
 
   Vec<size_t> input_shape = {4, 16, 32, 32};
   Vec<size_t> expected_shape = {4, 16, 32, 32};
 
-  Vec<size_t> output_shape = layer->output_shapes({input_shape})[0];
+  Vec<size_t> output_shape = bn_layer.output_shapes({input_shape})[0];
 
   EXPECT_EQ(output_shape, expected_shape);
 }
 
 TEST_F(LegacyBatchNormLayerTest, GetConfig) {
   auto bn_layer = LegacyBatchNormLayer(32, 1e-4f, 0.2f, true, "test_bn_config");
-  LegacyBatchNormLayerImpl *layer = bn_layer.get();
 
-  LayerConfig config = layer->get_config();
+  LayerConfig config = bn_layer.get_config();
 
   EXPECT_EQ(config.name, "test_bn_config");
   EXPECT_EQ(config.get<size_t>("num_features"), 32);
@@ -433,7 +430,7 @@ TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithAffine) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(bn_layer, allocator);
 
-  Vec<Tensor> params = bn_layer->parameters();
+  Vec<Tensor *> params = bn_layer.parameters();
 
   EXPECT_EQ(params.size(), 4);
 }
@@ -443,7 +440,7 @@ TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithoutAffine) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(bn_layer, allocator);
 
-  Vec<Tensor> params = bn_layer->parameters();
+  Vec<Tensor *> params = bn_layer.parameters();
 
   EXPECT_EQ(params.size(), 4);
 }
@@ -453,7 +450,7 @@ TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithAffine) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(bn_layer, allocator);
 
-  Vec<Tensor> grads = bn_layer->gradients();
+  Vec<Tensor *> grads = bn_layer.gradients();
 
   EXPECT_EQ(grads.size(), 4);
 }
@@ -463,7 +460,7 @@ TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithoutAffine) {
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   auto graph = test::compile_single_layer(bn_layer, allocator);
 
-  Vec<Tensor> grads = bn_layer->gradients();
+  Vec<Tensor *> grads = bn_layer.gradients();
 
   EXPECT_EQ(grads.size(), 4);
 }
@@ -473,15 +470,15 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallBatch) {
 
   auto bn_layer = LegacyBatchNormLayer(3, 1e-5f, 0.1f, false, "test_bn_small_batch");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({1, 3, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({1, 3, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 }
@@ -491,12 +488,12 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseLargeEpsilon) {
 
   auto bn_layer = LegacyBatchNormLayer(2, 1e-1f, 0.1f, false, "test_bn_large_epsilon");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 2, 4, 4}, getHost());
-  input->fill(1.0f);
+  Tensor input = Tensor({2, 2, 4, 4}, DType_t::FP32, getHost());
+  input.fill(1.0f);
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 }
@@ -506,17 +503,17 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallSpatialSize) {
 
   auto bn_layer = LegacyBatchNormLayer(4, 1e-5f, 0.1f, true, "test_bn_small_spatial");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({4, 4, 1, 1}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({4, 4, 1, 1}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = static_cast<float>(i);
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
-  auto output_shape = output->shape();
+  auto output_shape = output.shape();
 
   verify_output_shape(input, output);
   EXPECT_EQ(output_shape[2], 1);
@@ -528,17 +525,17 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseLargeValues) {
 
   auto bn_layer = LegacyBatchNormLayer(2, 1e-5f, 0.1f, false, "test_bn_large_values");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 2, 4, 4}, getHost());
-  input->fill(1e6f);
+  Tensor input = Tensor({2, 2, 4, 4}, DType_t::FP32, getHost());
+  input.fill(1e6f);
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 
-  const float *output_data = output->data_as<float>();
-  for (size_t i = 0; i < output->size(); ++i) {
+  const float *output_data = output.data_as<float>();
+  for (size_t i = 0; i < output.size(); ++i) {
     EXPECT_NEAR(output_data[i], 0.0f, 1e-3f);
   }
 }
@@ -548,15 +545,15 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseNegativeValues) {
 
   auto bn_layer = LegacyBatchNormLayer(2, 1e-5f, 0.1f, true, "test_bn_negative");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 2, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 2, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 }
@@ -566,12 +563,12 @@ TEST_F(LegacyBatchNormLayerTest, NumericalStabilitySmallValues) {
 
   auto bn_layer = LegacyBatchNormLayer(2, 1e-5f, 0.1f, false, "test_bn_small_values");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 2, 4, 4}, getHost());
-  input->fill(1e-6f);
+  Tensor input = Tensor({2, 2, 4, 4}, DType_t::FP32, getHost());
+  input.fill(1e-6f);
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 }
@@ -581,15 +578,15 @@ TEST_F(LegacyBatchNormLayerTest, NumericalStabilityMixedValues) {
 
   auto bn_layer = LegacyBatchNormLayer(2, 1e-5f, 0.1f, true, "test_bn_mixed");
   Graph graph = test::compile_single_layer(bn_layer, allocator);
-  bn_layer->set_training(true);
+  bn_layer.set_training(true);
 
-  Tensor input = make_tensor<float>({2, 2, 4, 4}, getHost());
-  float *input_data = input->data_as<float>();
-  for (size_t i = 0; i < input->size(); ++i) {
+  Tensor input = Tensor({2, 2, 4, 4}, DType_t::FP32, getHost());
+  float *input_data = input.data_as<float>();
+  for (size_t i = 0; i < input.size(); ++i) {
     input_data[i] = (i % 2 == 0) ? 1e6f : 1e-6f;
   }
 
-  Tensor output = bn_layer->forward({input})[0];
+  Tensor output = bn_layer.forward({input})[0];
 
   verify_output_shape(input, output);
 }

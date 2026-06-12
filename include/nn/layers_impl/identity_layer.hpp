@@ -10,23 +10,23 @@ private:
     // no-op
   }
 
-  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id = 0) override {
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id = 0) override {
     Vec<Tensor> outputs;
     outputs.reserve(inputs.size());
     for (size_t i = 0; i < inputs.size(); ++i) {
-      Tensor output = get_tensor(inputs[i]->shape(), inputs[i]->data_type());
-      output->share_from(inputs[i]);
+      Tensor output = get_tensor(inputs[i].shape(), inputs[i].data_type());
+      output.share_from(inputs[i]);
       outputs.push_back(output);
     }
     return outputs;
   }
 
-  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0) override {
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id = 0) override {
     Vec<Tensor> grad_inputs;
     grad_inputs.reserve(grad_outputs.size());
     for (size_t i = 0; i < grad_outputs.size(); ++i) {
-      Tensor grad_input = get_tensor(grad_outputs[i]->shape(), grad_outputs[i]->data_type());
-      grad_input->share_from(grad_outputs[i]);
+      Tensor grad_input = get_tensor(grad_outputs[i].shape(), grad_outputs[i].data_type());
+      grad_input.share_from(grad_outputs[i]);
       grad_inputs.push_back(grad_input);
     }
     return grad_inputs;

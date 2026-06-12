@@ -40,7 +40,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {
@@ -55,8 +55,8 @@ private:
   // Bilinear resize from (src_h x src_w) into an already-allocated dst tensor.
   // src and dst are both single-image tensors with shape {1, H, W, C}.
   template <typename T>
-  void bilinear_resize(const Tensor &src, size_t src_h, size_t src_w, const Tensor &dst,
-                       size_t dst_h, size_t dst_w, size_t channels) {
+  void bilinear_resize(const Tensor &src, size_t src_h, size_t src_w, Tensor &dst, size_t dst_h,
+                       size_t dst_w, size_t channels) {
     for (size_t dy = 0; dy < dst_h; ++dy) {
       for (size_t dx = 0; dx < dst_w; ++dx) {
         const float sx = (static_cast<float>(dx) + 0.5f) * static_cast<float>(src_w) /
@@ -78,15 +78,15 @@ private:
         const float wy = sy - static_cast<float>(y0);
 
         for (size_t c = 0; c < channels; ++c) {
-          const T v00 = src->at<T>({0, static_cast<size_t>(cy0), static_cast<size_t>(cx0), c});
-          const T v10 = src->at<T>({0, static_cast<size_t>(cy0), static_cast<size_t>(cx1), c});
-          const T v01 = src->at<T>({0, static_cast<size_t>(cy1), static_cast<size_t>(cx0), c});
-          const T v11 = src->at<T>({0, static_cast<size_t>(cy1), static_cast<size_t>(cx1), c});
+          const T v00 = src.at<T>({0, static_cast<size_t>(cy0), static_cast<size_t>(cx0), c});
+          const T v10 = src.at<T>({0, static_cast<size_t>(cy0), static_cast<size_t>(cx1), c});
+          const T v01 = src.at<T>({0, static_cast<size_t>(cy1), static_cast<size_t>(cx0), c});
+          const T v11 = src.at<T>({0, static_cast<size_t>(cy1), static_cast<size_t>(cx1), c});
 
-          dst->at<T>({0, dy, dx, c}) = v00 * static_cast<T>((1.0f - wx) * (1.0f - wy)) +
-                                       v10 * static_cast<T>(wx * (1.0f - wy)) +
-                                       v01 * static_cast<T>((1.0f - wx) * wy) +
-                                       v11 * static_cast<T>(wx * wy);
+          dst.at<T>({0, dy, dx, c}) = v00 * static_cast<T>((1.0f - wx) * (1.0f - wy)) +
+                                      v10 * static_cast<T>(wx * (1.0f - wy)) +
+                                      v01 * static_cast<T>((1.0f - wx) * wy) +
+                                      v11 * static_cast<T>(wx * wy);
         }
       }
     }
@@ -94,7 +94,7 @@ private:
 
   template <typename T>
   void apply_impl(Tensor &data, Tensor & /*labels*/) {
-    const auto shape = data->shape();
+    const auto shape = data.shape();
     if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
@@ -102,9 +102,8 @@ private:
     const size_t in_w = shape[2];
     const size_t channels = shape[3];
 
-    PoolAllocator &allocator = PoolAllocator::instance(data->device(), defaultFlowHandle);
-    Tensor output =
-        make_tensor(allocator, data->data_type(), {batch_size, crop_h_, crop_w_, channels});
+    PoolAllocator &allocator = PoolAllocator::instance(data.device(), defaultFlowHandle);
+    Tensor output(Vec<size_t>{batch_size, crop_h_, crop_w_, channels}, data.data_type(), allocator);
 
     parallel_for<size_t>(0, batch_size, [&](size_t b) {
       size_t resized_h, resized_w;
@@ -120,14 +119,14 @@ private:
       resized_w = std::max(resized_w, crop_w_);
       resized_h = std::max(resized_h, crop_h_);
 
-      Tensor src_buf = make_tensor(allocator, data->data_type(), {1, in_h, in_w, channels});
+      Tensor src_buf(Vec<size_t>{1, in_h, in_w, channels}, data.data_type(), allocator);
       for (size_t h = 0; h < in_h; ++h)
         for (size_t w = 0; w < in_w; ++w)
           for (size_t c = 0; c < channels; ++c)
-            src_buf->at<T>({0, h, w, c}) = data->at<T>({b, h, w, c});
+            src_buf.at<T>({0, h, w, c}) = data.at<T>({b, h, w, c});
 
-      Tensor resized_buf =
-          make_tensor(allocator, data->data_type(), {1, resized_h, resized_w, channels});
+      Tensor resized_buf(Vec<size_t>{1, resized_h, resized_w, channels}, data.data_type(),
+                         allocator);
       bilinear_resize<T>(src_buf, in_h, in_w, resized_buf, resized_h, resized_w, channels);
 
       const size_t cx = std::max<size_t>(0, (resized_w - crop_w_) / 2);
@@ -136,7 +135,7 @@ private:
       for (size_t h = 0; h < crop_h_; ++h)
         for (size_t w = 0; w < crop_w_; ++w)
           for (size_t c = 0; c < channels; ++c)
-            output->at<T>({b, h, w, c}) = resized_buf->at<T>({0, cy + h, cx + w, c});
+            output.at<T>({b, h, w, c}) = resized_buf.at<T>({0, cy + h, cx + w, c});
     });
 
     data = std::move(output);

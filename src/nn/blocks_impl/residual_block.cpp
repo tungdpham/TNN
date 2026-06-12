@@ -57,14 +57,14 @@ ResidualBlockImpl::ResidualBlockImpl(Sequential main_path, Sequential shortcut_p
   }
 }
 
-Vec<Tensor> ResidualBlockImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
+Vec<Tensor> ResidualBlockImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
   // Forward through main path
-  Vec<Tensor> main_outputs = main_path_->forward(inputs, mb_id);
+  Vec<Tensor> main_outputs = main_path_.forward(inputs, mb_id);
 
   // Forward through shortcut path
-  Vec<ConstTensor> shortcut_outputs = inputs;
+  Vec<Tensor> shortcut_outputs = inputs;
   if (shortcut_path_) {
-    Vec<Tensor> shortcut_outputs_vec = shortcut_path_->forward(inputs, mb_id);
+    Vec<Tensor> shortcut_outputs_vec = shortcut_path_.forward(inputs, mb_id);
     for (size_t i = 0; i < shortcut_outputs_vec.size(); ++i) {
       shortcut_outputs[i] = shortcut_outputs_vec[i];
     }
@@ -76,57 +76,55 @@ Vec<Tensor> ResidualBlockImpl::forward_impl(const Vec<ConstTensor> &inputs, size
   for (size_t i = 0; i < outputs.size(); ++i) {
     if (final_activation_) {
       std::string pre_act_key = "pre_activation_" + std::to_string(i);
-      Tensor pre_act = get_tensor(main_outputs[i]->shape(), io_dtype_);
-      DISPATCH_IO_DTYPE(ops::add, main_outputs[i]->data_ptr(), shortcut_outputs[i]->data_ptr(),
-                        pre_act->data_ptr(), outputs[i]->size());
+      Tensor pre_act = get_tensor(main_outputs[i].shape(), io_dtype_);
+      DISPATCH_IO_DTYPE(ops::add, main_outputs[i].data_ptr(), shortcut_outputs[i].data_ptr(),
+                        pre_act.data_ptr(), outputs[i].size());
       set_mutable_cache(mb_id, pre_act_key, pre_act);
       final_activation_->apply(pre_act, outputs[i]);
     } else {
-      DISPATCH_IO_DTYPE(ops::add, main_outputs[i]->data_ptr(), shortcut_outputs[i]->data_ptr(),
-                        outputs[i]->data_ptr(), outputs[i]->size());
+      DISPATCH_IO_DTYPE(ops::add, main_outputs[i].data_ptr(), shortcut_outputs[i].data_ptr(),
+                        outputs[i].data_ptr(), outputs[i].size());
     }
   }
   return outputs;
 }
 
-Vec<Tensor> ResidualBlockImpl::backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> ResidualBlockImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
   // Compute gradients through final activation if present
-  Vec<ConstTensor> grads_to_propagate = grad_outputs;
+  Vec<Tensor> grads_to_propagate = grad_outputs;
   if (final_activation_) {
     for (size_t i = 0; i < grad_outputs.size(); ++i) {
       std::string pre_act_key = "pre_activation_" + std::to_string(i);
       Tensor &pre_act = this->get_mutable_cache(mb_id, pre_act_key);
-      Tensor grad_pre_act = this->get_tensor(pre_act->shape(), pre_act->data_type());
+      Tensor grad_pre_act = this->get_tensor(pre_act.shape(), pre_act.data_type());
       final_activation_->compute_gradient(pre_act, grad_outputs[i], grad_pre_act);
-      pre_act = nullptr;  // free pre-activation cache after backward
+      pre_act = Tensor();  // release pre-activation cache
       grads_to_propagate[i] = grad_pre_act;
     }
     allocator_->flip();  // flip workspace allocator between main and shortcut backward
   }
 
   // Backward through main path
-  Vec<Tensor> main_grad_inputs = main_path_->backward(grads_to_propagate, mb_id);
+  Vec<Tensor> main_grad_inputs = main_path_.backward(grads_to_propagate, mb_id);
 
   // Backward through shortcut path
-  Vec<ConstTensor> shortcut_grad_inputs = grads_to_propagate;
+  Vec<Tensor> shortcut_grad_inputs = grads_to_propagate;
   if (shortcut_path_) {
-    auto temp = shortcut_path_->backward(grads_to_propagate, mb_id);
-    shortcut_grad_inputs = Vec<ConstTensor>(temp.begin(), temp.end());
+    auto temp = shortcut_path_.backward(grads_to_propagate, mb_id);
+    shortcut_grad_inputs = Vec<Tensor>(temp.begin(), temp.end());
   }
 
   Vec<Tensor> grad_inputs(main_grad_inputs.size());
   for (size_t i = 0; i < grad_inputs.size(); ++i) {
-    grad_inputs[i] =
-        this->get_tensor(main_grad_inputs[i]->shape(), main_grad_inputs[i]->data_type());
-    DISPATCH_IO_DTYPE(ops::add, main_grad_inputs[i]->data_ptr(),
-                      shortcut_grad_inputs[i]->data_ptr(), grad_inputs[i]->data_ptr(),
-                      grad_inputs[i]->size(), defaultFlowHandle);
+    grad_inputs[i] = this->get_tensor(main_grad_inputs[i].shape(), main_grad_inputs[i].data_type());
+    DISPATCH_IO_DTYPE(ops::add, main_grad_inputs[i].data_ptr(), shortcut_grad_inputs[i].data_ptr(),
+                      grad_inputs[i].data_ptr(), grad_inputs[i].size(), defaultFlowHandle);
   }
   return grad_inputs;
 }
 
 Vec<Vec<size_t>> ResidualBlockImpl::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
-  return main_path_->output_shapes(input_shapes);
+  return main_path_.output_shapes(input_shapes);
 }
 
 LayerConfig ResidualBlockImpl::get_config() const {
@@ -135,10 +133,10 @@ LayerConfig ResidualBlockImpl::get_config() const {
   config.type = this->type();
   config.set("activation", activation_type_);
 
-  LayerConfig main_config = main_path_->get_config();
+  LayerConfig main_config = main_path_.get_config();
   config.set("main_path", main_config.to_json());
   if (shortcut_path_) {
-    LayerConfig shortcut_config = shortcut_path_->get_config();
+    LayerConfig shortcut_config = shortcut_path_.get_config();
     config.set("shortcut_path", shortcut_config.to_json());
   } else {
     config.set("shortcut_path", nlohmann::json::object());

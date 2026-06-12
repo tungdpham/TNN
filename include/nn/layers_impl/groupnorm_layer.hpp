@@ -27,20 +27,33 @@ private:
   Tensor beta_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward(const ConstTensor &input, const Tensor &group_mean,
-                                    const Tensor &group_inv_std, const ConstTensor &gamma,
-                                    const ConstTensor &beta, const Tensor &output,
-                                    const Tensor &norm_cache, size_t batch_size, size_t channels,
+  std::unique_ptr<Task> run_forward(const Tensor &input, Tensor &group_mean, Tensor &group_inv_std,
+                                    const Tensor &gamma, const Tensor &beta, Tensor &output,
+                                    Tensor &norm_cache, size_t batch_size, size_t channels,
                                     size_t spatial_size,
                                     flowHandle_t handle = defaultFlowHandle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_backward(const ConstTensor &grad_output, const ConstTensor &norm_input,
-                                     const ConstTensor &inv_std, const ConstTensor &gamma,
-                                     const Tensor &d_gamma, const Tensor &d_beta,
-                                     const Tensor &grad_input, size_t batch_size, size_t channels,
-                                     size_t spatial_size,
+  std::unique_ptr<Task> run_backward(const Tensor &grad_output, const Tensor &norm_input,
+                                     const Tensor &inv_std, const Tensor &gamma, Tensor &d_gamma,
+                                     Tensor &d_beta, Tensor &grad_input, size_t batch_size,
+                                     size_t channels, size_t spatial_size,
                                      flowHandle_t handle = defaultFlowHandle) const;
+
+  void init_impl() override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+
+public:
+  GroupNormLayerImpl(size_t num_groups, size_t num_channels, float epsilon = 1e-5f,
+                     bool affine = true, const std::string &name = "groupnorm");
+
+  static constexpr const char *TYPE_NAME = "groupnorm";
+
+  std::string type() const override { return TYPE_NAME; }
+  LayerConfig get_config() const override;
+
+  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
@@ -62,21 +75,6 @@ private:
     }
     return descriptors;
   }
-
-  void init_impl() override;
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
-
-public:
-  GroupNormLayerImpl(size_t num_groups, size_t num_channels, float epsilon = 1e-5f,
-                     bool affine = true, const std::string &name = "groupnorm");
-
-  static constexpr const char *TYPE_NAME = "groupnorm";
-
-  std::string type() const override { return TYPE_NAME; }
-  LayerConfig get_config() const override;
-
-  Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
   static std::shared_ptr<GroupNormLayerImpl> create_from_config(const LayerConfig &config);
 };
 

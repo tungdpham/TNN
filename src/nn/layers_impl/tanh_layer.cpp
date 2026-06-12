@@ -15,40 +15,40 @@ TanhLayerImpl::TanhLayerImpl(const std::string &name)
     : SISOLayerImpl(name),
       activation_(std::make_unique<Tanh>()) {}
 
-Tensor TanhLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
-  Tensor output = get_tensor(input->shape(), io_dtype_);
+Tensor TanhLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+  Tensor output = get_tensor(input.shape(), io_dtype_);
   activation_->apply(input, output);
 
   if (this->is_training_) {
     // Cache output for efficient backward pass
     // tanh'(x) = 1 - tanh(x)^2
-    set_immutable_cache(mb_id, "output", output);
+    set_mutable_cache(mb_id, "output", output);
   }
 
   return output;
 }
 
-Tensor TanhLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
-  const ConstTensor &output = this->get_immutable_cache(mb_id, "output");
+Tensor TanhLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+  Tensor &output = this->get_mutable_cache(mb_id, "output");
   if (!output) {
     throw std::runtime_error("No cached output found for backward pass in TanhLayerImpl");
   }
 
-  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
+  Tensor grad_input = get_tensor(grad_output.shape(), io_dtype_);
 
   // Gradient: grad_input = grad_output * (1 - output^2)
-  const size_t num_elements = grad_output->size();
-  if (grad_output->device_type() == DeviceType::CPU) {
-    const float *grad_out_data = grad_output->data_as<float>();
-    const float *output_data = output->data_as<float>();
-    float *grad_in_data = grad_input->data_as<float>();
+  const size_t num_elements = grad_output.size();
+  if (grad_output.device_type() == DeviceType::CPU) {
+    const float *grad_out_data = grad_output.data_as<float>();
+    const float *output_data = output.data_as<float>();
+    float *grad_in_data = grad_input.data_as<float>();
     for (size_t i = 0; i < num_elements; ++i) {
       float tanh_val = output_data[i];
       grad_in_data[i] = grad_out_data[i] * (1.0f - tanh_val * tanh_val);
     }
   }
 #ifdef USE_CUDA
-  else if (grad_output->device_type() == DeviceType::GPU) {
+  else if (grad_output.device_type() == DeviceType::GPU) {
     throw std::runtime_error("TanhLayerImpl: GPU backward not yet implemented");
   }
 #endif

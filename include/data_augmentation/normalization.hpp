@@ -40,7 +40,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {
@@ -60,7 +60,7 @@ public:
 private:
   template <typename T>
   void apply_impl(Tensor &data, Tensor &labels) {
-    const auto shape = data->shape();
+    const auto shape = data.shape();
     if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
@@ -72,7 +72,7 @@ private:
       throw std::invalid_argument("NormalizationAugmentation: unsupported number of channels");
     }
 
-    T *ptr = data->data_as<T>();
+    T *ptr = data.data_as<T>();
 
     // Apply normalization to each image in the batch
     parallel_for<size_t>(0, batch_size, [&](size_t b) {

@@ -24,36 +24,35 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  std::unordered_map<size_t, Tensor> micro_batch_mask_indices_;
   std::unordered_map<size_t, Vec<size_t>> micro_batch_input_shapes_;
 
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
 
   template <typename Compute_T>
-  std::unique_ptr<Task> run_forward(const ConstTensor &input_data, const Tensor &output_data,
+  std::unique_ptr<Task> run_forward(const Tensor &input_data, Tensor &output_data,
                                     size_t batch_size, size_t channels, size_t input_h,
                                     size_t input_w, size_t output_h, size_t output_w,
-                                    const Tensor &mask_indices, flowHandle_t handle) const;
+                                    Tensor &mask_indices, flowHandle_t handle) const;
 
-  std::unique_ptr<Task> run_forward(const ConstTensor &input_data, const Tensor &output_data,
+  std::unique_ptr<Task> run_forward(const Tensor &input_data, Tensor &output_data,
                                     size_t batch_size, size_t channels, size_t input_h,
                                     size_t input_w, size_t output_h, size_t output_w,
-                                    const Tensor &mask_indices, flowHandle_t handle) const;
+                                    Tensor &mask_indices, flowHandle_t handle) const;
 
   template <typename Compute_T>
-  std::unique_ptr<Task> run_backward(const ConstTensor &gradient_data,
-                                     const Tensor &grad_input_data, size_t batch_size,
-                                     size_t channels, size_t output_h, size_t output_w,
-                                     const ConstTensor &mask_indices, flowHandle_t handle) const;
+  std::unique_ptr<Task> run_backward(const Tensor &gradient_data, Tensor &grad_input_data,
+                                     size_t batch_size, size_t channels, size_t output_h,
+                                     size_t output_w, const Tensor &mask_indices,
+                                     flowHandle_t handle) const;
 
-  std::unique_ptr<Task> run_backward(const ConstTensor &gradient_data,
-                                     const Tensor &grad_input_data, size_t batch_size,
-                                     size_t channels, size_t output_h, size_t output_w,
-                                     const ConstTensor &mask_indices, flowHandle_t handle) const;
+  std::unique_ptr<Task> run_backward(const Tensor &gradient_data, Tensor &grad_input_data,
+                                     size_t batch_size, size_t channels, size_t output_h,
+                                     size_t output_w, const Tensor &mask_indices,
+                                     flowHandle_t handle) const;
 
-  Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
+  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
 
 public:
   LegacyMaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,

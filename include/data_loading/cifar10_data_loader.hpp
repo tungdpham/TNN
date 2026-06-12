@@ -145,11 +145,11 @@ private:
     const size_t width = cifar10_constants::IMAGE_WIDTH;
     const size_t channels = cifar10_constants::NUM_CHANNELS;
 
-    batch_data = make_tensor<T>(allocator_, {actual_batch_size, height, width, channels});
-    batch_labels = make_tensor<int>(allocator_, {actual_batch_size});
+    batch_data = Tensor({actual_batch_size, height, width, channels}, dtype_of<T>(), allocator_);
+    batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
 
-    T *data_ptr = batch_data->data_as<T>();
-    int *labels_ptr = batch_labels->data_as<int>();
+    T *data_ptr = batch_data.data_as<T>();
+    int *labels_ptr = batch_labels.data_as<int>();
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_idx = access_order_[this->current_index_ + i];

@@ -9,13 +9,13 @@ public:
   SISOLayerImpl(const std::string &name)
       : LayerImpl(name) {}
 
-  Vec<Tensor> forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) override {
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id) override {
     if (inputs.size() != 1) {
       throw std::runtime_error("SISOLayerImpl only supports single input");
     }
     return {forward_impl(inputs[0], mb_id)};
   }
-  Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id) override {
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) override {
     if (grad_outputs.size() != 1) {
       throw std::runtime_error("SISOLayerImpl only supports single grad output");
     }
@@ -38,8 +38,8 @@ public:
   }
 
 protected:
-  virtual Tensor forward_impl(const ConstTensor &input, size_t mb_id = 0) = 0;
-  virtual Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) = 0;
+  virtual Tensor forward_impl(const Tensor &input, size_t mb_id = 0) = 0;
+  virtual Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) = 0;
 
   virtual Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const = 0;
 };

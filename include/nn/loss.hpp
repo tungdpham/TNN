@@ -25,24 +25,24 @@ class Loss {
 public:
   virtual ~Loss() = default;
 
-  std::unique_ptr<Task> compute_loss(const ConstTensor &predictions, const ConstTensor &targets,
+  std::unique_ptr<Task> compute_loss(const Tensor &predictions, const Tensor &targets,
                                      float &loss) {
     if (!predictions || !targets) {
       throw std::runtime_error("Predictions and targets cannot be null for compute_loss.");
     }
-    if (predictions->device() != targets->device()) {
+    if (predictions.device() != targets.device()) {
       throw std::runtime_error(
           "Predictions and targets must be on the same device for compute_loss.");
     }
     return compute_loss_impl(predictions, targets, loss);
   }
-  std::unique_ptr<Task> compute_gradient(const ConstTensor &predictions, const ConstTensor &targets,
-                                         const Tensor &gradient) {
+  std::unique_ptr<Task> compute_gradient(const Tensor &predictions, const Tensor &targets,
+                                         Tensor &gradient) {
     if (!predictions || !targets || !gradient) {
       throw std::runtime_error(
           "Predictions, targets, and gradient cannot be null for compute_gradient.");
     }
-    if (predictions->device() != targets->device() || predictions->device() != gradient->device()) {
+    if (predictions.device() != targets.device() || predictions.device() != gradient.device()) {
       throw std::runtime_error(
           "Predictions, targets, and gradient must be on the same device for compute_gradient.");
     }
@@ -58,11 +58,10 @@ public:
   virtual void reset() {}
 
 protected:
-  virtual std::unique_ptr<Task> compute_loss_impl(const ConstTensor &predictions,
-                                                  const ConstTensor &targets, float &loss) = 0;
-  virtual std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &predictions,
-                                                      const ConstTensor &targets,
-                                                      const Tensor &gradient) = 0;
+  virtual std::unique_ptr<Task> compute_loss_impl(const Tensor &predictions, const Tensor &targets,
+                                                  float &loss) = 0;
+  virtual std::unique_ptr<Task> compute_gradient_impl(const Tensor &predictions,
+                                                      const Tensor &targets, Tensor &gradient) = 0;
 };
 
 class CrossEntropyLoss : public Loss {
@@ -93,54 +92,53 @@ private:
   bool use_logits_;  // If true, expects logits; if false, expects probabilities
   double epsilon_;
 
-  std::unique_ptr<Task> compute_loss_impl(const ConstTensor &predictions,
-                                          const ConstTensor &targets, float &loss) override {
-    DISPATCH_DTYPE(predictions->data_type(), T,
+  std::unique_ptr<Task> compute_loss_impl(const Tensor &predictions, const Tensor &targets,
+                                          float &loss) override {
+    DISPATCH_DTYPE(predictions.data_type(), T,
                    return compute_loss_t<T>(predictions, targets, loss));
   }
 
-  std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &predictions,
-                                              const ConstTensor &targets,
-                                              const Tensor &gradient) override {
-    DISPATCH_DTYPE(predictions->data_type(), T,
+  std::unique_ptr<Task> compute_gradient_impl(const Tensor &predictions, const Tensor &targets,
+                                              Tensor &gradient) override {
+    DISPATCH_DTYPE(predictions.data_type(), T,
                    return compute_gradient_t<T>(predictions, targets, gradient));
   }
 
   template <typename T>
-  std::unique_ptr<Task> compute_loss_t(const ConstTensor &predictions, const ConstTensor &targets,
+  std::unique_ptr<Task> compute_loss_t(const Tensor &predictions, const Tensor &targets,
                                        float &loss) {
-    const size_t num_classes = predictions->shape().back();
+    const size_t num_classes = predictions.shape().back();
     size_t batch_size = 1;
-    for (size_t i = 0; i < predictions->dims() - 1; ++i) {
-      batch_size *= predictions->shape()[i];
+    for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+      batch_size *= predictions.shape()[i];
     }
 
     if (use_logits_) {
       // Use numerically stable logits version
-      if (predictions->device_type() == DeviceType::CPU) {
+      if (predictions.device_type() == DeviceType::CPU) {
         return create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss_logits<T>,
-                               predictions->data_as<T>(), targets->data_as<int>(), loss, batch_size,
+                               predictions.data_as<T>(), targets.data_as<int>(), loss, batch_size,
                                num_classes);
       }
 #ifdef USE_CUDA
-      else if (predictions->device_type() == DeviceType::GPU) {
+      else if (predictions.device_type() == DeviceType::GPU) {
         return create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss_logits<T>,
-                                predictions->data_as<T>(), targets->data_as<int>(), loss,
-                                batch_size, num_classes);
+                                predictions.data_as<T>(), targets.data_as<int>(), loss, batch_size,
+                                num_classes);
       }
 #endif
     } else {
       // Use probabilities version
-      if (predictions->device_type() == DeviceType::CPU) {
+      if (predictions.device_type() == DeviceType::CPU) {
         return create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss_probs<T>,
-                               predictions->data_as<T>(), targets->data_as<int>(), loss, batch_size,
+                               predictions.data_as<T>(), targets.data_as<int>(), loss, batch_size,
                                num_classes, static_cast<T>(epsilon_));
       }
 #ifdef USE_CUDA
-      else if (predictions->device_type() == DeviceType::GPU) {
+      else if (predictions.device_type() == DeviceType::GPU) {
         return create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss_probs<T>,
-                                predictions->data_as<T>(), targets->data_as<int>(), loss,
-                                batch_size, num_classes, static_cast<T>(epsilon_));
+                                predictions.data_as<T>(), targets.data_as<int>(), loss, batch_size,
+                                num_classes, static_cast<T>(epsilon_));
       }
 #endif
     }
@@ -148,44 +146,44 @@ private:
   }
 
   template <typename T>
-  std::unique_ptr<Task> compute_gradient_t(const ConstTensor &predictions,
-                                           const ConstTensor &targets, const Tensor &gradient) {
-    gradient->ensure(predictions->shape());
-    const size_t num_classes = predictions->shape().back();
+  std::unique_ptr<Task> compute_gradient_t(const Tensor &predictions, const Tensor &targets,
+                                           Tensor &gradient) {
+    gradient = Tensor(predictions.shape(), predictions.data_type(), predictions.device());
+    const size_t num_classes = predictions.shape().back();
     size_t batch_size = 1;
-    for (size_t i = 0; i < predictions->dims() - 1; ++i) {
-      batch_size *= predictions->shape()[i];
+    for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+      batch_size *= predictions.shape()[i];
     }
 
     if (use_logits_) {
       // Use numerically stable logits version
-      if (predictions->device_type() == DeviceType::CPU) {
+      if (predictions.device_type() == DeviceType::CPU) {
         return create_cpu_task(defaultFlowHandle,
                                cpu::loss::compute_crossentropy_gradient_logits<T>,
-                               predictions->data_as<T>(), targets->data_as<int>(),
-                               gradient->data_as<T>(), batch_size, num_classes);
+                               predictions.data_as<T>(), targets.data_as<int>(),
+                               gradient.data_as<T>(), batch_size, num_classes);
       }
 #ifdef USE_CUDA
-      else if (predictions->device_type() == DeviceType::GPU) {
+      else if (predictions.device_type() == DeviceType::GPU) {
         return create_cuda_task(defaultFlowHandle,
                                 cuda::loss::compute_crossentropy_gradient_logits<T>,
-                                predictions->data_as<T>(), targets->data_as<int>(),
-                                gradient->data_as<T>(), batch_size, num_classes);
+                                predictions.data_as<T>(), targets.data_as<int>(),
+                                gradient.data_as<T>(), batch_size, num_classes);
       }
 #endif
     } else {
       // Use probabilities version
-      if (predictions->device_type() == DeviceType::CPU) {
+      if (predictions.device_type() == DeviceType::CPU) {
         return create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_gradient_probs<T>,
-                               predictions->data_as<T>(), targets->data_as<int>(),
-                               gradient->data_as<T>(), batch_size, num_classes,
+                               predictions.data_as<T>(), targets.data_as<int>(),
+                               gradient.data_as<T>(), batch_size, num_classes,
                                static_cast<T>(epsilon_));
       }
 #ifdef USE_CUDA
-      else if (predictions->device_type() == DeviceType::GPU) {
+      else if (predictions.device_type() == DeviceType::GPU) {
         return create_cuda_task(
             defaultFlowHandle, cuda::loss::compute_crossentropy_gradient_probs<T>,
-            predictions->data_as<T>(), targets->data_as<int>(), gradient->data_as<T>(), batch_size,
+            predictions.data_as<T>(), targets.data_as<int>(), gradient.data_as<T>(), batch_size,
             num_classes, static_cast<T>(epsilon_));
       }
 #endif
@@ -210,44 +208,43 @@ public:
   std::unique_ptr<Loss> clone() const override { return std::make_unique<MSELoss>(); }
 
 private:
-  std::unique_ptr<Task> compute_loss_impl(const ConstTensor &predictions,
-                                          const ConstTensor &targets, float &loss) override {
-    if (predictions->device() != targets->device()) {
+  std::unique_ptr<Task> compute_loss_impl(const Tensor &predictions, const Tensor &targets,
+                                          float &loss) override {
+    if (predictions.device() != targets.device()) {
       throw std::runtime_error("Predictions and targets must be on the same device for MSELoss.");
     }
-    DISPATCH_DTYPE(predictions->data_type(), T,
+    DISPATCH_DTYPE(predictions.data_type(), T,
                    return compute_loss_t<T>(predictions, targets, loss));
   }
 
-  std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &predictions,
-                                              const ConstTensor &targets,
-                                              const Tensor &gradient) override {
-    if (predictions->device() != targets->device() || predictions->device() != gradient->device()) {
+  std::unique_ptr<Task> compute_gradient_impl(const Tensor &predictions, const Tensor &targets,
+                                              Tensor &gradient) override {
+    if (predictions.device() != targets.device() || predictions.device() != gradient.device()) {
       throw std::runtime_error(
           "Predictions, targets, and gradient must be on the same device for MSELoss.");
     }
-    DISPATCH_DTYPE(predictions->data_type(), T,
+    DISPATCH_DTYPE(predictions.data_type(), T,
                    return compute_gradient_t<T>(predictions, targets, gradient));
   }
 
   template <typename T>
-  std::unique_ptr<Task> compute_loss_t(const ConstTensor &predictions, const ConstTensor &targets,
+  std::unique_ptr<Task> compute_loss_t(const Tensor &predictions, const Tensor &targets,
                                        float &loss) {
-    const size_t batch_size = predictions->shape()[0];
+    const size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
-    for (size_t i = 1; i < predictions->dims(); ++i) {
-      output_size *= predictions->shape()[i];
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
     }
 
-    if (predictions->device_type() == DeviceType::CPU) {
+    if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task(defaultFlowHandle, cpu::loss::compute_mse_loss<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                             predictions.data_as<T>(), targets.data_as<T>(), loss, batch_size,
                              output_size);
     }
 #ifdef USE_CUDA
-    else if (predictions->device_type() == DeviceType::GPU) {
+    else if (predictions.device_type() == DeviceType::GPU) {
       return create_cuda_task(defaultFlowHandle, cuda::loss::compute_mse_loss<T>,
-                              predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                              predictions.data_as<T>(), targets.data_as<T>(), loss, batch_size,
                               output_size);
     }
 #endif
@@ -255,25 +252,25 @@ private:
   }
 
   template <typename T>
-  std::unique_ptr<Task> compute_gradient_t(const ConstTensor &predictions,
-                                           const ConstTensor &targets, const Tensor &gradient) {
-    gradient->ensure(predictions->shape());
-    const size_t batch_size = predictions->shape()[0];
+  std::unique_ptr<Task> compute_gradient_t(const Tensor &predictions, const Tensor &targets,
+                                           Tensor &gradient) {
+    gradient = Tensor(predictions.shape(), predictions.data_type(), predictions.device());
+    const size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
-    for (size_t i = 1; i < predictions->dims(); ++i) {
-      output_size *= predictions->shape()[i];
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
     }
 
-    if (predictions->device_type() == DeviceType::CPU) {
+    if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task(defaultFlowHandle, cpu::loss::compute_mse_gradient<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(),
-                             gradient->data_as<T>(), batch_size, output_size);
+                             predictions.data_as<T>(), targets.data_as<T>(), gradient.data_as<T>(),
+                             batch_size, output_size);
     }
 #ifdef USE_CUDA
-    else if (predictions->device_type() == DeviceType::GPU) {
+    else if (predictions.device_type() == DeviceType::GPU) {
       return create_cuda_task(defaultFlowHandle, cuda::loss::compute_mse_gradient<T>,
-                              predictions->data_as<T>(), targets->data_as<T>(),
-                              gradient->data_as<T>(), batch_size, output_size);
+                              predictions.data_as<T>(), targets.data_as<T>(), gradient.data_as<T>(),
+                              batch_size, output_size);
     }
 #endif
     throw std::runtime_error("Unsupported device type for MSELoss.");
@@ -296,44 +293,43 @@ public:
   std::unique_ptr<Loss> clone() const override { return std::make_unique<MAELoss>(); }
 
 private:
-  std::unique_ptr<Task> compute_loss_impl(const ConstTensor &predictions,
-                                          const ConstTensor &targets, float &loss) override {
-    if (predictions->device() != targets->device()) {
+  std::unique_ptr<Task> compute_loss_impl(const Tensor &predictions, const Tensor &targets,
+                                          float &loss) override {
+    if (predictions.device() != targets.device()) {
       throw std::runtime_error("Predictions and targets must be on the same device for MAELoss.");
     }
-    DISPATCH_DTYPE(predictions->data_type(), T,
+    DISPATCH_DTYPE(predictions.data_type(), T,
                    return compute_loss_t<T>(predictions, targets, loss));
   }
 
-  std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &predictions,
-                                              const ConstTensor &targets,
-                                              const Tensor &gradient) override {
-    if (predictions->device() != targets->device() || predictions->device() != gradient->device()) {
+  std::unique_ptr<Task> compute_gradient_impl(const Tensor &predictions, const Tensor &targets,
+                                              Tensor &gradient) override {
+    if (predictions.device() != targets.device() || predictions.device() != gradient.device()) {
       throw std::runtime_error(
           "Predictions, targets, and gradient must be on the same device for MAELoss.");
     }
-    DISPATCH_DTYPE(predictions->data_type(), T,
+    DISPATCH_DTYPE(predictions.data_type(), T,
                    return compute_gradient_t<T>(predictions, targets, gradient));
   }
 
   template <typename T>
-  std::unique_ptr<Task> compute_loss_t(const ConstTensor &predictions, const ConstTensor &targets,
+  std::unique_ptr<Task> compute_loss_t(const Tensor &predictions, const Tensor &targets,
                                        float &loss) {
-    const size_t batch_size = predictions->shape()[0];
+    const size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
-    for (size_t i = 1; i < predictions->dims(); ++i) {
-      output_size *= predictions->shape()[i];
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
     }
 
-    if (predictions->device_type() == DeviceType::CPU) {
+    if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task(defaultFlowHandle, cpu::loss::compute_mae_loss<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                             predictions.data_as<T>(), targets.data_as<T>(), loss, batch_size,
                              output_size);
     }
 #ifdef USE_CUDA
-    else if (predictions->device_type() == DeviceType::GPU) {
+    else if (predictions.device_type() == DeviceType::GPU) {
       return create_cuda_task(defaultFlowHandle, cuda::loss::compute_mae_loss<T>,
-                              predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                              predictions.data_as<T>(), targets.data_as<T>(), loss, batch_size,
                               output_size);
     }
 #endif
@@ -341,25 +337,25 @@ private:
   }
 
   template <typename T>
-  std::unique_ptr<Task> compute_gradient_t(const ConstTensor &predictions,
-                                           const ConstTensor &targets, const Tensor &gradient) {
-    gradient->ensure(predictions->shape());
-    const size_t batch_size = predictions->shape()[0];
+  std::unique_ptr<Task> compute_gradient_t(const Tensor &predictions, const Tensor &targets,
+                                           Tensor &gradient) {
+    gradient = Tensor(predictions.shape(), predictions.data_type(), predictions.device());
+    const size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
-    for (size_t i = 1; i < predictions->dims(); ++i) {
-      output_size *= predictions->shape()[i];
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
     }
 
-    if (predictions->device_type() == DeviceType::CPU) {
+    if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task(defaultFlowHandle, cpu::loss::compute_mae_gradient<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(),
-                             gradient->data_as<T>(), batch_size, output_size);
+                             predictions.data_as<T>(), targets.data_as<T>(), gradient.data_as<T>(),
+                             batch_size, output_size);
     }
 #ifdef USE_CUDA
-    else if (predictions->device_type() == DeviceType::GPU) {
+    else if (predictions.device_type() == DeviceType::GPU) {
       return create_cuda_task(defaultFlowHandle, cuda::loss::compute_mae_gradient<T>,
-                              predictions->data_as<T>(), targets->data_as<T>(),
-                              gradient->data_as<T>(), batch_size, output_size);
+                              predictions.data_as<T>(), targets.data_as<T>(), gradient.data_as<T>(),
+                              batch_size, output_size);
     }
 #endif
     throw std::runtime_error("Unsupported device type for MAELoss.");
@@ -389,44 +385,43 @@ public:
 private:
   double delta_;
 
-  std::unique_ptr<Task> compute_loss_impl(const ConstTensor &predictions,
-                                          const ConstTensor &targets, float &loss) override {
-    if (predictions->device() != targets->device()) {
+  std::unique_ptr<Task> compute_loss_impl(const Tensor &predictions, const Tensor &targets,
+                                          float &loss) override {
+    if (predictions.device() != targets.device()) {
       throw std::runtime_error("Predictions and targets must be on the same device for HuberLoss.");
     }
-    DISPATCH_DTYPE(predictions->data_type(), T,
+    DISPATCH_DTYPE(predictions.data_type(), T,
                    return compute_loss_t<T>(predictions, targets, loss));
   }
 
-  std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &predictions,
-                                              const ConstTensor &targets,
-                                              const Tensor &gradient) override {
-    if (predictions->device() != targets->device() || predictions->device() != gradient->device()) {
+  std::unique_ptr<Task> compute_gradient_impl(const Tensor &predictions, const Tensor &targets,
+                                              Tensor &gradient) override {
+    if (predictions.device() != targets.device() || predictions.device() != gradient.device()) {
       throw std::runtime_error(
           "Predictions, targets, and gradient must be on the same device for HuberLoss.");
     }
-    DISPATCH_DTYPE(predictions->data_type(), T,
+    DISPATCH_DTYPE(predictions.data_type(), T,
                    return compute_gradient_t<T>(predictions, targets, gradient));
   }
 
   template <typename T>
-  std::unique_ptr<Task> compute_loss_t(const ConstTensor &predictions, const ConstTensor &targets,
+  std::unique_ptr<Task> compute_loss_t(const Tensor &predictions, const Tensor &targets,
                                        float &loss) {
-    const size_t batch_size = predictions->shape()[0];
+    const size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
-    for (size_t i = 1; i < predictions->dims(); ++i) {
-      output_size *= predictions->shape()[i];
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
     }
 
-    if (predictions->device_type() == DeviceType::CPU) {
+    if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task(defaultFlowHandle, cpu::loss::compute_huber_loss<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                             predictions.data_as<T>(), targets.data_as<T>(), loss, batch_size,
                              output_size, static_cast<T>(delta_));
     }
 #ifdef USE_CUDA
-    else if (predictions->device_type() == DeviceType::GPU) {
+    else if (predictions.device_type() == DeviceType::GPU) {
       return create_cuda_task(defaultFlowHandle, cuda::loss::compute_huber_loss<T>,
-                              predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                              predictions.data_as<T>(), targets.data_as<T>(), loss, batch_size,
                               output_size, static_cast<T>(delta_));
     }
 #endif
@@ -434,27 +429,25 @@ private:
   }
 
   template <typename T>
-  std::unique_ptr<Task> compute_gradient_t(const ConstTensor &predictions,
-                                           const ConstTensor &targets, const Tensor &gradient) {
-    gradient->ensure(predictions->shape());
-    const size_t batch_size = predictions->shape()[0];
+  std::unique_ptr<Task> compute_gradient_t(const Tensor &predictions, const Tensor &targets,
+                                           Tensor &gradient) {
+    gradient = Tensor(predictions.shape(), predictions.data_type(), predictions.device());
+    const size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
-    for (size_t i = 1; i < predictions->dims(); ++i) {
-      output_size *= predictions->shape()[i];
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
     }
 
-    if (predictions->device_type() == DeviceType::CPU) {
+    if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task(defaultFlowHandle, cpu::loss::compute_huber_gradient<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(),
-                             gradient->data_as<T>(), batch_size, output_size,
-                             static_cast<T>(delta_));
+                             predictions.data_as<T>(), targets.data_as<T>(), gradient.data_as<T>(),
+                             batch_size, output_size, static_cast<T>(delta_));
     }
 #ifdef USE_CUDA
-    else if (predictions->device_type() == DeviceType::GPU) {
+    else if (predictions.device_type() == DeviceType::GPU) {
       return create_cuda_task(defaultFlowHandle, cuda::loss::compute_huber_gradient<T>,
-                              predictions->data_as<T>(), targets->data_as<T>(),
-                              gradient->data_as<T>(), batch_size, output_size,
-                              static_cast<T>(delta_));
+                              predictions.data_as<T>(), targets.data_as<T>(), gradient.data_as<T>(),
+                              batch_size, output_size, static_cast<T>(delta_));
     }
 #endif
     throw std::runtime_error("Unsupported device type for HuberLoss.");

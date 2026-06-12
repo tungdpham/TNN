@@ -21,7 +21,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {
@@ -36,7 +36,7 @@ private:
   void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
 
-    const auto shape = data->shape();
+    const auto shape = data.shape();
     if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
@@ -65,18 +65,18 @@ private:
   }
 
   template <typename T>
-  void apply_crop(const Tensor &data, size_t batch_idx, size_t height, size_t width,
-                  size_t channels, int start_x, int start_y) {
+  void apply_crop(Tensor &data, size_t batch_idx, size_t height, size_t width, size_t channels,
+                  int start_x, int start_y) {
     const size_t padded_size = width + 2 * padding_;
-    Tensor padded = make_tensor<T>({1, padded_size, padded_size, channels});
+    Tensor padded(Vec<size_t>{1, padded_size, padded_size, channels}, dtype_of<T>());
 
-    padded->fill(0.0);
+    padded.fill(0.0);
 
     // Copy original image to center of padded image
     for (size_t h = 0; h < height; ++h) {
       for (size_t w = 0; w < width; ++w) {
         for (size_t c = 0; c < channels; ++c) {
-          padded->at<T>({0, h + padding_, w + padding_, c}) = data->at<T>({batch_idx, h, w, c});
+          padded.at<T>({0, h + padding_, w + padding_, c}) = data.at<T>({batch_idx, h, w, c});
         }
       }
     }
@@ -85,7 +85,7 @@ private:
     for (size_t h = 0; h < height; ++h) {
       for (size_t w = 0; w < width; ++w) {
         for (size_t c = 0; c < channels; ++c) {
-          data->at<T>({batch_idx, h, w, c}) = padded->at<T>({0, start_y + h, start_x + w, c});
+          data.at<T>({batch_idx, h, w, c}) = padded.at<T>({0, start_y + h, start_x + w, c});
         }
       }
     }

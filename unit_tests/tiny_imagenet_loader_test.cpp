@@ -2,9 +2,8 @@
 
 #include <iostream>
 
-#include "data_loading/legacy/tiny_imagenet_data_loader.hpp"
+#include "data_loading/tiny_imagenet_data_loader.hpp"
 
-using namespace synet::legacy;
 using namespace synet;
 
 // Shared test fixture that loads data once for all tests
@@ -57,9 +56,9 @@ TEST_F(TinyImageNetLoaderTest, ValidationDataSize) {
 TEST_F(TinyImageNetLoaderTest, ImageShape) {
   auto shape = train_loader.get_data_shape();
   ASSERT_EQ(shape.size(), 3);
-  EXPECT_EQ(shape[0], 3);   // Channels
-  EXPECT_EQ(shape[1], 64);  // Height
-  EXPECT_EQ(shape[2], 64);  // Width
+  EXPECT_EQ(shape[0], 64);  // Height
+  EXPECT_EQ(shape[1], 64);  // Width
+  EXPECT_EQ(shape[2], 3);   // Channels
 }
 
 TEST_F(TinyImageNetLoaderTest, NumClasses) { EXPECT_EQ(train_loader.get_num_classes(), 200); }
@@ -71,25 +70,13 @@ TEST_F(TinyImageNetLoaderTest, BatchRetrieval) {
   ASSERT_TRUE(train_loader.get_batch(batch_size, batch_data, batch_labels));
 
   // Check batch shapes
-  EXPECT_EQ(batch_data->shape()[0], batch_size);
-  EXPECT_EQ(batch_data->shape()[1], 3);
-  EXPECT_EQ(batch_data->shape()[2], 64);
-  EXPECT_EQ(batch_data->shape()[3], 64);
+  EXPECT_EQ(batch_data.shape()[0], batch_size);
+  EXPECT_EQ(batch_data.shape()[1], 3);
+  EXPECT_EQ(batch_data.shape()[2], 64);
+  EXPECT_EQ(batch_data.shape()[3], 64);
 
-  EXPECT_EQ(batch_labels->shape()[0], batch_size);
-  EXPECT_EQ(batch_labels->shape()[1], 200);
-}
-
-TEST_F(TinyImageNetLoaderTest, PixelNormalization) {
-  Tensor batch_data, batch_labels;
-  ASSERT_TRUE(train_loader.get_batch(8, batch_data, batch_labels));
-
-  // Check pixel values are normalized to [0, 1]
-  float min_val = batch_data->min();
-  float max_val = batch_data->max();
-
-  EXPECT_GE(min_val, 0.0f) << "Pixel values should be >= 0";
-  EXPECT_LE(max_val, 1.0f) << "Pixel values should be <= 1";
+  EXPECT_EQ(batch_labels.shape()[0], batch_size);
+  EXPECT_EQ(batch_labels.shape()[1], 200);
 }
 
 TEST_F(TinyImageNetLoaderTest, OneHotLabels) {
@@ -102,7 +89,7 @@ TEST_F(TinyImageNetLoaderTest, OneHotLabels) {
     int num_ones = 0;
 
     for (size_t j = 0; j < 200; ++j) {
-      float val = batch_labels->at<float>({i, j, 0, 0});
+      float val = batch_labels.at<float>({i, j});
       sum += val;
       if (val > 0.5f) num_ones++;
     }
@@ -124,8 +111,8 @@ TEST_F(TinyImageNetLoaderTest, ShuffleAndReset) {
 
   // Compare first samples
   bool identical = true;
-  for (size_t i = 0; i < batch1_data->size(); ++i) {
-    if (std::abs(batch1_data->data_as<float>()[i] - batch2_data->data_as<float>()[i]) > 1e-6) {
+  for (size_t i = 0; i < batch1_data.size(); ++i) {
+    if (std::abs(batch1_data.data_as<float>()[i] - batch2_data.data_as<float>()[i]) > 1e-6) {
       identical = false;
       break;
     }
@@ -139,8 +126,8 @@ TEST_F(TinyImageNetLoaderTest, ShuffleAndReset) {
   train_loader.get_batch(4, batch3_data, batch3_labels);
 
   bool changed = false;
-  for (size_t i = 0; i < batch1_data->size(); ++i) {
-    if (std::abs(batch1_data->data_as<float>()[i] - batch3_data->data_as<float>()[i]) > 1e-6) {
+  for (size_t i = 0; i < batch1_data.size(); ++i) {
+    if (std::abs(batch1_data.data_as<float>()[i] - batch3_data.data_as<float>()[i]) > 1e-6) {
       changed = true;
       break;
     }

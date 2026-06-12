@@ -59,16 +59,13 @@ public:
       dptr param_buffer = param_slab_.span(param_offset, bytes_size);
       dptr grad_buffer = grad_slab_.span(grad_offset, bytes_size);
 
-      Tensor param =
-          make_tensor(allocator_, param_desc.dtype, param_desc.shape, std::move(param_buffer));
-      Tensor grad =
-          make_tensor(allocator_, param_desc.dtype, param_desc.shape, std::move(grad_buffer));
+      *param_desc.data_ptr =
+          Tensor(param_desc.shape, std::move(param_buffer), param_desc.dtype, allocator_);
+      *param_desc.grad_ptr =
+          Tensor(param_desc.shape, std::move(grad_buffer), param_desc.dtype, allocator_);
 
-      *param_desc.data_ptr = param;
-      *param_desc.grad_ptr = grad;
-
-      params_.push_back(param);
-      grads_.push_back(grad);
+      params_.push_back(param_desc.data_ptr);
+      grads_.push_back(param_desc.grad_ptr);
 
       param_offset += bytes_size;
       grad_offset += bytes_size;
@@ -85,14 +82,14 @@ private:
   friend class Graph;
   GraphContextDescriptor ctx_desc_;
   IAllocator &allocator_;
-  Vec<Tensor> params_, grads_;
+  Vec<Tensor *> params_, grads_;
   dptr param_slab_, grad_slab_;
 
-  Vec<Tensor> &parameters() { return params_; }
-  Vec<Tensor> &gradients() { return grads_; }
+  Vec<Tensor *> &parameters() { return params_; }
+  Vec<Tensor *> &gradients() { return grads_; }
 
-  const Vec<Tensor> &parameters() const { return params_; }
-  const Vec<Tensor> &gradients() const { return grads_; }
+  const Vec<Tensor *> &parameters() const { return params_; }
+  const Vec<Tensor *> &gradients() const { return grads_; }
 
   void zero_grads() { ops::set_scalar<uchar>(grad_slab_, 0, grad_slab_.capacity()); }
 };

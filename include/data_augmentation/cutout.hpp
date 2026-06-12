@@ -21,7 +21,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {
@@ -36,7 +36,7 @@ private:
   void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
 
-    const auto shape = data->shape();
+    const auto shape = data.shape();
     if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
@@ -64,7 +64,7 @@ private:
         for (size_t h = y; h < y + cutout_size_ && h < height; ++h) {
           for (size_t w = x; w < x + cutout_size_ && w < width; ++w) {
             for (size_t c = 0; c < channels; ++c) {
-              data->at<T>({b, h, w, c}) = static_cast<T>(0);
+              data.at<T>({b, h, w, c}) = static_cast<T>(0);
             }
           }
         }
