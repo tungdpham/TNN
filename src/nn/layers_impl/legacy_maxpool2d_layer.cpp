@@ -13,7 +13,7 @@
 #include "nn/layers_impl/cpu/maxpool_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/maxpool_nchw_ops.hpp"
 
-namespace tnn {
+namespace synet {
 
 LegacyMaxPool2DLayerImpl::LegacyMaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
                                                    size_t stride_w, size_t pad_h, size_t pad_w,
@@ -229,4 +229,4 @@ std::shared_ptr<LegacyMaxPool2DLayerImpl> LegacyMaxPool2DLayerImpl::create_from_
                                                     pad_w, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

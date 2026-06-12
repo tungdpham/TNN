@@ -10,7 +10,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace sdpa {
 // Scaled Dot-Product Attention forward pass (CUDA)
@@ -31,4 +31,4 @@ void run_backward(const T *q, const T *k, const T *v, const T *attn_weights, con
                   float attn_scale, bool is_causal, cudaStream_t stream);
 }  // namespace sdpa
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

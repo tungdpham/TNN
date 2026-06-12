@@ -12,7 +12,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace sdpa {
 template <typename T>
@@ -228,4 +228,4 @@ void run_backward(const T *q, const T *k, const T *v, const T *attn_weights, con
 
 }  // namespace sdpa
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

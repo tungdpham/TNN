@@ -7,7 +7,7 @@
 #pragma once
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 
 template <typename T>
@@ -18,4 +18,4 @@ void softmax_backward(const T *output, const T *grad_output, T *grad_input, size
                       size_t cols);
 
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

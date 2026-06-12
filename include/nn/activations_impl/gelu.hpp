@@ -8,7 +8,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 class GELU : public ActivationFunction {
 public:
   std::unique_ptr<Task> apply(const ConstTensor &input, const Tensor &output) const override;
@@ -28,4 +28,4 @@ private:
                                               const ConstTensor &grad_output,
                                               const Tensor &grad_input, flowHandle_t handle) const;
 };
-}  // namespace tnn
+}  // namespace synet

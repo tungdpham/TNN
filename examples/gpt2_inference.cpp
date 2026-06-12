@@ -11,7 +11,7 @@
 #include "tokenizer/tokenizer.hpp"
 #include "utils/env.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 int main(int argc, char **argv) {

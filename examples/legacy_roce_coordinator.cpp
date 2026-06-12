@@ -13,8 +13,8 @@
 #include "partitioner/graph_partitioner.hpp"
 #include "utils/env.hpp"
 
-using namespace tnn;
-using namespace tnn::legacy;
+using namespace synet;
+using namespace synet::legacy;
 using namespace std;
 
 struct Config {

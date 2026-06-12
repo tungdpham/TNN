@@ -9,7 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace relu {
 
@@ -23,4 +23,4 @@ void relu_backward_with_mask(const T *grad_output_data, T *grad_input_data,
 
 }  // namespace relu
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

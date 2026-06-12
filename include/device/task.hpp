@@ -19,7 +19,7 @@
 #include <cuda_runtime.h>
 #endif
 
-namespace tnn {
+namespace synet {
 
 using ErrorStatus = std::error_code;
 
@@ -73,9 +73,9 @@ public:
 
 #ifdef USE_CUDA
 
-inline tnn::ErrorStatus cuda_error_to_status(cudaError_t err) {
+inline synet::ErrorStatus cuda_error_to_status(cudaError_t err) {
   if (err == cudaSuccess) {
-    return tnn::ErrorStatus{};
+    return synet::ErrorStatus{};
   }
   std::cerr << "CUDA Error: " << cudaGetErrorString(err) << std::endl;
   return std::make_error_code(std::errc::resource_unavailable_try_again);
@@ -156,4 +156,4 @@ inline void task_sync_all(const std::initializer_list<Task *> &tasks) {
   }
 }
 
-}  // namespace tnn
+}  // namespace synet

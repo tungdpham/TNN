@@ -7,7 +7,7 @@
 
 #include "distributed/endpoint.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 struct Config {

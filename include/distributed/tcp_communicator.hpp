@@ -40,7 +40,7 @@
 #include "packet.hpp"
 #include "profiling/event.hpp"
 
-namespace tnn {
+namespace synet {
 
 struct IdentityMessage {
   int32_t listening_port;
@@ -470,4 +470,4 @@ private:
     }
   }
 };
-}  // namespace tnn
+}  // namespace synet

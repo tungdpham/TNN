@@ -24,7 +24,7 @@
 #include "nn/layers_impl/cpu/dnnl_batchnorm_ops.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
 class BatchNormLayerImpl : public SISOLayerImpl {
 private:
@@ -156,4 +156,4 @@ public:
   using LayerRef<BatchNormLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

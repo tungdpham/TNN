@@ -13,7 +13,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 template <typename T>
 T TConfig::get(const std::string &key, const T &default_value) const {
@@ -252,4 +252,4 @@ TConfig TConfig::from_json(const nlohmann::json &j) {
   return config;
 }
 
-}  // namespace tnn
+}  // namespace synet

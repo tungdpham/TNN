@@ -11,7 +11,7 @@
 #include "nn/blocks_impl/cuda/permute_heads.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
 TransposeLayerImpl::TransposeLayerImpl(const std::string &name)
     : SISOLayerImpl(name) {}
@@ -94,4 +94,4 @@ std::shared_ptr<TransposeLayerImpl> TransposeLayerImpl::create_from_config(
   return std::make_shared<TransposeLayerImpl>(config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

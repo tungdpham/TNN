@@ -5,7 +5,7 @@
 #include "common/endian.hpp"
 #include "device/dptr.hpp"
 
-namespace tnn {
+namespace synet {
 
 enum class CompressionType : uint8_t { NONE = 0, ZSTD = 1, QUANTIZATION = 2 };
 
@@ -68,4 +68,4 @@ void archive(Archiver &archiver, const Packet &packet) {
 
 // for deserialization, dptr is dynamically allocated so we can't know where to allocate.
 
-}  // namespace tnn
+}  // namespace synet

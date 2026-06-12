@@ -12,7 +12,7 @@
 #include "device.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 class DeviceManager {
 public:
   static DeviceManager &getInstance();
@@ -82,4 +82,4 @@ void initializeDefaultDevices();
 const Device &getGPU(size_t gpu_index = 0);
 const Device &getHost();
 
-}  // namespace tnn
+}  // namespace synet

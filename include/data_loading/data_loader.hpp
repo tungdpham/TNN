@@ -15,7 +15,7 @@
 #include "data_augmentation/augmentation.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * Abstract base class for all data loaders
@@ -117,4 +117,4 @@ protected:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

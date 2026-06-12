@@ -14,7 +14,7 @@
 #include "nn/activations_impl/cuda/relu_kernels.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 ReLU::ReLU() {}
 
 std::unique_ptr<Task> ReLU::apply(const ConstTensor &input, const Tensor &output) const {
@@ -99,4 +99,4 @@ std::unique_ptr<Task> ReLU::compute_gradient_impl(const ConstTensor &input,
   return nullptr;
 }
 
-}  // namespace tnn
+}  // namespace synet

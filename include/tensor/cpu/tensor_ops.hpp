@@ -12,7 +12,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 /**
  * CPU tensor operations that work with raw pointers and dimensions.
@@ -456,4 +456,4 @@ void cpu_split(const T *input_data, Vec<T *> &results, size_t batch_size, size_t
 }
 
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

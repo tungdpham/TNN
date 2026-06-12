@@ -21,7 +21,7 @@
 #include "nn/blocks_impl/cuda/cudnn_flash_attention_ops.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
 namespace {
 
@@ -391,4 +391,4 @@ std::shared_ptr<SDPALayerImpl> SDPALayerImpl::create_from_config(const LayerConf
   return std::make_shared<SDPALayerImpl>(attn_scale, is_causal, name);
 }
 
-}  // namespace tnn
+}  // namespace synet

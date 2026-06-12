@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace tnn {
+namespace synet {
 
 class Tokenizer {
 public:
@@ -67,4 +67,4 @@ private:
   Vec<std::string> vocab_;
 };
 
-}  // namespace tnn
+}  // namespace synet

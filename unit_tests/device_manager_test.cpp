@@ -7,7 +7,7 @@
 
 #include "device/device.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 class DeviceManagerTest : public ::testing::Test {
 protected:

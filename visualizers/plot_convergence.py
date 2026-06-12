@@ -1,5 +1,5 @@
 """
-Plot convergence curves comparing TNN vs PyTorch training runs.
+Plot convergence curves comparing SYNET vs PyTorch training runs.
 
 Usage:
     python visualizers/plot_convergence.py --experiment cifar10_resnet9
@@ -8,7 +8,7 @@ Usage:
     python visualizers/plot_convergence.py --experiment cifar10_resnet9 --log-dir logs --out output_images/convergence_cifar10.png
 
 The script searches logs/ for the most recent epoch CSV matching each run:
-  TNN:     {experiment}_epoch_{timestamp}.csv
+  SYNET:     {experiment}_epoch_{timestamp}.csv
   PyTorch: torch_{experiment}_epoch_{timestamp}.csv
 """
 
@@ -63,7 +63,7 @@ def read_epoch_csv(path: str) -> dict[str, list]:
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot TNN vs PyTorch convergence curves.")
+    parser = argparse.ArgumentParser(description="Plot SYNET vs PyTorch convergence curves.")
     parser.add_argument(
         "--experiment", "-e",
         required=True,
@@ -79,8 +79,8 @@ def main():
         help="Output image path. Defaults to output_images/convergence_{experiment}.png",
     )
     parser.add_argument(
-        "--tnn-label", default="TNN",
-        help="Legend label for the TNN run (default: TNN).",
+        "--synet-label", default="SYNET",
+        help="Legend label for the SYNET run (default: SYNET).",
     )
     parser.add_argument(
         "--torch-label", default="PyTorch",
@@ -95,18 +95,18 @@ def main():
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
 
     # ---- Find epoch CSVs ----
-    tnn_path   = find_latest_csv(log_dir, f"{experiment}_epoch_*.csv")
+    synet_path   = find_latest_csv(log_dir, f"{experiment}_epoch_*.csv")
     torch_path = find_latest_csv(log_dir, f"torch_{experiment}_epoch_*.csv")
 
-    if tnn_path is None and torch_path is None:
+    if synet_path is None and torch_path is None:
         print(f"ERROR: No epoch CSV files found for experiment '{experiment}' in '{log_dir}'.")
         sys.exit(1)
 
     print(f"Experiment : {experiment}")
-    print(f"TNN log    : {tnn_path   or '(none found)'}")
+    print(f"SYNET log    : {synet_path   or '(none found)'}")
     print(f"PyTorch log: {torch_path or '(none found)'}")
 
-    tnn_data   = read_epoch_csv(tnn_path)   if tnn_path   else None
+    synet_data   = read_epoch_csv(synet_path)   if synet_path   else None
     torch_data = read_epoch_csv(torch_path) if torch_path else None
 
     # ---- Plot ----
@@ -119,7 +119,7 @@ def main():
     ax_train_acc  = fig.add_subplot(gs[1, 0])
     ax_val_acc    = fig.add_subplot(gs[1, 1])
 
-    COLOR_TNN   = "#1f77b4"   # matplotlib blue
+    COLOR_SYNET   = "#1f77b4"   # matplotlib blue
     COLOR_TORCH = "#ff7f0e"   # matplotlib orange
 
     def _plot(ax, data, col, color, label, linestyle="-"):
@@ -132,8 +132,8 @@ def main():
         (ax_train_acc,  "train_accuracy_pct",  "Training Accuracy",      "Accuracy (%)"),
         (ax_val_acc,    "val_accuracy_pct",    "Validation Accuracy",    "Accuracy (%)"),
     ]:
-        if tnn_data is not None:
-            _plot(ax, tnn_data, col, COLOR_TNN, args.tnn_label)
+        if synet_data is not None:
+            _plot(ax, synet_data, col, COLOR_SYNET, args.synet_label)
         if torch_data is not None:
             _plot(ax, torch_data, col, COLOR_TORCH, args.torch_label, linestyle="--")
 

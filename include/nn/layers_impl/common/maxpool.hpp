@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 
 struct MaxPoolStats {
   size_t batch_size = 0;
@@ -57,4 +57,4 @@ inline void round_workspace_size(MaxPoolStats &stats, size_t alignment = 16) {
   // Note: pool_workspace_size is an opaque DNNL buffer; do not round-up here.
 }
 
-}  // namespace tnn
+}  // namespace synet

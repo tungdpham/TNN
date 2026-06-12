@@ -15,7 +15,7 @@
 #include "nn/layers_impl/cuda/groupnorm_ops.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 GroupNormLayerImpl::GroupNormLayerImpl(size_t num_groups, size_t num_channels, float epsilon,
                                        bool affine, const std::string &name)
@@ -193,4 +193,4 @@ std::shared_ptr<GroupNormLayerImpl> GroupNormLayerImpl::create_from_config(
                                               config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

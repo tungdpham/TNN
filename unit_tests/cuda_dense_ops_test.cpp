@@ -14,7 +14,7 @@
 #include "nn/layers_impl/cpu/dense_ops.hpp"
 #include "nn/layers_impl/cuda/dense_ops.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 #ifdef USE_CUDA
 

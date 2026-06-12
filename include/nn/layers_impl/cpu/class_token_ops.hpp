@@ -1,7 +1,7 @@
 #pragma once
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace class_token {
 template <typename T>
@@ -13,4 +13,4 @@ void run_backward(const T *grad_output, T *grad_input, T *grad_token, size_t bat
                   size_t seq_len, size_t embed_dim);
 }  // namespace class_token
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

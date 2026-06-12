@@ -1,9 +1,9 @@
 #pragma once
 
-namespace tnn {
+namespace synet {
 
 /**
- * @brief Error codes for TNN library
+ * @brief Error codes for SYNET library
  */
 enum class ec {
   SUCCESS = 0,
@@ -24,4 +24,4 @@ enum class ec {
 
 };
 
-}  // namespace tnn
+}  // namespace synet

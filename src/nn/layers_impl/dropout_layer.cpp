@@ -16,7 +16,7 @@
 #include "nn/layers_impl/cuda/dropout_ops.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
 DropoutLayerImpl::DropoutLayerImpl(float dropout_rate, const std::string &name)
     : SISOLayerImpl(name),
@@ -141,4 +141,4 @@ std::shared_ptr<DropoutLayerImpl> DropoutLayerImpl::create_from_config(const Lay
   return std::make_shared<DropoutLayerImpl>(dropout_rate, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

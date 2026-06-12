@@ -12,7 +12,7 @@
 #include "nn/layers_impl/cpu/slice_ops.hpp"
 #include "nn/layers_impl/cuda/slice_ops.hpp"
 
-namespace tnn {
+namespace synet {
 
 SliceLayerImpl::SliceLayerImpl(size_t axis, size_t start, size_t length, const std::string &name)
     : SISOLayerImpl(name),
@@ -140,4 +140,4 @@ std::shared_ptr<SliceLayerImpl> SliceLayerImpl::create_from_config(const LayerCo
   return std::make_shared<SliceLayerImpl>(axis, start, length, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

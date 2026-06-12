@@ -20,7 +20,7 @@
  * type to ensure compatibility across different platforms. Here, we use uint64_t for sizes
  * and counts, which is 8 bytes on all platforms.
  */
-namespace tnn {
+namespace synet {
 
 class BinarySerializer {
 private:
@@ -158,4 +158,4 @@ public:
 
 };  // namespace BinarySerializer
 
-}  // namespace tnn
+}  // namespace synet

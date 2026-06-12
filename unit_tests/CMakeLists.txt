@@ -32,6 +32,6 @@ set(TEST_FILES
 
 foreach(test_file IN LISTS TEST_FILES)
     get_filename_component(test_name ${test_file} NAME_WE)
-    create_executable(${test_file} LIBS tnn_lib gtest_main gtest gmock)
+    create_executable(${test_file} LIBS synet_lib gtest_main gtest gmock)
     gtest_discover_tests(${test_name} DISCOVERY_MODE PRE_TEST)
 endforeach()

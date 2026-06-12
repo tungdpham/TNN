@@ -16,7 +16,7 @@
 #include "tcp_communicator.hpp"
 #include "worker.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * @brief TCP-based pipeline stage worker
@@ -48,4 +48,4 @@ public:
 
   ~TCPWorker() {}
 };
-}  // namespace tnn
+}  // namespace synet

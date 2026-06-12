@@ -24,7 +24,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 DenseLayerImpl::DenseLayerImpl(size_t input_features, size_t output_features, bool use_bias,
                                const std::string &name)
@@ -357,4 +357,4 @@ std::shared_ptr<DenseLayerImpl> DenseLayerImpl::create_from_config(const LayerCo
   return std::make_shared<DenseLayerImpl>(input_features, output_features, use_bias, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

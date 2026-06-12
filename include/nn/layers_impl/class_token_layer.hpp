@@ -12,7 +12,7 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 class ClassTokenLayerImpl : public SISOLayerImpl {
 private:
@@ -69,4 +69,4 @@ public:
   using LayerRef<ClassTokenLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

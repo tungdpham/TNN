@@ -10,7 +10,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 PositionalEmbeddingLayerImpl::PositionalEmbeddingLayerImpl(size_t embed_dim, size_t seq_len,
                                                            const std::string &name)
@@ -212,4 +212,4 @@ std::shared_ptr<PositionalEmbeddingLayerImpl> PositionalEmbeddingLayerImpl::crea
   return std::make_shared<PositionalEmbeddingLayerImpl>(embed_dim, seq_len, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

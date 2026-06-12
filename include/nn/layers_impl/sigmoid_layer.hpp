@@ -13,7 +13,7 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * Sigmoid LayerImpl with output caching
@@ -50,4 +50,4 @@ public:
   using LayerRef<SigmoidLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

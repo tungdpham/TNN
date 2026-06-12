@@ -19,7 +19,7 @@
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 class MSequentialImpl : public Block {
 private:
@@ -108,4 +108,4 @@ public:
   using LayerRef<MSequentialImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

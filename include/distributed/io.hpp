@@ -15,7 +15,7 @@
 #include "device/flow.hpp"
 #include "ops/ops.hpp"
 
-namespace tnn {
+namespace synet {
 class Sizer : public IArchiver<Sizer> {
 private:
   size_t size_ = 0;
@@ -89,4 +89,4 @@ public:
   size_t bytes_read() const { return offset_; }
 };
 
-}  // namespace tnn
+}  // namespace synet

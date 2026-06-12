@@ -2,8 +2,8 @@
 
 #include "cuda/helpers.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 void synchronize() { cudaDeviceSynchronize(); }
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

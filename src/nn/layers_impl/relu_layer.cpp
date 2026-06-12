@@ -15,7 +15,7 @@
 #include "nn/layers_impl/cuda/relu_ops.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
 ReLULayerImpl::ReLULayerImpl(const std::string &name)
     : SISOLayerImpl(name),
@@ -100,4 +100,4 @@ std::shared_ptr<ReLULayerImpl> ReLULayerImpl::create_from_config(const LayerConf
   return std::make_shared<ReLULayerImpl>(config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

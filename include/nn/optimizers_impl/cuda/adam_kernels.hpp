@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace adam {
 
@@ -24,6 +24,6 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
 
 }  // namespace adam
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

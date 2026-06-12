@@ -3,7 +3,7 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-namespace tnn {
+namespace synet {
 
 Logger::Logger(const std::string &name, const std::string &log_file, LogLevel level)
     : logger_name_(name) {
@@ -47,4 +47,4 @@ void Logger::enable_console_logging(bool enable) {
   }
 }
 
-}  // namespace tnn
+}  // namespace synet

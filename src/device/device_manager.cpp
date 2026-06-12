@@ -12,7 +12,7 @@
 #include "device/cuda/cuda_context.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 DeviceManager DeviceManager::instance_;
 
 DeviceManager &DeviceManager::getInstance() { return instance_; }
@@ -151,4 +151,4 @@ const Device &getHost() {
   throw std::runtime_error("CPU device not found");
 }
 
-}  // namespace tnn
+}  // namespace synet

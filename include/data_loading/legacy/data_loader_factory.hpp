@@ -2,7 +2,7 @@
 
 #include "data_loading/data_loader.hpp"
 
-namespace tnn {
+namespace synet {
 namespace legacy {
 
 /**
@@ -34,4 +34,4 @@ public:
   }
 };
 }  // namespace legacy
-}  // namespace tnn
+}  // namespace synet

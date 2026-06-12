@@ -19,7 +19,7 @@
 #include <cstddef>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 MaxPool2DLayerImpl::MaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
                                        size_t stride_w, size_t pad_h, size_t pad_w,
@@ -304,4 +304,4 @@ Tensor MaxPool2DLayerImpl::dnnl_backward(const ConstTensor &grad_output, size_t 
 }
 #endif  // USE_DNNL
 
-}  // namespace tnn
+}  // namespace synet

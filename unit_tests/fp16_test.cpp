@@ -8,7 +8,7 @@
 #include "type/type.hpp"
 
 using namespace std;
-using namespace tnn;
+using namespace synet;
 
 class FP16Test : public ::testing::Test {
 protected:

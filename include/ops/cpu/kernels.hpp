@@ -10,7 +10,7 @@
 #include "dkernels.hpp"
 #include "skernels.hpp"
 
-namespace tnn {
+namespace synet {
 namespace ops {
 namespace cpu {
 
@@ -491,4 +491,4 @@ void bswap(const T *a, T *c, size_t size) {
 
 }  // namespace cpu
 }  // namespace ops
-}  // namespace tnn
+}  // namespace synet

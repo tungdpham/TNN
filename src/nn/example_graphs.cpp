@@ -29,7 +29,7 @@
 #include "nn/node_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 namespace {
 
@@ -666,4 +666,4 @@ void ExampleGraphs::register_defaults() {
   });
 }
 
-}  // namespace tnn
+}  // namespace synet

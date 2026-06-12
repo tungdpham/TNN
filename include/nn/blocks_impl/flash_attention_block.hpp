@@ -19,7 +19,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace tnn {
+namespace synet {
 
 class FlashAttentionBlockImpl : public Block {
 private:
@@ -102,4 +102,4 @@ public:
   using LayerRef<FlashAttentionBlockImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

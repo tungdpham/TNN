@@ -24,7 +24,7 @@
 #include "ops/cuda/kernels.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
 LayerNormLayerImpl::LayerNormLayerImpl(size_t normalized_shape, float epsilon, bool affine,
                                        const std::string &name)
@@ -370,4 +370,4 @@ std::shared_ptr<LayerNormLayerImpl> LayerNormLayerImpl::create_from_config(
   return std::make_shared<LayerNormLayerImpl>(normalized_shape, epsilon, affine, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

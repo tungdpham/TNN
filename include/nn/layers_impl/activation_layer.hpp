@@ -12,7 +12,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "nn/siso_layer.hpp"
 
-namespace tnn {
+namespace synet {
 
 class ActivationLayerImpl : public SISOLayerImpl {
 private:
@@ -42,4 +42,4 @@ public:
   using LayerRef<ActivationLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

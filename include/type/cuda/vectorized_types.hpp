@@ -8,7 +8,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 template <typename T>
 struct VectoredTraits;
@@ -273,6 +273,6 @@ struct Axpy {
 };
 
 }  // namespace functors
-}  // namespace tnn
+}  // namespace synet
 
 #endif

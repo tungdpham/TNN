@@ -13,7 +13,7 @@
 #include "device/task.hpp"
 #include "nn/siso_layer.hpp"
 
-namespace tnn {
+namespace synet {
 
 class LegacyMaxPool2DLayerImpl : public SISOLayerImpl {
 private:
@@ -80,4 +80,4 @@ public:
   using LayerRef<LegacyMaxPool2DLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

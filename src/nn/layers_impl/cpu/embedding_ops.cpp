@@ -11,7 +11,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace embedding {
 
@@ -66,4 +66,4 @@ void run_backward(const T *input_data, const T *gradient_data, T *weight_grad_da
 
 }  // namespace embedding
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

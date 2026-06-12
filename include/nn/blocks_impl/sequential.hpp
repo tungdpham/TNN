@@ -19,7 +19,7 @@
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 class SequentialImpl : public Block {
 private:
   Vec<Layer> layers_;
@@ -82,4 +82,4 @@ public:
   using LayerRef<SequentialImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

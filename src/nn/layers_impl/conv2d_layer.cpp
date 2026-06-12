@@ -31,7 +31,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 Conv2DLayerImpl::Conv2DLayerImpl(size_t in_channels, size_t out_channels, size_t kernel_h,
                                  size_t kernel_w, size_t stride_h, size_t stride_w, size_t pad_h,
@@ -494,4 +494,4 @@ std::shared_ptr<Conv2DLayerImpl> Conv2DLayerImpl::create_from_config(const Layer
                                            stride_w, pad_h, pad_w, use_bias, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

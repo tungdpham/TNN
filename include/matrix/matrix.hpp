@@ -21,7 +21,7 @@
 #include <malloc.h>
 #endif
 
-namespace tnn {
+namespace synet {
 template <typename T = float>
 struct Matrix {
 private:
@@ -228,4 +228,4 @@ public:
                             static_cast<unsigned long long>(std::random_device{}()));
   }
 };
-}  // namespace tnn
+}  // namespace synet

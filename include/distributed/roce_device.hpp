@@ -9,7 +9,7 @@
 constexpr int ROCE_SQ_DEPTH = 32;
 constexpr int ROCE_RQ_DEPTH = 32;
 
-namespace tnn {
+namespace synet {
 class RoCEDevice {
 public:
   RoCEDevice(const std::string &device_name, int ib_port, int gid_index_override = -1)
@@ -151,4 +151,4 @@ private:
   ibv_context *context_ = nullptr;
   ibv_pd *pd_ = nullptr;
 };
-}  // namespace tnn
+}  // namespace synet

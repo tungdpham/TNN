@@ -2,7 +2,7 @@
 
 #include "nn/layer.hpp"
 
-namespace tnn {
+namespace synet {
 class Block : public LayerImpl {
 public:
   Block(const std::string &name = "block")
@@ -77,4 +77,4 @@ protected:
 
   virtual Vec<LayerImpl *> layers() = 0;
 };
-}  // namespace tnn
+}  // namespace synet

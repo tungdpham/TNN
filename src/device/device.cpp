@@ -4,7 +4,7 @@
 #include "device/context.hpp"
 #include "device/flow.hpp"
 
-namespace tnn {
+namespace synet {
 Device::Device(DeviceType type, int id, std::unique_ptr<Context> context)
     : type_(type),
       id_(id),
@@ -77,4 +77,4 @@ void Device::createFlow(flowHandle_t handle) const { context_->createFlow(handle
 
 Flow *Device::getFlow(flowHandle_t handle) const { return context_->getFlow(handle); }
 
-}  // namespace tnn
+}  // namespace synet

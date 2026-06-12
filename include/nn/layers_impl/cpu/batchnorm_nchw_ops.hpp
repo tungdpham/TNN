@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace batchnorm_nchw {
 template <typename T>
@@ -24,4 +24,4 @@ void run_backward(const T *grad_output, const float *norm_input, const float *in
 
 }  // namespace batchnorm_nchw
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

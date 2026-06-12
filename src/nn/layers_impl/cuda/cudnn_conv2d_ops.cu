@@ -9,7 +9,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace cudnn_conv2d {
 
@@ -410,6 +410,6 @@ void run_wgrad_and_bgrad(feHandle_t* handle, const ConvolutionStats& stats, cons
 
 }  // namespace cudnn_conv2d
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

@@ -16,7 +16,7 @@
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 // Scaled Dot-Product Attention LayerImpl
 // Accepts 3 inputs: Q (B,H,S,D), K (B,H,S,D), V (B,H,S,D)
@@ -102,4 +102,4 @@ public:
   using LayerRef<SDPALayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

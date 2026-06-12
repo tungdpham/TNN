@@ -2,7 +2,7 @@
 #include "nn/blocks_impl/sequential.hpp"
 #include "nn/example_models.hpp"
 #include "nn/graph.hpp"
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 signed main() {

@@ -17,7 +17,7 @@
 #include "nn/layers_impl/common/conv2d.hpp"
 #include "nn/siso_layer.hpp"
 
-namespace tnn {
+namespace synet {
 
 class LegacyConv2DLayerImpl : public SISOLayerImpl {
 private:
@@ -166,4 +166,4 @@ public:
   using LayerRef<LegacyConv2DLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

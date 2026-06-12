@@ -12,7 +12,7 @@
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 constexpr size_t microbatch_id = 2;
 constexpr size_t data_size = 256 * 512 * 16 * 16;

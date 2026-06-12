@@ -14,7 +14,7 @@
 #include "tensor/tensor.hpp"
 #include "test_graph_utils.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 namespace {
 

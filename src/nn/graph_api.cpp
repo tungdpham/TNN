@@ -15,7 +15,7 @@
 #include "nn/layers.hpp"
 #include "tensor/tensor_factory.hpp"
 
-namespace tnn {
+namespace synet {
 namespace {
 
 constexpr std::array<char, 4> kGraphStateMagic{'T', 'N', 'N', 'G'};
@@ -288,4 +288,4 @@ Graph Graph::load_state(std::istream &stream, IAllocator &allocator) {
   return graph;
 }
 
-}  // namespace tnn
+}  // namespace synet

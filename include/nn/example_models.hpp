@@ -13,7 +13,7 @@
 #include "nn/graph.hpp"
 #include "nn/layers.hpp"
 
-namespace tnn {
+namespace synet {
 
 class ExampleModels {
 private:
@@ -79,4 +79,4 @@ inline Graph load_or_create_model(const std::string &model_name, const std::stri
   }
 }
 
-}  // namespace tnn
+}  // namespace synet

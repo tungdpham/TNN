@@ -20,7 +20,7 @@
 #include "message_map.hpp"
 #include "utils/misc.hpp"
 
-namespace tnn {
+namespace synet {
 /**
  * @brief Abstract base class for pipeline communication
  * Defines the interface for sending and receiving messages
@@ -197,4 +197,4 @@ private:
   std::mutex profile_mutex_;
   std::unordered_map<std::string, int64_t> profile_data_;  // profiling data in microseconds
 };
-}  // namespace tnn
+}  // namespace synet

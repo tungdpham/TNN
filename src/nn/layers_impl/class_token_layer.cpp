@@ -15,7 +15,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 ClassTokenLayerImpl::ClassTokenLayerImpl(size_t embed_dim, const std::string &name)
     : SISOLayerImpl(name),
@@ -167,4 +167,4 @@ std::shared_ptr<ClassTokenLayerImpl> ClassTokenLayerImpl::create_from_config(
   return std::make_shared<ClassTokenLayerImpl>(embed_dim, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

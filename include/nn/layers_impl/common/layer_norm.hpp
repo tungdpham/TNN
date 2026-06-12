@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 
 struct LayerNormStats {
   size_t batch_size = 0;
@@ -34,4 +34,4 @@ inline void round_workspace_size(LayerNormStats &stats, size_t alignment = 16) {
   stats.bwd_workspace_size = ((stats.bwd_workspace_size + alignment - 1) / alignment) * alignment;
 }
 
-}  // namespace tnn
+}  // namespace synet

@@ -13,7 +13,7 @@
 #include "activations.hpp"
 #include "nn/layer.hpp"
 
-namespace tnn {
+namespace synet {
 inline std::unique_ptr<ActivationFunction> create_activation(const std::string &name) {
   ActivationFactory::register_defaults();
   return ActivationFactory::create(name);
@@ -102,7 +102,7 @@ class SubLayerImpl;
 class MulLayerImpl;
 class DivLayerImpl;
 
-}  // namespace tnn
+}  // namespace synet
 
 // Wrapper to include all layer implementations
 #include "blocks_impl/attention_block.hpp"
@@ -147,7 +147,7 @@ class DivLayerImpl;
 #include "nn/layers_impl/mul_layer.hpp"
 #include "nn/layers_impl/sub_layer.hpp"
 
-namespace tnn {
+namespace synet {
 
 // Concept to ensure LayerType has TYPE_NAME and create_from_config
 template <typename T>
@@ -261,6 +261,6 @@ inline void load_params(std::istream &file, LayerImpl &layer) {
 inline std::unordered_map<std::string, std::function<Layer(const LayerConfig &)>>
     LayerFactory::creators_;
 
-}  // namespace tnn
+}  // namespace synet
 
 #include "nn/layer_builder.hpp"  // IWYU pragma: export

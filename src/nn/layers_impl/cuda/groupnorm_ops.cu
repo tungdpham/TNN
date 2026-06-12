@@ -9,7 +9,7 @@
 #include "nn/layers_impl/cuda/groupnorm_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace groupnorm {
 
@@ -278,4 +278,4 @@ void run_backward(const T* grad_output, const T* norm_input, const T* inv_std, c
 
 }  // namespace groupnorm
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

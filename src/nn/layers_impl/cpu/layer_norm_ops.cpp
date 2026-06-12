@@ -4,7 +4,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace layer_norm {
 template <typename T>
@@ -108,4 +108,4 @@ void run_backward(const T *grad_output, const T *input, const T *gamma, T *grad_
 
 }  // namespace layer_norm
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

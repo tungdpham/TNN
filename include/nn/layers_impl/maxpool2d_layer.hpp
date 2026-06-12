@@ -18,7 +18,7 @@
 #include "nn/layers_impl/cpu/dnnl_maxpool_ops.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
 class MaxPool2DLayerImpl : public SISOLayerImpl {
 private:
@@ -90,4 +90,4 @@ public:
   using LayerRef<MaxPool2DLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

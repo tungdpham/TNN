@@ -17,7 +17,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 EmbeddingLayerImpl::EmbeddingLayerImpl(size_t vocab_size, size_t embed_dim, const std::string &name,
                                        size_t padding_idx)
@@ -181,4 +181,4 @@ std::shared_ptr<EmbeddingLayerImpl> EmbeddingLayerImpl::create_from_config(
   return std::make_shared<EmbeddingLayerImpl>(vocab_size, embed_dim, config.name, padding_idx);
 }
 
-}  // namespace tnn
+}  // namespace synet

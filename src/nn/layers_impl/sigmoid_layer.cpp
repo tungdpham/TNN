@@ -9,7 +9,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 SigmoidLayerImpl::SigmoidLayerImpl(const std::string &name)
     : SISOLayerImpl(name),
@@ -67,4 +67,4 @@ std::shared_ptr<SigmoidLayerImpl> SigmoidLayerImpl::create_from_config(const Lay
   return std::make_shared<SigmoidLayerImpl>(config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

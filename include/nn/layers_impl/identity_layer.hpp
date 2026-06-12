@@ -3,7 +3,7 @@
 #include "nn/layer.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 class IdentityLayerImpl : public LayerImpl {
 private:
   void init_impl() override {
@@ -60,4 +60,4 @@ public:
 
   using LayerRef<IdentityLayerImpl>::LayerRef;
 };
-}  // namespace tnn
+}  // namespace synet

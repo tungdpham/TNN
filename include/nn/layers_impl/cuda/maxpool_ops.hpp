@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace maxpool {
 template <typename T>
@@ -22,4 +22,4 @@ void run_backward(const T *grad_output, T *grad_input, const int *mask_indices, 
 
 }  // namespace maxpool
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

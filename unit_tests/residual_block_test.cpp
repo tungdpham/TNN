@@ -18,7 +18,7 @@
 #include "test_graph_utils.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 /**
  * Test fixture for ResidualBlock validation tests.

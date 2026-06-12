@@ -11,7 +11,7 @@
 #include "nn/layers_impl/cuda/layer_norm_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace layer_norm {
 
@@ -146,4 +146,4 @@ void run_backward(const T* grad_output, const T* input, const T* gamma, T* grad_
 
 }  // namespace layer_norm
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

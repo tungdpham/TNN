@@ -13,7 +13,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace batchnorm_nhwc {
 
@@ -188,4 +188,4 @@ void run_backward(const T *grad_output, const T *input, const float *mean, const
 
 }  // namespace batchnorm_nhwc
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

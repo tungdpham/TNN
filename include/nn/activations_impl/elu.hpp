@@ -8,7 +8,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 class ELU : public ActivationFunction {
 private:
   float alpha_;
@@ -35,4 +35,4 @@ private:
                                               const Tensor &grad_input, flowHandle_t handle) const;
 };
 
-}  // namespace tnn
+}  // namespace synet

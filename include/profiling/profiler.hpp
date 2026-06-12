@@ -9,7 +9,7 @@
 #include "common/blob.hpp"
 #include "event.hpp"
 
-namespace tnn {
+namespace synet {
 class Profiler {
 public:
   Profiler() = default;
@@ -156,4 +156,4 @@ public:
   static Vec<Event> get_events() { return global_profiler_.get_events(); }
 };
 
-}  // namespace tnn
+}  // namespace synet

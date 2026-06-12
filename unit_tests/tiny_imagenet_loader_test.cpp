@@ -4,8 +4,8 @@
 
 #include "data_loading/legacy/tiny_imagenet_data_loader.hpp"
 
-using namespace tnn::legacy;
-using namespace tnn;
+using namespace synet::legacy;
+using namespace synet;
 
 // Shared test fixture that loads data once for all tests
 class TinyImageNetLoaderTest : public ::testing::Test {

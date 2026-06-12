@@ -28,7 +28,7 @@
 #include "tensor/tensor_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 LegacyConv2DLayerImpl::LegacyConv2DLayerImpl(size_t in_channels, size_t out_channels,
                                              size_t kernel_h, size_t kernel_w, size_t stride_h,
@@ -655,4 +655,4 @@ std::shared_ptr<LegacyConv2DLayerImpl> LegacyConv2DLayerImpl::create_from_config
                                                  config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

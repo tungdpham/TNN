@@ -4,7 +4,7 @@
 
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 class Graph;
 
 class NodeImpl {
@@ -72,4 +72,4 @@ private:
 
 using Node = std::shared_ptr<NodeImpl>;
 
-}  // namespace tnn
+}  // namespace synet

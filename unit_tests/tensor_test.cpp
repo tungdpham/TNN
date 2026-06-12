@@ -3,7 +3,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-using namespace tnn;
+using namespace synet;
 
 class TensorTest : public ::testing::Test {
 protected:

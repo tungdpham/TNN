@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace tnn {
+namespace synet {
 namespace mkl {
 
 inline void initialize_mkl() {
@@ -68,6 +68,6 @@ inline void gemm(const char transa, const char transb, const MKL_INT m, const MK
 }
 
 }  // namespace mkl
-}  // namespace tnn
+}  // namespace synet
 
 #endif  // USE_MKL

@@ -11,7 +11,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace loss {
 
@@ -68,6 +68,6 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *grad_outp
 
 }  // namespace loss
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

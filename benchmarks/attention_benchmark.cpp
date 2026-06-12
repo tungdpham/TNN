@@ -5,7 +5,7 @@
 #include "nn/blocks_impl/flash_attention_block.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 constexpr size_t BATCH_SIZE = 16;

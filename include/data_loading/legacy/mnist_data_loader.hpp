@@ -25,7 +25,7 @@ constexpr size_t NUM_CHANNELS = 1;
 constexpr float NORMALIZATION_FACTOR = 255.0f;
 }  // namespace mnist_constants
 
-namespace tnn {
+namespace synet {
 namespace legacy {
 /**
  * Enhanced MNIST data loader for CSV format adapted for CNN (2D images)
@@ -212,4 +212,4 @@ public:
   }
 };
 }  // namespace legacy
-}  // namespace tnn
+}  // namespace synet

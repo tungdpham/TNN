@@ -9,7 +9,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 TanhLayerImpl::TanhLayerImpl(const std::string &name)
     : SISOLayerImpl(name),
@@ -67,4 +67,4 @@ std::shared_ptr<TanhLayerImpl> TanhLayerImpl::create_from_config(const LayerConf
   return std::make_shared<TanhLayerImpl>(config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

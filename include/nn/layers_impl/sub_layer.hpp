@@ -13,7 +13,7 @@
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 // Element-wise subtraction layer.
 class SubLayerImpl : public LayerImpl {
@@ -56,4 +56,4 @@ public:
   using LayerRef<SubLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

@@ -13,7 +13,7 @@
 #include "nn/layers.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 // Static member definitions
 std::unordered_map<std::string, std::function<Sequential(DType_t)>> ExampleModels::creators_;
@@ -615,4 +615,4 @@ void ExampleModels::register_defaults() {
   register_model(create_flash_gpt2_large);
 }
 
-}  // namespace tnn
+}  // namespace synet

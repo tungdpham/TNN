@@ -7,7 +7,7 @@
 #include <cuda_runtime.h>
 
 #include <cstddef>
-namespace tnn {
+namespace synet {
 namespace cuda {
 
 template <typename I_T, typename O_T>
@@ -15,5 +15,5 @@ void permute_heads(const I_T *input, O_T *output, size_t B, size_t L, size_t H, 
                    cudaStream_t stream);
 
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 #endif

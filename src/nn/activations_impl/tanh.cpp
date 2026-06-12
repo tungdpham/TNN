@@ -14,7 +14,7 @@
 #include "nn/activations_impl/cuda/tanh_kernels.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
 std::unique_ptr<Task> Tanh::apply(const ConstTensor &input, const Tensor &output) const {
   if (input->shape() != output->shape()) {
@@ -98,4 +98,4 @@ std::unique_ptr<Task> Tanh::compute_gradient_impl(const ConstTensor &input,
   return nullptr;
 }
 
-}  // namespace tnn
+}  // namespace synet

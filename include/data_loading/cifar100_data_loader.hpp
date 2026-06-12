@@ -31,7 +31,7 @@ constexpr float NORMALIZATION_FACTOR = 255.0f;
 constexpr size_t RECORD_SIZE = 1 + 1 + IMAGE_SIZE;
 }  // namespace cifar100_constants
 
-namespace tnn {
+namespace synet {
 /**
  * Enhanced CIFAR-100 data loader for binary format adapted for CNN (2D RGB images)
  * NHWC format: (Batch, Height, Width, Channels)
@@ -288,4 +288,4 @@ public:
     }
   }
 };
-}  // namespace tnn
+}  // namespace synet

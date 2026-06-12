@@ -15,7 +15,7 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 class LegacyAvgPool2DLayerImpl : public SISOLayerImpl {
 private:
@@ -78,4 +78,4 @@ public:
   using LayerRef<LegacyAvgPool2DLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

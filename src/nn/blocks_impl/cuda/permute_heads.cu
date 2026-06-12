@@ -7,7 +7,7 @@
 #include "nn/blocks_impl/cuda/permute_heads.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 
 template <typename I_T, typename O_T>
@@ -55,4 +55,4 @@ void permute_heads(const I_T* input, O_T* output, size_t B, size_t L, size_t H, 
 #undef INSTANTIATE_BOTH
 
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

@@ -12,7 +12,7 @@
 #include "device/task.hpp"
 #include "nn/siso_layer.hpp"
 
-namespace tnn {
+namespace synet {
 
 class LegacyDenseLayerImpl : public SISOLayerImpl {
 private:
@@ -101,4 +101,4 @@ public:
   using LayerRef<LegacyDenseLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

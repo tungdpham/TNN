@@ -9,7 +9,7 @@
 #include "nn/layers_impl/cuda/avgpool_nchw_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace avgpool_nchw {
 template <typename T>
@@ -133,4 +133,4 @@ void run_backward(const T* gradient_data, T* grad_input_data, size_t batch_size,
 #undef INSTANTIATE
 }  // namespace avgpool_nchw
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

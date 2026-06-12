@@ -11,7 +11,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 
 template <typename A_T, typename B_T, typename C_T, typename Compute_T>
@@ -30,5 +30,5 @@ void gemm_strided_batched_ex(const A_T *A, const B_T *B, C_T *C, const size_t M,
 
 }  // namespace cuda
 
-}  // namespace tnn
+}  // namespace synet
 #endif

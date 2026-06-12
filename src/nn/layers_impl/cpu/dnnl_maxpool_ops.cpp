@@ -14,7 +14,7 @@
 #include "nn/layers_impl/common/maxpool.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace dnnl_maxpool {
 
@@ -177,6 +177,6 @@ void run_backward(dnnlMaxPoolHandle_t *handle, const MaxPoolStats &stats,
 
 }  // namespace dnnl_maxpool
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet
 
 #endif

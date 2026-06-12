@@ -5,7 +5,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 template <typename T>
 void softmax(const T *input, T *output, size_t batch_size, size_t channels, size_t height,
@@ -90,4 +90,4 @@ void softmax_gradient(const T *input, const T *grad_output, T *grad_input, size_
 #undef INSTANTIATE
 
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

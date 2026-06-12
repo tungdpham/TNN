@@ -12,7 +12,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 
 template <typename T>
@@ -73,4 +73,4 @@ void softmax_backward(const T *output, const T *grad_output, T *grad_input, size
 #undef INSTANTIATE
 
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

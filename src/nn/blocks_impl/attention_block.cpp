@@ -20,7 +20,7 @@
 
 #include "ops/ops.hpp"
 
-namespace tnn {
+namespace synet {
 
 AttentionBlockImpl::AttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal,
                                        const std::string &name)
@@ -311,4 +311,4 @@ std::shared_ptr<AttentionBlockImpl> AttentionBlockImpl::create_from_config(
   return std::make_shared<AttentionBlockImpl>(embed_dim, num_heads, is_causal, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

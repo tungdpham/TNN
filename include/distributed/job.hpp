@@ -8,7 +8,7 @@
 
 #include "nn/tensor_bundle.hpp"
 
-namespace tnn {
+namespace synet {
 struct Job {
   TensorBundle data;
   size_t mb_id;
@@ -48,4 +48,4 @@ void archive(Archiver &archiver, Job &job) {
   archiver(job.mb_id, job.data);
 }
 
-}  // namespace tnn
+}  // namespace synet

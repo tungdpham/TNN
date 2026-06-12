@@ -17,7 +17,7 @@
 #include "nn/layers_impl/cpu/batchnorm_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 #ifdef USE_CUDA
 

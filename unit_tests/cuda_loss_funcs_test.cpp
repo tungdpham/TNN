@@ -14,7 +14,7 @@
 #include "nn/loss_impl/cpu/loss_ops.hpp"
 #include "nn/loss_impl/cuda/loss_ops.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 #ifdef USE_CUDA
 

@@ -3,7 +3,7 @@
 #include "nn/graph.hpp"
 #include "nn/layer.hpp"
 
-namespace tnn {
+namespace synet {
 class SISOLayerImpl : public LayerImpl {
 public:
   SISOLayerImpl(const std::string &name)
@@ -44,4 +44,4 @@ protected:
   virtual Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const = 0;
 };
 
-}  // namespace tnn
+}  // namespace synet

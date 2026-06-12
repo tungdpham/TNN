@@ -10,7 +10,7 @@
 #include "nn/layers_impl/legacy_batchnorm_layer.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 constexpr size_t BATCH_SIZE = 32;

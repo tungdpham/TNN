@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace tnn {
+namespace synet {
 enum Endianness : uint8_t { LITTLE = 0, BIG = 1 };
 
 inline Endianness get_host_endianness() {
@@ -31,4 +31,4 @@ void bswap(T &value) {
   }
 }
 
-}  // namespace tnn
+}  // namespace synet

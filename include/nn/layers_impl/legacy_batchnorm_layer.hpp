@@ -11,7 +11,7 @@
 
 #include "nn/siso_layer.hpp"
 
-namespace tnn {
+namespace synet {
 
 class LegacyBatchNormLayerImpl : public SISOLayerImpl {
 private:
@@ -122,4 +122,4 @@ public:
   using LayerRef<LegacyBatchNormLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

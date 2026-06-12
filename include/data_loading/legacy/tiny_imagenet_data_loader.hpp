@@ -38,7 +38,7 @@ constexpr size_t VAL_IMAGES = 10000;
 constexpr size_t IMAGE_SIZE = NUM_CHANNELS * IMAGE_HEIGHT * IMAGE_WIDTH;
 }  // namespace tiny_imagenet_constants
 
-namespace tnn {
+namespace synet {
 namespace legacy {
 /**
  * Tiny ImageNet-200 data loader for JPEG format adapted for CNN (2D RGB images)
@@ -521,4 +521,4 @@ public:
   }
 };
 }  // namespace legacy
-}  // namespace tnn
+}  // namespace synet

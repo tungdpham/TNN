@@ -18,7 +18,7 @@
 #include "tensor/tensor_factory.hpp"
 #include "type/type.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 class ArchiverTest : public ::testing::Test {
 public:

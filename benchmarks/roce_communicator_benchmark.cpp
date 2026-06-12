@@ -14,7 +14,7 @@
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 struct Config {

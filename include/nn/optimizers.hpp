@@ -22,7 +22,7 @@
 #include "optimizers_impl/cuda/sgd_kernels.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 using OptimizerConfig = TConfig;
 
@@ -285,4 +285,4 @@ public:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

@@ -12,7 +12,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace loss {
 
@@ -264,4 +264,4 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *grad_outp
 
 }  // namespace loss
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

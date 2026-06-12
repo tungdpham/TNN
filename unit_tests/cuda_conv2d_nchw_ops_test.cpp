@@ -16,7 +16,7 @@
 #include "nn/layers_impl/cpu/conv2d_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/conv2d_nchw_ops.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 #ifdef USE_CUDA
 // Test fixture for CUDA conv2d_nchw operations

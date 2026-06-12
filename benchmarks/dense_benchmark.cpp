@@ -6,7 +6,7 @@
 #include "nn/loss.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 constexpr size_t INPUT_FEATURES = 262144;

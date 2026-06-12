@@ -11,7 +11,7 @@
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 Vec<Vec<size_t>> SubLayerImpl::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   if (input_shapes.size() != 2) {
@@ -75,4 +75,4 @@ std::shared_ptr<SubLayerImpl> SubLayerImpl::create_from_config(const LayerConfig
   return std::make_shared<SubLayerImpl>(config.name.empty() ? "sub" : config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

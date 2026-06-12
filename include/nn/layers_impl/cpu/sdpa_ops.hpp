@@ -10,7 +10,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace sdpa {
 // Scaled Dot-Product Attention forward pass (CPU)
@@ -32,4 +32,4 @@ void run_backward(const T *q, const T *k, const T *v, const T *attn_weights, con
 
 }  // namespace sdpa
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

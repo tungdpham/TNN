@@ -12,7 +12,7 @@
 #include "data_loading/legacy/tiny_imagenet_data_loader.hpp"
 #include "data_loading/open_webtext_data_loader.hpp"
 
-namespace tnn {
+namespace synet {
 namespace legacy {
 DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
                                          const std::string &dataset_path) {
@@ -94,4 +94,4 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
   return pair;
 }
 }  // namespace legacy
-}  // namespace tnn
+}  // namespace synet

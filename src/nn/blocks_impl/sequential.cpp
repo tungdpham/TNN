@@ -22,7 +22,7 @@
 #include "nn/layers.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 Vec<Tensor> SequentialImpl::forward_impl(const Vec<ConstTensor> &inputs, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot forward through empty sequential model");
@@ -148,4 +148,4 @@ std::shared_ptr<SequentialImpl> SequentialImpl::create_from_config(const LayerCo
   return std::make_shared<SequentialImpl>(std::move(layers), config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

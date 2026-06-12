@@ -13,7 +13,7 @@
 #endif
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 AvgPool2DLayerImpl::AvgPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
                                        size_t stride_w, size_t pad_h, size_t pad_w,
@@ -189,4 +189,4 @@ std::shared_ptr<AvgPool2DLayerImpl> AvgPool2DLayerImpl::create_from_config(
                                               config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

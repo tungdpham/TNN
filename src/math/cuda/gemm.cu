@@ -4,7 +4,7 @@
 #include "math/cuda/gemm.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 
 cublasHandle_t get_cublas_handle() {
@@ -77,7 +77,7 @@ void gemm_ex(const A_T* A, const B_T* B, C_T* C, const size_t M, const size_t N,
   if (status != CUBLAS_STATUS_SUCCESS) {
     throw std::runtime_error("cublasGemmEx failed with status: " + std::to_string(status));
   }
-  tnn::cuda::checkCudaError(cudaGetLastError(), "gemm_ex", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "gemm_ex", __FILE__, __LINE__);
 }
 
 template <typename A_T, typename B_T, typename C_T, typename Compute_T>
@@ -101,7 +101,7 @@ void gemm_strided_batched_ex(const A_T* A, const B_T* B, C_T* C, const size_t M,
     throw std::runtime_error("cublasGemmStridedBatchedEx failed with status: " +
                              std::to_string(status));
   }
-  tnn::cuda::checkCudaError(cudaGetLastError(), "gemm_strided_batched_ex", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "gemm_strided_batched_ex", __FILE__, __LINE__);
 }
 
 #define INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, Compute_T)                                 \
@@ -147,4 +147,4 @@ void gemm_strided_batched_ex(const A_T* A, const B_T* B, C_T* C, const size_t M,
 #undef INSTANTIATE_CUBLAS_GEMM
 
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

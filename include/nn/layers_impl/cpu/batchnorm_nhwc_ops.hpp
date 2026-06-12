@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace batchnorm_nhwc {
 template <typename T>
@@ -27,4 +27,4 @@ void run_backward(const T *grad_output, const T *input, const float *mean, const
 
 }  // namespace batchnorm_nhwc
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

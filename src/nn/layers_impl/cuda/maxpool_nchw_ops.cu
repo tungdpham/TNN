@@ -9,7 +9,7 @@
 #include "nn/layers_impl/cuda/maxpool_nchw_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace maxpool_nchw {
 template <typename T>
@@ -119,4 +119,4 @@ void run_backward(const T* gradient_data, T* grad_input_data, size_t batch_size,
 
 }  // namespace maxpool_nchw
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

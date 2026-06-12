@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string>
 
-namespace tnn {
+namespace synet {
 
 enum class EventType : uint8_t { COMPUTE, COMMUNICATION, OTHER };
 
@@ -61,4 +61,4 @@ void archive(Archiver &archiver, Event &event) {
   event.type = static_cast<EventType>(type_value);
 }
 
-}  // namespace tnn
+}  // namespace synet

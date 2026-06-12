@@ -17,7 +17,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace tnn {
+namespace synet {
 
 using LossConfig = TConfig;
 
@@ -519,4 +519,4 @@ public:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

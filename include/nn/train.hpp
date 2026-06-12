@@ -28,7 +28,7 @@
 #include <mkl.h>
 #endif
 
-namespace tnn {
+namespace synet {
 enum class ProfilerType { NONE = 0, NORMAL = 1, CUMULATIVE = 2 };
 enum class TrainingMode { CLASSIFICATION = 0, REGRESSION = 1, CUSTOM = 2 };
 
@@ -95,4 +95,4 @@ void train_model(Graph &graph, std::unique_ptr<BaseDataLoader> &train_loader,
                  const std::unique_ptr<Loss> &criterion, std::unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config = TrainingConfig());
 
-}  // namespace tnn
+}  // namespace synet

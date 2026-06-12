@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace tnn {
+namespace synet {
 namespace {
 
 using WeakNode = std::weak_ptr<NodeImpl>;
@@ -259,4 +259,4 @@ std::vector<size_t> GraphPartitioner::resolve_layer_counts(size_t total_layers) 
   return layer_counts;
 }
 
-}  // namespace tnn
+}  // namespace synet

@@ -9,7 +9,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 ELULayerImpl::ELULayerImpl(float alpha, const std::string &name)
     : SISOLayerImpl(name),
@@ -51,4 +51,4 @@ std::shared_ptr<ELULayerImpl> ELULayerImpl::create_from_config(const LayerConfig
   return std::make_shared<ELULayerImpl>(alpha, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

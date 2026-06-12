@@ -6,7 +6,7 @@
 #include "nn/layers_impl/legacy_conv2d_layer.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 signed main() {

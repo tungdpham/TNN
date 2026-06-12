@@ -6,7 +6,7 @@
 #include "nn/layers.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 class LayerBuilder {
 private:
@@ -597,4 +597,4 @@ public:
 
   const Vec<Vec<size_t>> &get_input_shape() const { return input_shapes_; }
 };
-}  // namespace tnn
+}  // namespace synet

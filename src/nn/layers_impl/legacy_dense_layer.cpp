@@ -18,7 +18,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 LegacyDenseLayerImpl::LegacyDenseLayerImpl(size_t input_features, size_t output_features,
                                            bool use_bias, const std::string &name)
@@ -315,4 +315,4 @@ std::shared_ptr<LegacyDenseLayerImpl> LegacyDenseLayerImpl::create_from_config(
                                                 config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

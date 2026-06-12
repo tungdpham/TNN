@@ -13,7 +13,7 @@
 #include "nn/layers_impl/cuda/dropout_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace dropout {
 #define BLOCK_SIZE 256
@@ -191,4 +191,4 @@ void run_backward(const T* grad_output_data, T* grad_input_data, const bool* mas
 
 }  // namespace dropout
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

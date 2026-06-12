@@ -17,7 +17,7 @@
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 using LayerConfig = TConfig;
 
 struct ParamDescriptor {
@@ -269,4 +269,4 @@ auto make_layer(Args &&...args) -> LayerRef<LayerType> {
                        DISPATCH_DTYPE(this->compute_dtype_, COMP_T,                        \
                                       method_name<IO_T, PARAM_T, COMP_T>(__VA_ARGS__);))); \
   } while (0)
-}  // namespace tnn
+}  // namespace synet

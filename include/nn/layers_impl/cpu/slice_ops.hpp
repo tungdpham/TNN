@@ -10,7 +10,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace slice {
 
@@ -24,4 +24,4 @@ void slice_backward(const T *grad_output, T *grad_input, const Vec<size_t> &inpu
 
 }  // namespace slice
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

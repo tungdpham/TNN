@@ -32,7 +32,7 @@
 
 using namespace std;
 
-namespace tnn {
+namespace synet {
 
 static std::string normalize_train_mode(std::string mode) {
   for (char &c : mode) {
@@ -41,7 +41,7 @@ static std::string normalize_train_mode(std::string mode) {
   if (mode == "epoch" || mode == "batch" || mode == "auto") {
     return mode;
   }
-  std::cerr << "Warning: invalid TRAIN_MODE/TNN_TRAIN_MODE=\"" << mode
+  std::cerr << "Warning: invalid TRAIN_MODE/SYNET_TRAIN_MODE=\"" << mode
             << "\". Expected epoch, batch, or auto. Falling back to auto." << std::endl;
   return "auto";
 }
@@ -135,7 +135,7 @@ void TrainingConfig::load_from_env() {
   Env::get("EPOCHS", epochs);
   Env::get("BATCH_SIZE", batch_size);
   Env::get("MAX_STEPS", max_steps);
-  Env::get("TNN_TRAIN_MODE", train_mode);
+  Env::get("SYNET_TRAIN_MODE", train_mode);
   Env::get("TRAIN_MODE", train_mode);
   train_mode = normalize_train_mode(train_mode);
   Env::get("LR_INITIAL", lr_initial);
@@ -171,14 +171,14 @@ void TrainingConfig::load_from_env() {
   Env::get("COMPUTE_DTYPE", compute_dtype_str);
   compute_dtype = string_to_dtype(compute_dtype_str);
 
-  // Ablation flags. Prefer TNN_* names, but also accept legacy short names.
-  Env::get("TNN_PREFETCH_DATA", prefetch_data);
+  // Ablation flags. Prefer SYNET_* names, but also accept legacy short names.
+  Env::get("SYNET_PREFETCH_DATA", prefetch_data);
   Env::get("PREFETCH_DATA", prefetch_data);
-  Env::get("TNN_PREFETCH_DEPTH", prefetch_depth);
+  Env::get("SYNET_PREFETCH_DEPTH", prefetch_depth);
   Env::get("PREFETCH_DEPTH", prefetch_depth);
-  Env::get("TNN_ASYNC_PIPELINE", async_pipeline);
+  Env::get("SYNET_ASYNC_PIPELINE", async_pipeline);
   Env::get("ASYNC_PIPELINE", async_pipeline);
-  Env::get("TNN_AUGMENTATION", augmentation);
+  Env::get("SYNET_AUGMENTATION", augmentation);
   Env::get("AUGMENTATION", augmentation);
 
   // Parse LogMode settings
@@ -418,7 +418,7 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 
   double best_val_accuracy = 0.0;
   const std::string artifact_name = training_artifact_name(config);
-  CsvLogger logger("tnn_" + artifact_name, config.log_dir, &config.log_mode);
+  CsvLogger logger("synet_" + artifact_name, config.log_dir, &config.log_mode);
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
@@ -496,7 +496,7 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 
   int grad_accum_counter = 0;
   const std::string artifact_name = training_artifact_name(config);
-  CsvLogger logger("tnn_" + artifact_name, config.log_dir, &config.log_mode);
+  CsvLogger logger("synet_" + artifact_name, config.log_dir, &config.log_mode);
 
   train_loader->reset();
   auto start_time = chrono::high_resolution_clock::now();
@@ -731,4 +731,4 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
   return {avg_val_loss, avg_val_accuracy};
 }
 
-}  // namespace tnn
+}  // namespace synet

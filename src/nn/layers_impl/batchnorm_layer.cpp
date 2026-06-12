@@ -26,7 +26,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 BatchNormLayerImpl::BatchNormLayerImpl(size_t num_features, float epsilon, float momentum,
                                        bool affine, bool use_relu, const std::string &name)
@@ -506,4 +506,4 @@ std::shared_ptr<BatchNormLayerImpl> BatchNormLayerImpl::create_from_config(
                                               config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

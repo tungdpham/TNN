@@ -9,7 +9,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 GELULayerImpl::GELULayerImpl(const std::string &name)
     : SISOLayerImpl(name),
@@ -48,4 +48,4 @@ std::shared_ptr<GELULayerImpl> GELULayerImpl::create_from_config(const LayerConf
   return std::make_shared<GELULayerImpl>(config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

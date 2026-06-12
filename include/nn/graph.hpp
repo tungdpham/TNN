@@ -16,7 +16,7 @@
 #include "nn/tensor_bundle.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 enum class ExecutionMode {
   TRAIN,
@@ -691,4 +691,4 @@ private:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

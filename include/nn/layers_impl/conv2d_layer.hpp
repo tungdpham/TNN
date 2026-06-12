@@ -20,7 +20,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace tnn {
+namespace synet {
 
 // [N, H, W, C] input
 class Conv2DLayerImpl : public SISOLayerImpl {
@@ -138,4 +138,4 @@ public:
   using LayerRef<Conv2DLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

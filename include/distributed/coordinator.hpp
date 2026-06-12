@@ -33,7 +33,7 @@
 #include "stage_config.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 enum class ParallelMode_t { DATA, PIPELINE };
 
@@ -293,7 +293,7 @@ public:
   /**
    * @brief Synchronous pipeline train batch.
    *
-   * Non-overlapped ablation path for TNN_ASYNC_PIPELINE=0.
+   * Non-overlapped ablation path for SYNET_ASYNC_PIPELINE=0.
    * It processes one microbatch at a time:
    *   forward -> wait output -> loss/grad -> backward -> wait backward complete.
    */
@@ -373,7 +373,7 @@ public:
   /**
    * @brief Synchronous pipeline validation batch.
    *
-   * Non-overlapped validation path for TNN_ASYNC_PIPELINE=0.
+   * Non-overlapped validation path for SYNET_ASYNC_PIPELINE=0.
    */
   Result sync_val_batch(Vec<TensorBundle> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
                         const std::unique_ptr<Loss> &criterion) {
@@ -686,4 +686,4 @@ protected:
   mutable std::condition_variable message_notification_cv_;
 };
 
-}  // namespace tnn
+}  // namespace synet

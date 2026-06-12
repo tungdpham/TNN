@@ -14,7 +14,7 @@
 #include "nn/activations_impl/cuda/leaky_relu_kernels.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 LeakyReLU::LeakyReLU(float negative_slope)
     : negative_slope_(negative_slope) {}
 
@@ -105,4 +105,4 @@ std::unique_ptr<Task> LeakyReLU::compute_gradient_impl(const ConstTensor &input,
   return nullptr;
 }
 
-}  // namespace tnn
+}  // namespace synet

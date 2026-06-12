@@ -12,7 +12,7 @@
 #include "coordinator.hpp"
 #include "tcp_communicator.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * @brief Distributed pipeline coordinator for network-based stage deployment
@@ -44,4 +44,4 @@ public:
   ~NetworkCoordinator() = default;
 };
 
-}  // namespace tnn
+}  // namespace synet

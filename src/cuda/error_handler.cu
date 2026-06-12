@@ -1,5 +1,5 @@
 #include "cuda/error_handler.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {}  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

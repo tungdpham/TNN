@@ -14,7 +14,7 @@
 #include "device/dptr.hpp"
 #include "device/task.hpp"
 
-namespace tnn {
+namespace synet {
 
 template <typename IO_T, typename Param_T = IO_T, typename Compute_T = IO_T>
 void gemm(const dptr &A, const dptr &B, const dptr &C, const size_t M, const size_t N,
@@ -42,4 +42,4 @@ void gemm(const dptr &A, const dptr &B, const dptr &C, const size_t M, const siz
     throw std::runtime_error("Unsupported device type for gemm.");
   }
 }
-}  // namespace tnn
+}  // namespace synet

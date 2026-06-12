@@ -12,7 +12,7 @@
 #include "type/type.hpp"
 
 using namespace std;
-using namespace tnn;
+using namespace synet;
 
 class BF16Test : public ::testing::Test {
 protected:

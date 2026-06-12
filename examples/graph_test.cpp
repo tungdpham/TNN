@@ -10,7 +10,7 @@
 #include "nn/train.hpp"
 
 using namespace std;
-using namespace tnn;
+using namespace synet;
 
 signed main(int argc, char* argv[]) {
   ExampleModels::register_defaults();

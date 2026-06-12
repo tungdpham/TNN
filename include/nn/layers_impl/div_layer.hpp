@@ -13,7 +13,7 @@
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 // Element-wise division layer.
 class DivLayerImpl : public LayerImpl {
@@ -56,4 +56,4 @@ public:
   using LayerRef<DivLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

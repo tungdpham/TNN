@@ -25,7 +25,7 @@
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 // Constructor
 FlashAttentionBlockImpl::FlashAttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal,
@@ -344,4 +344,4 @@ std::shared_ptr<FlashAttentionBlockImpl> FlashAttentionBlockImpl::create_from_co
   return std::make_shared<FlashAttentionBlockImpl>(embed_dim, num_heads, is_causal, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

@@ -12,7 +12,7 @@
 #include "asio/use_awaitable.hpp"
 #include "distributed/roce_device.hpp"
 
-namespace tnn {
+namespace synet {
 class RoCECQ {
 public:
   RoCECQ(RoCEDevice &device, asio::io_context &io_context, int depth)
@@ -97,4 +97,4 @@ private:
   ibv_cq *cq_ = nullptr;
   asio::posix::stream_descriptor desc_;
 };
-}  // namespace tnn
+}  // namespace synet

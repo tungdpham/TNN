@@ -15,7 +15,7 @@
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 void LayerImpl::set_engine_type(EngineType engine_type) {
   engine_type_ = engine_type;
@@ -208,4 +208,4 @@ void LayerImpl::clear_cache(size_t mb_id) {
   }
 }
 
-}  // namespace tnn
+}  // namespace synet

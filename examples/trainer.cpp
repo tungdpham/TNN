@@ -12,7 +12,7 @@
 #include "utils/env.hpp"
 
 using namespace std;
-using namespace tnn;
+using namespace synet;
 
 signed main(int argc, char *argv[]) {
   ExampleGraphs::register_defaults();

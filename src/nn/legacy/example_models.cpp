@@ -13,7 +13,7 @@
 #include "nn/layers.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace legacy {
 // Static member definitions
 std::unordered_map<std::string, std::function<Sequential(DType_t)>> ExampleModels::creators_;
@@ -512,4 +512,4 @@ void ExampleModels::register_defaults() {
 }
 
 }  // namespace legacy
-}  // namespace tnn
+}  // namespace synet

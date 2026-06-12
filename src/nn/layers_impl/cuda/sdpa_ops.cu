@@ -12,7 +12,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace sdpa {
 
@@ -408,6 +408,6 @@ void run_backward(const T* q, const T* k, const T* v, const T* attn_weights, con
 
 }  // namespace sdpa
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

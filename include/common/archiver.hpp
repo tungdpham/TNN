@@ -7,7 +7,7 @@
 
 #include "common/blob.hpp"
 
-namespace tnn {
+namespace synet {
 
 template <typename Derived>
 class IArchiver;
@@ -171,4 +171,4 @@ void archive(Archiver& archiver, Vec<T>& vec) {
   }
 }
 
-}  // namespace tnn
+}  // namespace synet

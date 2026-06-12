@@ -7,7 +7,7 @@
 
 #include "matrix/matrix.hpp"
 
-namespace tnn {
+namespace synet {
 template struct Matrix<float>;
 template struct Matrix<double>;
-}  // namespace tnn
+}  // namespace synet

@@ -23,7 +23,7 @@
 #include <iostream>
 #endif
 
-namespace tnn {
+namespace synet {
 
 // InfiniBand Verbs allocator that manages a large master slab and slices it into individual
 // buffers (dptrs) for tensor data. Each dptr has a custom deleter that returns the memory
@@ -265,4 +265,4 @@ private:
   };
 };
 
-}  // namespace tnn
+}  // namespace synet

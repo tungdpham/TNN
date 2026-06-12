@@ -8,8 +8,8 @@
 #include "utils/env.hpp"
 
 using namespace std;
-using namespace tnn;
-using namespace tnn::legacy;
+using namespace synet;
+using namespace synet::legacy;
 
 signed main() {
   legacy::ExampleModels::register_defaults();

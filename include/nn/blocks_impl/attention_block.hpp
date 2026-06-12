@@ -16,7 +16,7 @@
 #include "nn/layers_impl/dense_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 class AttentionBlockImpl : public Block {
 private:
@@ -86,4 +86,4 @@ public:
   using LayerRef<AttentionBlockImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

@@ -11,7 +11,7 @@
 #endif
 #include <vector>
 
-namespace tnn {
+namespace synet {
 template <typename T>
 using Vec = std::vector<T>;
 using std::string;
@@ -289,4 +289,4 @@ inline DType_t string_to_dtype(const std::string &dtype_str) {
   DISPATCH_ANY_DTYPE(dtype_value_a, type_alias_a,                                          \
                      { DISPATCH_ANY_DTYPE(dtype_value_b, type_alias_b, { __VA_ARGS__; }); })
 
-}  // namespace tnn
+}  // namespace synet

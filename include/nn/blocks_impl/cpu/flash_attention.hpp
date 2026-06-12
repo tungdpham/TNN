@@ -11,7 +11,7 @@
 
 #include "math/cpu/gemm.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 
 template <typename T>
@@ -143,4 +143,4 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
 }
 
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

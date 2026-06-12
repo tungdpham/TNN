@@ -11,7 +11,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace cudnn_gemm {
 
@@ -339,6 +339,6 @@ void run_wgrad(feHandle_t* handle, const GemmStats& stats, const void* input_dat
 
 }  // namespace cudnn_gemm
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

@@ -15,7 +15,7 @@
 #include "partitioner/graph_partitioner.hpp"
 #include "utils/env.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 struct Config {

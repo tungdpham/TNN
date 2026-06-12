@@ -6,7 +6,7 @@
 
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 class Augmentation;
 class AugmentationStrategy;
@@ -30,7 +30,7 @@ protected:
   mutable std::mt19937 rng_{std::random_device{}()};
 };
 
-}  // namespace tnn
+}  // namespace synet
 
 // Include concrete augmentation implementations
 #include "brightness.hpp"
@@ -46,7 +46,7 @@ protected:
 #include "saturation.hpp"
 #include "vertical_flip.hpp"
 
-namespace tnn {
+namespace synet {
 
 class AugmentationStrategy {
 public:
@@ -190,4 +190,4 @@ private:
   AugmentationStrategy strategy_;
 };
 
-}  // namespace tnn
+}  // namespace synet

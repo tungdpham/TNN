@@ -6,7 +6,7 @@
  */
 #pragma once
 
-namespace tnn {
+namespace synet {
 enum class EngineType {
   CPU,
   CUDA,

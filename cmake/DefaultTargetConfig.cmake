@@ -2,9 +2,9 @@
 function(create_executable target_name source_file)
     add_executable(${target_name} ${source_file})
     
-    # Link core TNN libraries
+    # Link core SYNET libraries
     target_link_libraries(${target_name} PRIVATE 
-        tnn_lib
+        synet_lib
     )
     
     # Link third-party dependencies

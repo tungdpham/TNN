@@ -17,7 +17,7 @@
 #include "ops/ops.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 ResidualBlockImpl::ResidualBlockImpl(Vec<Layer> main_path, Vec<Layer> shortcut_path,
                                      const std::string &final_activation, const std::string &name)
@@ -170,4 +170,4 @@ std::shared_ptr<ResidualBlockImpl> ResidualBlockImpl::create_from_config(
                                              activation, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

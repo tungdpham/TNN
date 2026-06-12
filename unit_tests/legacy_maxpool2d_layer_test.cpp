@@ -17,7 +17,7 @@
 #include "test_graph_utils.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 /**
  * Test fixture for LegacyMaxPool2DLayerImpl validation tests.

@@ -22,7 +22,7 @@
 #include "nn/layers.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 MSequentialImpl::MSequentialImpl(Vec<Sequential> sequences, Layer join_layer,
                                  const std::string &name)
@@ -282,4 +282,4 @@ std::shared_ptr<MSequentialImpl> MSequentialImpl::create_from_config(const Layer
                                            config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

@@ -15,7 +15,7 @@
 #include "nn/layers_impl/common/batchnorm.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace dnnl_batchnorm {
 
@@ -325,6 +325,6 @@ void run_backward(dnnlBNHandle_t *handle, const BatchNormStats &stats, const voi
 
 }  // namespace dnnl_batchnorm
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet
 
 #endif  // USE_DNNL

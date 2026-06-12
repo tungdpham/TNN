@@ -12,7 +12,7 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 class EmbeddingLayerImpl : public SISOLayerImpl {
 private:
@@ -73,4 +73,4 @@ public:
   using LayerRef<EmbeddingLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

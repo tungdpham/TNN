@@ -11,7 +11,7 @@
 #include "nn/optimizers.hpp"
 
 using namespace std;
-using namespace tnn;
+using namespace synet;
 
 std::shared_ptr<Graph> make_model_test() {
   auto graph = make_shared<Graph>();

@@ -14,7 +14,7 @@
 #include "nn/layers.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 TEST(AttentionBlockTest, ForwardPassCPU) {
   size_t batch_size = 2;

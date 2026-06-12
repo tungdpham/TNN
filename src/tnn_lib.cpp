@@ -1,10 +1,10 @@
-// entry point for the main TNN shared library (libtnn.so/tnn.dll)
+// entry point for the main SYNET shared library (libsynet.so/synet.dll)
 
-namespace tnn {
+namespace synet {
 
 // lib ver
 const char *get_version() { return "0.1.0"; }
 
-const char *get_build_info() { return "TNN - Tensor Neural Network Library"; }
+const char *get_build_info() { return "SYNET - Tensor Neural Network Library"; }
 
-}  // namespace tnn
+}  // namespace synet

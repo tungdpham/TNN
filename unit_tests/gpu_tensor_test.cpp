@@ -6,7 +6,7 @@
 #include "device/device_manager.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 class GPUTensorTest : public ::testing::Test {
 protected:

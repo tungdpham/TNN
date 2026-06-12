@@ -9,7 +9,7 @@
 #include "ops/cuda/kernels.hpp"
 #include "type/type.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 class CudaKernelsTest : public ::testing::Test {
 protected:

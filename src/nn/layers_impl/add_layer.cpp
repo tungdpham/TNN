@@ -11,7 +11,7 @@
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 Vec<Vec<size_t>> AddLayerImpl::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   if (input_shapes.size() != 2) {
@@ -74,4 +74,4 @@ std::shared_ptr<AddLayerImpl> AddLayerImpl::create_from_config(const LayerConfig
   return std::make_shared<AddLayerImpl>(config.name.empty() ? "add" : config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

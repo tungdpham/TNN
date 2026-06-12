@@ -11,7 +11,7 @@
 
 #ifdef USE_CUDA
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace adam {
 
@@ -143,6 +143,6 @@ INSTANTIATE(double)
 
 }  // namespace adam
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

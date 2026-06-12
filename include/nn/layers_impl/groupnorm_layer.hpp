@@ -12,7 +12,7 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 class GroupNormLayerImpl : public SISOLayerImpl {
 private:
@@ -90,4 +90,4 @@ public:
   using LayerRef<GroupNormLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

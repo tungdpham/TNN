@@ -25,7 +25,7 @@
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 using Tensor = std::shared_ptr<class TensorImpl>;
 using ConstTensor = std::shared_ptr<const class TensorImpl>;
@@ -760,6 +760,6 @@ inline Tensor operator/=(Tensor &lhs, const ConstTensor &rhs) {
   return lhs;
 }
 
-}  // namespace tnn
+}  // namespace synet
 
 #include "tensor/tensor_factory.hpp"  // IWYU pragma: keep

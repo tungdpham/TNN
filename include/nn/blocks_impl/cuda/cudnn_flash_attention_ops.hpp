@@ -9,7 +9,7 @@
 #include <cuda_runtime.h>
 #include <cudnn.h>
 
-namespace tnn {
+namespace synet {
 
 struct AttentionStats;
 
@@ -34,6 +34,6 @@ void run_backward(feHandle_t *handle, const AttentionStats &stats, const void *q
 
 }  // namespace cudnn_flash_attention
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

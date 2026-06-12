@@ -16,7 +16,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace tnn {
+namespace synet {
 
 class DenseLayerImpl : public SISOLayerImpl {
 private:
@@ -100,4 +100,4 @@ public:
   using LayerRef<DenseLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace maxpool {
 template <typename T>
@@ -21,4 +21,4 @@ void run_backward(const T *grad_output, T *grad_input, const int *mask_indices, 
                   size_t channels, size_t output_h, size_t output_w);
 }  // namespace maxpool
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

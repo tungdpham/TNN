@@ -7,7 +7,7 @@
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 template <typename T>
 inline Tensor make_tensor(Vec<size_t> shape, const Device &device = getHost()) {
@@ -155,4 +155,4 @@ inline Tensor load(std::istream &in, IAllocator &allocator) {
   return tensor;
 }
 
-}  // namespace tnn
+}  // namespace synet

@@ -7,7 +7,7 @@
 
 #pragma once
 
-namespace tnn {
+namespace synet {
 // all supported device types
 enum class DeviceType { CPU, GPU, NULL_DEVICE };
-}  // namespace tnn
+}  // namespace synet

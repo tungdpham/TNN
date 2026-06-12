@@ -18,7 +18,7 @@
 #include "device/task.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
 class LayerNormLayerImpl : public SISOLayerImpl {
 private:
@@ -126,4 +126,4 @@ public:
   using LayerRef<LayerNormLayerImpl>::LayerRef;
 };
 
-}  // namespace tnn
+}  // namespace synet

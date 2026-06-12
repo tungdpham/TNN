@@ -7,7 +7,7 @@
 #include "augmentation.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * Random crop augmentation with padding
@@ -92,4 +92,4 @@ private:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

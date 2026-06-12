@@ -6,7 +6,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace dropout {
 
@@ -21,6 +21,6 @@ void run_backward(const T *grad_output_data, T *grad_input_data, const bool *mas
 
 }  // namespace dropout
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

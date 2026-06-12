@@ -18,7 +18,7 @@
 #include "nn/graph.hpp"
 #include "nn/layer.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * @brief Residual block implementing skip connections: output = F(x) + x
@@ -100,4 +100,4 @@ public:
 
   using LayerRef<ResidualBlockImpl>::LayerRef;
 };
-}  // namespace tnn
+}  // namespace synet

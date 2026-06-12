@@ -18,7 +18,7 @@
 #include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
 LegacyBatchNormLayerImpl::LegacyBatchNormLayerImpl(size_t num_features, float epsilon,
                                                    float momentum, bool affine,
@@ -245,4 +245,4 @@ std::shared_ptr<LegacyBatchNormLayerImpl> LegacyBatchNormLayerImpl::create_from_
                                                     config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

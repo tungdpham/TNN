@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace conv2d_nhwc {
 
@@ -128,4 +128,4 @@ void run_bgrad(const T *grad_output, T *grad_bias, size_t batch, size_t out_h, s
 
 }  // namespace conv2d_nhwc
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

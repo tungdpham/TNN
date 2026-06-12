@@ -7,7 +7,7 @@
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 inline size_t get_bytes_size(const Vec<size_t> &shape, DType_t dtype) {
   return std::accumulate(shape.begin(), shape.end(), get_dtype_size(dtype),
@@ -96,4 +96,4 @@ private:
 
   void zero_grads() { ops::set_scalar<uchar>(grad_slab_, 0, grad_slab_.capacity()); }
 };
-}  // namespace tnn
+}  // namespace synet

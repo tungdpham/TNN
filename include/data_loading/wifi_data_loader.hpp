@@ -15,7 +15,7 @@
 
 #include "data_loader.hpp"
 
-namespace tnn {
+namespace synet {
 
 // needs an overhaul
 class WiFiDataLoader : public BaseDataLoader {
@@ -341,4 +341,4 @@ public:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

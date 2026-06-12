@@ -9,7 +9,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
 LeakyReLULayerImpl::LeakyReLULayerImpl(float negative_slope, const std::string &name)
     : SISOLayerImpl(name),
@@ -90,4 +90,4 @@ std::shared_ptr<LeakyReLULayerImpl> LeakyReLULayerImpl::create_from_config(
   return std::make_shared<LeakyReLULayerImpl>(negative_slope, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

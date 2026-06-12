@@ -6,7 +6,7 @@
 
 #include "nn/graph.hpp"
 
-namespace tnn {
+namespace synet {
 
 struct GraphPartition {
   Graph graph;
@@ -32,4 +32,4 @@ private:
   std::vector<double> layer_ratios_;
 };
 
-}  // namespace tnn
+}  // namespace synet
