@@ -4,17 +4,18 @@
 
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
+#include "nn/example_graphs.hpp"
 #include "nn/example_models.hpp"
 #include "nn/graph.hpp"
-#include "nn/graph_builder.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
 
 using namespace std;
-using namespace tnn;
+using namespace synet;
 
 signed main(int argc, char *argv[]) {
+  ExampleGraphs::register_defaults();
   ExampleModels::register_defaults();
 
   std::string config_path;
@@ -50,20 +51,19 @@ signed main(int argc, char *argv[]) {
   // Prioritize loading existing model, else create from available ones
   const auto &device = DeviceManager::getInstance().getDevice(train_config.device_type);
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
-  GraphBuilder builder;
 
   if (train_config.dataset_name.empty()) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");
   }
-  auto [train_loader, val_loader] =
-      DataLoaderFactory::create(train_config.dataset_name, train_config.dataset_path);
+  auto [train_loader, val_loader] = DataLoaderFactory::create(
+      train_config.dataset_name, train_config.dataset_path, train_config.io_dtype);
   if (!train_loader || !val_loader) {
     cerr << "Failed to create data loaders for dataset: " << train_config.dataset_name << endl;
     return 1;
   }
   train_loader->set_seed(123456);
 
-  Graph graph = load_or_create_model(train_config.model_name, train_config.model_path, allocator);
+  Graph graph = load_or_create_graph(train_config.model_name, train_config.model_path, allocator);
 
   auto criterion = LossFactory::create_crossentropy();
   int adamw = 1;
@@ -80,8 +80,8 @@ signed main(int argc, char *argv[]) {
   auto optimizer = OptimizerFactory::create_adam(train_config.lr_initial, adam_beta1, adam_beta2,
                                                  adam_eps, weight_decay, adamw != 0);
 
-  std::string lr_scheduler = "warmup_cosine";
-  Env::get("LR_SCHEDULER", lr_scheduler);
+  std::string scheduler_type = "warmup_cosine";
+  Env::get("SCHEDULER_TYPE", scheduler_type);
 
   int step_lr_epochs = 5;
   float step_lr_gamma = 0.1f;
@@ -121,7 +121,7 @@ signed main(int argc, char *argv[]) {
   if (step_size == 0) step_size = 1;
 
   auto scheduler =
-      (lr_scheduler == "warmup_cosine" || lr_scheduler == "cosine")
+      (scheduler_type == "warmup_cosine" || scheduler_type == "cosine")
           ? SchedulerFactory::create_warmup_cosine(optimizer.get(),
                                                    static_cast<size_t>(warmup_steps), total_steps,
                                                    cosine_start_lr, cosine_eta_min)

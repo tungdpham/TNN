@@ -19,7 +19,7 @@ def smooth(s, k):
     return s.rolling(k, min_periods=1).mean()
 
 
-def load_tnn(path, seq_len, tnn_batch_size, flops_per_token):
+def load_synet(path, seq_len, synet_batch_size, flops_per_token):
     df = pd.read_csv(path)
 
     for col in ["step", "batch_loss", "avg_loss", "time_ms"]:
@@ -30,8 +30,8 @@ def load_tnn(path, seq_len, tnn_batch_size, flops_per_token):
     df = df.sort_index()
     df["global_step"] = range(1, len(df) + 1)
 
-    if "time_ms" in df.columns and tnn_batch_size and seq_len:
-        tokens_per_batch = tnn_batch_size * seq_len
+    if "time_ms" in df.columns and synet_batch_size and seq_len:
+        tokens_per_batch = synet_batch_size * seq_len
         time_sec = df["time_ms"] / 1000.0
         df["tokens_per_sec"] = tokens_per_batch / time_sec
         df["tflops"] = (tokens_per_batch * flops_per_token) / time_sec / 1e12
@@ -59,8 +59,8 @@ def load_torch(path, seq_len, flops_per_token):
     return df
 
 
-def load_tnn_val(path):
-    """Load TNN epoch-level validation data."""
+def load_synet_val(path):
+    """Load SYNET epoch-level validation data."""
     df = pd.read_csv(path)
 
     for col in ["epoch", "val_perplexity", "val_loss"]:
@@ -114,7 +114,7 @@ def setup_style():
     })
 
 
-def plot_combined(tnn, torch_df, tnn_val, torch_val, out, double_column, xmax, ymax):
+def plot_combined(synet, torch_df, synet_val, torch_val, out, double_column, xmax, ymax):
     setup_style()
 
     figsize = (7.16, 5.5) if double_column else (3.5, 4.5)
@@ -123,7 +123,7 @@ def plot_combined(tnn, torch_df, tnn_val, torch_val, out, double_column, xmax, y
     xlim = (0, xmax) if xmax is not None else None
 
     # ── (a) Rolling Training Loss ────────────────────────────────────────────
-    ax1.plot(tnn["global_step"], tnn["batch_loss_s"], label="TNN", color="#1f77b4")
+    ax1.plot(synet["global_step"], synet["batch_loss_s"], label="SYNET", color="#1f77b4")
     ax1.plot(torch_df["global_step"], torch_df["batch_loss_s"], label="PyTorch", color="#ff7f0e")
     ax1.set_xlabel("Training Step")
     ax1.set_ylabel("Rolling Loss")
@@ -137,7 +137,7 @@ def plot_combined(tnn, torch_df, tnn_val, torch_val, out, double_column, xmax, y
     ax1.legend(frameon=True, loc="upper right")
 
     # ── (b) Training Perplexity ──────────────────────────────────────────────
-    ax2.plot(tnn["global_step"], tnn["train_perplexity_s"], label="TNN", color="#1f77b4")
+    ax2.plot(synet["global_step"], synet["train_perplexity_s"], label="SYNET", color="#1f77b4")
     ax2.plot(torch_df["global_step"], torch_df["train_perplexity_s"], label="PyTorch", color="#ff7f0e")
     ax2.set_xlabel("Training Step")
     ax2.set_ylabel("Perplexity")
@@ -149,8 +149,8 @@ def plot_combined(tnn, torch_df, tnn_val, torch_val, out, double_column, xmax, y
     ax2.legend(frameon=True, loc="upper right")
 
     # ── (c) TFLOPS ───────────────────────────────────────────────────────────
-    if "tflops" in tnn.columns and "tflops" in torch_df.columns:
-        ax3.plot(tnn["global_step"], tnn["tflops_s"], label="TNN", color="#1f77b4")
+    if "tflops" in synet.columns and "tflops" in torch_df.columns:
+        ax3.plot(synet["global_step"], synet["tflops_s"], label="SYNET", color="#1f77b4")
         ax3.plot(torch_df["global_step"], torch_df["tflops_s"], label="PyTorch", color="#ff7f0e")
         ax3.set_xlabel("Training Step")
         ax3.set_ylabel("TFLOPS")
@@ -166,8 +166,8 @@ def plot_combined(tnn, torch_df, tnn_val, torch_val, out, double_column, xmax, y
         ax3.set_title("(c) Computational Throughput")
 
     # ── (d) Tokens/s ─────────────────────────────────────────────────────────
-    if "tokens_per_sec" in tnn.columns and "tokens_per_sec" in torch_df.columns:
-        ax4.plot(tnn["global_step"], tnn["tokens_per_sec_s"], label="TNN", color="#1f77b4")
+    if "tokens_per_sec" in synet.columns and "tokens_per_sec" in torch_df.columns:
+        ax4.plot(synet["global_step"], synet["tokens_per_sec_s"], label="SYNET", color="#1f77b4")
         ax4.plot(torch_df["global_step"], torch_df["tokens_per_sec_s"], label="PyTorch", color="#ff7f0e")
         ax4.set_xlabel("Training Step")
         ax4.set_ylabel("Tokens / sec")
@@ -204,9 +204,9 @@ def add_smoothed_columns(df, smooth_k):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--tnn", default=None, help="TNN batch training metrics CSV (auto-detected if omitted)")
+    parser.add_argument("--synet", default=None, help="SYNET batch training metrics CSV (auto-detected if omitted)")
     parser.add_argument("--torch", default=None, help="PyTorch batch training metrics CSV (auto-detected if omitted)")
-    parser.add_argument("--tnn-val", default=None, help="TNN epoch-level validation CSV (auto-detected if omitted)")
+    parser.add_argument("--synet-val", default=None, help="SYNET epoch-level validation CSV (auto-detected if omitted)")
     parser.add_argument("--torch-val", default=None, help="PyTorch epoch summary CSV (auto-detected if omitted)")
     parser.add_argument("--out", default=None, help="Output image path (default: plots/gpt2_comparison.png)")
     parser.add_argument("--log-dir", default="logs", help="Directory to search for CSV logs (default: logs)")
@@ -220,9 +220,9 @@ def main():
     # GPT-2 sequence length (tokens per sample) — used for tokens/s and TFLOPS
     parser.add_argument("--seq-len", type=int, default=1024,
                         help="Sequence length in tokens (default: 1024)")
-    # TNN batch size is not stored in the TNN batch CSV, so it must be supplied
-    parser.add_argument("--tnn-batch-size", type=int, default=None,
-                        help="Batch size used in TNN run (required for tokens/s and TFLOPS)")
+    # SYNET batch size is not stored in the SYNET batch CSV, so it must be supplied
+    parser.add_argument("--synet-batch-size", type=int, default=None,
+                        help="Batch size used in SYNET run (required for tokens/s and TFLOPS)")
     # FLOPs per token for TFLOPS calculation; default = 6 * 117M (GPT-2 small)
     parser.add_argument("--flops-per-token", type=float, default=6 * 117e6,
                         help="FLOPs per token for TFLOPS estimate (default: 702M, GPT-2 small)")
@@ -232,12 +232,12 @@ def main():
     log_dir = args.log_dir
 
     # Auto-detect latest log files when paths are not explicitly provided
-    if args.tnn is None:
-        args.tnn = find_latest(log_dir, "tnn_*gpt2*batch*.csv")
-        if args.tnn:
-            print(f"Auto-detected TNN batch CSV: {args.tnn}")
+    if args.synet is None:
+        args.synet = find_latest(log_dir, "synet_*gpt2*batch*.csv")
+        if args.synet:
+            print(f"Auto-detected SYNET batch CSV: {args.synet}")
         else:
-            raise FileNotFoundError(f"No TNN GPT-2 batch CSV found in '{log_dir}'. Pass --tnn explicitly.")
+            raise FileNotFoundError(f"No SYNET GPT-2 batch CSV found in '{log_dir}'. Pass --synet explicitly.")
 
     if args.torch is None:
         args.torch = find_latest(log_dir, "gpt2*rank0_metrics.csv")
@@ -246,10 +246,10 @@ def main():
         else:
             raise FileNotFoundError(f"No PyTorch GPT-2 metrics CSV found in '{log_dir}'. Pass --torch explicitly.")
 
-    if args.tnn_val is None:
-        args.tnn_val = find_latest(log_dir, "tnn_*gpt2*epoch*.csv")
-        if args.tnn_val:
-            print(f"Auto-detected TNN val CSV: {args.tnn_val}")
+    if args.synet_val is None:
+        args.synet_val = find_latest(log_dir, "synet_*gpt2*epoch*.csv")
+        if args.synet_val:
+            print(f"Auto-detected SYNET val CSV: {args.synet_val}")
 
     if args.torch_val is None:
         args.torch_val = find_latest(log_dir, "gpt2*rank0_epoch_summary.csv")
@@ -260,28 +260,28 @@ def main():
         os.makedirs("plots", exist_ok=True)
         args.out = os.path.join("plots", "gpt2_comparison.png")
 
-    tnn = load_tnn(args.tnn, args.seq_len, args.tnn_batch_size, args.flops_per_token)
+    synet = load_synet(args.synet, args.seq_len, args.synet_batch_size, args.flops_per_token)
     torch_df = load_torch(args.torch, args.seq_len, args.flops_per_token)
 
-    tnn = add_smoothed_columns(tnn, args.smooth)
+    synet = add_smoothed_columns(synet, args.smooth)
     torch_df = add_smoothed_columns(torch_df, args.smooth)
 
-    print("TNN points:", len(tnn))
+    print("SYNET points:", len(synet))
     print("PyTorch points:", len(torch_df))
 
-    tnn_val = None
+    synet_val = None
     torch_val = None
-    if args.tnn_val:
-        tnn_val = load_tnn_val(args.tnn_val)
-        print("TNN validation epochs:", len(tnn_val))
+    if args.synet_val:
+        synet_val = load_synet_val(args.synet_val)
+        print("SYNET validation epochs:", len(synet_val))
     if args.torch_val:
         torch_val = load_torch_val(args.torch_val)
         print("PyTorch validation epochs:", len(torch_val))
 
     plot_combined(
-        tnn=tnn,
+        synet=synet,
         torch_df=torch_df,
-        tnn_val=tnn_val,
+        synet_val=synet_val,
         torch_val=torch_val,
         out=args.out,
         double_column=args.double_column,

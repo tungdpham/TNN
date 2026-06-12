@@ -6,9 +6,8 @@
  */
 #pragma once
 
-#include "nn/layer.hpp"
 #include "nn/layers_impl/common/conv2d.hpp"
-#include "parameterized_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 #ifdef USE_CUDNN
 #include "cuda/cudnn_conv2d_ops.hpp"
@@ -21,10 +20,10 @@
 #include <string>
 #include <unordered_map>
 
-namespace tnn {
+namespace synet {
 
 // [N, H, W, C] input
-class Conv2DLayer : public ParameterizedLayer {
+class Conv2DLayerImpl : public SISOLayerImpl {
 private:
   size_t in_channels_;
   size_t out_channels_;
@@ -114,17 +113,29 @@ private:
 public:
   static constexpr const char *TYPE_NAME = "conv2d";
 
-  Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
-              size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
-              bool use_bias = true, const std::string &name = "conv2d");
+  Conv2DLayerImpl(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
+                  size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
+                  bool use_bias = true, const std::string &name = "conv2d");
 
-  ~Conv2DLayer();
+  ~Conv2DLayerImpl();
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<Conv2DLayer> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<Conv2DLayerImpl> create_from_config(const LayerConfig &config);
 };
 
-}  // namespace tnn
+class Conv2DLayer : public LayerRef<Conv2DLayerImpl> {
+public:
+  Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
+              size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
+              bool use_bias = true, const std::string &name = "conv2d")
+      : LayerRef(std::make_shared<Conv2DLayerImpl>(in_channels, out_channels, kernel_h, kernel_w,
+                                                   stride_h, stride_w, pad_h, pad_w, use_bias,
+                                                   name)) {}
+
+  using LayerRef<Conv2DLayerImpl>::LayerRef;
+};
+
+}  // namespace synet

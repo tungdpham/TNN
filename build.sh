@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build script for TNN project
+# Build script for SYNET project
 
 set -e 
 
@@ -92,7 +92,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # print build configuration
-echo -e "${GREEN}TNN CMake Build Configuration:${NC}"
+echo -e "${GREEN}SYNET CMake Build Configuration:${NC}"
 echo "  Build Type: $BUILD_TYPE"
 echo "  OpenMP: $ENABLE_OPENMP"
 echo "  Intel TBB: $ENABLE_TBB"

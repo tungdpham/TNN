@@ -18,7 +18,7 @@
 #include "data_loading/tiny_imagenet_data_loader.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 namespace {
 bool env_flag_enabled(const char *primary, const char *fallback, bool default_value) {
@@ -95,7 +95,7 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
     auto val = std::make_unique<ImageNet100DataLoader>(io_dtype_);
 
     if (train->load_data(dataset_path, true)) {
-      const bool use_aug = env_flag_enabled("TNN_AUGMENTATION", "AUGMENTATION", true);
+      const bool use_aug = env_flag_enabled("SYNET_AUGMENTATION", "AUGMENTATION", true);
       if (use_aug) {
         train->set_augmentation(
             AugmentationBuilder()
@@ -146,4 +146,4 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
 
   return pair;
 }
-}  // namespace tnn
+}  // namespace synet

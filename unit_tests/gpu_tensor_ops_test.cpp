@@ -14,7 +14,7 @@
 #include "tensor/tensor.hpp"
 #include "tensor/tensor_ops.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 #ifdef USE_CUDA
 

@@ -13,7 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace relu {
 
@@ -27,6 +27,6 @@ void relu_backward_with_mask(const T *grad_output_data, T *grad_input_data,
 
 }  // namespace relu
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif  // USE_CUDA

@@ -10,7 +10,7 @@
 
 #include "nn/blocks_impl/common/flash_attention.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace cudnn_flash_attention {
 
@@ -296,6 +296,6 @@ void run_backward(feHandle_t* handle, const AttentionStats& stats, const void* q
 
 }  // namespace cudnn_flash_attention
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

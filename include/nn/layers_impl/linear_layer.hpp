@@ -10,12 +10,12 @@
 #include <string>
 
 #include "nn/activations_impl/linear.hpp"
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
-class LinearLayer : public StatelessLayer {
+class LinearLayerImpl : public SISOLayerImpl {
 private:
   std::unique_ptr<Linear> activation_;
 
@@ -26,15 +26,23 @@ protected:
 public:
   static constexpr const char *TYPE_NAME = "linear";
 
-  explicit LinearLayer(const std::string &name = "linear");
+  explicit LinearLayerImpl(const std::string &name = "linear");
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<LinearLayer> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<LinearLayerImpl> create_from_config(const LayerConfig &config);
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;
   }
 };
 
-}  // namespace tnn
+class LinearLayer : public LayerRef<LinearLayerImpl> {
+public:
+  explicit LinearLayer(const std::string &name = "linear")
+      : LayerRef(std::make_shared<LinearLayerImpl>(name)) {}
+
+  using LayerRef<LinearLayerImpl>::LayerRef;
+};
+
+}  // namespace synet

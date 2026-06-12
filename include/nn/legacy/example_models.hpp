@@ -6,15 +6,14 @@
  */
 #pragma once
 
+#include <fstream>
 #include <iosfwd>
 
 #include "nn/blocks_impl/sequential.hpp"
 #include "nn/graph.hpp"
-#include "nn/graph_builder.hpp"
-#include "nn/io_node.hpp"
 #include "nn/layers.hpp"
-#include "nn/op_node.hpp"
-namespace tnn {
+
+namespace synet {
 namespace legacy {
 class ExampleModels {
 private:
@@ -23,7 +22,7 @@ private:
 public:
   static void register_model(std::function<Sequential(DType_t)> creator) {
     Sequential model = creator(DType_t::FP32);
-    std::string model_name = model.name();
+    std::string model_name = model->name();
     creators_[model_name] = [creator](DType_t io_dtype) { return creator(io_dtype); };
   }
 
@@ -48,8 +47,7 @@ public:
 
 inline Graph load_or_create_model(const std::string &model_name, const std::string &model_path,
                                   IAllocator &allocator) {
-  GraphBuilder builder;
-  std::unique_ptr<Sequential> model;
+  Graph graph;
   if (!model_path.empty()) {
     std::cout << "Loading model from: " << model_path << std::endl;
     std::ifstream file(model_path, std::ios::binary);
@@ -61,14 +59,11 @@ inline Graph load_or_create_model(const std::string &model_name, const std::stri
     return model;
   } else {
     try {
-      auto model = std::make_unique<Sequential>(ExampleModels::create(model_name));
-      std::string model_name = model->name();
-      IONode &input_node = builder.io("input");
-      IONode &output_node = builder.io("output");
-      OpNode &op_node = builder.add_layer(std::move(model));
-      builder.add_edge({&input_node}, {&output_node}, op_node);
-      Graph graph = builder.compile(allocator);
-      graph.set_name(model_name);
+      Sequential model = ExampleModels::create(model_name);
+      Node input = graph.make_node("input");
+      Node output = model(input);
+      output->set_uid("output");
+      graph.compile(allocator);
       std::cout << "Created model: " << model_name << std::endl;
       return graph;
     } catch (const std::exception &e) {
@@ -83,4 +78,4 @@ inline Graph load_or_create_model(const std::string &model_name, const std::stri
   }
 }
 }  // namespace legacy
-}  // namespace tnn
+}  // namespace synet

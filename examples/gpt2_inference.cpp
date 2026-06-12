@@ -6,14 +6,12 @@
 
 #include "data_loading/open_webtext_data_loader.hpp"
 #include "nn/example_models.hpp"
-#include "nn/graph_builder.hpp"
-#include "nn/graph_executor.hpp"
 #include "tensor/tensor.hpp"
 #include "tensor/tensor_factory.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "utils/env.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 int main(int argc, char **argv) {
@@ -38,8 +36,6 @@ int main(int argc, char **argv) {
   // Create model using ExampleModels or load from file
   const Device &device = device_type == DeviceType::GPU ? getGPU() : getHost();
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
-
-  GraphBuilder builder;
   Graph graph = load_or_create_model("gpt2", model_path, allocator);
 
   size_t seq_len = 512;
@@ -66,9 +62,6 @@ int main(int argc, char **argv) {
   cout << "\n[PROMPT]: " << tokenizer.decode(current_tokens) << endl;
   cout << "\n[GENERATED]: " << flush;
 
-  auto ws_allocator = DELAllocatorV2::instance(device, defaultFlowHandle);
-  GraphExecutor executor(graph, ws_allocator);
-
   size_t num_to_generate = 50;
   for (size_t i = 0; i < num_to_generate; ++i) {
     Tensor model_input = make_tensor<float>({1, seq_len});
@@ -82,15 +75,9 @@ int main(int argc, char **argv) {
       model_input->at<float>({0, j}) = static_cast<float>(current_tokens[start_token_idx + j]);
     }
 
-    Tensor output = make_tensor<float>();
-    const InputPack inputs{
-        {"input", &model_input},
-    };
-    OutputPack outputs{
-        {"output", &output},
-    };
-
-    executor.forward(inputs, outputs);
+    TensorBundle inputs{{"input", model_input}};
+    TensorBundle outputs = graph.forward(inputs);
+    Tensor output = outputs.get("output");
 
     // Transfer output to CPU for sampling
     Tensor cpu_output = output->to_host();

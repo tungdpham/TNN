@@ -13,11 +13,8 @@
 #include "device/dptr.hpp"
 #include "device/flow.hpp"
 #include "device/iallocator.hpp"
-#ifndef NDEBUG
-#include <iostream>
-#endif
 
-namespace tnn {
+namespace synet {
 
 // Allocates a device pointer that contains a storage block that can be shared and automatically
 // reclaimed by allocator by installing a custom deleter in device_storage's shared_ptr.
@@ -101,14 +98,9 @@ private:
     auto it = free_blocks_.lower_bound(size);
     if (it != free_blocks_.end()) {
       device_storage *block = it->second;
-      if (block->capacity() <= size * 4) {
-        free_blocks_.erase(it);
-        return block;
-      }
+      free_blocks_.erase(it);
+      return block;
     }
-#ifndef NDEBUG
-    std::cout << "PoolAllocator: Allocating new buffer of size " << size << " bytes.\n";
-#endif
     void *ptr = device_.allocateAlignedMemory(size, DEFAULT_ALIGNMENT);
     return new device_storage(device_, ptr, size, DEFAULT_ALIGNMENT);
   }
@@ -119,4 +111,4 @@ private:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

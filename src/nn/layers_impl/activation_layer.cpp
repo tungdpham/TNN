@@ -7,38 +7,38 @@
 #include "nn/layers_impl/activation_layer.hpp"
 
 #include "nn/activations.hpp"
-namespace tnn {
+namespace synet {
 
-ActivationLayer::ActivationLayer(std::unique_ptr<ActivationFunction> activation,
-                                 const std::string &name)
-    : StatelessLayer(name),
+ActivationLayerImpl::ActivationLayerImpl(std::unique_ptr<ActivationFunction> activation,
+                                         const std::string &name)
+    : SISOLayerImpl(name),
       activation_(std::move(activation)) {
   if (!activation_) {
-    throw std::invalid_argument("Function function cannot be null");
+    throw std::invalid_argument("Activation function cannot be null");
   }
 }
 
-Tensor ActivationLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor ActivationLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (this->is_training_) {
     set_immutable_cache(mb_id, "input", input);
   }
 
-  Tensor output = get_output_tensor(input->shape());
+  Tensor output = get_tensor(input->shape(), input->data_type());
   activation_->apply(input, output);
   return output;
 }
 
-Tensor ActivationLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor ActivationLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
-    throw std::runtime_error("No cached input found for backward pass in ActivationLayer");
+    throw std::runtime_error("No cached input found for backward pass in ActivationLayerImpl");
   }
-  Tensor grad_input = get_output_tensor(input->shape());
+  Tensor grad_input = get_tensor(input->shape(), input->data_type());
   activation_->compute_gradient(input, grad_output, grad_input);
   return grad_input;
 }
 
-LayerConfig ActivationLayer::get_config() const {
+LayerConfig ActivationLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -46,15 +46,16 @@ LayerConfig ActivationLayer::get_config() const {
   return config;
 }
 
-Vec<size_t> ActivationLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> ActivationLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   return input_shape;
 }
 
-std::unique_ptr<ActivationLayer> ActivationLayer::create_from_config(const LayerConfig &config) {
+std::shared_ptr<ActivationLayerImpl> ActivationLayerImpl::create_from_config(
+    const LayerConfig &config) {
   std::string activation_name = config.get<std::string>("activation", "relu");
   ActivationFactory::register_defaults();
   auto activation = ActivationFactory::create(activation_name);
-  return std::make_unique<ActivationLayer>(std::move(activation), config.name);
+  return std::make_shared<ActivationLayerImpl>(std::move(activation), config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

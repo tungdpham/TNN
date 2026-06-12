@@ -6,7 +6,7 @@
 #include "tensor.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 template <typename T>
   requires std::is_floating_point_v<T>
@@ -145,4 +145,4 @@ inline void print_data_distribution(const ConstTensor &tensor,
 
   std::cout << std::endl;
 }
-}  // namespace tnn
+}  // namespace synet

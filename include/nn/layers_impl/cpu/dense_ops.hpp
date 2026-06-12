@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstddef>
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace legacy_dense {
 
@@ -26,4 +26,4 @@ void add_bias(T *output_data, const T *bias_data, const size_t batch_size,
               const size_t output_features);
 }  // namespace legacy_dense
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

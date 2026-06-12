@@ -11,7 +11,7 @@
 
 #include "device/task.hpp"
 
-namespace tnn {
+namespace synet {
 namespace ops {
 
 template <typename T>
@@ -832,5 +832,6 @@ std::unique_ptr<Task> cast(const dptr a, dptr b, size_t size,
     throw std::runtime_error("Unsupported device type");
   }
 }
+
 }  // namespace ops
-}  // namespace tnn
+}  // namespace synet

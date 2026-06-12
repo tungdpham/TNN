@@ -7,7 +7,6 @@
 #pragma once
 
 #include <cassert>
-#include <fstream>
 #include <iostream>
 #include <memory>
 #include <numeric>
@@ -26,7 +25,7 @@
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 using Tensor = std::shared_ptr<class TensorImpl>;
 using ConstTensor = std::shared_ptr<const class TensorImpl>;
@@ -289,6 +288,18 @@ public:
       return cpu_tensor;
     }
     throw std::runtime_error("Unsupported device type for to_device()");
+  }
+
+  Tensor to_dtype(DType_t target_dtype) const {
+    if (dtype_ == target_dtype) {
+      return clone();
+    }
+    auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
+    Vec<size_t> shape_vec(shape_);
+    Tensor converted_tensor = std::make_shared<TensorImpl>(allocator, target_dtype, shape_vec);
+    DISPATCH_ANY_DTYPE2(dtype_, target_dtype, T, U,
+                        ops::cast<T, U>(data_, converted_tensor->data_, data_size_));
+    return converted_tensor;
   }
 
   Tensor to_host() const {
@@ -603,10 +614,10 @@ public:
     return result;
   }
 
-  void print_data() const {
+  void print_data(std::string name = "Tensor") const {
     Tensor cpu_tensor = to_device(getHost());
     size_t total_elements = cpu_tensor->size();
-    std::cout << "TensorImpl data (shape " << cpu_tensor->shape_str() << "):\n";
+    std::cout << name << " data (shape " << cpu_tensor->shape_str() << "):\n";
     DISPATCH_ANY_DTYPE(dtype_, T, {
       T *data = cpu_tensor->data_as<T>();
       for (size_t i = 0; i < total_elements; ++i) {
@@ -616,11 +627,11 @@ public:
     std::cout << std::endl;
   }
 
-  void head(size_t n = 10) const {
+  void head(size_t n = 10, std::string name = "Tensor") const {
     Tensor cpu_tensor = to_device(getHost());
     size_t total_elements = cpu_tensor->size();
     n = std::min(n, total_elements);
-    std::cout << "TensorImpl head (first " << n << " elements of shape " << cpu_tensor->shape_str()
+    std::cout << name << " head (first " << n << " elements of shape " << cpu_tensor->shape_str()
               << "):\n";
     DISPATCH_ANY_DTYPE(dtype_, T, {
       T *data = cpu_tensor->data_as<T>();
@@ -631,9 +642,9 @@ public:
     std::cout << std::endl;
   }
 
-  void save(std::ofstream &out) const {
-    if (!out.is_open()) {
-      throw std::runtime_error("File is not open for writing");
+  void save(std::ostream &out) const {
+    if (!out) {
+      throw std::runtime_error("Stream is not ready for writing");
     }
 
     // write dims, shape
@@ -729,6 +740,26 @@ inline Tensor operator*(double scalar, const ConstTensor &rhs) {
   return result;
 }
 
-}  // namespace tnn
+inline Tensor operator+=(Tensor &lhs, const ConstTensor &rhs) {
+  lhs->add(rhs);
+  return lhs;
+}
+
+inline Tensor operator-=(Tensor &lhs, const ConstTensor &rhs) {
+  lhs->sub(rhs);
+  return lhs;
+}
+
+inline Tensor operator*=(Tensor &lhs, const ConstTensor &rhs) {
+  lhs->mul(rhs);
+  return lhs;
+}
+
+inline Tensor operator/=(Tensor &lhs, const ConstTensor &rhs) {
+  lhs->div(rhs);
+  return lhs;
+}
+
+}  // namespace synet
 
 #include "tensor/tensor_factory.hpp"  // IWYU pragma: keep

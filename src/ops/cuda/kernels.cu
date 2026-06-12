@@ -17,7 +17,7 @@
 #include "cuda/error_handler.hpp"
 #include "type/cuda/vectorized_types.hpp"
 
-namespace tnn {
+namespace synet {
 namespace ops {
 namespace cuda {
 
@@ -243,7 +243,7 @@ void dispatch_binary(const T* a, const T* b, T* c, size_t size, cudaStream_t str
     int blocks = get_num_blocks(size);
     binary_op_scalar_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size, op);
   }
-  tnn::cuda::checkCudaError(cudaGetLastError(), "binary_op", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "binary_op", __FILE__, __LINE__);
 }
 
 template <typename T, typename Func>
@@ -259,7 +259,7 @@ void dispatch_unary(const T* a, T* c, size_t size, cudaStream_t stream, Func op)
     int blocks = get_num_blocks(size);
     unary_op_scalar_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, c, size, op);
   }
-  tnn::cuda::checkCudaError(cudaGetLastError(), "unary_op", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "unary_op", __FILE__, __LINE__);
 }
 
 template <typename T, typename Func>
@@ -273,7 +273,7 @@ void dispatch_ternary(const T* a, const T* b, T* c, size_t size, cudaStream_t st
   if (size == 0) return;
   int blocks = get_num_blocks(size);
   ternary_op_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size, op);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "ternary_op", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "ternary_op", __FILE__, __LINE__);
 }
 
 template <typename T, int Mode>
@@ -298,7 +298,7 @@ T dispatch_reduce(const T* a, const T* b, T scalar, size_t size, cudaStream_t st
 
   delete[] h_partial;
   cudaFree(d_partial);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "reduction", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "reduction", __FILE__, __LINE__);
 
   // For fp16, clamp the result to avoid overflow when converting back
   if constexpr (std::is_same<T, fp16>::value) {
@@ -381,7 +381,7 @@ template <typename T>
 void cuda_axpy(T alpha, const T* x, T* y, size_t size, cudaStream_t stream) {
   int blocks = get_num_blocks(size);
   axpy_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(alpha, x, y, size);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "axpy", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "axpy", __FILE__, __LINE__);
 }
 
 template <typename T>
@@ -418,21 +418,21 @@ template <typename T>
 void cuda_copy(const T* a, T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   cudaMemcpyAsync(c, a, size * sizeof(T), cudaMemcpyDeviceToDevice, stream);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "copy", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "copy", __FILE__, __LINE__);
 }
 
 template <typename T>
 void cuda_h2d_copy(const T* a, T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   cudaMemcpy(c, a, size * sizeof(T), cudaMemcpyHostToDevice);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "h2d_copy", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "h2d_copy", __FILE__, __LINE__);
 }
 
 template <typename T>
 void cuda_d2h_copy(const T* a, T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   cudaMemcpy(c, a, size * sizeof(T), cudaMemcpyDeviceToHost);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "d2h_copy", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "d2h_copy", __FILE__, __LINE__);
 }
 
 template <typename T>
@@ -452,14 +452,14 @@ void cuda_set_scalar(T* c, T scalar, size_t size, cudaStream_t stream) {
     int blocks = get_num_blocks(size);
     set_scalar_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(c, scalar, size);
   }
-  tnn::cuda::checkCudaError(cudaGetLastError(), "set_scalar", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "set_scalar", __FILE__, __LINE__);
 }
 
 template <typename T>
 void cuda_zero(T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   cudaMemsetAsync(c, 0, size * sizeof(T), stream);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "zero", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "zero", __FILE__, __LINE__);
 }
 
 template <typename T>
@@ -468,7 +468,7 @@ void cuda_fill_random_uniform(T* data, size_t size, T min_val, T max_val, unsign
   if (size == 0) return;
   int blocks = get_num_blocks(size);
   fill_random_uniform_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(data, size, min_val, max_val, seed);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "fill_random_uniform", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "fill_random_uniform", __FILE__, __LINE__);
 }
 
 template <typename T>
@@ -477,7 +477,7 @@ void cuda_fill_random_normal(T* data, size_t size, T mean, T stddev, unsigned lo
   if (size == 0) return;
   int blocks = get_num_blocks(size);
   fill_random_normal_kernel<T><<<blocks, BLOCK_SIZE, 0, stream>>>(data, size, mean, stddev, seed);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "fill_random_normal", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "fill_random_normal", __FILE__, __LINE__);
 }
 
 template <typename T>
@@ -546,7 +546,7 @@ void cuda_bswap(const T* a, T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   int blocks = get_num_blocks(size);
   bswap_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, c, size);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "bswap", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "bswap", __FILE__, __LINE__);
 }
 
 // Cast kernel implementation
@@ -563,7 +563,7 @@ void cuda_cast(const A_T* a, B_T* b, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   int blocks = get_num_blocks(size);
   cast_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, size);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "cast", __FILE__, __LINE__);
+  synet::cuda::checkCudaError(cudaGetLastError(), "cast", __FILE__, __LINE__);
 }
 
 // Explicit template instantiations for cast
@@ -712,11 +712,11 @@ INSTANTIATE_COPY(bool)
 INSTANTIATE_COPY(unsigned short)
 INSTANTIATE_COPY(long)
 INSTANTIATE_COPY(unsigned int)
-INSTANTIATE_COPY(tnn::DType_t)
-INSTANTIATE_COPY(tnn::CommandType)
-INSTANTIATE_COPY(tnn::CompressionType)
-INSTANTIATE_COPY(tnn::PacketType)
-INSTANTIATE_COPY(tnn::Endianness)
+INSTANTIATE_COPY(synet::DType_t)
+INSTANTIATE_COPY(synet::CommandType)
+INSTANTIATE_COPY(synet::CompressionType)
+INSTANTIATE_COPY(synet::PacketType)
+INSTANTIATE_COPY(synet::Endianness)
 
 #undef INSTANTIATE_COPY
 #undef INSTANTIATE_BIN
@@ -724,6 +724,6 @@ INSTANTIATE_COPY(tnn::Endianness)
 
 }  // namespace cuda
 }  // namespace ops
-}  // namespace tnn
+}  // namespace synet
 
 #endif

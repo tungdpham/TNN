@@ -14,7 +14,7 @@
 #include "nn/activations_impl/cuda/elu_kernels.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 ELU::ELU(float alpha)
     : alpha_(alpha) {}
 
@@ -102,4 +102,4 @@ std::unique_ptr<Task> ELU::compute_gradient_impl(const ConstTensor &input,
   return nullptr;
 }
 
-}  // namespace tnn
+}  // namespace synet

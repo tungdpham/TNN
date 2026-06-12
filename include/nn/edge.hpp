@@ -1,29 +1,33 @@
-#include <initializer_list>
+#pragma once
 
-#include "nn/io_node.hpp"
-#include "nn/op_node.hpp"
+#include "nn/layer.hpp"
+#include "nn/node.hpp"
 
-namespace tnn {
-class Edge {
+namespace synet {
+
+class EdgeImpl {
 public:
-  Edge(Vec<const IONode*> producers, Vec<const IONode*> consumers, OpNode& op_node)
-      : producers_(std::move(producers)),
-        consumers_(std::move(consumers)),
-        op_node_(op_node) {}
+  EdgeImpl(std::shared_ptr<LayerImpl> layer, const Vec<Node> &inputs, const Vec<Node> &outputs)
+      : layer_(layer),
+        producers_(inputs),
+        consumers_(outputs) {}
 
-  Edge(std::initializer_list<const IONode*> producers,
-       std::initializer_list<const IONode*> consumers, OpNode& op_node)
-      : producers_(producers),
-        consumers_(consumers),
-        op_node_(op_node) {}
+  EdgeImpl(std::shared_ptr<LayerImpl> layer, std::initializer_list<Node> inputs,
+           std::initializer_list<Node> outputs)
+      : layer_(layer),
+        producers_(inputs),
+        consumers_(outputs) {}
 
-  const Vec<const IONode*>& producers() const { return producers_; }
-  const Vec<const IONode*>& consumers() const { return consumers_; }
-  OpNode& op_node() const { return op_node_; }
+  const Vec<Node> &producers() const { return producers_; }
+  const Vec<Node> &consumers() const { return consumers_; }
+  std::shared_ptr<LayerImpl> layer() const { return layer_; }
 
 private:
-  Vec<const IONode*> producers_;
-  Vec<const IONode*> consumers_;
-  OpNode& op_node_;
+  std::shared_ptr<LayerImpl> layer_;
+  Vec<Node> producers_;
+  Vec<Node> consumers_;
 };
-}  // namespace tnn
+
+using Edge = std::shared_ptr<EdgeImpl>;
+
+}  // namespace synet

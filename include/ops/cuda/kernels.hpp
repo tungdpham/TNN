@@ -4,7 +4,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace ops {
 namespace cuda {
 
@@ -125,4 +125,4 @@ void cuda_bswap(const T *a, T *c, size_t size, cudaStream_t stream);
 
 }  // namespace cuda
 }  // namespace ops
-}  // namespace tnn
+}  // namespace synet

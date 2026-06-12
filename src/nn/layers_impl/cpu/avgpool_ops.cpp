@@ -11,7 +11,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace avgpool {
 template <typename T>
@@ -105,4 +105,4 @@ void run_backward(const T *grad_output, T *grad_input, size_t batch_size, size_t
 
 }  // namespace avgpool
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

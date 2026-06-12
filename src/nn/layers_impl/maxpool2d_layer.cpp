@@ -19,11 +19,12 @@
 #include <cstddef>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
-MaxPool2DLayer::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,
-                               size_t pad_h, size_t pad_w, const std::string &name)
-    : StatelessLayer(name),
+MaxPool2DLayerImpl::MaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
+                                       size_t stride_w, size_t pad_h, size_t pad_w,
+                                       const std::string &name)
+    : SISOLayerImpl(name),
       pool_h_(pool_h),
       pool_w_(pool_w),
       stride_h_(stride_h == 0 ? pool_h : stride_h),
@@ -38,7 +39,7 @@ MaxPool2DLayer::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, si
   }
 }
 
-MaxPool2DLayer::~MaxPool2DLayer() {
+MaxPool2DLayerImpl::~MaxPool2DLayerImpl() {
 #ifdef USE_DNNL
   for (auto &pair : dnnl_handle_cache) {
     if (pair.second) {
@@ -50,10 +51,10 @@ MaxPool2DLayer::~MaxPool2DLayer() {
 #endif
 }
 
-Tensor MaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor MaxPool2DLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
-    throw std::runtime_error("MaxPool2DLayer: input must be 4D (NHWC format)");
+    throw std::runtime_error("MaxPool2DLayerImpl: input must be 4D (NHWC format)");
   }
   const size_t batch_size = shape[0];
   const size_t input_h = shape[1];
@@ -73,20 +74,20 @@ Tensor MaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
 
   if (is_training_) {
     Tensor mask_indices =
-        this->get_cache_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
+        this->get_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
     set_mutable_cache(mb_id, "mask_indices", mask_indices);
 
-    Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
+    Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input->data_type());
 
     run_forward(input, output, batch_size, input_h, input_w, channels, output_h, output_w,
                 mask_indices, this->flow_handle_);
 
     return output;
   } else {
-    Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
+    Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input->data_type());
 
     Tensor mask_indices =
-        this->get_cache_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
+        this->get_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
 
     run_forward(input, output, batch_size, input_h, input_w, channels, output_h, output_w,
                 mask_indices, this->flow_handle_);
@@ -95,7 +96,7 @@ Tensor MaxPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   }
 }
 
-Tensor MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor MaxPool2DLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
 #ifdef USE_DNNL
   if (get_engine_type() == EngineType::CPU) {
     return dnnl_backward(grad_output, mb_id);
@@ -111,12 +112,13 @@ Tensor MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
   const size_t channels = input_shape[3];
   const auto &grad_shape = grad_output->shape();
   if (grad_shape.size() != 4) {
-    throw std::runtime_error("MaxPool2DLayer: grad_output must be 4D (NHWC format)");
+    throw std::runtime_error("MaxPool2DLayerImpl: grad_output must be 4D (NHWC format)");
   }
   const size_t output_h = grad_shape[1];
   const size_t output_w = grad_shape[2];
 
-  Tensor grad_input = get_output_tensor({batch_size, input_h, input_w, channels});
+  Tensor grad_input =
+      get_tensor({batch_size, input_h, input_w, channels}, grad_output->data_type());
 
   grad_input->fill(0);
 
@@ -127,14 +129,14 @@ Tensor MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> MaxPool2DLayer::run_forward(const ConstTensor &input_data,
-                                                  const Tensor &output_data, size_t batch_size,
-                                                  size_t height, size_t width, size_t channels,
-                                                  size_t output_h, size_t output_w,
-                                                  const Tensor &mask_indices,
-                                                  flowHandle_t handle) const {
+std::unique_ptr<Task> MaxPool2DLayerImpl::run_forward(const ConstTensor &input_data,
+                                                      const Tensor &output_data, size_t batch_size,
+                                                      size_t height, size_t width, size_t channels,
+                                                      size_t output_h, size_t output_w,
+                                                      const Tensor &mask_indices,
+                                                      flowHandle_t handle) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("MaxPool2DLayer: data type mismatch in forward pass");
+    throw std::runtime_error("MaxPool2DLayerImpl: data type mismatch in forward pass");
   }
 
   if (input_data->device_type() == DeviceType::CPU) {
@@ -152,31 +154,32 @@ std::unique_ptr<Task> MaxPool2DLayer::run_forward(const ConstTensor &input_data,
   }
 #endif
   else {
-    throw std::runtime_error("MaxPool2DLayer: unsupported device type");
+    throw std::runtime_error("MaxPool2DLayerImpl: unsupported device type");
   }
   return nullptr;
 }
 
-std::unique_ptr<Task> MaxPool2DLayer::run_forward(const ConstTensor &input_data,
-                                                  const Tensor &output_data, size_t batch_size,
-                                                  size_t height, size_t width, size_t channels,
-                                                  size_t output_h, size_t output_w,
-                                                  const Tensor &mask_indices,
-                                                  flowHandle_t handle) const {
+std::unique_ptr<Task> MaxPool2DLayerImpl::run_forward(const ConstTensor &input_data,
+                                                      const Tensor &output_data, size_t batch_size,
+                                                      size_t height, size_t width, size_t channels,
+                                                      size_t output_h, size_t output_w,
+                                                      const Tensor &mask_indices,
+                                                      flowHandle_t handle) const {
   DISPATCH_IO_DTYPE(run_forward, input_data, output_data, batch_size, height, width, channels,
                     output_h, output_w, mask_indices, handle);
   return nullptr;
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> MaxPool2DLayer::run_backward(const ConstTensor &gradient_data,
-                                                   const Tensor &grad_input_data, size_t batch_size,
-                                                   size_t channels, size_t output_h,
-                                                   size_t output_w, const ConstTensor &mask_indices,
-                                                   flowHandle_t handle) const {
+std::unique_ptr<Task> MaxPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
+                                                       const Tensor &grad_input_data,
+                                                       size_t batch_size, size_t channels,
+                                                       size_t output_h, size_t output_w,
+                                                       const ConstTensor &mask_indices,
+                                                       flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("MaxPool2DLayer: data type mismatch in backward pass");
+    throw std::runtime_error("MaxPool2DLayerImpl: data type mismatch in backward pass");
   }
 
   if (gradient_data->device_type() == DeviceType::CPU) {
@@ -192,22 +195,23 @@ std::unique_ptr<Task> MaxPool2DLayer::run_backward(const ConstTensor &gradient_d
   }
 #endif
   else {
-    throw std::runtime_error("MaxPool2DLayer: unsupported device type");
+    throw std::runtime_error("MaxPool2DLayerImpl: unsupported device type");
   }
   return nullptr;
 }
 
-std::unique_ptr<Task> MaxPool2DLayer::run_backward(const ConstTensor &gradient_data,
-                                                   const Tensor &grad_input_data, size_t batch_size,
-                                                   size_t channels, size_t output_h,
-                                                   size_t output_w, const ConstTensor &mask_indices,
-                                                   flowHandle_t handle) const {
+std::unique_ptr<Task> MaxPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
+                                                       const Tensor &grad_input_data,
+                                                       size_t batch_size, size_t channels,
+                                                       size_t output_h, size_t output_w,
+                                                       const ConstTensor &mask_indices,
+                                                       flowHandle_t handle) const {
   DISPATCH_IO_DTYPE(run_backward, gradient_data, grad_input_data, batch_size, channels, output_h,
                     output_w, mask_indices, handle);
   return nullptr;
 }
 
-LayerConfig MaxPool2DLayer::get_config() const {
+LayerConfig MaxPool2DLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -220,9 +224,9 @@ LayerConfig MaxPool2DLayer::get_config() const {
   return config;
 }
 
-Vec<size_t> MaxPool2DLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> MaxPool2DLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
-    throw std::invalid_argument("MaxPool2DLayer: input shape must be 4D (NHWC format)");
+    throw std::invalid_argument("MaxPool2DLayerImpl: input shape must be 4D (NHWC format)");
   }
 
   size_t batch_size = input_shape[0];
@@ -233,7 +237,8 @@ Vec<size_t> MaxPool2DLayer::compute_output_shape(const Vec<size_t> &input_shape)
   return {batch_size, output_h, output_w, channels};
 }
 
-std::unique_ptr<MaxPool2DLayer> MaxPool2DLayer::create_from_config(const LayerConfig &config) {
+std::shared_ptr<MaxPool2DLayerImpl> MaxPool2DLayerImpl::create_from_config(
+    const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
   size_t stride_h = config.get<size_t>("stride_h");
@@ -241,12 +246,12 @@ std::unique_ptr<MaxPool2DLayer> MaxPool2DLayer::create_from_config(const LayerCo
   size_t pad_h = config.get<size_t>("pad_h");
   size_t pad_w = config.get<size_t>("pad_w");
 
-  return std::make_unique<MaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
-                                          config.name);
+  return std::make_shared<MaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+                                              config.name);
 }
 
 #ifdef USE_DNNL
-void MaxPool2DLayer::build_dnnl_handle(const Vec<size_t> &input_shape) const {
+void MaxPool2DLayerImpl::build_dnnl_handle(const Vec<size_t> &input_shape) const {
   size_t shape_key = get_shape_hash(input_shape);
   if (dnnl_handle_cache.find(shape_key) == dnnl_handle_cache.end()) {
     MaxPoolStats new_stats;
@@ -257,17 +262,17 @@ void MaxPool2DLayer::build_dnnl_handle(const Vec<size_t> &input_shape) const {
   }
 }
 
-Tensor MaxPool2DLayer::dnnl_forward(const ConstTensor &input, size_t mb_id) {
+Tensor MaxPool2DLayerImpl::dnnl_forward(const ConstTensor &input, size_t mb_id) {
   build_dnnl_handle(input->shape());
   const size_t shape_key = get_shape_hash(input->shape());
   cpu::dnnl_maxpool::dnnlMaxPoolHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
   const MaxPoolStats &current_stats = dnnl_stats_cache.at(shape_key);
 
-  Tensor output = get_output_tensor({current_stats.batch_size, current_stats.output_h,
-                                     current_stats.output_w, current_stats.channels});
+  Tensor output = get_tensor({current_stats.batch_size, current_stats.output_h,
+                              current_stats.output_w, current_stats.channels});
 
   if (this->is_training_) {
-    Tensor pool_ws = get_cache_tensor({current_stats.pool_workspace_size}, DType_t::BYTE);
+    Tensor pool_ws = get_tensor({current_stats.pool_workspace_size}, DType_t::BYTE);
     set_mutable_cache(mb_id, "dnnl_pool_ws", pool_ws);
 
     create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_forward, dnnl_handle, current_stats,
@@ -280,7 +285,7 @@ Tensor MaxPool2DLayer::dnnl_forward(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor MaxPool2DLayer::dnnl_backward(const ConstTensor &grad_output, size_t mb_id) {
+Tensor MaxPool2DLayerImpl::dnnl_backward(const ConstTensor &grad_output, size_t mb_id) {
   const Vec<size_t> &input_shape = micro_batch_input_shapes_[mb_id];
 
   build_dnnl_handle(input_shape);
@@ -288,7 +293,7 @@ Tensor MaxPool2DLayer::dnnl_backward(const ConstTensor &grad_output, size_t mb_i
   cpu::dnnl_maxpool::dnnlMaxPoolHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
   const MaxPoolStats &current_stats = dnnl_stats_cache.at(shape_key);
 
-  Tensor grad_input = get_output_tensor(input_shape);
+  Tensor grad_input = get_tensor(input_shape, io_dtype_);
   Tensor &pool_ws = this->get_mutable_cache(mb_id, "dnnl_pool_ws");
 
   create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_backward, dnnl_handle, current_stats,
@@ -299,4 +304,4 @@ Tensor MaxPool2DLayer::dnnl_backward(const ConstTensor &grad_output, size_t mb_i
 }
 #endif  // USE_DNNL
 
-}  // namespace tnn
+}  // namespace synet

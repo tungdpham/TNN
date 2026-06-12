@@ -10,7 +10,7 @@
 
 #ifdef USE_CUDA
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace slice {
 
@@ -114,6 +114,6 @@ void slice_backward(const T* grad_output, T* grad_input, const Vec<size_t>& inpu
 
 }  // namespace slice
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

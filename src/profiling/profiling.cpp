@@ -1,6 +1,6 @@
 #include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
 
-namespace tnn {
+namespace synet {
 Profiler GlobalProfiler::global_profiler_;
 }

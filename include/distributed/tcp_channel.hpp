@@ -4,7 +4,7 @@
 #include "asio/io_context.hpp"
 #include "distributed/channel.hpp"
 
-namespace tnn {
+namespace synet {
 
 // thread-safe queue for outgoing packets for a connection
 class WriteQueue {
@@ -96,4 +96,4 @@ private:
   TCPChannel *conn_;
 };
 
-}  // namespace tnn
+}  // namespace synet

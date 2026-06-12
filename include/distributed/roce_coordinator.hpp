@@ -11,7 +11,7 @@
 #include "coordinator.hpp"
 #include "roce_communicator.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * @brief Distributed pipeline coordinator for RoCE-based stage deployment
@@ -45,4 +45,4 @@ public:
   ~RoCECoordinator() = default;
 };
 
-}  // namespace tnn
+}  // namespace synet

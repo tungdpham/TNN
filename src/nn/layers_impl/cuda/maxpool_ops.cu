@@ -11,7 +11,7 @@
 #include "nn/layers_impl/cuda/maxpool_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace maxpool {
 
@@ -111,4 +111,4 @@ void run_backward(const T* grad_output, T* grad_input, const int* mask_indices, 
 
 }  // namespace maxpool
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

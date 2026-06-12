@@ -12,7 +12,7 @@
 #include "nn/layers_impl/cuda/conv2d_nchw_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace conv2d_nchw {
 template <typename T>
@@ -153,4 +153,4 @@ void add_bias(T* output_data, const T* bias_data, const size_t batch_size, const
 
 }  // namespace conv2d_nchw
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

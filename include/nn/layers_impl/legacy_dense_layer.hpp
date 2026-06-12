@@ -10,11 +10,11 @@
 #include <string>
 
 #include "device/task.hpp"
-#include "parameterized_layer.hpp"
+#include "nn/siso_layer.hpp"
 
-namespace tnn {
+namespace synet {
 
-class LegacyDenseLayer : public ParameterizedLayer {
+class LegacyDenseLayerImpl : public SISOLayerImpl {
 private:
   size_t input_features_;
   size_t output_features_;
@@ -78,8 +78,8 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  LegacyDenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
-                   const std::string &name = "legacy_dense");
+  LegacyDenseLayerImpl(size_t input_features, size_t output_features, bool use_bias = true,
+                       const std::string &name = "legacy_dense");
 
   static constexpr const char *TYPE_NAME = "legacy_dense";
 
@@ -88,7 +88,17 @@ public:
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<LegacyDenseLayer> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<LegacyDenseLayerImpl> create_from_config(const LayerConfig &config);
 };
 
-}  // namespace tnn
+class LegacyDenseLayer : public LayerRef<LegacyDenseLayerImpl> {
+public:
+  LegacyDenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
+                   const std::string &name = "legacy_dense")
+      : LayerRef(std::make_shared<LegacyDenseLayerImpl>(input_features, output_features, use_bias,
+                                                        name)) {}
+
+  using LayerRef<LegacyDenseLayerImpl>::LayerRef;
+};
+
+}  // namespace synet

@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace groupnorm {
 
@@ -18,4 +18,4 @@ void run_backward(const T *grad_output, const T *norm_input, const T *inv_std, c
 
 }  // namespace groupnorm
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

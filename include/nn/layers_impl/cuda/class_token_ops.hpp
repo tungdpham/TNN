@@ -10,7 +10,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace class_token {
 template <typename T>
@@ -22,4 +22,4 @@ void run_backward(const T *grad_output, T *grad_input, T *grad_token, size_t bat
                   size_t seq_len, size_t embed_dim, cudaStream_t stream);
 }  // namespace class_token
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

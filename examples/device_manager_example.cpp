@@ -4,7 +4,7 @@
 
 #include "device/device_manager.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 int main() {

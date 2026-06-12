@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 template <typename T>
 void tanh(const T *input, T *output, size_t size, cudaStream_t stream);
@@ -14,6 +14,6 @@ template <typename T>
 void tanh_gradient(const T *input, const T *grad_output, T *grad_input, size_t size,
                    cudaStream_t stream);
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif  // USE_CUDA

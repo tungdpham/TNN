@@ -19,7 +19,7 @@
 #include <omp.h>
 #endif
 
-namespace tnn {
+namespace synet {
 
 enum class SchedulePolicy { Static, Auto, Affinity };
 
@@ -167,4 +167,4 @@ inline void parallel_for_2d(const Index dim0, const Index dim1, Func f,
 #endif
 }
 
-}  // namespace tnn
+}  // namespace synet

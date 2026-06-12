@@ -9,19 +9,19 @@
 #include <memory>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
-LeakyReLULayer::LeakyReLULayer(float negative_slope, const std::string &name)
-    : StatelessLayer(name),
+LeakyReLULayerImpl::LeakyReLULayerImpl(float negative_slope, const std::string &name)
+    : SISOLayerImpl(name),
       activation_(std::make_unique<LeakyReLU>(negative_slope)),
       negative_slope_(negative_slope) {}
 
-Tensor LeakyReLULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
-  Tensor output = get_output_tensor(input->shape());
+Tensor LeakyReLULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
+  Tensor output = get_tensor(input->shape(), io_dtype_);
 
   if (this->is_training_) {
     // Cache boolean mask (1 byte per element) instead of full input
-    Tensor mask = this->get_cache_tensor(input->shape(), DType_t::UINT8_T);
+    Tensor mask = this->get_tensor(input->shape(), DType_t::UINT8_T);
     set_mutable_cache(mb_id, "mask", mask);
 
     // Compute LeakyReLU and mask
@@ -38,7 +38,7 @@ Tensor LeakyReLULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
     }
 #ifdef USE_CUDA
     else if (input->device_type() == DeviceType::GPU) {
-      throw std::runtime_error("LeakyReLULayer: GPU mask computation not yet implemented");
+      throw std::runtime_error("LeakyReLULayerImpl: GPU mask computation not yet implemented");
     }
 #endif
   } else {
@@ -48,13 +48,13 @@ Tensor LeakyReLULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor LeakyReLULayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor LeakyReLULayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &mask = this->get_mutable_cache(mb_id, "mask");
   if (!mask) {
-    throw std::runtime_error("No cached mask found for backward pass in LeakyReLULayer");
+    throw std::runtime_error("No cached mask found for backward pass in LeakyReLULayerImpl");
   }
 
-  Tensor grad_input = get_output_tensor(grad_output->shape());
+  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
 
   // Gradient: grad_input = grad_output * (mask ? 1.0 : negative_slope)
   const size_t num_elements = grad_output->size();
@@ -69,14 +69,14 @@ Tensor LeakyReLULayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    throw std::runtime_error("LeakyReLULayer: GPU backward not yet implemented");
+    throw std::runtime_error("LeakyReLULayerImpl: GPU backward not yet implemented");
   }
 #endif
 
   return grad_input;
 }
 
-LayerConfig LeakyReLULayer::get_config() const {
+LayerConfig LeakyReLULayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -84,9 +84,10 @@ LayerConfig LeakyReLULayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<LeakyReLULayer> LeakyReLULayer::create_from_config(const LayerConfig &config) {
+std::shared_ptr<LeakyReLULayerImpl> LeakyReLULayerImpl::create_from_config(
+    const LayerConfig &config) {
   float negative_slope = config.get<float>("negative_slope", 0.01f);
-  return std::make_unique<LeakyReLULayer>(negative_slope, config.name);
+  return std::make_shared<LeakyReLULayerImpl>(negative_slope, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

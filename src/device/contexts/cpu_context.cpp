@@ -20,7 +20,7 @@
 #include <sys/types.h>
 #endif
 
-namespace tnn {
+namespace synet {
 CPUContext::CPUContext()
     : Context() {
   createFlow(defaultFlowHandle);
@@ -190,4 +190,4 @@ Endianness CPUContext::get_endianness() const {
   return (numPtr[0] == 1) ? Endianness::LITTLE : Endianness::BIG;
 }
 
-}  // namespace tnn
+}  // namespace synet

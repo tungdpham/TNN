@@ -15,7 +15,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace cudnn_layer_norm {
 
@@ -302,6 +302,6 @@ void run_backward(feHandle_t* handle, const LayerNormStats& stats, const void* g
 
 }  // namespace cudnn_layer_norm
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

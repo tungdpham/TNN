@@ -9,12 +9,12 @@
 #include <memory>
 #include <string>
 
-#include "nn/layers_impl/parameterized_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
-class EmbeddingLayer : public ParameterizedLayer {
+class EmbeddingLayerImpl : public SISOLayerImpl {
 private:
   size_t vocab_size_;
   size_t embed_dim_;
@@ -52,8 +52,8 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  EmbeddingLayer(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",
-                 size_t padding_idx = static_cast<size_t>(-1));
+  EmbeddingLayerImpl(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",
+                     size_t padding_idx = static_cast<size_t>(-1));
 
   static constexpr const char *TYPE_NAME = "embedding";
 
@@ -61,7 +61,16 @@ public:
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
 
-  static std::unique_ptr<EmbeddingLayer> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<EmbeddingLayerImpl> create_from_config(const LayerConfig &config);
 };
 
-}  // namespace tnn
+class EmbeddingLayer : public LayerRef<EmbeddingLayerImpl> {
+public:
+  EmbeddingLayer(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",
+                 size_t padding_idx = static_cast<size_t>(-1))
+      : LayerRef(std::make_shared<EmbeddingLayerImpl>(vocab_size, embed_dim, name, padding_idx)) {}
+
+  using LayerRef<EmbeddingLayerImpl>::LayerRef;
+};
+
+}  // namespace synet

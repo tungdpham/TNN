@@ -11,7 +11,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace avgpool_nchw {
 
@@ -28,6 +28,6 @@ void run_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
                   cudaStream_t stream);
 }  // namespace avgpool_nchw
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

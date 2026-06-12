@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified single-GPU trainer for TNN TensorFlow reference models.
+Unified single-GPU trainer for SYNET TensorFlow reference models.
 
 Usage:
     python tensorflow_trainer.py --model resnet9_cifar10
@@ -958,7 +958,7 @@ def validate(model, val_ds, loss_fn, cfg, epoch, val_writer):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Unified TNN TensorFlow Trainer")
+    parser = argparse.ArgumentParser(description="Unified SYNET TensorFlow Trainer")
     parser.add_argument("--model", type=str, required=True,
                         choices=["resnet9_cifar10", "wrn16_8_cifar100",
                                  "resnet50_tiny_imagenet", "resnet50_imagenet100",

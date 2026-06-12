@@ -7,7 +7,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 
 template <typename T>
@@ -85,6 +85,6 @@ void softmax_backward(cudnnHandle_t handle, const T* output, const T* grad_outpu
 #undef INSTANTIATE
 
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

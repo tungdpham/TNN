@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 inline void checkCudaError(cudaError_t result, const char *func, const char *file, int line) {
   if (result != cudaSuccess) {
@@ -32,6 +32,6 @@ inline void checkCudaError(cudaError_t result, const char *func, const char *fil
     CUDA_CHECK(cudaGetLastError());      \
   } while (0)
 
-}  // namespace tnn
+}  // namespace synet
 
 #endif  // USE_CUDA

@@ -2,10 +2,11 @@
 
 #include "nn/layer.hpp"
 
-namespace tnn {
-class Block : virtual public Layer {
+namespace synet {
+class Block : public LayerImpl {
 public:
-  Block(const std::string &name = "block") { this->name_ = name; }
+  Block(const std::string &name = "block")
+      : LayerImpl(name) {}
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
@@ -74,6 +75,6 @@ protected:
     }
   }
 
-  virtual Vec<Layer *> layers() = 0;
+  virtual Vec<LayerImpl *> layers() = 0;
 };
-}  // namespace tnn
+}  // namespace synet

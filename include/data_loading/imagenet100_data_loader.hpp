@@ -48,7 +48,7 @@ constexpr float NORMALIZATION_FACTOR = 255.0f;
 constexpr size_t IMAGE_SIZE = NUM_CHANNELS * IMAGE_HEIGHT * IMAGE_WIDTH;
 }  // namespace imagenet100_constants
 
-namespace tnn {
+namespace synet {
 /**
  * ImageNet-100 data loader for JPEG format adapted for CNN (2D RGB images)
  * NHWC format: (Batch, Height, Width, Channels)
@@ -500,4 +500,4 @@ public:
     }
   }
 };
-}  // namespace tnn
+}  // namespace synet

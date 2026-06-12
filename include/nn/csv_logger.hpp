@@ -16,9 +16,20 @@
 
 #include "logging/logger.hpp"
 
-namespace tnn {
+namespace synet {
 
-struct LogMode;  // Forward declaration
+struct LogMode {
+  bool log_loss = true;
+  bool log_accuracy = true;
+  bool log_precision = false;
+  bool log_recall = false;
+  bool log_f1_score = false;
+  bool log_perplexity = false;
+  bool log_top_k_accuracy = false;
+  bool log_mae = false;
+  bool log_mse = false;
+  bool log_rmse = false;
+};
 
 inline std::string csv_timestamp() {
   auto now = std::chrono::system_clock::now();
@@ -36,51 +47,55 @@ inline long long get_timestamp_ms() {
   return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 }
 
-struct CsvLogger {
-  Logger batch_logger;
-  Logger val_logger;
-  Logger epoch_logger;
-  std::vector<std::string> batch_metrics;
-  std::vector<std::string> val_metrics;
-  std::vector<std::string> epoch_metrics;
+class CsvLogger {
+private:
+  Logger train_step_logger_;
+  Logger val_step_logger_;
+  Logger epoch_logger_;
+  std::vector<std::string> train_step_metrics_;
+  std::vector<std::string> val_step_metrics_;
+  std::vector<std::string> epoch_metrics_;
 
+public:
   CsvLogger(const std::string &model_name, const std::string &log_dir,
             const LogMode *log_mode = nullptr);
 
-  void log_batch(int epoch, int step, const std::unordered_map<std::string, double> &metrics);
+  void log_train_step(int epoch, int step, const std::unordered_map<std::string, double> &metrics);
 
-  void log_val_batch(int epoch, int step, const std::unordered_map<std::string, double> &metrics);
+  void log_val_step(int epoch, int step, const std::unordered_map<std::string, double> &metrics);
 
   void log_epoch(int epoch, const std::unordered_map<std::string, double> &metrics);
 
   void flush() {
-    batch_logger.flush();
-    val_logger.flush();
-    epoch_logger.flush();
+    train_step_logger_.flush();
+    val_step_logger_.flush();
+    epoch_logger_.flush();
   }
 };
 
-struct WorkerCsvLogger {
-  Logger compute_logger;
+class WorkerCsvLogger {
+private:
+  Logger compute_logger_;
 
+public:
   WorkerCsvLogger(const std::string &worker_name, const std::string &log_dir)
-      : compute_logger(worker_name + "_compute", "") {
+      : compute_logger_(worker_name + "_compute", "") {
     std::filesystem::create_directories(log_dir);
     std::string ts = csv_timestamp();
 
     std::string path = log_dir + "/" + worker_name + "_compute_" + ts + ".csv";
-    compute_logger.set_log_file(path);
-    compute_logger.set_pattern("%v");
-    compute_logger.info("step,event_type,time_ms");
+    compute_logger_.set_log_file(path);
+    compute_logger_.set_pattern("%v");
+    compute_logger_.info("step,event_type,time_ms");
   }
 
   void log(int step, const std::string &event_type, long time_ms, size_t device_used_memory_mb) {
     std::ostringstream row;
     row << step << "," << event_type << "," << time_ms << "," << device_used_memory_mb;
-    compute_logger.info(row.str());
+    compute_logger_.info(row.str());
   }
 
-  void flush() { compute_logger.flush(); }
+  void flush() { compute_logger_.flush(); }
 };
 
-}  // namespace tnn
+}  // namespace synet

@@ -9,36 +9,36 @@
 #include <memory>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
-ELULayer::ELULayer(float alpha, const std::string &name)
-    : StatelessLayer(name),
+ELULayerImpl::ELULayerImpl(float alpha, const std::string &name)
+    : SISOLayerImpl(name),
       activation_(std::make_unique<ELU>(alpha)),
       alpha_(alpha) {}
 
-Tensor ELULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor ELULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (this->is_training_) {
     // Cache input for backward pass (ELU gradient requires input values)
     set_immutable_cache(mb_id, "input", input);
   }
 
-  Tensor output = get_output_tensor(input->shape());
+  Tensor output = get_tensor(input->shape(), io_dtype_);
   activation_->apply(input, output);
   return output;
 }
 
-Tensor ELULayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor ELULayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &input = this->get_immutable_cache(mb_id, "input");
   if (!input) {
-    throw std::runtime_error("No cached input found for backward pass in ELULayer");
+    throw std::runtime_error("No cached input found for backward pass in ELULayerImpl");
   }
 
-  Tensor grad_input = get_output_tensor(input->shape());
+  Tensor grad_input = get_tensor(input->shape(), io_dtype_);
   activation_->compute_gradient(input, grad_output, grad_input);
   return grad_input;
 }
 
-LayerConfig ELULayer::get_config() const {
+LayerConfig ELULayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -46,9 +46,9 @@ LayerConfig ELULayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<ELULayer> ELULayer::create_from_config(const LayerConfig &config) {
+std::shared_ptr<ELULayerImpl> ELULayerImpl::create_from_config(const LayerConfig &config) {
   float alpha = config.get<float>("alpha", 1.0f);
-  return std::make_unique<ELULayer>(alpha, config.name);
+  return std::make_shared<ELULayerImpl>(alpha, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

@@ -1,7 +1,7 @@
 #pragma once
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 void synchronize();
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

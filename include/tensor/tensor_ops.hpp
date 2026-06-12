@@ -8,7 +8,7 @@
 #endif
 #include "tensor.hpp"
 
-namespace tnn {
+namespace synet {
 namespace ops {
 
 template <typename T>
@@ -31,13 +31,13 @@ std::unique_ptr<Task> im2col_t(const ConstTensor &input_tensor, const Tensor &co
   T *col_data_ptr = col_data->data_as<T>();
 
   if (input_tensor->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, tnn::cpu::cpu_im2col<T>, input_data, col_data_ptr, batch_size,
+    return create_cpu_task(handle, synet::cpu::cpu_im2col<T>, input_data, col_data_ptr, batch_size,
                            channels, height, width, kernel_h, kernel_w, stride_h, stride_w, pad_h,
                            pad_w, output_h, output_w);
   }
 #ifdef USE_CUDA
   else if (input_tensor->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, tnn::cuda::cuda_im2col<T>, input_data, col_data_ptr, batch_size,
+    return create_cuda_task(handle, synet::cuda::cuda_im2col<T>, input_data, col_data_ptr, batch_size,
                             channels, height, width, kernel_h, kernel_w, stride_h, stride_w, pad_h,
                             pad_w, output_h, output_w);
   }
@@ -86,13 +86,13 @@ std::unique_ptr<Task> col2im_t(const ConstTensor &col_data, const Tensor &result
   T *result_data_ptr = result_data->data_as<T>();
 
   if (col_data->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, tnn::cpu::cpu_col2im<T>, col_data_ptr, result_data_ptr,
+    return create_cpu_task(handle, synet::cpu::cpu_col2im<T>, col_data_ptr, result_data_ptr,
                            batch_size, channels, height, width, kernel_h, kernel_w, stride_h,
                            stride_w, pad_h, pad_w, output_h, output_w);
   }
 #ifdef USE_CUDA
   else if (col_data->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, tnn::cuda::cuda_col2im<T>, col_data_ptr, result_data_ptr,
+    return create_cuda_task(handle, synet::cuda::cuda_col2im<T>, col_data_ptr, result_data_ptr,
                             batch_size, channels, height, width, kernel_h, kernel_w, stride_h,
                             stride_w, pad_h, pad_w, output_h, output_w);
   }
@@ -136,12 +136,12 @@ std::unique_ptr<Task> pad_t(const ConstTensor &input, const Tensor &result, size
   T *result_data = result->data_as<T>();
 
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, tnn::cpu::cpu_pad<T>, input_data, result_data, batch_size,
+    return create_cpu_task(handle, synet::cpu::cpu_pad<T>, input_data, result_data, batch_size,
                            channels, height, width, pad_h, pad_w, value);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, tnn::cuda::cuda_pad<T>, input_data, result_data, batch_size,
+    return create_cuda_task(handle, synet::cuda::cuda_pad<T>, input_data, result_data, batch_size,
                             channels, height, width, pad_h, pad_w, value);
   }
 #endif
@@ -186,12 +186,12 @@ std::unique_ptr<Task> unpad_t(const ConstTensor &input, const Tensor &result, si
   T *result_data = result->data_as<T>();
 
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, tnn::cpu::cpu_unpad<T>, input_data, result_data, batch_size,
+    return create_cpu_task(handle, synet::cpu::cpu_unpad<T>, input_data, result_data, batch_size,
                            channels, height, width, pad_h, pad_w);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, tnn::cuda::cuda_unpad<T>, input_data, result_data, batch_size,
+    return create_cuda_task(handle, synet::cuda::cuda_unpad<T>, input_data, result_data, batch_size,
                             channels, height, width, pad_h, pad_w);
   }
 #endif
@@ -244,12 +244,12 @@ std::unique_ptr<Task> crop_t(const ConstTensor &input, const Tensor &result, con
   T *result_data = result->data_as<T>();
 
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, tnn::cpu::cpu_crop<T>, input_data, result_data, batch_size,
+    return create_cpu_task(handle, synet::cpu::cpu_crop<T>, input_data, result_data, batch_size,
                            channels, height, width, start_h, start_w, new_height, new_width);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, tnn::cuda::cuda_crop<T>, input_data, result_data, batch_size,
+    return create_cuda_task(handle, synet::cuda::cuda_crop<T>, input_data, result_data, batch_size,
                             channels, height, width, start_h, start_w, new_height, new_width);
   }
 #endif
@@ -396,12 +396,12 @@ std::unique_ptr<Task> transpose_2d_t(const ConstTensor &input, const Tensor &out
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(handle, tnn::cpu::cpu_transpose_2d<T>, input_data, output_data, rows,
+    return create_cpu_task(handle, synet::cpu::cpu_transpose_2d<T>, input_data, output_data, rows,
                            cols);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(handle, tnn::cuda::cuda_transpose_2d<T>, input_data, output_data, rows,
+    return create_cuda_task(handle, synet::cuda::cuda_transpose_2d<T>, input_data, output_data, rows,
                             cols);
   }
 #endif
@@ -437,12 +437,12 @@ std::unique_ptr<Task> nchw_to_cnhw_t(const ConstTensor &input, const Tensor &out
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(handle, tnn::cpu::cpu_nchw_to_cnhw<T>, input_data, output_data, n, c, h,
+    return create_cpu_task(handle, synet::cpu::cpu_nchw_to_cnhw<T>, input_data, output_data, n, c, h,
                            w);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(handle, tnn::cuda::cuda_nchw_to_cnhw<T>, input_data, output_data, n, c,
+    return create_cuda_task(handle, synet::cuda::cuda_nchw_to_cnhw<T>, input_data, output_data, n, c,
                             h, w);
   }
 #endif
@@ -478,12 +478,12 @@ std::unique_ptr<Task> cnhw_to_nchw_t(const ConstTensor &input, const Tensor &out
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(handle, tnn::cpu::cpu_cnhw_to_nchw<T>, input_data, output_data, n, c, h,
+    return create_cpu_task(handle, synet::cpu::cpu_cnhw_to_nchw<T>, input_data, output_data, n, c, h,
                            w);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(handle, tnn::cuda::cuda_cnhw_to_nchw<T>, input_data, output_data, n, c,
+    return create_cuda_task(handle, synet::cuda::cuda_cnhw_to_nchw<T>, input_data, output_data, n, c,
                             h, w);
   }
 #endif
@@ -509,4 +509,4 @@ inline std::unique_ptr<Task> cnhw_to_nchw(const ConstTensor &input, const Tensor
 }
 
 }  // namespace ops
-}  // namespace tnn
+}  // namespace synet

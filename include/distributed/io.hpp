@@ -15,7 +15,7 @@
 #include "device/flow.hpp"
 #include "ops/ops.hpp"
 
-namespace tnn {
+namespace synet {
 class Sizer : public IArchiver<Sizer> {
 private:
   size_t size_ = 0;
@@ -50,7 +50,9 @@ public:
                 << buffer_.capacity() << std::endl;
     }
     const dptr src(const_cast<T*>(data), sizeof(T) * count, device);
-    ops::cd_copy<unsigned char>(src, buffer_ + offset_, sizeof(T) * count, defaultFlowHandle);
+    std::unique_ptr<Task> task =
+        ops::cd_copy<unsigned char>(src, buffer_ + offset_, sizeof(T) * count, defaultFlowHandle);
+    task_sync_all({task.get()});
     offset_ += sizeof(T) * count;
   }
 
@@ -73,7 +75,9 @@ public:
   template <typename T>
   void archive_impl(T* data, size_t count, const Device& device) {
     dptr dst(data, sizeof(T) * count, device);
-    ops::cd_copy<unsigned char>(buffer_ + offset_, dst, sizeof(T) * count, defaultFlowHandle);
+    std::unique_ptr<Task> task =
+        ops::cd_copy<unsigned char>(buffer_ + offset_, dst, sizeof(T) * count, defaultFlowHandle);
+    task_sync_all({task.get()});
     if (endianness_ != device.get_endianness()) {
       ops::bswap<T>(dst, dst, count, defaultFlowHandle);
     }
@@ -85,4 +89,4 @@ public:
   size_t bytes_read() const { return offset_; }
 };
 
-}  // namespace tnn
+}  // namespace synet

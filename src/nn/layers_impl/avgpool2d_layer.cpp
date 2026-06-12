@@ -13,11 +13,12 @@
 #endif
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
-AvgPool2DLayer::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,
-                               size_t pad_h, size_t pad_w, const std::string &name)
-    : StatelessLayer(name),
+AvgPool2DLayerImpl::AvgPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
+                                       size_t stride_w, size_t pad_h, size_t pad_w,
+                                       const std::string &name)
+    : SISOLayerImpl(name),
       pool_h_(pool_h),
       pool_w_(pool_w),
       stride_h_(stride_h == 0 ? pool_h : stride_h),
@@ -32,9 +33,9 @@ AvgPool2DLayer::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, si
   }
 }
 
-Tensor AvgPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor AvgPool2DLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (input->dims() != 4) {
-    throw std::runtime_error("AvgPool2DLayer: input must be 4D (NHWC format)");
+    throw std::runtime_error("AvgPool2DLayerImpl: input must be 4D (NHWC format)");
   }
 
   const auto &shape = input->shape();
@@ -48,7 +49,7 @@ Tensor AvgPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  Tensor output = get_output_tensor({batch_size, output_h, output_w, channels});
+  Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input->data_type());
 
   DISPATCH_IO_DTYPE(run_forward, input, output, batch_size, input_h, input_w, channels, output_h,
                     output_w, this->flow_handle_);
@@ -56,14 +57,14 @@ Tensor AvgPool2DLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor AvgPool2DLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   if (grad_output->dims() != 4) {
-    throw std::runtime_error("AvgPool2DLayer: grad_output must be 4D (NHWC format)");
+    throw std::runtime_error("AvgPool2DLayerImpl: grad_output must be 4D (NHWC format)");
   }
   auto it_shape = micro_batch_input_shapes_.find(mb_id);
 
   if (it_shape == micro_batch_input_shapes_.end()) {
-    throw std::runtime_error("AvgPool2DLayer: forward must be called before backward");
+    throw std::runtime_error("AvgPool2DLayerImpl: forward must be called before backward");
   }
 
   const auto &input_shape = it_shape->second;
@@ -75,7 +76,8 @@ Tensor AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
   const size_t output_h = grad_shape[1];
   const size_t output_w = grad_shape[2];
 
-  Tensor grad_input = get_output_tensor({batch_size, input_h, input_w, channels});
+  Tensor grad_input =
+      get_tensor({batch_size, input_h, input_w, channels}, grad_output->data_type());
   grad_input->fill(0);
 
   DISPATCH_IO_DTYPE(run_backward, grad_output, grad_input, batch_size, input_h, input_w, channels,
@@ -85,13 +87,13 @@ Tensor AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, size_t mb_i
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> AvgPool2DLayer::run_forward(const ConstTensor &input_data,
-                                                  const Tensor &output_data, size_t batch_size,
-                                                  size_t height, size_t width, size_t channels,
-                                                  size_t output_h, size_t output_w,
-                                                  flowHandle_t handle) const {
+std::unique_ptr<Task> AvgPool2DLayerImpl::run_forward(const ConstTensor &input_data,
+                                                      const Tensor &output_data, size_t batch_size,
+                                                      size_t height, size_t width, size_t channels,
+                                                      size_t output_h, size_t output_w,
+                                                      flowHandle_t handle) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("AvgPool2DLayer: data type mismatch in forward pass");
+    throw std::runtime_error("AvgPool2DLayerImpl: data type mismatch in forward pass");
   }
 
   if (input_data->device_type() == DeviceType::CPU) {
@@ -107,20 +109,21 @@ std::unique_ptr<Task> AvgPool2DLayer::run_forward(const ConstTensor &input_data,
   }
 #endif
   else {
-    throw std::runtime_error("AvgPool2DLayer: unsupported device type");
+    throw std::runtime_error("AvgPool2DLayerImpl: unsupported device type");
   }
   return nullptr;
 }
 
 template <typename IO_T>
-std::unique_ptr<Task> AvgPool2DLayer::run_backward(const ConstTensor &gradient_data,
-                                                   const Tensor &grad_input_data, size_t batch_size,
-                                                   size_t input_h, size_t input_w, size_t channels,
-                                                   size_t output_h, size_t output_w,
-                                                   flowHandle_t handle) const {
+std::unique_ptr<Task> AvgPool2DLayerImpl::run_backward(const ConstTensor &gradient_data,
+                                                       const Tensor &grad_input_data,
+                                                       size_t batch_size, size_t input_h,
+                                                       size_t input_w, size_t channels,
+                                                       size_t output_h, size_t output_w,
+                                                       flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("AvgPool2DLayer: data type mismatch in backward pass");
+    throw std::runtime_error("AvgPool2DLayerImpl: data type mismatch in backward pass");
   }
 
   if (gradient_data->device_type() == DeviceType::CPU) {
@@ -138,12 +141,12 @@ std::unique_ptr<Task> AvgPool2DLayer::run_backward(const ConstTensor &gradient_d
   }
 #endif
   else {
-    throw std::runtime_error("AvgPool2DLayer: unsupported device type");
+    throw std::runtime_error("AvgPool2DLayerImpl: unsupported device type");
   }
   return nullptr;
 }
 
-LayerConfig AvgPool2DLayer::get_config() const {
+LayerConfig AvgPool2DLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -156,9 +159,9 @@ LayerConfig AvgPool2DLayer::get_config() const {
   return config;
 }
 
-Vec<size_t> AvgPool2DLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> AvgPool2DLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
-    throw std::invalid_argument("AvgPool2DLayer: input shape must be 4D (NHWC format)");
+    throw std::invalid_argument("AvgPool2DLayerImpl: input shape must be 4D (NHWC format)");
   }
 
   // Check for underflow in the calculation
@@ -173,7 +176,8 @@ Vec<size_t> AvgPool2DLayer::compute_output_shape(const Vec<size_t> &input_shape)
   return {batch_size, output_h, output_w, channels};
 }
 
-std::unique_ptr<AvgPool2DLayer> AvgPool2DLayer::create_from_config(const LayerConfig &config) {
+std::shared_ptr<AvgPool2DLayerImpl> AvgPool2DLayerImpl::create_from_config(
+    const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
   size_t stride_h = config.get<size_t>("stride_h");
@@ -181,8 +185,8 @@ std::unique_ptr<AvgPool2DLayer> AvgPool2DLayer::create_from_config(const LayerCo
   size_t pad_h = config.get<size_t>("pad_h");
   size_t pad_w = config.get<size_t>("pad_w");
 
-  return std::make_unique<AvgPool2DLayer>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
-                                          config.name);
+  return std::make_shared<AvgPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+                                              config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

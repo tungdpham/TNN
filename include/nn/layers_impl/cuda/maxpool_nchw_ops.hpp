@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace maxpool_nchw {
 template <typename T>
@@ -20,6 +20,6 @@ void run_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
                   cudaStream_t stream);
 }  // namespace maxpool_nchw
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

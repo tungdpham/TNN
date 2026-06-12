@@ -18,15 +18,15 @@
 #include "distributed/endpoint.hpp"
 #include "distributed/tcp_worker.hpp"
 #include "distributed/train.hpp"
-#include "nn/example_models.hpp"
-#include "partitioner/naive_partitioner.hpp"
+#include "nn/example_graphs.hpp"
+#include "partitioner/graph_partitioner.hpp"
 #include "utils/env.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 int main() {
-  ExampleModels::register_defaults();
+  ExampleGraphs::register_defaults();
 
   TrainingConfig train_config;
   train_config.load_from_env();
@@ -35,7 +35,7 @@ int main() {
   const auto &device = DeviceManager::getInstance().getDevice(train_config.device_type);
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
 
-  Graph graph = load_or_create_model(train_config.model_name, train_config.model_path, allocator);
+  Graph graph = load_or_create_graph(train_config.model_name, train_config.model_path, allocator);
 
   if (train_config.dataset_name.empty()) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");
@@ -166,8 +166,7 @@ int main() {
     split_ratios.push_back(static_cast<size_t>(std::stoi(token)));
   }
 
-  unique_ptr<Partitioner> partitioner =
-      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig(split_ratios));
+  auto partitioner = make_unique<GraphPartitioner>(split_ratios);
 
   CoordinatorConfig config{
       ParallelMode_t::PIPELINE, std::move(graph),  std::move(optimizer), std::move(scheduler),

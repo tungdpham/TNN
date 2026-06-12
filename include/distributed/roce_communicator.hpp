@@ -34,7 +34,7 @@
 #include "distributed/roce_channel.hpp"
 #include "endpoint.hpp"
 
-namespace tnn {
+namespace synet {
 
 class RoCECommunicator : public Communicator {
 private:
@@ -390,4 +390,4 @@ private:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

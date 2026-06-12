@@ -6,7 +6,7 @@
  */
 #pragma once
 
-namespace tnn {
+namespace synet {
 // strong ref (pointer that cannot be null)
 template <typename T>
 class sref {
@@ -38,4 +38,4 @@ public:
   const T* operator->() const noexcept { return ptr; }
   const T& operator*() const noexcept { return *ptr; }
 };
-}  // namespace tnn
+}  // namespace synet

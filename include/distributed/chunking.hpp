@@ -12,7 +12,7 @@
 #include "device/iallocator.hpp"
 #include "packet.hpp"
 
-namespace tnn {
+namespace synet {
 class ISlicer {
 public:
   // Slices a buffer into multiple packets according to the implemented chunking strategy.
@@ -159,4 +159,4 @@ private:
   std::unordered_map<uint64_t, MessageState> message_states_;  // for receiver side
 };
 
-}  // namespace tnn
+}  // namespace synet

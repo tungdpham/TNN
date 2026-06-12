@@ -11,7 +11,7 @@
 
 #include "message.hpp"
 
-namespace tnn {
+namespace synet {
 
 class MessageMap {
 private:
@@ -89,4 +89,4 @@ public:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

@@ -9,14 +9,14 @@
 #include <memory>
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
-SigmoidLayer::SigmoidLayer(const std::string &name)
-    : StatelessLayer(name),
+SigmoidLayerImpl::SigmoidLayerImpl(const std::string &name)
+    : SISOLayerImpl(name),
       activation_(std::make_unique<Sigmoid>()) {}
 
-Tensor SigmoidLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
-  Tensor output = get_output_tensor(input->shape());
+Tensor SigmoidLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
+  Tensor output = get_tensor(input->shape(), io_dtype_);
   activation_->apply(input, output);
 
   if (this->is_training_) {
@@ -28,13 +28,13 @@ Tensor SigmoidLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor SigmoidLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor SigmoidLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &output = this->get_immutable_cache(mb_id, "output");
   if (!output) {
-    throw std::runtime_error("No cached output found for backward pass in SigmoidLayer");
+    throw std::runtime_error("No cached output found for backward pass in SigmoidLayerImpl");
   }
 
-  Tensor grad_input = get_output_tensor(grad_output->shape());
+  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
 
   // Gradient: grad_input = grad_output * output * (1 - output)
   const size_t num_elements = grad_output->size();
@@ -49,22 +49,22 @@ Tensor SigmoidLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id)
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    throw std::runtime_error("SigmoidLayer: GPU backward not yet implemented");
+    throw std::runtime_error("SigmoidLayerImpl: GPU backward not yet implemented");
   }
 #endif
 
   return grad_input;
 }
 
-LayerConfig SigmoidLayer::get_config() const {
+LayerConfig SigmoidLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
   return config;
 }
 
-std::unique_ptr<SigmoidLayer> SigmoidLayer::create_from_config(const LayerConfig &config) {
-  return std::make_unique<SigmoidLayer>(config.name);
+std::shared_ptr<SigmoidLayerImpl> SigmoidLayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<SigmoidLayerImpl>(config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

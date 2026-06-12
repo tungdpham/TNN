@@ -14,7 +14,7 @@
 
 #include "utils/hardware_info.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * @brief CPU Core Types for thread affinity
@@ -187,4 +187,4 @@ private:
   bool saved_affinity_ = false;
 };
 
-}  // namespace tnn
+}  // namespace synet

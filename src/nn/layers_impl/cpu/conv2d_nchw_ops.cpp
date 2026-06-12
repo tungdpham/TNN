@@ -13,7 +13,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace conv2d_nchw {
 template <typename T>
@@ -90,4 +90,4 @@ void add_bias(T *output_data, const T *bias_data, const size_t batch_size, const
 
 }  // namespace conv2d_nchw
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

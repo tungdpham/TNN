@@ -1,8 +1,7 @@
 {
-  "epochs": 10,
-  "batch_size": 128,
+  "epochs": 20,
+  "batch_size": 256,
   "max_steps": -1,
-  "lr_initial": 0.001,
   "gradient_accumulation_steps": 1,
   "progress_print_interval": 100,
   "num_threads": 8,
@@ -17,5 +16,23 @@
   "dataset_path": "data/cifar-10-batches-bin",
   "io_dtype": "FP32",
   "param_dtype": "FP32",
-  "compute_dtype": "FP32"
+  "compute_dtype": "FP32",
+  "optimizer": {
+    "type": "adam",
+    "learning_rate": 0.001,
+    "beta1": 0.9,
+    "beta2": 0.999,
+    "epsilon": 1e-8,
+    "weight_decay": 0.0,
+    "decouple_weight_decay": false
+  },
+  "scheduler": {
+    "type": "warmup_cosine_annealing",
+    "base_lr": 0.0005,
+    "T_max": 10,
+    "eta_min": 0.0
+  },
+  "loss": {
+    "type": "logsoftmax_crossentropy"
+  }
 }

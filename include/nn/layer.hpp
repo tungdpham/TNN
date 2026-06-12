@@ -17,7 +17,7 @@
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 using LayerConfig = TConfig;
 
 struct ParamDescriptor {
@@ -39,15 +39,58 @@ inline size_t get_shapes_bytes(const Vec<Vec<size_t>> &shapes, DType_t dtype) {
   return total_bytes;
 }
 
+struct Cache {
+  struct CacheKey {
+    size_t mb_id;
+    std::string key;
+
+    bool operator==(const CacheKey &other) const {
+      return mb_id == other.mb_id && key == other.key;
+    }
+  };
+
+  struct CacheKeyHash {
+    size_t operator()(const CacheKey &cache_key) const noexcept {
+      size_t seed = std::hash<size_t>{}(cache_key.mb_id);
+      seed ^= std::hash<std::string>{}(cache_key.key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      return seed;
+    }
+  };
+
+  std::unordered_map<CacheKey, Tensor, CacheKeyHash> cache;
+
+  void set(size_t mb_id, const std::string &key, const Tensor &value) {
+    cache[{mb_id, key}] = value;
+  }
+
+  Tensor &get(size_t mb_id, const std::string &key) {
+    auto it = cache.find({mb_id, key});
+    if (it == cache.end()) {
+      throw std::runtime_error(fmt::format("Cache miss for key: {} (mb_id={})", key, mb_id));
+    }
+    return it->second;
+  }
+
+  void clear(size_t mb_id) {
+    for (auto it = cache.begin(); it != cache.end();) {
+      if (it->first.mb_id == mb_id) {
+        it = cache.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+};
+
 // Single input/output layer interface. Can be easily extended to multiple inputs/outputs later if
 // needed.
-class Layer {
+class LayerImpl : public virtual std::enable_shared_from_this<LayerImpl> {
 public:
-  Layer() = default;
-  Layer(const std::string &name)
+  LayerImpl() = default;
+  LayerImpl(const std::string &name)
       : name_(name) {}
 
-  virtual ~Layer() = default;
+  virtual ~LayerImpl() = default;
 
   void set_engine_type(EngineType engine_type);
   EngineType get_engine_type() const;
@@ -57,18 +100,18 @@ public:
   Vec<Tensor> backward(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0);
 
   // Note: have to call init again after changing param dtype
-  Layer &set_allocator(DELAllocatorV2 &allocator);
+  LayerImpl &set_allocator(DELAllocatorV2 &allocator);
   DELAllocatorV2 *get_allocator() const;
-  Layer &set_flow_handle(flowHandle_t handle);
+  LayerImpl &set_flow_handle(flowHandle_t handle);
   flowHandle_t get_flow_handle() const;
-  Layer &set_seed(unsigned long long seed);
-  Layer &set_io_dtype(DType_t dtype);
+  LayerImpl &set_seed(unsigned long long seed);
+  LayerImpl &set_io_dtype(DType_t dtype);
   DType_t get_io_dtype() const;
-  Layer &set_param_dtype(DType_t dtype);
+  LayerImpl &set_param_dtype(DType_t dtype);
   DType_t get_param_dtype() const;
-  Layer &set_compute_dtype(DType_t dtype);
+  LayerImpl &set_compute_dtype(DType_t dtype);
   DType_t get_compute_dtype() const;
-  Layer &set_training(bool training);
+  LayerImpl &set_training(bool training);
   bool is_training() const;
 
   virtual Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const = 0;
@@ -84,7 +127,7 @@ public:
 
   const Device &device() const {
     if (!allocator_) {
-      throw std::runtime_error("Layer: Allocator is not set to get device.");
+      throw std::runtime_error("LayerImpl: Allocator is not set to get device.");
     }
     return allocator_->device();
   }
@@ -124,10 +167,94 @@ protected:
   void set_mutable_cache(size_t mb_id, const std::string &key, Tensor value);
   Tensor &get_mutable_cache(size_t mb_id, const std::string &key);
   Tensor get_tensor(const Vec<size_t> &shape, DType_t dtype);
-  Tensor get_output_tensor(const Vec<size_t> &shape);
-  Tensor get_cache_tensor(const Vec<size_t> &shape = {}, DType_t dtype = DType_t::FP32);
-  Tensor get_workspace(const Vec<size_t> &shape, DType_t dtype = DType_t::FP32);
 };
+
+template <typename LayerType>
+class LayerRef {
+public:
+  using impl_type = LayerType;
+
+  template <typename>
+  friend class LayerRef;
+
+  LayerRef() = default;
+
+  LayerRef(std::shared_ptr<LayerType> layer)
+      : layer_(layer) {}
+
+  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, LayerType *>>>
+  LayerRef(std::shared_ptr<U> layer)
+      : layer_(std::move(layer)) {}
+
+  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, LayerType *>>>
+  LayerRef(const LayerRef<U> &other)
+      : layer_(std::static_pointer_cast<LayerType>(other.layer_)) {}
+
+  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, LayerType *>>>
+  LayerRef(LayerRef<U> &&other)
+      : layer_(std::static_pointer_cast<LayerType>(std::move(other.layer_))) {}
+
+  template <typename T, typename U = typename std::decay_t<T>::impl_type,
+            std::enable_if_t<std::is_convertible_v<U *, LayerType *> &&
+                                 std::is_base_of_v<LayerRef<U>, std::decay_t<T>> &&
+                                 !std::is_same_v<std::decay_t<T>, LayerRef<U>>,
+                             int> = 0>
+  LayerRef(T &&other)
+      : layer_(
+            std::static_pointer_cast<LayerType>(static_cast<const LayerRef<U> &>(other).layer_)) {}
+
+  template <typename... Args>
+  LayerRef(Args &&...args)
+      : layer_(std::make_shared<LayerType>(std::forward<Args>(args)...)) {}
+
+  LayerType *operator->() const { return layer_.get(); }
+  LayerType &operator*() const { return *layer_; }
+
+  operator std::shared_ptr<LayerType>() const { return layer_; }
+  LayerType *get() const { return layer_.get(); }
+  LayerType *release() { return layer_.release(); }
+
+  explicit operator bool() const { return layer_ != nullptr; }
+  bool operator!() const { return layer_ == nullptr; }
+
+  bool operator==(const LayerRef &other) const { return layer_ == other.layer_; }
+  bool operator!=(const LayerRef &other) const { return layer_ != other.layer_; }
+
+  template <typename U>
+  bool is() const {
+    return std::dynamic_pointer_cast<U>(layer_) != nullptr;
+  }
+
+  template <typename U>
+  auto as() const -> LayerRef<U> {
+    auto casted = std::dynamic_pointer_cast<U>(layer_);
+    if (!casted) {
+      throw std::runtime_error("LayerRef: incompatible layer cast");
+    }
+    return LayerRef<U>(std::move(casted));
+  }
+
+  template <typename... Args>
+  decltype(auto) operator()(Args &&...args) const {
+    if (!layer_) {
+      throw std::runtime_error("LayerRef: underlying shared_ptr is null");
+    }
+    return (*layer_)(std::forward<Args>(args)...);
+  }
+
+protected:
+  std::shared_ptr<LayerType> layer_;
+};
+
+class Layer : public LayerRef<LayerImpl> {
+public:
+  using LayerRef<LayerImpl>::LayerRef;
+};
+
+template <typename LayerType, typename... Args>
+auto make_layer(Args &&...args) -> LayerRef<LayerType> {
+  return LayerRef<LayerType>(std::make_shared<LayerType>(std::forward<Args>(args)...));
+}
 
 #define DISPATCH_IO_DTYPE(method_name, ...)                                \
   do {                                                                     \
@@ -142,4 +269,4 @@ protected:
                        DISPATCH_DTYPE(this->compute_dtype_, COMP_T,                        \
                                       method_name<IO_T, PARAM_T, COMP_T>(__VA_ARGS__);))); \
   } while (0)
-}  // namespace tnn
+}  // namespace synet

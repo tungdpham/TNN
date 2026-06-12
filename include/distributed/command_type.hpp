@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace tnn {
+namespace synet {
 
 /**
  * @brief Enumeration of all possible command types in the pipeline system.
@@ -29,6 +29,7 @@ enum CommandType : uint16_t {
   // mode switching
   TRAIN_MODE,
   EVAL_MODE,
+  MODE_CHANGED,
   SHUTDOWN,
 
   // configuration
@@ -84,4 +85,4 @@ enum CommandType : uint16_t {
   _COUNT
 };
 
-}  // namespace tnn
+}  // namespace synet

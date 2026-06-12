@@ -13,6 +13,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <vector>
 
 #include "communicator.hpp"
@@ -21,19 +22,18 @@
 #include "distributed/endpoint.hpp"
 #include "distributed/worker.hpp"
 #include "logging/logger.hpp"
-#include "nn/blocks_impl/sequential.hpp"
 #include "nn/loss.hpp"
 #include "nn/metrics.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
-#include "partitioner/partitioner.hpp"
+#include "partitioner/graph_partitioner.hpp"
 #include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 enum class ParallelMode_t { DATA, PIPELINE };
 
@@ -42,7 +42,7 @@ struct CoordinatorConfig {
   Graph model;
   std::unique_ptr<Optimizer> optimizer;
   std::unique_ptr<Scheduler> scheduler;
-  std::unique_ptr<Partitioner> partitioner;
+  std::unique_ptr<GraphPartitioner> partitioner;
   std::unique_ptr<Worker> local_worker = nullptr;
   Endpoint coordinator_endpoint;
   Vec<Endpoint> worker_endpoints;
@@ -69,7 +69,7 @@ public:
 
   void initialize() { initialize_topology(); }
 
-  void set_partitioner(std::unique_ptr<Partitioner> partitioner) {
+  void set_partitioner(std::unique_ptr<GraphPartitioner> partitioner) {
     partitioner_ = std::move(partitioner);
   }
 
@@ -103,6 +103,12 @@ public:
       Message mode_msg(training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE);
       comm_->send_message(std::move(mode_msg), worker_endpoint);
     }
+
+    if (!join(CommandType::MODE_CHANGED, worker_endpoints_.size(), 30)) {
+      throw std::runtime_error("Timeout waiting for workers to acknowledge mode switch");
+    }
+
+    comm_->dequeue_all_messages_by_type(CommandType::MODE_CHANGED);
   }
 
   /**
@@ -110,8 +116,8 @@ public:
    * @param input The input tensor to be processed.
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
-  void forward(Tensor &&input, size_t microbatch_id) {
-    Job job(std::move(input), microbatch_id);
+  void forward(TensorBundle &&inputs, size_t microbatch_id) {
+    Job job(std::move(inputs), microbatch_id);
     Message forward_msg(CommandType::FORWARD_JOB, std::move(job));
     comm_->send_message(std::move(forward_msg), worker_endpoints_.front());
   }
@@ -121,8 +127,8 @@ public:
    * @param grad_output The grad_output tensor to be backpropagated.
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
-  void backward(Tensor &&grad_output, size_t microbatch_id) {
-    Job job(std::move(grad_output), microbatch_id);
+  void backward(TensorBundle &&grad_outputs, size_t microbatch_id) {
+    Job job(std::move(grad_outputs), microbatch_id);
     Message backward_msg(CommandType::BACKWARD_JOB, std::move(job));
     comm_->send_message(std::move(backward_msg), worker_endpoints_.back());
   }
@@ -175,7 +181,7 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  Result async_train_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
+  Result async_train_batch(Vec<TensorBundle> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
                            const std::unique_ptr<Loss> &criterion, size_t accumulation_steps = 1) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
       throw std::runtime_error("Mismatched number of inputs and labels in async_train_batch");
@@ -201,8 +207,8 @@ public:
           ++processed_microbatches_;
 
           Job &job = forward_msg.get<Job>();
-          Tensor &predictions = job.data;
-          Tensor &targets = microbatch_labels[job.mb_id];
+          Tensor predictions = job.data.get("output");
+          Tensor targets = microbatch_labels[job.mb_id];
           Tensor device_targets = targets->to_device(predictions->device());
           float loss = 0.0f;
           criterion->compute_loss(predictions, device_targets, loss);
@@ -216,7 +222,9 @@ public:
               make_tensor(allocator, predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, device_targets, grad_output);
           grad_output->mul_scalar(1.0 / (num_microbatches * accumulation_steps));
-          backward(std::move(grad_output), job.mb_id);
+
+          TensorBundle grad_outputs{{{"output", grad_output}}};
+          backward(std::move(grad_outputs), job.mb_id);
         } else {
           throw std::runtime_error("Unexpected message type in FORWARD_JOB");
         }
@@ -240,7 +248,7 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  Result async_val_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
+  Result async_val_batch(Vec<TensorBundle> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
                          const std::unique_ptr<Loss> &criterion) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
       throw std::runtime_error("Mismatched number of inputs and labels in async_train_batch");
@@ -264,8 +272,8 @@ public:
           ++processed_microbatches_;
 
           Job &job = forward_msg.get<Job>();
-          Tensor &predictions = job.data;
-          Tensor &targets = microbatch_labels[job.mb_id];
+          Tensor predictions = job.data.get("output");
+          Tensor targets = microbatch_labels[job.mb_id];
           Tensor device_targets = targets->to_device(predictions->device());
           float loss = 0.0f;
           criterion->compute_loss(predictions, device_targets, loss);
@@ -285,11 +293,11 @@ public:
   /**
    * @brief Synchronous pipeline train batch.
    *
-   * Non-overlapped ablation path for TNN_ASYNC_PIPELINE=0.
+   * Non-overlapped ablation path for SYNET_ASYNC_PIPELINE=0.
    * It processes one microbatch at a time:
    *   forward -> wait output -> loss/grad -> backward -> wait backward complete.
    */
-  Result sync_train_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
+  Result sync_train_batch(Vec<TensorBundle> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
                           const std::unique_ptr<Loss> &criterion, size_t accumulation_steps = 1) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
       throw std::runtime_error("Mismatched number of inputs and labels in sync_train_batch");
@@ -329,8 +337,8 @@ public:
       }
 
       Job &job = forward_msg.get<Job>();
-      Tensor &predictions = job.data;
-      Tensor &targets = microbatch_labels[i];
+      Tensor predictions = job.data.get("output");
+      Tensor targets = microbatch_labels[i];
       Tensor device_targets = targets->to_device(predictions->device());
 
       float loss = 0.0f;
@@ -344,7 +352,8 @@ public:
       criterion->compute_gradient(predictions, device_targets, grad_output);
       grad_output->mul_scalar(1.0 / (num_microbatches * accumulation_steps));
 
-      backward(std::move(grad_output), i);
+      TensorBundle grad_outputs{{{"output", grad_output}}};
+      backward(std::move(grad_outputs), i);
 
       {
         std::unique_lock<std::mutex> lock(message_notification_mutex_);
@@ -364,9 +373,9 @@ public:
   /**
    * @brief Synchronous pipeline validation batch.
    *
-   * Non-overlapped validation path for TNN_ASYNC_PIPELINE=0.
+   * Non-overlapped validation path for SYNET_ASYNC_PIPELINE=0.
    */
-  Result sync_val_batch(Vec<Tensor> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
+  Result sync_val_batch(Vec<TensorBundle> &microbatch_inputs, Vec<Tensor> &microbatch_labels,
                         const std::unique_ptr<Loss> &criterion) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
       throw std::runtime_error("Mismatched number of inputs and labels in sync_val_batch");
@@ -406,8 +415,8 @@ public:
       }
 
       Job &job = forward_msg.get<Job>();
-      Tensor &predictions = job.data;
-      Tensor &targets = microbatch_labels[i];
+      Tensor predictions = job.data.get("output");
+      Tensor targets = microbatch_labels[i];
       Tensor device_targets = targets->to_device(predictions->device());
 
       float loss = 0.0f;
@@ -558,18 +567,49 @@ public:
   }
 
 private:
+  void validate_stage_boundary(const GraphPartition &partition) const {
+    validate_boundary_uids(partition.input_uids, "input");
+    validate_boundary_uids(partition.output_uids, "output");
+  }
+
+  void validate_boundary_uids(const Vec<std::string> &uids, const char *label) const {
+    if (uids.empty()) {
+      throw std::runtime_error(std::string("Distributed stage boundary requires at least one ") +
+                               label + " UID");
+    }
+
+    std::set<std::string> seen;
+    for (const auto &uid : uids) {
+      if (uid.empty()) {
+        throw std::runtime_error(std::string("Distributed stage boundary contains an empty ") +
+                                 label + " UID");
+      }
+      if (!seen.insert(uid).second) {
+        throw std::runtime_error(std::string("Distributed stage boundary contains duplicate ") +
+                                 label + " UID: " + uid);
+      }
+    }
+  }
+
   void initialize_topology() {
     if (!partitioner_) {
       throw std::runtime_error("Partitioner must be set before initialization");
     }
-    partitions_ = partitioner_->partition_model(model_.get_layers());
-
-    auto splitted_layers = split(model_.get_layers(), partitions_);
+    partitions_ = partitioner_->partition(model_);
+    if (partitions_.size() != worker_endpoints_.size()) {
+      throw std::runtime_error(
+          "Number of graph partitions must match the number of worker endpoints");
+    }
 
     for (size_t i = 0; i < worker_endpoints_.size(); ++i) {
-      Sequential stage_model(std::move(splitted_layers[i]), "stage_" + std::to_string(i));
+      validate_stage_boundary(partitions_[i]);
+
       StageConfig config;
-      config.model_config = stage_model.get_config();
+      std::ostringstream graph_stream(std::ios::binary);
+      partitions_[i].graph.save_state(graph_stream);
+      config.graph_state = graph_stream.str();
+      config.input_uids = partitions_[i].input_uids;
+      config.output_uids = partitions_[i].output_uids;
       config.optimizer_config = optimizer_->get_config();
       config.scheduler_config = scheduler_->get_config();
       config.coordinator_endpoint = coordinator_endpoint_;
@@ -624,7 +664,7 @@ protected:
   Graph model_;
   std::unique_ptr<Optimizer> optimizer_;
   std::unique_ptr<Scheduler> scheduler_;
-  std::unique_ptr<Partitioner> partitioner_;
+  std::unique_ptr<GraphPartitioner> partitioner_;
   std::unique_ptr<Worker> local_worker_;
 
   // Communication
@@ -632,7 +672,7 @@ protected:
   Endpoint coordinator_endpoint_;
 
   // Topology information
-  Vec<SeqPartition> partitions_;
+  std::vector<GraphPartition> partitions_;
   Vec<Endpoint> worker_endpoints_;
   Vec<StageConfig> stage_configs_;
   Logger logger_{"profiler", "logs/profiler.log", LogLevel::info};
@@ -646,4 +686,4 @@ protected:
   mutable std::condition_variable message_notification_cv_;
 };
 
-}  // namespace tnn
+}  // namespace synet

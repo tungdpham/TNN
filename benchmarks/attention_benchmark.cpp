@@ -3,11 +3,9 @@
 #include "device/pool_allocator.hpp"
 #include "nn/blocks_impl/attention_block.hpp"
 #include "nn/blocks_impl/flash_attention_block.hpp"
-#include "nn/graph.hpp"
-#include "nn/graph_builder.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 constexpr size_t BATCH_SIZE = 16;
@@ -15,32 +13,35 @@ constexpr size_t SEQ_LEN = 512;
 constexpr size_t EMBED_DIM = 768;
 
 signed main() {
-  auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
-  GraphBuilder builder;
-  auto attention_block = make_unique<AttentionBlock>(EMBED_DIM, 8, true, "attention_test");
-  auto &attention_op = builder.add_layer(std::move(attention_block));
+  auto &device = getGPU();
+  Graph graph;
 
-  auto flash_block = make_unique<FlashAttentionBlock>(EMBED_DIM, 8, true, "flash_attention_test");
-  auto &flash_op = builder.add_layer(std::move(flash_block));
+  auto input = graph.make_node("input");
 
-  Graph graph = builder.compile(allocator);
+  auto attention_block = AttentionBlock(EMBED_DIM, 8, true, "attention_test");
+  auto output_vanilla = attention_block(input);
 
-  auto attn_params = attention_op.parameters();
-  auto flash_attn_params = flash_op.parameters();
+  auto flash_block = FlashAttentionBlock(EMBED_DIM, 8, true, "flash_attention_test");
+  auto output_flash = flash_block(input);
+
+  graph.compile(PoolAllocator::instance(device, defaultFlowHandle));
+
+  auto attn_params = attention_block->parameters();
+  auto flash_attn_params = flash_block->parameters();
   for (size_t i = 0; i < attn_params.size(); ++i) {
     attn_params[i]->copy_to(flash_attn_params[i]);
   }
-  Tensor input = make_tensor<float>({BATCH_SIZE, SEQ_LEN, EMBED_DIM}, getGPU());
-  input->fill_random_normal(0.5f, 0.2f, 676767);
+  Tensor input_data = make_tensor<float>({BATCH_SIZE, SEQ_LEN, EMBED_DIM}, getGPU());
+  input_data->fill_random_normal(0.5f, 0.2f, 676767);
 
   // cold pass
-  Tensor full_attn_output = attention_op.forward({input})[0];
-  Tensor flash_attn_output = flash_op.forward({input})[0];
+  Tensor full_attn_output = attention_block->forward({input_data})[0];
+  Tensor flash_attn_output = flash_block->forward({input_data})[0];
 
   for (int i = 0; i < 10; ++i) {
     auto vanilla_start = std::chrono::high_resolution_clock::now();
-    full_attn_output = attention_op.forward({input})[0];
-    attention_op.device().getFlow(defaultFlowHandle)->synchronize();
+    full_attn_output = attention_block->forward({input_data})[0];
+    attention_block->device().getFlow(defaultFlowHandle)->synchronize();
     auto vanilla_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> vanilla_duration = vanilla_end - vanilla_start;
     printf("Vanilla Attention Forward Pass Time: %.3f ms\n", vanilla_duration.count());
@@ -48,8 +49,8 @@ signed main() {
 
   for (int i = 0; i < 10; ++i) {
     auto flash_start = std::chrono::high_resolution_clock::now();
-    flash_attn_output = flash_op.forward({input})[0];
-    flash_op.device().getFlow(defaultFlowHandle)->synchronize();
+    flash_attn_output = flash_block->forward({input_data})[0];
+    flash_block->device().getFlow(defaultFlowHandle)->synchronize();
     auto flash_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> flash_duration = flash_end - flash_start;
     printf("Flash Attention Forward Pass Time: %.3f ms\n", flash_duration.count());

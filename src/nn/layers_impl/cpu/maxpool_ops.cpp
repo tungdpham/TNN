@@ -13,7 +13,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace maxpool {
 template <typename T>
@@ -95,4 +95,4 @@ void run_backward(const T *grad_output, T *grad_input, const int *mask_indices, 
 
 }  // namespace maxpool
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

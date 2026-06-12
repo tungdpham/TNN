@@ -16,10 +16,10 @@
 #include "nn/layers_impl/cuda/dropout_ops.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
-DropoutLayer::DropoutLayer(float dropout_rate, const std::string &name)
-    : StatelessLayer(name),
+DropoutLayerImpl::DropoutLayerImpl(float dropout_rate, const std::string &name)
+    : SISOLayerImpl(name),
       dropout_rate_(dropout_rate),
       generator_(std::random_device{}()) {
   if (dropout_rate < 0.0f || dropout_rate >= 1.0f) {
@@ -27,43 +27,43 @@ DropoutLayer::DropoutLayer(float dropout_rate, const std::string &name)
   }
 }
 
-Tensor DropoutLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor DropoutLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   if (!this->is_training_) {
-    Tensor output = get_output_tensor(input->shape());
+    Tensor output = get_tensor(input->shape(), io_dtype_);
     output->share_from(input);
     return output;
   }
 
-  Tensor mask = this->get_cache_tensor(input->shape(), DType_t::BOOL);
+  Tensor mask = this->get_tensor(input->shape(), DType_t::BOOL);
   set_mutable_cache(mb_id, "mask", mask);
 
-  Tensor output = get_output_tensor(input->shape());
+  Tensor output = get_tensor(input->shape(), io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward, input, output, mask, this->flow_handle_);
   return output;
 }
 
-Tensor DropoutLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor DropoutLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &mask = this->get_mutable_cache(mb_id, "mask");
   if (mask == nullptr) {
-    throw std::runtime_error("No cached mask found for micro-batch ID in DropoutLayer: " +
+    throw std::runtime_error("No cached mask found for micro-batch ID in DropoutLayerImpl: " +
                              std::to_string(mb_id));
   }
 
-  Tensor grad_input = get_output_tensor(grad_output->shape());
+  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward, grad_output, grad_input, mask, this->flow_handle_);
   return grad_input;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> DropoutLayer::run_forward(const ConstTensor &input, const Tensor &output,
-                                                const Tensor &mask, flowHandle_t handle) const {
+std::unique_ptr<Task> DropoutLayerImpl::run_forward(const ConstTensor &input, const Tensor &output,
+                                                    const Tensor &mask, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
-        "DropoutLayer mixed dtype dispatch not implemented (io/compute must match).");
+        "DropoutLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
   }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("DropoutLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("DropoutLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 
   size_t batch_size = input->dimension(0);
@@ -91,12 +91,13 @@ std::unique_ptr<Task> DropoutLayer::run_forward(const ConstTensor &input, const 
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> DropoutLayer::run_backward(const ConstTensor &grad_output,
-                                                 const Tensor &grad_input, const ConstTensor &mask,
-                                                 flowHandle_t handle) const {
+std::unique_ptr<Task> DropoutLayerImpl::run_backward(const ConstTensor &grad_output,
+                                                     const Tensor &grad_input,
+                                                     const ConstTensor &mask,
+                                                     flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
-        "DropoutLayer mixed dtype dispatch not implemented (io/compute must match).");
+        "DropoutLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
   }
 
   size_t batch_size = grad_output->dimension(0);
@@ -123,7 +124,7 @@ std::unique_ptr<Task> DropoutLayer::run_backward(const ConstTensor &grad_output,
   return nullptr;
 }
 
-LayerConfig DropoutLayer::get_config() const {
+LayerConfig DropoutLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -131,13 +132,13 @@ LayerConfig DropoutLayer::get_config() const {
   return config;
 }
 
-Vec<size_t> DropoutLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> DropoutLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   return input_shape;
 }
 
-std::unique_ptr<DropoutLayer> DropoutLayer::create_from_config(const LayerConfig &config) {
+std::shared_ptr<DropoutLayerImpl> DropoutLayerImpl::create_from_config(const LayerConfig &config) {
   float dropout_rate = config.get<float>("dropout_rate");
-  return std::make_unique<DropoutLayer>(dropout_rate, config.name);
+  return std::make_shared<DropoutLayerImpl>(dropout_rate, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

@@ -8,7 +8,7 @@
 #include "augmentation.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * Contrast adjustment augmentation
@@ -64,4 +64,4 @@ private:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

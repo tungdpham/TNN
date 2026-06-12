@@ -10,7 +10,7 @@
 #include "nn/layers_impl/cuda/dense_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace legacy_dense {
 
@@ -158,4 +158,4 @@ void add_bias(IO_T* output_data, const Param_T* bias_data, const size_t batch_si
 
 }  // namespace legacy_dense
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

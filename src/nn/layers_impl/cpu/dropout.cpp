@@ -5,7 +5,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace dropout {
 
@@ -76,4 +76,4 @@ void run_backward(const T *grad_output_data, T *grad_input_data, const bool *mas
 
 }  // namespace dropout
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

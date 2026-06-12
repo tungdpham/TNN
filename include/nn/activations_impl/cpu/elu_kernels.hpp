@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 
 template <typename T>
@@ -12,4 +12,4 @@ template <typename T>
 void elu_gradient(const T *input, const T *grad_output, T *grad_input, size_t size, T alpha);
 
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

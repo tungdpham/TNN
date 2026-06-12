@@ -5,7 +5,7 @@
 #include <string>
 #include <type_traits>
 
-namespace tnn {
+namespace synet {
 
 template <typename T>
 T from_str(const std::string &str) {
@@ -25,4 +25,4 @@ T from_str(const std::string &str) {
   }
 }
 
-}  // namespace tnn
+}  // namespace synet

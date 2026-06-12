@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace tnn {
+namespace synet {
 
 struct bf16 {
   uint16_t data;
@@ -120,4 +120,4 @@ inline bf16 operator-(const bf16 &a) { return bf16(-static_cast<float>(a)); }
 
 inline bf16 operator+(const bf16 &a) { return a; }
 
-}  // namespace tnn
+}  // namespace synet

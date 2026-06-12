@@ -10,7 +10,7 @@
 #include "cuda/error_handler.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace avgpool {
 
@@ -130,4 +130,4 @@ void run_backward(const T* grad_output, T* grad_input, size_t batch_size, size_t
 
 }  // namespace avgpool
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

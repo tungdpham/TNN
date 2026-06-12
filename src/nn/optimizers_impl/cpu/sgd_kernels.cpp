@@ -9,7 +9,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace sgd {
 
@@ -44,4 +44,4 @@ INSTANTIATE(double)
 
 }  // namespace sgd
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

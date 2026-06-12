@@ -19,19 +19,19 @@
 #include <string>
 #include <unordered_map>
 
-namespace tnn {
+namespace synet {
 
-class FlashAttentionBlock : public Block {
+class FlashAttentionBlockImpl : public Block {
 private:
   size_t embed_dim_;
   size_t num_heads_;
   size_t head_dim_;
   bool is_causal_;
 
-  std::unique_ptr<DenseLayer> q_proj_;
-  std::unique_ptr<DenseLayer> k_proj_;
-  std::unique_ptr<DenseLayer> v_proj_;
-  std::unique_ptr<DenseLayer> out_proj_;
+  DenseLayer q_proj_;
+  DenseLayer k_proj_;
+  DenseLayer v_proj_;
+  DenseLayer out_proj_;
 
 #ifdef USE_CUDNN
   void build_graph(const Vec<size_t> &input_shape) const;
@@ -57,7 +57,7 @@ private:
 #endif
   mutable std::unordered_map<size_t, AttentionStats> stats_cache;
 
-  Vec<Layer *> layers() override {
+  Vec<LayerImpl *> layers() override {
     return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
   }
 
@@ -66,17 +66,40 @@ private:
   Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0) override;
 
 public:
-  FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
-                      const std::string &name = "flash_attention_block");
+  FlashAttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal = true,
+                          const std::string &name = "flash_attention_block");
 
-  ~FlashAttentionBlock();
+  ~FlashAttentionBlockImpl();
 
   static constexpr const char *TYPE_NAME = "flash_attention_block";
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
-  static std::unique_ptr<FlashAttentionBlock> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<FlashAttentionBlockImpl> create_from_config(const LayerConfig &config);
+
+  Node operator()(const Node &input) {
+    if (!input) {
+      throw std::runtime_error("Input node is null");
+    }
+    Graph *graph = input->graph();
+    Node output = graph->make_node();
+
+    std::shared_ptr<LayerImpl> self = shared_from_this();
+
+    graph->add_edge(self, {input}, {output});
+    return output;
+  }
 };
 
-}  // namespace tnn
+class FlashAttentionBlock : public LayerRef<FlashAttentionBlockImpl> {
+public:
+  FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
+                      const std::string &name = "flash_attention_block")
+      : LayerRef(std::make_shared<FlashAttentionBlockImpl>(embed_dim, num_heads, is_causal, name)) {
+  }
+
+  using LayerRef<FlashAttentionBlockImpl>::LayerRef;
+};
+
+}  // namespace synet

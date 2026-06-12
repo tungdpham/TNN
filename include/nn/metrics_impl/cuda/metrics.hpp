@@ -10,7 +10,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace metrics {
 
@@ -57,4 +57,4 @@ int compute_class_corrects(const T *predictions, const int *targets, const size_
 
 }  // namespace metrics
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

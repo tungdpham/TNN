@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace avgpool {
 template <typename T>
@@ -22,4 +22,4 @@ void run_backward(const T *grad_output, T *grad_input, size_t batch_size, size_t
                   size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);
 }  // namespace avgpool
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

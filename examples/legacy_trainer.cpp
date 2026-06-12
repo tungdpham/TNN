@@ -2,15 +2,14 @@
 
 #include "data_loading/legacy/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
-#include "nn/graph_builder.hpp"
 #include "nn/legacy/example_models.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
 
 using namespace std;
-using namespace tnn;
-using namespace tnn::legacy;
+using namespace synet;
+using namespace synet::legacy;
 
 signed main() {
   legacy::ExampleModels::register_defaults();
@@ -30,7 +29,6 @@ signed main() {
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   const auto &device = DeviceManager::getInstance().getDevice(device_type);
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
-  GraphBuilder builder;
 
   string dataset_name = "";
   Env::get("DATASET_NAME", dataset_name);

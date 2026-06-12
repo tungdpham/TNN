@@ -22,7 +22,7 @@
 #include "device/flow.hpp"
 #include "device/iallocator.hpp"
 
-namespace tnn {
+namespace synet {
 
 inline size_t align_up(size_t size, size_t alignment) {
   return (size + alignment - 1) & ~(alignment - 1);
@@ -251,4 +251,4 @@ private:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

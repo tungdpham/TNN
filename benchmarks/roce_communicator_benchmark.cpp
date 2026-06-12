@@ -14,7 +14,7 @@
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 struct Config {
@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
     tensor->fill_random_normal(0.0f, .2f, 12345);
     Job job;
     job.mb_id = 0;
-    job.data = std::move(tensor);
+    job.data = TensorBundle{{{"output", tensor}}};
     Message message(CommandType::FORWARD_JOB, std::move(job));
     communicator->send_message(std::move(message), peer_endpoint);
   }

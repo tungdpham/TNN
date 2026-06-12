@@ -16,19 +16,19 @@
 #include "nn/layers_impl/dense_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
-class AttentionBlock : public Block {
+class AttentionBlockImpl : public Block {
 private:
   size_t embed_dim_;
   size_t num_heads_;
   size_t head_dim_;
   bool is_causal_;
 
-  std::unique_ptr<DenseLayer> q_proj_;
-  std::unique_ptr<DenseLayer> k_proj_;
-  std::unique_ptr<DenseLayer> v_proj_;
-  std::unique_ptr<DenseLayer> out_proj_;
+  DenseLayer q_proj_;
+  DenseLayer k_proj_;
+  DenseLayer v_proj_;
+  DenseLayer out_proj_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_attention_forward(const ConstTensor &q, const ConstTensor &k,
@@ -44,7 +44,7 @@ private:
                                                    size_t batch_size, size_t seq_len,
                                                    flowHandle_t handle);
 
-  Vec<Layer *> layers() override {
+  Vec<LayerImpl *> layers() override {
     return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
   }
 
@@ -52,8 +52,8 @@ private:
   Vec<Tensor> backward_impl(const Vec<ConstTensor> &grad_outputs, size_t mb_id = 0) override;
 
 public:
-  AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
-                 const std::string &name = "attention_block");
+  AttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal = true,
+                     const std::string &name = "attention_block");
 
   static constexpr const char *TYPE_NAME = "attention_block";
 
@@ -61,7 +61,29 @@ public:
 
   LayerConfig get_config() const override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
-  static std::unique_ptr<AttentionBlock> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<AttentionBlockImpl> create_from_config(const LayerConfig &config);
+
+  Node operator()(const Node &input) {
+    if (!input) {
+      throw std::runtime_error("Input node is null");
+    }
+    Graph *graph = input->graph();
+    Node output = graph->make_node();
+
+    std::shared_ptr<LayerImpl> self = shared_from_this();
+
+    graph->add_edge(self, {input}, {output});
+    return output;
+  }
 };
 
-}  // namespace tnn
+class AttentionBlock : public LayerRef<AttentionBlockImpl> {
+public:
+  AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
+                 const std::string &name = "attention_block")
+      : LayerRef(std::make_shared<AttentionBlockImpl>(embed_dim, num_heads, is_causal, name)) {}
+
+  using LayerRef<AttentionBlockImpl>::LayerRef;
+};
+
+}  // namespace synet

@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace metrics {
 
@@ -52,4 +52,4 @@ int compute_class_corrects(const T *predictions, const int *targets, const size_
 
 }  // namespace metrics
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

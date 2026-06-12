@@ -7,7 +7,7 @@
 #include "device/iallocator.hpp"
 #include "tokenizer/tokenizer.hpp"
 
-namespace tnn {
+namespace synet {
 
 class OpenWebTextDataLoader : public BaseDataLoader {
 private:
@@ -128,4 +128,4 @@ private:
   std::uniform_int_distribution<size_t> dist_;
 };
 
-}  // namespace tnn
+}  // namespace synet

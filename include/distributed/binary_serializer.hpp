@@ -20,7 +20,7 @@
  * type to ensure compatibility across different platforms. Here, we use uint64_t for sizes
  * and counts, which is 8 bytes on all platforms.
  */
-namespace tnn {
+namespace synet {
 
 class BinarySerializer {
 private:
@@ -78,6 +78,19 @@ public:
     if (tensor->size() > 0) {
       auto dptr = tensor->data_ptr();
       reader(make_blob(dptr.get<unsigned char>(), tensor->size() * dtype_size, dptr.device()));
+    }
+  }
+
+  void deserialize(Reader &reader, TensorBundle &bundle) {
+    uint64_t bundle_size = 0;
+    reader(bundle_size);
+    bundle.clear();
+    for (uint64_t i = 0; i < bundle_size; ++i) {
+      std::string uid;
+      reader(uid);
+      Tensor tensor;
+      deserialize(reader, tensor);
+      bundle.set(uid, tensor);
     }
   }
 
@@ -145,4 +158,4 @@ public:
 
 };  // namespace BinarySerializer
 
-}  // namespace tnn
+}  // namespace synet

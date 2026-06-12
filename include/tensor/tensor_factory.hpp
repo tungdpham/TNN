@@ -1,13 +1,13 @@
 #pragma once
 
-#include <fstream>
+#include <istream>
 
 #include "device/device_allocator.hpp"
 #include "device/iallocator.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 template <typename T>
 inline Tensor make_tensor(Vec<size_t> shape, const Device &device = getHost()) {
@@ -92,9 +92,9 @@ inline Tensor dtype_cast(const ConstTensor &input, DType_t target_dtype) {
   return make_tensor(input->allocator(), target_dtype, input->shape(), std::move(output_data));
 }
 
-inline void load_into(std::ifstream &in, Tensor &tensor) {
-  if (!in.is_open()) {
-    throw std::runtime_error("File is not open for reading");
+inline void load_into(std::istream &in, Tensor &tensor) {
+  if (!in) {
+    throw std::runtime_error("Stream is not ready for reading");
   }
   DType_t dtype;
   in.read(reinterpret_cast<char *>(&dtype), sizeof(DType_t));
@@ -127,10 +127,7 @@ inline void load_into(std::ifstream &in, Tensor &tensor) {
   }
 }
 
-inline Tensor load(std::ifstream &in, IAllocator &allocator) {
-  if (!in.is_open()) {
-    throw std::runtime_error("File is not open for reading");
-  }
+inline Tensor load(std::istream &in, IAllocator &allocator) {
   DType_t dtype;
   in.read(reinterpret_cast<char *>(&dtype), sizeof(DType_t));
   size_t dims;
@@ -158,4 +155,4 @@ inline Tensor load(std::ifstream &in, IAllocator &allocator) {
   return tensor;
 }
 
-}  // namespace tnn
+}  // namespace synet

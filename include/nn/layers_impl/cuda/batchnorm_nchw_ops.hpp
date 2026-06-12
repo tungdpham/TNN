@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace batchnorm_nchw {
 
@@ -28,6 +28,6 @@ void run_inference(const T *input_data, const float *running_mean_data,
 
 }  // namespace batchnorm_nchw
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

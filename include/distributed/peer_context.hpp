@@ -5,7 +5,7 @@
 #include "chunking.hpp"
 #include "distributed/endpoint.hpp"
 
-namespace tnn {
+namespace synet {
 
 // Represents the context for a peer endpoint.
 class IPeerContext {
@@ -53,4 +53,4 @@ inline PeerContext make_peer_context(Endpoint endpoint, Slicer &&slicer, Aggrega
                                         std::move(slicer));
 }
 
-}  // namespace tnn
+}  // namespace synet

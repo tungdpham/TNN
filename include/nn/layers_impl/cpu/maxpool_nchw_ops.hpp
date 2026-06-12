@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace maxpool_nchw {
 template <typename T>
@@ -16,4 +16,4 @@ void run_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
                   size_t output_h, size_t output_w, const size_t *mask_indices);
 }  // namespace maxpool_nchw
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

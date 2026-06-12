@@ -4,17 +4,21 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #include "device/device_allocator.hpp"
 #include "device/device_manager.hpp"
 #include "device/iallocator.hpp"
 #include "distributed/binary_serializer.hpp"
+#include "distributed/chunking.hpp"
 #include "distributed/io.hpp"
+#include "distributed/message.hpp"
 #include "distributed/packet.hpp"
+#include "profiling/profiler.hpp"
 #include "tensor/tensor_factory.hpp"
 #include "type/type.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 class ArchiverTest : public ::testing::Test {
 public:
@@ -29,6 +33,24 @@ public:
 
   IAllocator& allocator_ = DeviceAllocator::instance(getHost());
 };
+
+namespace {
+
+void expect_float_tensors_equal(const Tensor& actual, const Tensor& expected) {
+  ASSERT_TRUE(actual);
+  ASSERT_TRUE(expected);
+  EXPECT_EQ(actual->shape(), expected->shape());
+  EXPECT_EQ(actual->data_type(), expected->data_type());
+  EXPECT_EQ(actual->size(), expected->size());
+
+  const float* actual_data = actual->data_as<float>();
+  const float* expected_data = expected->data_as<float>();
+  for (size_t i = 0; i < expected->size(); ++i) {
+    EXPECT_FLOAT_EQ(actual_data[i], expected_data[i]);
+  }
+}
+
+}  // namespace
 
 TEST_F(ArchiverTest, TestHeaderSizer) {
   PacketHeader header;
@@ -180,8 +202,12 @@ TEST_F(ArchiverTest, TestTensorArchiver) {
 TEST_F(ArchiverTest, TestJobArchiver) {
   Job job;
   job.mb_id = 123;
-  job.data = make_tensor(DType_t::FP32, {64, 256});
-  job.data->fill_random_normal(0.0f, 1.0f);
+  Tensor left = make_tensor(DType_t::FP32, {64, 256});
+  Tensor right = make_tensor(DType_t::FP32, {64, 128});
+  left->fill_random_normal(0.0f, 1.0f);
+  right->fill_random_normal(0.0f, 1.0f);
+  job.data.set("left", left);
+  job.data.set("right", right);
   Sizer sizer;
   sizer(job);
   size_t expected_size = sizer.size();
@@ -195,14 +221,25 @@ TEST_F(ArchiverTest, TestJobArchiver) {
   bserializer.deserialize(reader, deserialized_job);
 
   EXPECT_EQ(deserialized_job.mb_id, job.mb_id);
-  EXPECT_EQ(deserialized_job.data->shape(), job.data->shape());
-  EXPECT_EQ(deserialized_job.data->data_type(), job.data->data_type());
-  EXPECT_EQ(deserialized_job.data->device(), job.data->device());
-  EXPECT_EQ(deserialized_job.data->size(), job.data->size());
-  float* job_data = job.data->data_as<float>();
-  float* deserialized_job_data = deserialized_job.data->data_as<float>();
-  for (size_t i = 0; i < job.data->size(); ++i) {
-    EXPECT_FLOAT_EQ(deserialized_job_data[i], job_data[i]);
+  ASSERT_EQ(deserialized_job.data.size(), 2u);
+  ASSERT_TRUE(deserialized_job.data.contains("left"));
+  ASSERT_TRUE(deserialized_job.data.contains("right"));
+
+  for (const auto& uid : {std::string("left"), std::string("right")}) {
+    const Tensor& expected = job.data.get(uid);
+    const Tensor& actual = deserialized_job.data.get(uid);
+    ASSERT_TRUE(expected);
+    ASSERT_TRUE(actual);
+    EXPECT_EQ(actual->shape(), expected->shape());
+    EXPECT_EQ(actual->data_type(), expected->data_type());
+    EXPECT_EQ(actual->device(), expected->device());
+    EXPECT_EQ(actual->size(), expected->size());
+
+    float* expected_data = expected->data_as<float>();
+    float* actual_data = actual->data_as<float>();
+    for (size_t i = 0; i < expected->size(); ++i) {
+      EXPECT_FLOAT_EQ(actual_data[i], expected_data[i]);
+    }
   }
 }
 
@@ -223,4 +260,104 @@ TEST_F(ArchiverTest, TestMessageDataArchiver) {
 
   EXPECT_TRUE(deserialized_data.payload.holds<std::string>());
   EXPECT_EQ(deserialized_data.payload.get<std::string>(), "Test Message");
+}
+
+TEST_F(ArchiverTest, LargeJobMessageSurvivesPacketSlicingAndReassembly) {
+  Tensor left_host = make_tensor(DType_t::FP32, {256, 64, 8, 8});
+  Tensor right_host = make_tensor(DType_t::FP32, {256, 64, 8, 8});
+  left_host->fill_random_normal(0.0f, 1.0f);
+  right_host->fill_random_normal(0.0f, 1.0f);
+
+  Job job;
+  job.mb_id = 77;
+  job.data.set("left", left_host->to_device(getGPU()));
+  job.data.set("right", right_host->to_device(getGPU()));
+
+  Message original(CommandType::FORWARD_JOB, std::move(job));
+
+  Sizer sizer;
+  BinarySerializer serializer(allocator_);
+  sizer(original.header());
+  sizer(original.data().payload.index());
+  sizer(original.get<Job>());
+  dptr serialized_buffer = allocator_.allocate(sizer.size());
+  Writer writer(serialized_buffer);
+  serializer.serialize(writer, original);
+
+  BlockSlicer slicer(64 * 1024);
+  Vec<Packet> packets = slicer.slice(std::move(serialized_buffer));
+  ASSERT_GT(packets.size(), 1u);
+
+  RawAggregator aggregator(allocator_);
+  dptr reassembled_buffer;
+  for (auto it = packets.rbegin(); it != packets.rend(); ++it) {
+    dptr packet_target = aggregator.fetch_packet(it->header);
+    std::memcpy(packet_target.get<unsigned char>(), it->data.get<unsigned char>(),
+                it->header.packet_length);
+    if (aggregator.commit_packet(it->header)) {
+      reassembled_buffer = aggregator.finalize(it->header);
+    }
+  }
+
+  ASSERT_TRUE(reassembled_buffer);
+
+  Reader reader(reassembled_buffer);
+  Message reconstructed;
+  serializer.deserialize(reader, reconstructed);
+
+  EXPECT_EQ(reconstructed.header().command_type, CommandType::FORWARD_JOB);
+  ASSERT_TRUE(reconstructed.has_type<Job>());
+
+  const Job& reconstructed_job = reconstructed.get<Job>();
+  EXPECT_EQ(reconstructed_job.mb_id, 77u);
+  ASSERT_EQ(reconstructed_job.data.size(), 2u);
+  ASSERT_TRUE(reconstructed_job.data.contains("left"));
+  ASSERT_TRUE(reconstructed_job.data.contains("right"));
+
+  expect_float_tensors_equal(reconstructed_job.data.get("left"), left_host);
+  expect_float_tensors_equal(reconstructed_job.data.get("right"), right_host);
+}
+
+TEST_F(ArchiverTest, ProfilerArchiverRoundTripPreservesEvents) {
+  Profiler profiler;
+  profiler.init_start_time(Clock::time_point(Clock::duration(123456)));
+  profiler.add_event(Event{EventType::COMMUNICATION, Clock::time_point(Clock::duration(111)),
+                           Clock::time_point(Clock::duration(222)), "Packet Write", "worker-0"});
+  profiler.add_event(Event{EventType::COMPUTE, Clock::time_point(Clock::duration(333)),
+                           Clock::time_point(Clock::duration(444)), "Forward", "worker-1"});
+
+  Sizer sizer;
+  sizer(profiler);
+  dptr buffer = allocator_.allocate(sizer.size());
+  Writer writer(buffer);
+  writer(profiler);
+
+  Reader header_reader(buffer);
+  int64_t serialized_start_time = 0;
+  uint32_t serialized_event_count = 0;
+  header_reader(serialized_start_time, serialized_event_count);
+  EXPECT_EQ(serialized_start_time, profiler.start_time().time_since_epoch().count());
+  EXPECT_EQ(serialized_event_count, 2u);
+
+  Reader reader(buffer);
+  Profiler deserialized_profiler;
+  BinarySerializer serializer(allocator_);
+  serializer.deserialize(reader, deserialized_profiler);
+
+  EXPECT_EQ(deserialized_profiler.start_time().time_since_epoch().count(),
+            profiler.start_time().time_since_epoch().count());
+
+  const auto& events = deserialized_profiler.get_events();
+  ASSERT_EQ(events.size(), 2u);
+  EXPECT_EQ(events[0].type, EventType::COMMUNICATION);
+  EXPECT_EQ(events[0].start_time.time_since_epoch().count(), 111);
+  EXPECT_EQ(events[0].end_time.time_since_epoch().count(), 222);
+  EXPECT_EQ(events[0].name, "Packet Write");
+  EXPECT_EQ(events[0].source, "worker-0");
+
+  EXPECT_EQ(events[1].type, EventType::COMPUTE);
+  EXPECT_EQ(events[1].start_time.time_since_epoch().count(), 333);
+  EXPECT_EQ(events[1].end_time.time_since_epoch().count(), 444);
+  EXPECT_EQ(events[1].name, "Forward");
+  EXPECT_EQ(events[1].source, "worker-1");
 }

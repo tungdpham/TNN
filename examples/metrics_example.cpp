@@ -10,7 +10,7 @@
 #include "nn/metrics.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 int main() {
   // Example: Classification metrics

@@ -4,7 +4,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 
 template <typename T>
@@ -50,4 +50,4 @@ void gelu_gradient(const T *input, const T *grad_output, T *grad_input, size_t s
 #undef INSTANTIATE
 
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

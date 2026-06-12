@@ -4,7 +4,7 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace class_token {
 template <typename T>
@@ -62,4 +62,4 @@ void run_backward(const T *grad_output, T *grad_input, T *grad_token, size_t bat
 #undef INSTANTIATE
 }  // namespace class_token
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

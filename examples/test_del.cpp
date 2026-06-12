@@ -3,7 +3,7 @@
 #include "device/del_allocator_v2.hpp"
 #include "device/device_manager.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 int main() {
   auto allocator = DELAllocatorV2::create(getGPU(), defaultFlowHandle);

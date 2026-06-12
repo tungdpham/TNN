@@ -13,7 +13,7 @@
 #include "device/engine.hpp"
 #include "flow.hpp"
 
-namespace tnn {
+namespace synet {
 class Context {
 public:
   Context() = default;
@@ -33,4 +33,4 @@ public:
   virtual Flow *getFlow(flowHandle_t flow_id) = 0;
   virtual EngineType get_engine() const = 0;
 };
-}  // namespace tnn
+}  // namespace synet

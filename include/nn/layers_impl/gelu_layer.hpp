@@ -10,12 +10,12 @@
 #include <string>
 
 #include "nn/activations_impl/gelu.hpp"
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
-class GELULayer : public StatelessLayer {
+class GELULayerImpl : public SISOLayerImpl {
 private:
   std::unique_ptr<GELU> activation_;
 
@@ -26,15 +26,23 @@ protected:
 public:
   static constexpr const char *TYPE_NAME = "gelu";
 
-  explicit GELULayer(const std::string &name = "gelu");
+  explicit GELULayerImpl(const std::string &name = "gelu");
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  static std::unique_ptr<GELULayer> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<GELULayerImpl> create_from_config(const LayerConfig &config);
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;
   }
 };
 
-}  // namespace tnn
+class GELULayer : public LayerRef<GELULayerImpl> {
+public:
+  explicit GELULayer(const std::string &name = "gelu")
+      : LayerRef(std::make_shared<GELULayerImpl>(name)) {}
+
+  using LayerRef<GELULayerImpl>::LayerRef;
+};
+
+}  // namespace synet

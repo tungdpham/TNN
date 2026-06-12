@@ -10,7 +10,7 @@
 #endif
 #include <type_traits>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 
 template <typename T>
@@ -46,4 +46,4 @@ void gemm(const T *A, const T *B, T *C, const size_t M, const size_t N, const si
 }
 
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

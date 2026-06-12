@@ -46,8 +46,8 @@ Generates a quick diagnostic visualization from a specific tracking CSV.
 
 ```bash
 python3 torch/plot_net_gpu.py \
-  --csv logs/tnn_resnet_tinyimagenet100_bs128.csv \
-  --out logs/tnn_resnet_tinyimagenet100_bs128.png
+  --csv logs/synet_resnet_tinyimagenet100_bs128.csv \
+  --out logs/synet_resnet_tinyimagenet100_bs128.png
 
 ```
 
@@ -55,13 +55,13 @@ python3 torch/plot_net_gpu.py \
 
 ## 3. Training Analysis & Comparison
 
-Compare custom TNN metrics against standard PyTorch baselines across both training and validation sets. This script outputs a detailed, production-ready **4-subplot comparison chart**.
+Compare custom SYNET metrics against standard PyTorch baselines across both training and validation sets. This script outputs a detailed, production-ready **4-subplot comparison chart**.
 
 ```bash
 python3 torch/plot_compare_resnet50.py \
-  --tnn logs/tnn_imagenet100_resnet50_batch_20260519_220500.csv \
+  --synet logs/synet_imagenet100_resnet50_batch_20260519_220500.csv \
   --torch logs/resnet50_imagenet100_20260519_105543_rank0_metrics.csv \
-  --tnn-val logs/tnn_imagenet100_resnet50_val_20260519_220500.csv \
+  --synet-val logs/synet_imagenet100_resnet50_val_20260519_220500.csv \
   --torch-val logs/resnet50_imagenet100_20260519_105543_rank0_epoch_summary.csv \
   --out plots/resnet50_comparison_4subplots.png \
   --smooth 10 \

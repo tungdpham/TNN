@@ -2,7 +2,7 @@
 
 #include "data_loading/data_loader.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * A pair of data loaders for training and validation/testing
@@ -35,4 +35,4 @@ public:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

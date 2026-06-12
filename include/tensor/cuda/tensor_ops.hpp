@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 
 // Im2col/Col2im operations
@@ -46,6 +46,6 @@ void cuda_cnhw_to_nchw(const T *input, T *output, size_t n, size_t c, size_t h, 
                        cudaStream_t stream);
 
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

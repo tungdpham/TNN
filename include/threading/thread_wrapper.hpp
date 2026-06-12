@@ -9,7 +9,7 @@
 #include "omp.h"
 #endif
 
-namespace tnn {
+namespace synet {
 
 struct ThreadingConfig {
   int64_t num_threads = 1;
@@ -48,4 +48,4 @@ private:
 #endif
 };
 
-}  // namespace tnn
+}  // namespace synet

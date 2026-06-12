@@ -11,7 +11,7 @@
 #include "augmentation.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * Normalization augmentation
@@ -92,4 +92,4 @@ private:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

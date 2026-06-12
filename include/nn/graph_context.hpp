@@ -7,7 +7,7 @@
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 
 inline size_t get_bytes_size(const Vec<size_t> &shape, DType_t dtype) {
   return std::accumulate(shape.begin(), shape.end(), get_dtype_size(dtype),
@@ -77,6 +77,17 @@ public:
 
   const GraphContextDescriptor &descriptor() const { return ctx_desc_; }
 
+  IAllocator &allocator() { return allocator_; }
+
+  const Device &device() const { return allocator_.device(); }
+
+private:
+  friend class Graph;
+  GraphContextDescriptor ctx_desc_;
+  IAllocator &allocator_;
+  Vec<Tensor> params_, grads_;
+  dptr param_slab_, grad_slab_;
+
   Vec<Tensor> &parameters() { return params_; }
   Vec<Tensor> &gradients() { return grads_; }
 
@@ -84,15 +95,5 @@ public:
   const Vec<Tensor> &gradients() const { return grads_; }
 
   void zero_grads() { ops::set_scalar<uchar>(grad_slab_, 0, grad_slab_.capacity()); }
-
-  IAllocator &allocator() { return allocator_; }
-
-  const Device &device() const { return allocator_.device(); }
-
-private:
-  GraphContextDescriptor ctx_desc_;
-  IAllocator &allocator_;
-  Vec<Tensor> params_, grads_;
-  dptr param_slab_, grad_slab_;
 };
-}  // namespace tnn
+}  // namespace synet

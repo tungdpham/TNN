@@ -8,12 +8,12 @@
 
 #include "utils/hardware_info.hpp"
 
-using namespace tnn;
+using namespace synet;
 using namespace std;
 
 int main() {
   try {
-    cout << "=== TNN Hardware Information Test ===" << endl;
+    cout << "=== SYNET Hardware Information Test ===" << endl;
 
     HardwareInfo hardware_info;
 

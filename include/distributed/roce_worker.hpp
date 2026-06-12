@@ -11,7 +11,7 @@
 #include "roce_communicator.hpp"
 #include "worker.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * @brief RoCE-based pipeline stage worker
@@ -41,4 +41,4 @@ public:
   ~RoCEWorker() override { stop(); }
 };
 
-}  // namespace tnn
+}  // namespace synet

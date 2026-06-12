@@ -6,7 +6,7 @@
 
 #include "threading/thread_handler.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 
 constexpr size_t DEFAULT_BLOCK_SIZE = 32;
@@ -615,4 +615,4 @@ void dgemm(const double *A, const double *B, double *C, const size_t M, const si
 }
 
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

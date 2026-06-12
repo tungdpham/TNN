@@ -13,7 +13,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace cudnn_conv2d {
 
@@ -67,5 +67,5 @@ void run_bgrad(ConvolutionHandle *handle, const void *gradient_data, void *bias_
                cudaStream_t stream);
 }  // namespace cudnn_conv2d
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 #endif

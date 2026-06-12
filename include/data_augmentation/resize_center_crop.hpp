@@ -10,7 +10,7 @@
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * Torchvision-like Resize(resize_short_side) + CenterCrop(crop_h, crop_w).
@@ -143,4 +143,4 @@ private:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

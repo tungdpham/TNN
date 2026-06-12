@@ -1,6 +1,6 @@
 #include "cuda/cudnn/common.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace cudnn {
 cudnnDataType_t to_cudnn_datatype(DType_t dtype) {
@@ -20,4 +20,4 @@ cudnnDataType_t to_cudnn_datatype(DType_t dtype) {
 
 }  // namespace cudnn
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

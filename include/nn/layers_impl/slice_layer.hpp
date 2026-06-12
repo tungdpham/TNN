@@ -10,12 +10,12 @@
 #include <string>
 #include <unordered_map>
 
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
-class SliceLayer : public StatelessLayer {
+class SliceLayerImpl : public SISOLayerImpl {
 private:
   std::unordered_map<size_t, Vec<size_t>> micro_batch_original_shapes_;
   size_t axis_;
@@ -37,14 +37,22 @@ private:
 public:
   static constexpr const char *TYPE_NAME = "slice";
 
-  SliceLayer(size_t axis, size_t start, size_t length, const std::string &name = "slice");
+  SliceLayerImpl(size_t axis, size_t start, size_t length, const std::string &name = "slice");
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<SliceLayer> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<SliceLayerImpl> create_from_config(const LayerConfig &config);
 };
 
-}  // namespace tnn
+class SliceLayer : public LayerRef<SliceLayerImpl> {
+public:
+  SliceLayer(size_t axis, size_t start, size_t length, const std::string &name = "slice")
+      : LayerRef(std::make_shared<SliceLayerImpl>(axis, start, length, name)) {}
+
+  using LayerRef<SliceLayerImpl>::LayerRef;
+};
+
+}  // namespace synet

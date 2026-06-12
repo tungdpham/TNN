@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace avgpool_nchw {
 
@@ -23,4 +23,4 @@ void run_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
                   size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w);
 }  // namespace avgpool_nchw
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

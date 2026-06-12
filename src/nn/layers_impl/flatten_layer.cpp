@@ -8,41 +8,42 @@
 
 #include <stdexcept>
 
-namespace tnn {
+namespace synet {
 
-FlattenLayer::FlattenLayer(int start_dim, int end_dim, const std::string &name)
-    : StatelessLayer(name),
+FlattenLayerImpl::FlattenLayerImpl(int start_dim, int end_dim, const std::string &name)
+    : SISOLayerImpl(name),
       start_dim_(start_dim),
       end_dim_(end_dim) {}
 
-Tensor FlattenLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor FlattenLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
 
   Vec<size_t> output_shape = compute_output_shape(input->shape());
-  Tensor output = get_output_tensor(output_shape);
+  Tensor output = get_tensor(output_shape, io_dtype_);
 
   input->copy_to(output);
   return output;
 }
 
-Tensor FlattenLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor FlattenLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   auto it = micro_batch_original_shapes_.find(mb_id);
   if (it == micro_batch_original_shapes_.end()) {
-    throw std::runtime_error("No cached shape found for micro-batch ID in FlattenLayer: " +
+    throw std::runtime_error("No cached shape found for micro-batch ID in FlattenLayerImpl: " +
                              std::to_string(mb_id));
   }
   const Vec<size_t> &original_shape = it->second;
   size_t expected_size =
       std::accumulate(original_shape.begin(), original_shape.end(), 1, std::multiplies<size_t>());
   if (grad_output->size() != expected_size) {
-    throw std::runtime_error("Gradient size does not match original input size in FlattenLayer");
+    throw std::runtime_error(
+        "Gradient size does not match original input size in FlattenLayerImpl");
   }
-  Tensor grad_input = get_output_tensor(original_shape);
+  Tensor grad_input = get_tensor(original_shape, io_dtype_);
   grad_output->copy_to(grad_input);
   return grad_input;
 }
 
-LayerConfig FlattenLayer::get_config() const {
+LayerConfig FlattenLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -51,9 +52,9 @@ LayerConfig FlattenLayer::get_config() const {
   return config;
 }
 
-Vec<size_t> FlattenLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> FlattenLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (input_shape.empty()) {
-    throw std::invalid_argument("FlattenLayer expects non-empty input shape");
+    throw std::invalid_argument("FlattenLayerImpl expects non-empty input shape");
   }
 
   Vec<size_t> output_shape;
@@ -84,10 +85,10 @@ Vec<size_t> FlattenLayer::compute_output_shape(const Vec<size_t> &input_shape) c
   return output_shape;
 }
 
-std::unique_ptr<FlattenLayer> FlattenLayer::create_from_config(const LayerConfig &config) {
+std::shared_ptr<FlattenLayerImpl> FlattenLayerImpl::create_from_config(const LayerConfig &config) {
   int start_dim = config.get<int>("start_dim", 1);
   int end_dim = config.get<int>("end_dim", -1);
-  return std::make_unique<FlattenLayer>(start_dim, end_dim, config.name);
+  return std::make_shared<FlattenLayerImpl>(start_dim, end_dim, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

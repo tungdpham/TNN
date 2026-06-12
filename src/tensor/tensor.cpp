@@ -7,4 +7,4 @@
 
 #include "tensor/tensor.hpp"
 
-namespace tnn {}  // namespace tnn
+namespace synet {}  // namespace synet

@@ -12,308 +12,220 @@
 
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace sdpa {
 template <typename T>
-void run_forward(const T *q, const T *k, const T *v, T *output, size_t batch_size, size_t num_heads,
-                 size_t seq_len, size_t head_dim, float attn_scale, bool is_causal) {
+void run_forward(const T *q, const T *k, const T *v, T *output,
+                 typename TypeTraits<T>::ComputePrecision *scores, T *attn_weights,
+                 size_t batch_size, size_t num_heads, size_t seq_len, size_t head_dim,
+                 float attn_scale, bool is_causal) {
+  using AccT = typename TypeTraits<T>::ComputePrecision;
+
   // Shapes: Q, K, V: (batch, heads, seq_len, head_dim)
   const size_t q_stride_b = num_heads * seq_len * head_dim;
   const size_t q_stride_h = seq_len * head_dim;
   const size_t q_stride_s = head_dim;
 
-  // Allocate temporary attention scores and softmax
-  T *scores = new T[batch_size * num_heads * seq_len * seq_len];
-  T *attn_weights = new T[batch_size * num_heads * seq_len * seq_len];
-
-  try {
-    // Compute attention scores: (B, H, S, S) = Q @ K^T / sqrt(d)
-    for (size_t b = 0; b < batch_size; ++b) {
-      for (size_t h = 0; h < num_heads; ++h) {
-        for (size_t i = 0; i < seq_len; ++i) {
-          for (size_t j = 0; j < seq_len; ++j) {
-            // Compute dot product: q[b,h,i,:] · k[b,h,j,:]
-            T score = 0;
-            for (size_t d = 0; d < head_dim; ++d) {
-              size_t q_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
-              size_t k_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
-              score += q[q_idx] * k[k_idx];
-            }
-            score *= static_cast<T>(attn_scale);
-
-            // Apply causal mask if needed
-            if (is_causal && j > i) {
-              score = -std::numeric_limits<T>::infinity();
-            }
-
-            size_t score_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            scores[score_idx] = score;
-          }
-        }
-
-        // Softmax over seq_len dimension
-        for (size_t i = 0; i < seq_len; ++i) {
-          // Find max for numerical stability
-          T max_score = -std::numeric_limits<T>::infinity();
-          for (size_t j = 0; j < seq_len; ++j) {
-            size_t score_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            if (std::isfinite(static_cast<float>(scores[score_idx]))) {
-              max_score = std::max(max_score, scores[score_idx]);
-            }
-          }
-
-          // Compute exp and sum
-          T sum_exp = 0;
-          for (size_t j = 0; j < seq_len; ++j) {
-            size_t score_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            T exp_val =
-                std::isfinite(static_cast<float>(scores[score_idx]))
-                    ? static_cast<T>(std::exp(static_cast<float>(scores[score_idx] - max_score)))
-                    : static_cast<T>(0);
-            size_t attn_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            attn_weights[attn_idx] = exp_val;
-            sum_exp += exp_val;
-          }
-
-          // Normalize
-          for (size_t j = 0; j < seq_len; ++j) {
-            size_t attn_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            attn_weights[attn_idx] /= (sum_exp + static_cast<T>(1e-9f));
-          }
-        }
-      }
-    }
-
-    // Compute output: O = Attention @ V
-    for (size_t b = 0; b < batch_size; ++b) {
-      for (size_t h = 0; h < num_heads; ++h) {
-        for (size_t i = 0; i < seq_len; ++i) {
+  // Compute attention scores: (B, H, S, S) = Q @ K^T * scale
+  for (size_t b = 0; b < batch_size; ++b) {
+    for (size_t h = 0; h < num_heads; ++h) {
+      for (size_t i = 0; i < seq_len; ++i) {
+        for (size_t j = 0; j < seq_len; ++j) {
+          AccT score = AccT(0);
           for (size_t d = 0; d < head_dim; ++d) {
-            T val = 0;
-            for (size_t j = 0; j < seq_len; ++j) {
-              size_t attn_idx =
-                  b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-              size_t v_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
-              val += attn_weights[attn_idx] * v[v_idx];
-            }
-            size_t o_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
-            output[o_idx] = val;
+            size_t q_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
+            size_t k_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
+            score += static_cast<AccT>(q[q_idx]) * static_cast<AccT>(k[k_idx]);
           }
+          score *= static_cast<AccT>(attn_scale);
+
+          if (is_causal && j > i) {
+            score = -std::numeric_limits<AccT>::infinity();
+          }
+
+          size_t score_idx =
+              b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+          scores[score_idx] = score;
+        }
+      }
+
+      for (size_t i = 0; i < seq_len; ++i) {
+        AccT max_score = -std::numeric_limits<AccT>::infinity();
+        for (size_t j = 0; j < seq_len; ++j) {
+          size_t score_idx =
+              b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+          if (std::isfinite(scores[score_idx])) {
+            max_score = std::max(max_score, scores[score_idx]);
+          }
+        }
+
+        AccT sum_exp = AccT(0);
+        for (size_t j = 0; j < seq_len; ++j) {
+          size_t score_idx =
+              b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+          AccT exp_val = std::isfinite(scores[score_idx])
+                             ? static_cast<AccT>(std::exp(scores[score_idx] - max_score))
+                             : AccT(0);
+          size_t attn_idx =
+              b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+          attn_weights[attn_idx] = static_cast<T>(exp_val);
+          sum_exp += exp_val;
+        }
+
+        AccT inv_sum = AccT(1) / (sum_exp + static_cast<AccT>(1e-9f));
+        for (size_t j = 0; j < seq_len; ++j) {
+          size_t attn_idx =
+              b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+          attn_weights[attn_idx] =
+              static_cast<T>(static_cast<AccT>(attn_weights[attn_idx]) * inv_sum);
         }
       }
     }
-  } catch (...) {
-    delete[] scores;
-    delete[] attn_weights;
-    throw;
   }
 
-  delete[] scores;
-  delete[] attn_weights;
+  // Compute output: O = Attention @ V
+  for (size_t b = 0; b < batch_size; ++b) {
+    for (size_t h = 0; h < num_heads; ++h) {
+      for (size_t i = 0; i < seq_len; ++i) {
+        for (size_t d = 0; d < head_dim; ++d) {
+          AccT val = AccT(0);
+          for (size_t j = 0; j < seq_len; ++j) {
+            size_t attn_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+            size_t v_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
+            val += static_cast<AccT>(attn_weights[attn_idx]) * static_cast<AccT>(v[v_idx]);
+          }
+          size_t o_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
+          output[o_idx] = static_cast<T>(val);
+        }
+      }
+    }
+  }
 }
 
 template <typename T>
-void run_backward(const T *q, const T *k, const T *v, const T *output, const T *grad_output,
-                  T *grad_q, T *grad_k, T *grad_v, size_t batch_size, size_t num_heads,
-                  size_t seq_len, size_t head_dim, float attn_scale, bool is_causal) {
-  // Simplified backward: recompute forward to get attention weights
-  // In production, you'd cache these during forward
+void run_backward(const T *q, const T *k, const T *v, const T *attn_weights, const T *grad_output,
+                  typename TypeTraits<T>::ComputePrecision *grad_scores, T *grad_q, T *grad_k,
+                  T *grad_v, size_t batch_size, size_t num_heads, size_t seq_len, size_t head_dim,
+                  float attn_scale, bool is_causal) {
+  using AccT = typename TypeTraits<T>::ComputePrecision;
+  (void)is_causal;
 
   const size_t q_stride_b = num_heads * seq_len * head_dim;
   const size_t q_stride_h = seq_len * head_dim;
   const size_t q_stride_s = head_dim;
 
-  T *scores = new T[batch_size * num_heads * seq_len * seq_len];
-  T *attn_weights = new T[batch_size * num_heads * seq_len * seq_len];
-  T *grad_scores = new T[batch_size * num_heads * seq_len * seq_len];
-
-  try {
-    // Recompute forward attention weights
-    for (size_t b = 0; b < batch_size; ++b) {
-      for (size_t h = 0; h < num_heads; ++h) {
-        for (size_t i = 0; i < seq_len; ++i) {
-          for (size_t j = 0; j < seq_len; ++j) {
-            T score = 0;
-            for (size_t d = 0; d < head_dim; ++d) {
-              size_t q_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
-              size_t k_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
-              score += q[q_idx] * k[k_idx];
-            }
-            score *= static_cast<T>(attn_scale);
-
-            if (is_causal && j > i) {
-              score = -std::numeric_limits<T>::infinity();
-            }
-
-            size_t score_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            scores[score_idx] = score;
-          }
-        }
-
-        // Softmax
-        for (size_t i = 0; i < seq_len; ++i) {
-          T max_score = -std::numeric_limits<T>::infinity();
-          for (size_t j = 0; j < seq_len; ++j) {
-            size_t score_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            if (std::isfinite(static_cast<float>(scores[score_idx]))) {
-              max_score = std::max(max_score, scores[score_idx]);
-            }
-          }
-
-          T sum_exp = 0;
-          for (size_t j = 0; j < seq_len; ++j) {
-            size_t score_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            T exp_val =
-                std::isfinite(static_cast<float>(scores[score_idx]))
-                    ? static_cast<T>(std::exp(static_cast<float>(scores[score_idx] - max_score)))
-                    : static_cast<T>(0);
+  // grad_V = A^T @ grad_O
+  for (size_t b = 0; b < batch_size; ++b) {
+    for (size_t h = 0; h < num_heads; ++h) {
+      for (size_t j = 0; j < seq_len; ++j) {
+        for (size_t d = 0; d < head_dim; ++d) {
+          AccT val = AccT(0);
+          for (size_t i = 0; i < seq_len; ++i) {
             size_t attn_idx =
                 b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            attn_weights[attn_idx] = exp_val;
-            sum_exp += exp_val;
+            size_t grad_o_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
+            val += static_cast<AccT>(attn_weights[attn_idx]) *
+                   static_cast<AccT>(grad_output[grad_o_idx]);
           }
-
-          for (size_t j = 0; j < seq_len; ++j) {
-            size_t attn_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            attn_weights[attn_idx] /= (sum_exp + static_cast<T>(1e-9f));
-          }
+          size_t v_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
+          grad_v[v_idx] = static_cast<T>(val);
         }
       }
     }
-
-    // Compute gradients
-    // grad_V = A^T @ grad_O
-    for (size_t b = 0; b < batch_size; ++b) {
-      for (size_t h = 0; h < num_heads; ++h) {
-        for (size_t j = 0; j < seq_len; ++j) {
-          for (size_t d = 0; d < head_dim; ++d) {
-            T val = 0;
-            for (size_t i = 0; i < seq_len; ++i) {
-              size_t attn_idx =
-                  b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-              size_t grad_o_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
-              val += attn_weights[attn_idx] * grad_output[grad_o_idx];
-            }
-            size_t v_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
-            grad_v[v_idx] = val;
-          }
-        }
-      }
-    }
-
-    // grad_scores = grad_O @ V^T (element-wise with attention weights for chain rule)
-    for (size_t b = 0; b < batch_size; ++b) {
-      for (size_t h = 0; h < num_heads; ++h) {
-        for (size_t i = 0; i < seq_len; ++i) {
-          for (size_t j = 0; j < seq_len; ++j) {
-            T val = 0;
-            for (size_t d = 0; d < head_dim; ++d) {
-              size_t grad_o_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
-              size_t v_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
-              val += grad_output[grad_o_idx] * v[v_idx];
-            }
-
-            // Apply softmax gradient
-            size_t attn_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            T p = attn_weights[attn_idx];
-
-            // Compute sum of grad_scores * attention for numerical stability
-            T sum_grad_scores_p = 0;
-            for (size_t jj = 0; jj < seq_len; ++jj) {
-              size_t attn_idx2 =
-                  b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + jj;
-              T p2 = attn_weights[attn_idx2];
-
-              T val2 = 0;
-              for (size_t d = 0; d < head_dim; ++d) {
-                size_t grad_o_idx2 = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
-                size_t v_idx2 = b * q_stride_b + h * q_stride_h + jj * q_stride_s + d;
-                val2 += grad_output[grad_o_idx2] * v[v_idx2];
-              }
-
-              sum_grad_scores_p += p2 * val2;
-            }
-
-            size_t grad_scores_idx =
-                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-            grad_scores[grad_scores_idx] = p * (val - sum_grad_scores_p);
-          }
-        }
-      }
-    }
-
-    // grad_Q = grad_scores @ K (scaled)
-    for (size_t b = 0; b < batch_size; ++b) {
-      for (size_t h = 0; h < num_heads; ++h) {
-        for (size_t i = 0; i < seq_len; ++i) {
-          for (size_t d = 0; d < head_dim; ++d) {
-            T val = 0;
-            for (size_t j = 0; j < seq_len; ++j) {
-              size_t grad_scores_idx =
-                  b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-              size_t k_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
-              val += grad_scores[grad_scores_idx] * k[k_idx];
-            }
-            val *= static_cast<T>(attn_scale);
-            size_t q_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
-            grad_q[q_idx] = val;
-          }
-        }
-      }
-    }
-
-    // grad_K = grad_scores^T @ Q (scaled)
-    for (size_t b = 0; b < batch_size; ++b) {
-      for (size_t h = 0; h < num_heads; ++h) {
-        for (size_t j = 0; j < seq_len; ++j) {
-          for (size_t d = 0; d < head_dim; ++d) {
-            T val = 0;
-            for (size_t i = 0; i < seq_len; ++i) {
-              size_t grad_scores_idx =
-                  b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
-              size_t q_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
-              val += grad_scores[grad_scores_idx] * q[q_idx];
-            }
-            val *= static_cast<T>(attn_scale);
-            size_t k_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
-            grad_k[k_idx] = val;
-          }
-        }
-      }
-    }
-
-  } catch (...) {
-    delete[] scores;
-    delete[] attn_weights;
-    delete[] grad_scores;
-    throw;
   }
 
-  delete[] scores;
-  delete[] attn_weights;
-  delete[] grad_scores;
+  // grad_scores <- grad_Attention = grad_O @ V^T
+  for (size_t b = 0; b < batch_size; ++b) {
+    for (size_t h = 0; h < num_heads; ++h) {
+      for (size_t i = 0; i < seq_len; ++i) {
+        for (size_t j = 0; j < seq_len; ++j) {
+          AccT val = AccT(0);
+          for (size_t d = 0; d < head_dim; ++d) {
+            size_t grad_o_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
+            size_t v_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
+            val += static_cast<AccT>(grad_output[grad_o_idx]) * static_cast<AccT>(v[v_idx]);
+          }
+          size_t grad_scores_idx =
+              b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+          grad_scores[grad_scores_idx] = val;
+        }
+      }
+    }
+  }
+
+  // Apply softmax Jacobian row-wise in-place to grad_scores.
+  for (size_t b = 0; b < batch_size; ++b) {
+    for (size_t h = 0; h < num_heads; ++h) {
+      for (size_t i = 0; i < seq_len; ++i) {
+        AccT sum_grad_scores_p = AccT(0);
+        for (size_t j = 0; j < seq_len; ++j) {
+          size_t attn_idx =
+              b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+          sum_grad_scores_p += static_cast<AccT>(attn_weights[attn_idx]) * grad_scores[attn_idx];
+        }
+
+        for (size_t j = 0; j < seq_len; ++j) {
+          size_t attn_idx =
+              b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+          grad_scores[attn_idx] = static_cast<AccT>(attn_weights[attn_idx]) *
+                                  (grad_scores[attn_idx] - sum_grad_scores_p);
+        }
+      }
+    }
+  }
+
+  // grad_Q = grad_scores @ K (scaled)
+  for (size_t b = 0; b < batch_size; ++b) {
+    for (size_t h = 0; h < num_heads; ++h) {
+      for (size_t i = 0; i < seq_len; ++i) {
+        for (size_t d = 0; d < head_dim; ++d) {
+          AccT val = AccT(0);
+          for (size_t j = 0; j < seq_len; ++j) {
+            size_t grad_scores_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+            size_t k_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
+            val += grad_scores[grad_scores_idx] * static_cast<AccT>(k[k_idx]);
+          }
+          size_t q_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
+          grad_q[q_idx] = static_cast<T>(val * static_cast<AccT>(attn_scale));
+        }
+      }
+    }
+  }
+
+  // grad_K = grad_scores^T @ Q (scaled)
+  for (size_t b = 0; b < batch_size; ++b) {
+    for (size_t h = 0; h < num_heads; ++h) {
+      for (size_t j = 0; j < seq_len; ++j) {
+        for (size_t d = 0; d < head_dim; ++d) {
+          AccT val = AccT(0);
+          for (size_t i = 0; i < seq_len; ++i) {
+            size_t grad_scores_idx =
+                b * (num_heads * seq_len * seq_len) + h * (seq_len * seq_len) + i * seq_len + j;
+            size_t q_idx = b * q_stride_b + h * q_stride_h + i * q_stride_s + d;
+            val += grad_scores[grad_scores_idx] * static_cast<AccT>(q[q_idx]);
+          }
+          size_t k_idx = b * q_stride_b + h * q_stride_h + j * q_stride_s + d;
+          grad_k[k_idx] = static_cast<T>(val * static_cast<AccT>(attn_scale));
+        }
+      }
+    }
+  }
 }
 
-#define INSTANTIATE(T)                                                                           \
-  template void run_forward<T>(const T *, const T *, const T *, T *, size_t, size_t, size_t,     \
-                               size_t, float, bool);                                             \
-  template void run_backward<T>(const T *, const T *, const T *, const T *, const T *, T *, T *, \
-                                T *, size_t, size_t, size_t, size_t, float, bool);
+#define INSTANTIATE(T)                                                                             \
+  template void run_forward<T>(const T *, const T *, const T *, T *,                               \
+                               typename TypeTraits<T>::ComputePrecision *, T *, size_t, size_t,    \
+                               size_t, size_t, float, bool);                                       \
+  template void run_backward<T>(const T *, const T *, const T *, const T *, const T *,             \
+                                typename TypeTraits<T>::ComputePrecision *, T *, T *, T *, size_t, \
+                                size_t, size_t, size_t, float, bool);
 #include "macros/floating_type_instantiation.hpp"
 
 #undef INSTANTIATE
 
 }  // namespace sdpa
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

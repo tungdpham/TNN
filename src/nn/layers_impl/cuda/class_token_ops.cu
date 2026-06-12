@@ -11,7 +11,7 @@
 #include "nn/layers_impl/cuda/class_token_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace class_token {
 template <typename T>
@@ -110,4 +110,4 @@ void run_backward(const T* grad_output, T* grad_input, T* grad_token, size_t bat
 #undef INSTANTIATE
 }  // namespace class_token
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

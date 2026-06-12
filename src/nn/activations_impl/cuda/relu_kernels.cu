@@ -7,7 +7,7 @@
 
 #ifdef USE_CUDA
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 
 constexpr int BLOCK_SIZE = 256;
@@ -143,6 +143,6 @@ void relu_gradient(const T* input, const T* grad_output, T* grad_input, size_t s
 #undef INSTANTIATE
 
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

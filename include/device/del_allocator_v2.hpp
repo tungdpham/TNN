@@ -10,7 +10,6 @@
 
 #include <cassert>
 #include <functional>
-#include <iostream>
 #include <list>
 #include <map>
 #include <memory>
@@ -22,7 +21,7 @@
 #include "device/flow.hpp"
 #include "device/iallocator.hpp"
 
-namespace tnn {
+namespace synet {
 
 inline size_t align_up(size_t size, size_t alignment) {
   return (size + alignment - 1) & ~(alignment - 1);
@@ -238,25 +237,6 @@ public:
 
   const Device &device() const override { return device_; }
 
-  void print_info() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::cout << fmt::format("DELAllocatorV2 Info: {} slabs, side={}\n", slabs_.size(), side_);
-    for (const auto &slabs : slabs_) {
-      std::cout << fmt::format(
-          "  Slab at {}: size={} bytes, active_allocations={}, "
-          "left_offset={}, right_offset={}\n",
-          slabs.ptr, slabs.size, slabs.active_allocations, slabs.left_offset, slabs.right_offset);
-      for (auto &[offset, size] : slabs.free_by_offset) {
-        std::cout << fmt::format("    Free block at offset {}: size={} bytes\n", offset, size);
-      }
-    }
-    std::cout << "  Free blocks by size:\n";
-    for (const auto &[size, blocks] : free_by_size_) {
-      std::cout << fmt::format("    Free blocks of size {} bytes: {} blocks\n", size,
-                               blocks.size());
-    }
-  }
-
   size_t total_allocated() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return total_allocated_;
@@ -397,12 +377,6 @@ private:
       }
     }
 
-    // allocate the new slab from the combined total size
-#ifndef NDEBUG
-    std::cout << fmt::format("DELAllocatorV2: Merging {} empty slabs into a new {} byte slab.",
-                             empty_slab_count, total_free_size)
-              << std::endl;
-#endif
     allocate_slab(total_free_size);
   }
 
@@ -427,11 +401,6 @@ private:
     }
     Slab &slab = slabs_.emplace_back(slab_ptr, slab_size);
     // do not add to free_by_size_, let bump allocation use left/right offsets.
-
-#ifndef NDEBUG
-    std::cout << fmt::format("DELAllocatorV2: Allocated new slab of size {} bytes", slab_size)
-              << std::endl;
-#endif
     return slab;
   }
 
@@ -456,4 +425,4 @@ private:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

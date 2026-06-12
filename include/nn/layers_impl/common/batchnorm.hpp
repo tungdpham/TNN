@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 struct BatchNormStats {
   size_t batch_size = 0;
   size_t channels = 0;
@@ -47,4 +47,4 @@ inline void round_workspace_size(BatchNormStats &stats, size_t alignment = 16) {
   stats.inf_workspace_size = ((stats.inf_workspace_size + alignment - 1) / alignment) * alignment;
 }
 
-}  // namespace tnn
+}  // namespace synet

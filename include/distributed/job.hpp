@@ -6,37 +6,28 @@
  */
 #pragma once
 
-#include "tensor/tensor.hpp"
+#include "nn/tensor_bundle.hpp"
 
-namespace tnn {
+namespace synet {
 struct Job {
-  Tensor data;
+  TensorBundle data;
   size_t mb_id;
 
   Job()
       : data(),
         mb_id(0) {}
 
-  Job(Tensor d, size_t mb_id)
-      : data(d),
+  Job(TensorBundle d, size_t mb_id)
+      : data(std::move(d)),
         mb_id(mb_id) {}
 
-  Job(const Job &other) {
-    data = other.data->clone();
-    mb_id = other.mb_id;
-  }
+  Job(const Job &other) = default;
 
   Job(Job &&other) noexcept
       : data(std::move(other.data)),
         mb_id(other.mb_id) {}
 
-  Job &operator=(const Job &other) {
-    if (this != &other) {
-      data = other.data->clone();
-      mb_id = other.mb_id;
-    }
-    return *this;
-  }
+  Job &operator=(const Job &other) = default;
 
   Job &operator=(Job &&other) noexcept {
     if (this != &other) {
@@ -57,4 +48,4 @@ void archive(Archiver &archiver, Job &job) {
   archiver(job.mb_id, job.data);
 }
 
-}  // namespace tnn
+}  // namespace synet

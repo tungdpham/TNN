@@ -10,7 +10,7 @@
 #include "threading/thread_handler.hpp"
 #include "threading/thread_wrapper.hpp"
 
-using namespace tnn;
+using namespace synet;
 
 signed main() {
   // Raw copy speed

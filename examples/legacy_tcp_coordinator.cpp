@@ -16,11 +16,11 @@
 #include "distributed/tcp_worker.hpp"
 #include "distributed/train.hpp"
 #include "nn/legacy/example_models.hpp"
-#include "partitioner/naive_partitioner.hpp"
+#include "partitioner/graph_partitioner.hpp"
 #include "utils/env.hpp"
 
-using namespace tnn;
-using namespace tnn::legacy;
+using namespace synet;
+using namespace synet::legacy;
 using namespace std;
 
 int main() {
@@ -98,8 +98,7 @@ int main() {
     endpoints.insert(endpoints.begin(), local_worker_endpoint);
   }
 
-  unique_ptr<Partitioner> partitioner =
-      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
+  auto partitioner = make_unique<GraphPartitioner>(Vec<size_t>{2, 1});
 
   cout << "Configured " << endpoints.size() << " remote endpoints:" << endl;
   for (const auto &ep : endpoints) {

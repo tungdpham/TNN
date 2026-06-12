@@ -4,7 +4,7 @@
 #include <cuda_runtime.h>
 
 #include <cstddef>
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace legacy_dense {
 
@@ -32,6 +32,6 @@ void add_bias(IO_T *output_data, const Param_T *bias_data, const size_t batch_si
               const size_t output_features, cudaStream_t stream);
 }  // namespace legacy_dense
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

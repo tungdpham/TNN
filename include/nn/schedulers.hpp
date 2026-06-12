@@ -15,7 +15,7 @@
 #include "common/config.hpp"
 #include "optimizers.hpp"
 
-namespace tnn {
+namespace synet {
 
 using SchedulerConfig = TConfig;
 
@@ -778,4 +778,4 @@ public:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

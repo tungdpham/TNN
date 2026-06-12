@@ -2,7 +2,7 @@
 #include "tensor/cuda/tensor_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 
 constexpr int BLOCK_SIZE = 256;
@@ -395,4 +395,4 @@ void cuda_cnhw_to_nchw(const T* input, T* output, size_t n, size_t c, size_t h, 
 #undef INSTANTIATE
 
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

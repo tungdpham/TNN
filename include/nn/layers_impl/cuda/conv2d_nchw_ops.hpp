@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace conv2d_nchw {
 template <typename T>
@@ -31,5 +31,5 @@ void add_bias(T *output_data, const T *bias_data, const size_t batch_size, const
               const size_t output_w, const size_t out_channels, cudaStream_t stream);
 }  // namespace conv2d_nchw
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 #endif

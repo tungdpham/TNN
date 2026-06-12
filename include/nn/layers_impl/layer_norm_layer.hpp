@@ -8,19 +8,19 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 #include "nn/layers_impl/common/layer_norm.hpp"
-#include "nn/layers_impl/parameterized_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 #ifdef USE_CUDNN
 #include "cuda/cudnn_layer_norm_ops.hpp"
 #include "device/task.hpp"
 #endif
-#include <unordered_map>
 
-namespace tnn {
+namespace synet {
 
-class LayerNormLayer : public ParameterizedLayer {
+class LayerNormLayerImpl : public SISOLayerImpl {
 private:
   size_t normalized_shape_;  // Size of C (channels)
   float epsilon_;
@@ -102,10 +102,10 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  explicit LayerNormLayer(size_t normalized_shape, float epsilon = 1e-5f, bool affine = true,
-                          const std::string &name = "layer_norm");
+  explicit LayerNormLayerImpl(size_t normalized_shape, float epsilon = 1e-5f, bool affine = true,
+                              const std::string &name = "layer_norm");
 
-  ~LayerNormLayer();
+  ~LayerNormLayerImpl();
 
   static constexpr const char *TYPE_NAME = "layer_norm";
 
@@ -114,7 +114,16 @@ public:
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override {
     return input_shape;
   }
-  static std::unique_ptr<LayerNormLayer> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<LayerNormLayerImpl> create_from_config(const LayerConfig &config);
 };
 
-}  // namespace tnn
+class LayerNormLayer : public LayerRef<LayerNormLayerImpl> {
+public:
+  explicit LayerNormLayer(size_t normalized_shape, float epsilon = 1e-5f, bool affine = true,
+                          const std::string &name = "layer_norm")
+      : LayerRef(std::make_shared<LayerNormLayerImpl>(normalized_shape, epsilon, affine, name)) {}
+
+  using LayerRef<LayerNormLayerImpl>::LayerRef;
+};
+
+}  // namespace synet

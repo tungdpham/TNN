@@ -12,15 +12,15 @@
 
 #include "device/task.hpp"
 #include "nn/layers_impl/common/maxpool.hpp"
-#include "stateless_layer.hpp"
+#include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 #ifdef USE_DNNL
 #include "nn/layers_impl/cpu/dnnl_maxpool_ops.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
-class MaxPool2DLayer : public StatelessLayer {
+class MaxPool2DLayerImpl : public SISOLayerImpl {
 private:
   size_t pool_h_;
   size_t pool_w_;
@@ -30,9 +30,6 @@ private:
   size_t pad_w_;
 
   std::unordered_map<size_t, Vec<size_t>> micro_batch_input_shapes_;
-
-  std::unique_ptr<Task> forward_task_;
-  std::unique_ptr<Task> backward_task_;
 
 #ifdef USE_DNNL
   void build_dnnl_handle(const Vec<size_t> &input_shape) const;
@@ -69,9 +66,9 @@ private:
   Tensor backward_impl(const ConstTensor &grad_output, size_t mb_id = 0) override;
 
 public:
-  MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
-                 size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "maxpool2d");
-  ~MaxPool2DLayer();
+  MaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
+                     size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "maxpool2d");
+  ~MaxPool2DLayerImpl();
 
   static constexpr const char *TYPE_NAME = "maxpool2d";
 
@@ -80,7 +77,17 @@ public:
 
   Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const override;
 
-  static std::unique_ptr<MaxPool2DLayer> create_from_config(const LayerConfig &config);
+  static std::shared_ptr<MaxPool2DLayerImpl> create_from_config(const LayerConfig &config);
 };
 
-}  // namespace tnn
+class MaxPool2DLayer : public LayerRef<MaxPool2DLayerImpl> {
+public:
+  MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
+                 size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "maxpool2d")
+      : LayerRef(std::make_shared<MaxPool2DLayerImpl>(pool_h, pool_w, stride_h, stride_w, pad_h,
+                                                      pad_w, name)) {}
+
+  using LayerRef<MaxPool2DLayerImpl>::LayerRef;
+};
+
+}  // namespace synet

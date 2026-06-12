@@ -6,7 +6,7 @@
  */
 #pragma once
 
-namespace tnn {
+namespace synet {
 struct LoadTracker {
   /**
    * Performance metrics to send to coordinator
@@ -21,4 +21,4 @@ struct LoadTracker {
   float max_memory_usage_ = -1.0f;     // Maximum memory usage in MB, -1.0 if unavailable
 };
 
-}  // namespace tnn
+}  // namespace synet

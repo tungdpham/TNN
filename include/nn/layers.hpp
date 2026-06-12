@@ -6,27 +6,68 @@
  */
 #pragma once
 
+#include <istream>
 #include <memory>
 #include <string>
 
 #include "activations.hpp"
 #include "nn/layer.hpp"
 
-namespace tnn {
+namespace synet {
 inline std::unique_ptr<ActivationFunction> create_activation(const std::string &name) {
   ActivationFactory::register_defaults();
   return ActivationFactory::create(name);
 }
 
-class LegacyDenseLayer;
-class LegacyConv2DLayer;
-class LegacyMaxPool2DLayer;
-class LegacyAvgPool2DLayer;
-class LegacyBatchNormLayer;
+class LegacyDenseLayerImpl;
+class LegacyConv2DLayerImpl;
+class LegacyMaxPool2DLayerImpl;
+class LegacyAvgPool2DLayerImpl;
+class LegacyBatchNormLayerImpl;
 
+class IdentityLayerImpl;
+class DenseLayerImpl;
+class ActivationLayerImpl;
+class ReLULayerImpl;
+class ELULayerImpl;
+class GELULayerImpl;
+class LeakyReLULayerImpl;
+class LinearLayerImpl;
+class SigmoidLayerImpl;
+class TanhLayerImpl;
+class Conv2DLayerImpl;
+class MaxPool2DLayerImpl;
+class AvgPool2DLayerImpl;
+class BatchNormLayerImpl;
+class DropoutLayerImpl;
+class FlattenLayerImpl;
+class GroupNormLayerImpl;
+class LayerNormLayerImpl;
+class ClassTokenLayerImpl;
+class PositionalEmbeddingLayerImpl;
+class EmbeddingLayerImpl;
+class AttentionBlockImpl;
+class FlashAttentionBlockImpl;
+class ResidualBlockImpl;
+class SliceLayerImpl;
+class SDPALayerImpl;
+class TransposeLayerImpl;
+class SequentialImpl;
+class MSequentialImpl;
+
+// Wrapper classes (LayerRef handles)
+template <typename T>
+class LayerRef;
 class IdentityLayer;
 class DenseLayer;
 class ActivationLayer;
+class ReLULayer;
+class ELULayer;
+class GELULayer;
+class LeakyReLULayer;
+class LinearLayer;
+class SigmoidLayer;
+class TanhLayer;
 class Conv2DLayer;
 class MaxPool2DLayer;
 class AvgPool2DLayer;
@@ -42,11 +83,26 @@ class AttentionBlock;
 class FlashAttentionBlock;
 class ResidualBlock;
 class SliceLayer;
+class SDPALayer;
 class TransposeLayer;
 class Sequential;
 class MSequential;
+class AddLayer;
+class SubLayer;
+class MulLayer;
+class DivLayer;
+class LegacyDenseLayer;
+class LegacyConv2DLayer;
+class LegacyMaxPool2DLayer;
+class LegacyAvgPool2DLayer;
+class LegacyBatchNormLayer;
 
-}  // namespace tnn
+class AddLayerImpl;
+class SubLayerImpl;
+class MulLayerImpl;
+class DivLayerImpl;
+
+}  // namespace synet
 
 // Wrapper to include all layer implementations
 #include "blocks_impl/attention_block.hpp"
@@ -59,58 +115,65 @@ class MSequential;
 #include "layers_impl/conv2d_layer.hpp"
 #include "layers_impl/dense_layer.hpp"
 #include "layers_impl/dropout_layer.hpp"
+#include "layers_impl/elu_layer.hpp"
 #include "layers_impl/embedding_layer.hpp"
 #include "layers_impl/flatten_layer.hpp"
+#include "layers_impl/gelu_layer.hpp"
 #include "layers_impl/groupnorm_layer.hpp"
 #include "layers_impl/layer_norm_layer.hpp"
+#include "layers_impl/leaky_relu_layer.hpp"
 #include "layers_impl/legacy_avgpool2d_layer.hpp"
 #include "layers_impl/legacy_batchnorm_layer.hpp"
 #include "layers_impl/legacy_conv2d_layer.hpp"
 #include "layers_impl/legacy_dense_layer.hpp"
 #include "layers_impl/legacy_maxpool2d_layer.hpp"
+#include "layers_impl/linear_layer.hpp"
 #include "layers_impl/maxpool2d_layer.hpp"
 #include "layers_impl/positional_embedding_layer.hpp"
+#include "layers_impl/relu_layer.hpp"
+#include "layers_impl/sdpa_layer.hpp"
+#include "layers_impl/sigmoid_layer.hpp"
 #include "layers_impl/slice_layer.hpp"
+#include "layers_impl/tanh_layer.hpp"
 #include "layers_impl/transpose_layer.hpp"
 #include "nn/blocks_impl/flash_attention_block.hpp"
 #include "nn/blocks_impl/msequential.hpp"
 #include "nn/blocks_impl/sequential.hpp"
+#include "nn/layers_impl/add_layer.hpp"
+#include "nn/layers_impl/div_layer.hpp"
 #include "nn/layers_impl/identity_layer.hpp"
 #include "nn/layers_impl/legacy_conv2d_layer.hpp"
 #include "nn/layers_impl/legacy_dense_layer.hpp"
-#include "nn/layers_impl/mbroadcast_layer.hpp"
-#include "nn/layers_impl/n_ary_layer.hpp"
+#include "nn/layers_impl/mul_layer.hpp"
+#include "nn/layers_impl/sub_layer.hpp"
 
-namespace tnn {
+namespace synet {
 
 // Concept to ensure LayerType has TYPE_NAME and create_from_config
 template <typename T>
 concept HasLayerTypeName = requires {
   { T::TYPE_NAME } -> std::convertible_to<const char *>;
-  {
-    T::create_from_config(std::declval<const LayerConfig &>())
-  } -> std::convertible_to<std::unique_ptr<Layer>>;
+  { T::create_from_config(std::declval<const LayerConfig &>()) } -> std::convertible_to<Layer>;
 };
 
 class LayerFactory {
 private:
-  static std::unordered_map<std::string, std::function<std::unique_ptr<Layer>(const LayerConfig &)>>
-      creators_;
+  static std::unordered_map<std::string, std::function<Layer(const LayerConfig &)>> creators_;
 
 public:
   static void register_layer(const std::string &type,
-                             std::function<std::unique_ptr<Layer>(const LayerConfig &)> creator) {
+                             std::function<Layer(const LayerConfig &)> creator) {
     creators_[type] = creator;
   }
 
   template <HasLayerTypeName LayerType>
   static void register_layer_type() {
-    register_layer(LayerType::TYPE_NAME, [](const LayerConfig &config) -> std::unique_ptr<Layer> {
+    register_layer(LayerType::TYPE_NAME, [](const LayerConfig &config) -> Layer {
       return LayerType::create_from_config(config);
     });
   }
 
-  static std::unique_ptr<Layer> create(const std::string &type, const LayerConfig &config) {
+  static Layer create(const std::string &type, const LayerConfig &config) {
     auto it = creators_.find(type);
     if (it != creators_.end()) {
       return it->second(config);
@@ -118,43 +181,47 @@ public:
     throw std::invalid_argument("Unknown layer type: " + type);
   }
 
-  static std::unique_ptr<Layer> create(const LayerConfig &config) {
-    return create(config.type, config);
-  }
+  static Layer create(const LayerConfig &config) { return create(config.type, config); }
 
   static void register_defaults() {
-    register_layer_type<IdentityLayer>();
-    register_layer_type<DenseLayer>();
-    register_layer_type<ActivationLayer>();
-    register_layer_type<Conv2DLayer>();
-    register_layer_type<MaxPool2DLayer>();
-    register_layer_type<AvgPool2DLayer>();
-    register_layer_type<BatchNormLayer>();
-    register_layer_type<LegacyConv2DLayer>();
-    register_layer_type<LegacyMaxPool2DLayer>();
-    register_layer_type<LegacyAvgPool2DLayer>();
-    register_layer_type<LegacyBatchNormLayer>();
-    register_layer_type<DropoutLayer>();
-    register_layer_type<GroupNormLayer>();
-    register_layer_type<LayerNormLayer>();
-    register_layer_type<LegacyDenseLayer>();
-    register_layer_type<FlattenLayer>();
-    register_layer_type<ClassTokenLayer>();
-    register_layer_type<PositionalEmbeddingLayer>();
-    register_layer_type<SliceLayer>();
-    register_layer_type<EmbeddingLayer>();
-    register_layer_type<ResidualBlock>();
-    register_layer_type<AttentionBlock>();
-    register_layer_type<FlashAttentionBlock>();
-    register_layer_type<TransposeLayer>();
-    register_layer_type<ResidualBlock>();
-    register_layer_type<AttentionBlock>();
-    register_layer_type<FlashAttentionBlock>();
-    register_layer_type<Sequential>();
-    register_layer_type<MSequential>();
-    register_layer_type<MBroadcastLayer>();
-    register_layer_type<AddLayer>();
-    register_layer_type<SubLayer>();
+    register_layer_type<IdentityLayerImpl>();
+    register_layer_type<DenseLayerImpl>();
+    register_layer_type<ActivationLayerImpl>();
+    register_layer_type<ReLULayerImpl>();
+    register_layer_type<ELULayerImpl>();
+    register_layer_type<GELULayerImpl>();
+    register_layer_type<LeakyReLULayerImpl>();
+    register_layer_type<LinearLayerImpl>();
+    register_layer_type<SigmoidLayerImpl>();
+    register_layer_type<TanhLayerImpl>();
+    register_layer_type<Conv2DLayerImpl>();
+    register_layer_type<MaxPool2DLayerImpl>();
+    register_layer_type<AvgPool2DLayerImpl>();
+    register_layer_type<BatchNormLayerImpl>();
+    register_layer_type<LegacyConv2DLayerImpl>();
+    register_layer_type<LegacyMaxPool2DLayerImpl>();
+    register_layer_type<LegacyAvgPool2DLayerImpl>();
+    register_layer_type<LegacyBatchNormLayerImpl>();
+    register_layer_type<DropoutLayerImpl>();
+    register_layer_type<GroupNormLayerImpl>();
+    register_layer_type<LayerNormLayerImpl>();
+    register_layer_type<LegacyDenseLayerImpl>();
+    register_layer_type<FlattenLayerImpl>();
+    register_layer_type<ClassTokenLayerImpl>();
+    register_layer_type<PositionalEmbeddingLayerImpl>();
+    register_layer_type<SliceLayerImpl>();
+    register_layer_type<EmbeddingLayerImpl>();
+    register_layer_type<SDPALayerImpl>();
+    register_layer_type<ResidualBlockImpl>();
+    register_layer_type<AttentionBlockImpl>();
+    register_layer_type<FlashAttentionBlockImpl>();
+    register_layer_type<TransposeLayerImpl>();
+    register_layer_type<SequentialImpl>();
+    register_layer_type<MSequentialImpl>();
+    register_layer_type<AddLayerImpl>();
+    register_layer_type<SubLayerImpl>();
+    register_layer_type<MulLayerImpl>();
+    register_layer_type<DivLayerImpl>();
   }
 
   static Vec<std::string> available_types() {
@@ -167,7 +234,7 @@ public:
 };
 
 template <typename LayerType>
-std::unique_ptr<LayerType> load_config(std::ifstream &file) {
+std::unique_ptr<LayerType> load_config(std::istream &file) {
   size_t j_size;
   file.read(reinterpret_cast<char *>(&j_size), sizeof(size_t));
   std::string j_str(j_size, '\0');
@@ -175,7 +242,7 @@ std::unique_ptr<LayerType> load_config(std::ifstream &file) {
   nlohmann::json j = nlohmann::json::parse(j_str);
   LayerConfig config = LayerConfig::from_json(j);
   LayerFactory::register_defaults();
-  std::unique_ptr<Layer> base_layer = LayerFactory::create(config);
+  Layer base_layer = LayerFactory::create(config);
   LayerType *raw_ptr = dynamic_cast<LayerType *>(base_layer.release());
   if (!raw_ptr) {
     throw std::runtime_error("Failed to cast layer to requested type");
@@ -184,16 +251,16 @@ std::unique_ptr<LayerType> load_config(std::ifstream &file) {
   return layer;
 }
 
-inline void load_params(std::ifstream &file, Layer &layer) {
+inline void load_params(std::istream &file, LayerImpl &layer) {
   Vec<Tensor> params = layer.parameters();
   for (auto &param : params) {
     load_into(file, param);
   }
 }
 
-inline std::unordered_map<std::string, std::function<std::unique_ptr<Layer>(const LayerConfig &)>>
+inline std::unordered_map<std::string, std::function<Layer(const LayerConfig &)>>
     LayerFactory::creators_;
 
-}  // namespace tnn
+}  // namespace synet
 
 #include "nn/layer_builder.hpp"  // IWYU pragma: export

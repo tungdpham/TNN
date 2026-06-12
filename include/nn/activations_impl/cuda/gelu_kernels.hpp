@@ -9,7 +9,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 
 template <typename T>
@@ -20,4 +20,4 @@ void gelu_gradient(const T *input, const T *grad_output, T *grad_input, size_t s
                    cudaStream_t stream);
 
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet

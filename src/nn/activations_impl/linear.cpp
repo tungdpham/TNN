@@ -13,7 +13,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 std::unique_ptr<Task> Linear::apply(const ConstTensor &input, const Tensor &output) const {
   if (input->shape() != output->shape()) {
@@ -47,4 +47,4 @@ std::unique_ptr<ActivationFunction> Linear::clone() const {
   return std::make_unique<Linear>(*this);
 }
 
-}  // namespace tnn
+}  // namespace synet

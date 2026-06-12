@@ -14,7 +14,7 @@
 #include "device/flow.hpp"
 #include "device_type.hpp"
 
-namespace tnn {
+namespace synet {
 
 class Device {
 public:
@@ -55,4 +55,4 @@ private:
   std::unique_ptr<Context> context_;
 };
 
-}  // namespace tnn
+}  // namespace synet

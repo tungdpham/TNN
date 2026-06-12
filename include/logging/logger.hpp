@@ -9,7 +9,7 @@
 #include <string_view>
 #include <utility>
 
-namespace tnn {
+namespace synet {
 
 typedef spdlog::level::level_enum LogLevel;
 
@@ -153,4 +153,4 @@ public:
   static void log_runtime(LogLevel level, std::string_view msg) { logger_.log_runtime(level, msg); }
 };
 
-}  // namespace tnn
+}  // namespace synet

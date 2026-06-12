@@ -13,7 +13,7 @@
 #include "nn/layers_impl/common/conv2d.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace dnnl_conv2d {
 struct dnnlHandle_t;
@@ -37,6 +37,6 @@ void run_wgrad_and_bgrad(dnnlHandle_t *handle, const ConvolutionStats &stats,
 
 }  // namespace dnnl_conv2d
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet
 
 #endif  // USE_DNNL

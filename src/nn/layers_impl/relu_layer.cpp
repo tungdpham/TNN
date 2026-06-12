@@ -15,18 +15,18 @@
 #include "nn/layers_impl/cuda/relu_ops.hpp"
 #endif
 
-namespace tnn {
+namespace synet {
 
-ReLULayer::ReLULayer(const std::string &name)
-    : StatelessLayer(name),
+ReLULayerImpl::ReLULayerImpl(const std::string &name)
+    : SISOLayerImpl(name),
       activation_(std::make_unique<ReLU>()) {}
 
-Tensor ReLULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
-  Tensor output = get_output_tensor(input->shape());
+Tensor ReLULayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
+  Tensor output = get_tensor(input->shape(), io_dtype_);
   const size_t num_elements = input->size();
 
   if (this->is_training_) {
-    Tensor mask = this->get_cache_tensor(input->shape(), DType_t::UINT8_T);
+    Tensor mask = this->get_tensor(input->shape(), DType_t::UINT8_T);
     set_mutable_cache(mb_id, "mask", mask);
 
     // Fused kernel: compute ReLU and mask in a single pass
@@ -47,7 +47,7 @@ Tensor ReLULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
     }
 #endif
     else {
-      throw std::runtime_error("ReLULayer: Unsupported device type");
+      throw std::runtime_error("ReLULayerImpl: Unsupported device type");
     }
   } else {
     // Inference mode: just apply activation
@@ -57,13 +57,13 @@ Tensor ReLULayer::forward_impl(const ConstTensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor ReLULayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor ReLULayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   const ConstTensor &mask = this->get_mutable_cache(mb_id, "mask");
   if (!mask) {
-    throw std::runtime_error("No cached mask found for backward pass in ReLULayer");
+    throw std::runtime_error("No cached mask found for backward pass in ReLULayerImpl");
   }
 
-  Tensor grad_input = get_output_tensor(grad_output->shape());
+  Tensor grad_input = get_tensor(grad_output->shape(), io_dtype_);
   const size_t num_elements = grad_output->size();
 
   if (grad_output->device_type() == DeviceType::CPU) {
@@ -83,21 +83,21 @@ Tensor ReLULayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   }
 #endif
   else {
-    throw std::runtime_error("ReLULayer: Unsupported device type");
+    throw std::runtime_error("ReLULayerImpl: Unsupported device type");
   }
 
   return grad_input;
 }
 
-LayerConfig ReLULayer::get_config() const {
+LayerConfig ReLULayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
   return config;
 }
 
-std::unique_ptr<ReLULayer> ReLULayer::create_from_config(const LayerConfig &config) {
-  return std::make_unique<ReLULayer>(config.name);
+std::shared_ptr<ReLULayerImpl> ReLULayerImpl::create_from_config(const LayerConfig &config) {
+  return std::make_shared<ReLULayerImpl>(config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

@@ -6,7 +6,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace embedding {
 
@@ -21,6 +21,6 @@ void run_backward(const T *input_data, const T *gradient_data, T *weight_grad_da
 
 }  // namespace embedding
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 
 #endif

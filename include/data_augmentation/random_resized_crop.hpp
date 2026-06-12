@@ -10,7 +10,7 @@
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace tnn {
+namespace synet {
 
 /**
  * Torchvision-like RandomResizedCrop augmentation.
@@ -189,4 +189,4 @@ private:
   }
 };
 
-}  // namespace tnn
+}  // namespace synet

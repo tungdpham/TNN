@@ -12,32 +12,32 @@
 #include "nn/layers_impl/cpu/slice_ops.hpp"
 #include "nn/layers_impl/cuda/slice_ops.hpp"
 
-namespace tnn {
+namespace synet {
 
-SliceLayer::SliceLayer(size_t axis, size_t start, size_t length, const std::string &name)
-    : StatelessLayer(name),
+SliceLayerImpl::SliceLayerImpl(size_t axis, size_t start, size_t length, const std::string &name)
+    : SISOLayerImpl(name),
       axis_(axis),
       start_(start),
       length_(length) {}
 
-Tensor SliceLayer::forward_impl(const ConstTensor &input, size_t mb_id) {
+Tensor SliceLayerImpl::forward_impl(const ConstTensor &input, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
 
   Vec<size_t> output_shape = compute_output_shape(input->shape());
-  Tensor output = get_output_tensor(output_shape);
+  Tensor output = get_tensor(output_shape, io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_forward, input, output, this->flow_handle_);
   return output;
 }
 
-Tensor SliceLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
+Tensor SliceLayerImpl::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
   auto it = micro_batch_original_shapes_.find(mb_id);
   if (it == micro_batch_original_shapes_.end()) {
-    throw std::runtime_error("No cached shape found for micro-batch ID in SliceLayer");
+    throw std::runtime_error("No cached shape found for micro-batch ID in SliceLayerImpl");
   }
   const Vec<size_t> &original_shape = it->second;
 
-  Tensor grad_input = get_output_tensor(original_shape);
+  Tensor grad_input = get_tensor(original_shape, io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_backward, grad_output, grad_input, original_shape,
                                  this->flow_handle_);
@@ -45,14 +45,14 @@ Tensor SliceLayer::backward_impl(const ConstTensor &grad_output, size_t mb_id) {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> SliceLayer::slice_forward(const ConstTensor &input, const Tensor &output,
-                                                flowHandle_t handle) const {
+std::unique_ptr<Task> SliceLayerImpl::slice_forward(const ConstTensor &input, const Tensor &output,
+                                                    flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
-        "SliceLayer mixed dtype dispatch not implemented (io/compute must match).");
+        "SliceLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
   }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("SliceLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("SliceLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 
   if (input->device_type() == DeviceType::CPU) {
@@ -69,24 +69,24 @@ std::unique_ptr<Task> SliceLayer::slice_forward(const ConstTensor &input, const 
 #endif
   else {
     if (input->device_type() == DeviceType::GPU) {
-      throw std::runtime_error("SliceLayer: GPU execution requires building with USE_CUDA");
+      throw std::runtime_error("SliceLayerImpl: GPU execution requires building with USE_CUDA");
     }
-    throw std::runtime_error("SliceLayer: Unsupported device type");
+    throw std::runtime_error("SliceLayerImpl: Unsupported device type");
   }
   return nullptr;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> SliceLayer::slice_backward(const ConstTensor &grad_output,
-                                                 const Tensor &grad_input,
-                                                 const Vec<size_t> &original_shape,
-                                                 flowHandle_t handle) const {
+std::unique_ptr<Task> SliceLayerImpl::slice_backward(const ConstTensor &grad_output,
+                                                     const Tensor &grad_input,
+                                                     const Vec<size_t> &original_shape,
+                                                     flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
-        "SliceLayer mixed dtype dispatch not implemented (io/compute must match).");
+        "SliceLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
   }
   if (grad_output->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("SliceLayer IO tensor dtype mismatch with dispatch IO_T");
+    throw std::runtime_error("SliceLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 
   if (grad_output->device_type() == DeviceType::CPU) {
@@ -103,14 +103,14 @@ std::unique_ptr<Task> SliceLayer::slice_backward(const ConstTensor &grad_output,
 #endif
   else {
     if (grad_output->device_type() == DeviceType::GPU) {
-      throw std::runtime_error("SliceLayer: GPU execution requires building with USE_CUDA");
+      throw std::runtime_error("SliceLayerImpl: GPU execution requires building with USE_CUDA");
     }
-    throw std::runtime_error("SliceLayer: Unsupported device type");
+    throw std::runtime_error("SliceLayerImpl: Unsupported device type");
   }
   return nullptr;
 }
 
-Vec<size_t> SliceLayer::compute_output_shape(const Vec<size_t> &input_shape) const {
+Vec<size_t> SliceLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
   if (axis_ >= input_shape.size()) {
     throw std::invalid_argument("Slice axis out of bounds");
   }
@@ -123,7 +123,7 @@ Vec<size_t> SliceLayer::compute_output_shape(const Vec<size_t> &input_shape) con
   return output_shape;
 }
 
-LayerConfig SliceLayer::get_config() const {
+LayerConfig SliceLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
@@ -133,11 +133,11 @@ LayerConfig SliceLayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<SliceLayer> SliceLayer::create_from_config(const LayerConfig &config) {
+std::shared_ptr<SliceLayerImpl> SliceLayerImpl::create_from_config(const LayerConfig &config) {
   size_t axis = (size_t)config.get<int>("axis", 0);
   size_t start = (size_t)config.get<int>("start", 0);
   size_t length = (size_t)config.get<int>("length", 1);
-  return std::make_unique<SliceLayer>(axis, start, length, config.name);
+  return std::make_shared<SliceLayerImpl>(axis, start, length, config.name);
 }
 
-}  // namespace tnn
+}  // namespace synet

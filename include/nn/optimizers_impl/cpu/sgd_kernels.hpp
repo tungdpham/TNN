@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace tnn {
+namespace synet {
 namespace cpu {
 namespace sgd {
 
@@ -18,4 +18,4 @@ void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, 
 
 }  // namespace sgd
 }  // namespace cpu
-}  // namespace tnn
+}  // namespace synet

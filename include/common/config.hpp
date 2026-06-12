@@ -11,7 +11,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace tnn {
+namespace synet {
 
 /**
  * @brief Unified configuration class with type-preserving JSON serialization.
@@ -120,4 +120,4 @@ void archive(Archiver &archiver, TConfig &config) {
   }
 }
 
-}  // namespace tnn
+}  // namespace synet

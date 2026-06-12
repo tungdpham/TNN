@@ -10,7 +10,7 @@
 #include "device/cuda/cuda_context.hpp"
 #include "device/flow.hpp"
 
-namespace tnn {
+namespace synet {
 
 CUDAContext::CUDAContext(int id)
     : Context(),
@@ -141,6 +141,6 @@ Flow *CUDAContext::getFlow(flowHandle_t handle) {
   }
 }
 
-}  // namespace tnn
+}  // namespace synet
 
 #endif  // USE_CUDA

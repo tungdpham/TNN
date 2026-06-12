@@ -15,7 +15,7 @@
 #include "nn/layers_impl/cuda/cudnn_conv2d_nchw_ops.hpp"
 #include "type/type.hpp"
 
-namespace tnn {
+namespace synet {
 namespace cuda {
 namespace cudnn_conv2d {
 
@@ -259,5 +259,5 @@ INSTANTIATE_CUDNN_CONV2D(double)
 
 }  // namespace cudnn_conv2d
 }  // namespace cuda
-}  // namespace tnn
+}  // namespace synet
 #endif

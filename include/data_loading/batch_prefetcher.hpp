@@ -1,5 +1,5 @@
 /*
- * Batch-level asynchronous prefetcher for TNN data loaders.
+ * Batch-level asynchronous prefetcher for SYNET data loaders.
  *
  * This wraps an existing BaseDataLoader and overlaps get_batch(batch N+1)
  * with model compute/communication for batch N. It does not change dataset
@@ -17,7 +17,7 @@
 #include "data_loading/data_loader.hpp"
 #include "tensor/tensor.hpp"
 
-namespace tnn {
+namespace synet {
 
 class BatchPrefetcher {
 public:
@@ -160,4 +160,4 @@ private:
   std::exception_ptr error_ = nullptr;
 };
 
-}  // namespace tnn
+}  // namespace synet
