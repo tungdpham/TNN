@@ -34,8 +34,8 @@ private:
   std::unordered_map<size_t, Tensor> pre_activation_cache_;
   std::string activation_type_;
 
-  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id = 0) override;
-  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id = 0) override;
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) override;
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) override;
 
 public:
   /**

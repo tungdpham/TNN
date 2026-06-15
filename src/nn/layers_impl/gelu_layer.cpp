@@ -15,10 +15,9 @@ GELULayerImpl::GELULayerImpl(const std::string &name)
     : SISOLayerImpl(name),
       activation_(std::make_unique<GELU>()) {}
 
-Tensor GELULayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor GELULayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (this->is_training_) {
-    // Cache input for backward pass (GELU gradient requires input values)
-    set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
   Tensor output = get_tensor(input.shape(), io_dtype_);
@@ -26,8 +25,8 @@ Tensor GELULayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor GELULayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+Tensor GELULayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  const Tensor &input = residuals["input"];
   if (!input) {
     throw std::runtime_error("No cached input found for backward pass in GELULayerImpl");
   }

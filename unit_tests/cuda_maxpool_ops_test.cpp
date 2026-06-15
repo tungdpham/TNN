@@ -84,16 +84,16 @@ protected:
 };
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardBasic) {
-  const size_t batch_size = 1;
-  const size_t channels = 1;
-  const size_t input_h = 4;
-  const size_t input_w = 4;
-  const size_t pool_h = 2;
-  const size_t pool_w = 2;
-  const size_t stride_h = 2;
-  const size_t stride_w = 2;
-  const size_t output_h = (input_h - pool_h) / stride_h + 1;
-  const size_t output_w = (input_w - pool_w) / stride_w + 1;
+  size_t batch_size = 1;
+  size_t channels = 1;
+  size_t input_h = 4;
+  size_t input_w = 4;
+  size_t pool_h = 2;
+  size_t pool_w = 2;
+  size_t stride_h = 2;
+  size_t stride_w = 2;
+  size_t output_h = (input_h - pool_h) / stride_h + 1;
+  size_t output_w = (input_w - pool_w) / stride_w + 1;
 
   Vec<float> input_data(batch_size * channels * input_h * input_w);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -101,7 +101,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardBasic) {
   }
 
   const Device &cpu_device = getHost();
-  const size_t mask_size = batch_size * channels * output_h * output_w;
+  size_t mask_size = batch_size * channels * output_h * output_w;
 
   Vec<float> cpu_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
@@ -131,16 +131,16 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardBasic) {
 }
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
-  const size_t batch_size = 2;
-  const size_t channels = 3;
-  const size_t input_h = 6;
-  const size_t input_w = 6;
-  const size_t pool_h = 2;
-  const size_t pool_w = 2;
-  const size_t stride_h = 2;
-  const size_t stride_w = 2;
-  const size_t output_h = (input_h - pool_h) / stride_h + 1;
-  const size_t output_w = (input_w - pool_w) / stride_w + 1;
+  size_t batch_size = 2;
+  size_t channels = 3;
+  size_t input_h = 6;
+  size_t input_w = 6;
+  size_t pool_h = 2;
+  size_t pool_w = 2;
+  size_t stride_h = 2;
+  size_t stride_w = 2;
+  size_t output_h = (input_h - pool_h) / stride_h + 1;
+  size_t output_w = (input_w - pool_w) / stride_w + 1;
 
   Vec<float> input_data(batch_size * channels * input_h * input_w);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -148,7 +148,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
   }
 
   const Device &cpu_device = getHost();
-  const size_t mask_size = batch_size * channels * output_h * output_w;
+  size_t mask_size = batch_size * channels * output_h * output_w;
 
   Vec<float> cpu_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
@@ -178,16 +178,16 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
 }
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
-  const size_t batch_size = 1;
-  const size_t channels = 2;
-  const size_t input_h = 8;
-  const size_t input_w = 8;
-  const size_t pool_h = 3;
-  const size_t pool_w = 3;
-  const size_t stride_h = 2;
-  const size_t stride_w = 2;
-  const size_t output_h = (input_h - pool_h) / stride_h + 1;
-  const size_t output_w = (input_w - pool_w) / stride_w + 1;
+  size_t batch_size = 1;
+  size_t channels = 2;
+  size_t input_h = 8;
+  size_t input_w = 8;
+  size_t pool_h = 3;
+  size_t pool_w = 3;
+  size_t stride_h = 2;
+  size_t stride_w = 2;
+  size_t output_h = (input_h - pool_h) / stride_h + 1;
+  size_t output_w = (input_w - pool_w) / stride_w + 1;
 
   Vec<float> input_data(batch_size * channels * input_h * input_w);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -195,7 +195,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
   }
 
   const Device &cpu_device = getHost();
-  const size_t mask_size = batch_size * channels * output_h * output_w;
+  size_t mask_size = batch_size * channels * output_h * output_w;
 
   Vec<float> cpu_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
@@ -227,16 +227,16 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
 }
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
-  const size_t batch_size = 1;
-  const size_t channels = 1;
-  const size_t input_h = 8;
-  const size_t input_w = 12;
-  const size_t pool_h = 2;
-  const size_t pool_w = 3;
-  const size_t stride_h = 2;
-  const size_t stride_w = 3;
-  const size_t output_h = (input_h - pool_h) / stride_h + 1;
-  const size_t output_w = (input_w - pool_w) / stride_w + 1;
+  size_t batch_size = 1;
+  size_t channels = 1;
+  size_t input_h = 8;
+  size_t input_w = 12;
+  size_t pool_h = 2;
+  size_t pool_w = 3;
+  size_t stride_h = 2;
+  size_t stride_w = 3;
+  size_t output_h = (input_h - pool_h) / stride_h + 1;
+  size_t output_w = (input_w - pool_w) / stride_w + 1;
 
   Vec<float> input_data(batch_size * channels * input_h * input_w);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -244,7 +244,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
   }
 
   const Device &cpu_device = getHost();
-  const size_t mask_size = batch_size * channels * output_h * output_w;
+  size_t mask_size = batch_size * channels * output_h * output_w;
 
   Vec<float> cpu_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
@@ -276,16 +276,16 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
 }
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
-  const size_t batch_size = 1;
-  const size_t channels = 1;
-  const size_t input_h = 4;
-  const size_t input_w = 4;
-  const size_t pool_h = 2;
-  const size_t pool_w = 2;
-  const size_t stride_h = 2;
-  const size_t stride_w = 2;
-  const size_t output_h = (input_h - pool_h) / stride_h + 1;
-  const size_t output_w = (input_w - pool_w) / stride_w + 1;
+  size_t batch_size = 1;
+  size_t channels = 1;
+  size_t input_h = 4;
+  size_t input_w = 4;
+  size_t pool_h = 2;
+  size_t pool_w = 2;
+  size_t stride_h = 2;
+  size_t stride_w = 2;
+  size_t output_h = (input_h - pool_h) / stride_h + 1;
+  size_t output_w = (input_w - pool_w) / stride_w + 1;
 
   Vec<float> input_data(batch_size * channels * input_h * input_w);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -293,7 +293,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
   }
 
   const Device &cpu_device = getHost();
-  const size_t mask_size = batch_size * channels * output_h * output_w;
+  size_t mask_size = batch_size * channels * output_h * output_w;
 
   Vec<float> forward_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
@@ -347,16 +347,16 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
 }
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
-  const size_t batch_size = 2;
-  const size_t channels = 3;
-  const size_t input_h = 6;
-  const size_t input_w = 6;
-  const size_t pool_h = 2;
-  const size_t pool_w = 2;
-  const size_t stride_h = 2;
-  const size_t stride_w = 2;
-  const size_t output_h = (input_h - pool_h) / stride_h + 1;
-  const size_t output_w = (input_w - pool_w) / stride_w + 1;
+  size_t batch_size = 2;
+  size_t channels = 3;
+  size_t input_h = 6;
+  size_t input_w = 6;
+  size_t pool_h = 2;
+  size_t pool_w = 2;
+  size_t stride_h = 2;
+  size_t stride_w = 2;
+  size_t output_h = (input_h - pool_h) / stride_h + 1;
+  size_t output_w = (input_w - pool_w) / stride_w + 1;
 
   Vec<float> input_data(batch_size * channels * input_h * input_w);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -364,7 +364,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
   }
 
   const Device &cpu_device = getHost();
-  const size_t mask_size = batch_size * channels * output_h * output_w;
+  size_t mask_size = batch_size * channels * output_h * output_w;
 
   Vec<float> forward_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
@@ -422,16 +422,16 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
 }
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
-  const size_t batch_size = 1;
-  const size_t channels = 2;
-  const size_t input_h = 8;
-  const size_t input_w = 8;
-  const size_t pool_h = 3;
-  const size_t pool_w = 3;
-  const size_t stride_h = 2;
-  const size_t stride_w = 2;
-  const size_t output_h = (input_h - pool_h) / stride_h + 1;
-  const size_t output_w = (input_w - pool_w) / stride_w + 1;
+  size_t batch_size = 1;
+  size_t channels = 2;
+  size_t input_h = 8;
+  size_t input_w = 8;
+  size_t pool_h = 3;
+  size_t pool_w = 3;
+  size_t stride_h = 2;
+  size_t stride_w = 2;
+  size_t output_h = (input_h - pool_h) / stride_h + 1;
+  size_t output_w = (input_w - pool_w) / stride_w + 1;
 
   Vec<float> input_data(batch_size * channels * input_h * input_w);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -439,7 +439,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
   }
 
   const Device &cpu_device = getHost();
-  const size_t mask_size = batch_size * channels * output_h * output_w;
+  size_t mask_size = batch_size * channels * output_h * output_w;
 
   Vec<float> forward_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);
@@ -497,16 +497,16 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
 }
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
-  const size_t batch_size = 1;
-  const size_t channels = 1;
-  const size_t input_h = 8;
-  const size_t input_w = 12;
-  const size_t pool_h = 2;
-  const size_t pool_w = 3;
-  const size_t stride_h = 2;
-  const size_t stride_w = 3;
-  const size_t output_h = (input_h - pool_h) / stride_h + 1;
-  const size_t output_w = (input_w - pool_w) / stride_w + 1;
+  size_t batch_size = 1;
+  size_t channels = 1;
+  size_t input_h = 8;
+  size_t input_w = 12;
+  size_t pool_h = 2;
+  size_t pool_w = 3;
+  size_t stride_h = 2;
+  size_t stride_w = 3;
+  size_t output_h = (input_h - pool_h) / stride_h + 1;
+  size_t output_w = (input_w - pool_w) / stride_w + 1;
 
   Vec<float> input_data(batch_size * channels * input_h * input_w);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -514,7 +514,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
   }
 
   const Device &cpu_device = getHost();
-  const size_t mask_size = batch_size * channels * output_h * output_w;
+  size_t mask_size = batch_size * channels * output_h * output_w;
 
   Vec<float> forward_output(batch_size * channels * output_h * output_w);
   dptr cpu_mask = make_dptr_t<size_t>(cpu_device, mask_size);

@@ -36,12 +36,12 @@ private:
   Tensor weight_gradients_;
   Tensor bias_gradients_;
 
-  Tensor def_forward(const Tensor &input, size_t mb_id);
-  Tensor def_backward(const Tensor &current_gradient, size_t mb_id);
+  Tensor def_forward(const Tensor &input, Residuals &residuals);
+  Tensor def_backward(const Tensor &current_gradient, Residuals &residuals);
 
 #ifdef USE_CUDNN
-  Tensor cudnn_forward(const Tensor &input, size_t mb_id);
-  Tensor cudnn_backward(const Tensor &grad_output, size_t mb_id);
+  Tensor cudnn_forward(const Tensor &input, Residuals &residuals);
+  Tensor cudnn_backward(const Tensor &grad_output, Residuals &residuals);
 #endif
 
   std::unordered_map<size_t, Vec<size_t>> micro_batch_input_shapes_;
@@ -56,33 +56,28 @@ private:
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> run_forward(const Tensor &col_data, const Tensor &weight_data,
-                                    Tensor &output_data, const size_t output_size,
-                                    const size_t kernel_size, const size_t out_channels,
-                                    flowHandle_t handle);
+                                    Tensor &output_data, size_t output_size, size_t kernel_size,
+                                    size_t out_channels, flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> add_bias(Tensor &output_data, const Tensor &bias_data,
-                                 const size_t batch_size, const size_t output_h,
-                                 const size_t output_w, const size_t out_channels,
+  std::unique_ptr<Task> add_bias(Tensor &output_data, const Tensor &bias_data, size_t batch_size,
+                                 size_t output_h, size_t output_w, size_t out_channels,
                                  flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> run_wgrad(const Tensor &col_data, const Tensor &gradient_data,
-                                  Tensor &weight_grad_data, const size_t output_size,
-                                  const size_t kernel_size, const size_t out_channels,
-                                  flowHandle_t handle);
+                                  Tensor &weight_grad_data, size_t output_size, size_t kernel_size,
+                                  size_t out_channels, flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> run_dgrad(const Tensor &gradient_data, const Tensor &weight_data,
-                                  Tensor &col_grad_data, const size_t output_size,
-                                  const size_t kernel_size, const size_t out_channels,
-                                  flowHandle_t handle) const;
+                                  Tensor &col_grad_data, size_t output_size, size_t kernel_size,
+                                  size_t out_channels, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> run_bgrad(const Tensor &gradient_data, Tensor &bias_grad_data,
-                                  const size_t batch_size, const size_t output_h,
-                                  const size_t output_w, const size_t out_channels,
-                                  flowHandle_t handle);
+                                  size_t batch_size, size_t output_h, size_t output_w,
+                                  size_t out_channels, flowHandle_t handle);
 
   Vec<ParamDescriptor> param_descriptors() override {
     Vec<ParamDescriptor> descriptors;
@@ -133,8 +128,8 @@ private:
                                         size_t out_channels, flowHandle_t handle);
 #endif
 
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   LegacyConv2DLayerImpl(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,

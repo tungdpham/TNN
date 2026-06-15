@@ -107,7 +107,7 @@ private:
     mf.data = static_cast<const uint8_t *>(ptr);
     mf.num_records = mf.size / cifar100_constants::RECORD_SIZE;
 
-    const size_t file_idx = mapped_files_.size();
+    size_t file_idx = mapped_files_.size();
     for (size_t r = 0; r < mf.num_records; ++r) {
       sample_map_.emplace_back(file_idx, r);
     }
@@ -125,7 +125,7 @@ private:
       if (!map_file(fn)) return false;
     }
 
-    const size_t n = sample_map_.size();
+    size_t n = sample_map_.size();
     access_order_.resize(n);
     std::iota(access_order_.begin(), access_order_.end(), 0);
 
@@ -139,8 +139,7 @@ private:
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
     if (this->current_index_ >= access_order_.size()) return false;
 
-    const size_t actual_batch_size =
-        std::min(batch_size, access_order_.size() - this->current_index_);
+    size_t actual_batch_size = std::min(batch_size, access_order_.size() - this->current_index_);
 
     batch_data = Tensor({actual_batch_size, cifar100_constants::IMAGE_HEIGHT,
                          cifar100_constants::IMAGE_WIDTH, cifar100_constants::NUM_CHANNELS},
@@ -149,19 +148,19 @@ private:
     batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
-      const size_t sample_idx = access_order_[this->current_index_ + i];
+      size_t sample_idx = access_order_[this->current_index_ + i];
       const auto &[file_idx, record_idx] = sample_map_[sample_idx];
       const uint8_t *record =
           mapped_files_[file_idx].data + record_idx * cifar100_constants::RECORD_SIZE;
 
-      const size_t label =
+      size_t label =
           use_coarse_labels_ ? static_cast<size_t>(record[0]) : static_cast<size_t>(record[1]);
       const uint8_t *pixels = record + 2;
 
       for (size_t c = 0; c < cifar100_constants::NUM_CHANNELS; ++c) {
         for (size_t h = 0; h < cifar100_constants::IMAGE_HEIGHT; ++h) {
           for (size_t w = 0; w < cifar100_constants::IMAGE_WIDTH; ++w) {
-            const size_t src_idx =
+            size_t src_idx =
                 c * cifar100_constants::IMAGE_HEIGHT * cifar100_constants::IMAGE_WIDTH +
                 h * cifar100_constants::IMAGE_WIDTH + w;
             batch_data.at<T>({i, h, w, c}) =
@@ -246,14 +245,14 @@ public:
   void set_use_coarse_labels(bool use_coarse) { use_coarse_labels_ = use_coarse; }
 
   void print_data_stats() const override {
-    const size_t n = sample_map_.size();
+    size_t n = sample_map_.size();
     if (n == 0) {
       std::cout << "No data loaded" << std::endl;
       return;
     }
 
-    const size_t num_classes = use_coarse_labels_ ? cifar100_constants::NUM_COARSE_CLASSES
-                                                  : cifar100_constants::NUM_CLASSES;
+    size_t num_classes = use_coarse_labels_ ? cifar100_constants::NUM_COARSE_CLASSES
+                                            : cifar100_constants::NUM_CLASSES;
     Vec<int> label_counts(num_classes, 0);
     for (size_t i = 0; i < n; ++i) {
       const auto &[fi, ri] = sample_map_[i];

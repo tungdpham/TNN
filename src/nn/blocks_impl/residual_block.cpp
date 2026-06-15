@@ -57,14 +57,14 @@ ResidualBlockImpl::ResidualBlockImpl(Sequential main_path, Sequential shortcut_p
   }
 }
 
-Vec<Tensor> ResidualBlockImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
+Vec<Tensor> ResidualBlockImpl::forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) {
   // Forward through main path
-  Vec<Tensor> main_outputs = main_path_.forward(inputs, mb_id);
+  Vec<Tensor> main_outputs = main_path_.forward(inputs, residuals["main_path"]);
 
   // Forward through shortcut path
   Vec<Tensor> shortcut_outputs = inputs;
   if (shortcut_path_) {
-    Vec<Tensor> shortcut_outputs_vec = shortcut_path_.forward(inputs, mb_id);
+    Vec<Tensor> shortcut_outputs_vec = shortcut_path_.forward(inputs, residuals["shortcut_path"]);
     for (size_t i = 0; i < shortcut_outputs_vec.size(); ++i) {
       shortcut_outputs[i] = shortcut_outputs_vec[i];
     }
@@ -79,7 +79,7 @@ Vec<Tensor> ResidualBlockImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb
       Tensor pre_act = get_tensor(main_outputs[i].shape(), io_dtype_);
       DISPATCH_IO_DTYPE(ops::add, main_outputs[i].data_ptr(), shortcut_outputs[i].data_ptr(),
                         pre_act.data_ptr(), outputs[i].size());
-      set_mutable_cache(mb_id, pre_act_key, pre_act);
+      residuals[pre_act_key] = pre_act;
       final_activation_->apply(pre_act, outputs[i]);
     } else {
       DISPATCH_IO_DTYPE(ops::add, main_outputs[i].data_ptr(), shortcut_outputs[i].data_ptr(),
@@ -89,13 +89,14 @@ Vec<Tensor> ResidualBlockImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb
   return outputs;
 }
 
-Vec<Tensor> ResidualBlockImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> ResidualBlockImpl::backward_impl(const Vec<Tensor> &grad_outputs,
+                                             Residuals &residuals) {
   // Compute gradients through final activation if present
   Vec<Tensor> grads_to_propagate = grad_outputs;
   if (final_activation_) {
     for (size_t i = 0; i < grad_outputs.size(); ++i) {
       std::string pre_act_key = "pre_activation_" + std::to_string(i);
-      Tensor &pre_act = this->get_mutable_cache(mb_id, pre_act_key);
+      Tensor &pre_act = residuals[pre_act_key];
       Tensor grad_pre_act = this->get_tensor(pre_act.shape(), pre_act.data_type());
       final_activation_->compute_gradient(pre_act, grad_outputs[i], grad_pre_act);
       pre_act = Tensor();  // release pre-activation cache
@@ -105,12 +106,12 @@ Vec<Tensor> ResidualBlockImpl::backward_impl(const Vec<Tensor> &grad_outputs, si
   }
 
   // Backward through main path
-  Vec<Tensor> main_grad_inputs = main_path_.backward(grads_to_propagate, mb_id);
+  Vec<Tensor> main_grad_inputs = main_path_.backward(grads_to_propagate, residuals["main_path"]);
 
   // Backward through shortcut path
   Vec<Tensor> shortcut_grad_inputs = grads_to_propagate;
   if (shortcut_path_) {
-    auto temp = shortcut_path_.backward(grads_to_propagate, mb_id);
+    auto temp = shortcut_path_.backward(grads_to_propagate, residuals["shortcut_path"]);
     shortcut_grad_inputs = Vec<Tensor>(temp.begin(), temp.end());
   }
 

@@ -97,10 +97,10 @@ private:
     const auto shape = data.shape();
     if (shape.size() != 4) return;
 
-    const size_t batch_size = shape[0];
-    const size_t in_h = shape[1];
-    const size_t in_w = shape[2];
-    const size_t channels = shape[3];
+    size_t batch_size = shape[0];
+    size_t in_h = shape[1];
+    size_t in_w = shape[2];
+    size_t channels = shape[3];
 
     PoolAllocator &allocator = PoolAllocator::instance(data.device(), defaultFlowHandle);
     Tensor output(Vec<size_t>{batch_size, crop_h_, crop_w_, channels}, data.data_type(), allocator);
@@ -129,8 +129,8 @@ private:
                          allocator);
       bilinear_resize<T>(src_buf, in_h, in_w, resized_buf, resized_h, resized_w, channels);
 
-      const size_t cx = std::max<size_t>(0, (resized_w - crop_w_) / 2);
-      const size_t cy = std::max<size_t>(0, (resized_h - crop_h_) / 2);
+      size_t cx = std::max<size_t>(0, (resized_w - crop_w_) / 2);
+      size_t cy = std::max<size_t>(0, (resized_h - crop_h_) / 2);
 
       for (size_t h = 0; h < crop_h_; ++h)
         for (size_t w = 0; w < crop_w_; ++w)

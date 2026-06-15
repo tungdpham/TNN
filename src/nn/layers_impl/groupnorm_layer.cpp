@@ -38,7 +38,7 @@ void GroupNormLayerImpl::init_impl() {
   beta_gradients_.fill(0.0f);
 }
 
-Tensor GroupNormLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor GroupNormLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (input.shape()[1] != num_channels_) {
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayerImpl");
   }
@@ -54,36 +54,35 @@ Tensor GroupNormLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   Tensor output = get_tensor(input.shape(), io_dtype_);
 
   Tensor norm = this->get_tensor(input.shape(), io_dtype_);
-  set_mutable_cache(mb_id, "norm", norm);
+  residuals["norm"] = norm;
 
   Tensor mean = this->get_tensor({batch_size * num_groups_}, io_dtype_);
-  set_mutable_cache(mb_id, "mean", mean);
+  residuals["mean"] = mean;
 
   Tensor inv_std = this->get_tensor({batch_size * num_groups_}, io_dtype_);
-  set_mutable_cache(mb_id, "inv_std", inv_std);
+  residuals["inv_std"] = inv_std;
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward, input, mean, inv_std, gamma_, beta_, output, norm,
                                  batch_size, channels, spatial_size, this->flow_handle_);
 
   if (this->is_training_) {
-    this->set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
   return output;
 }
 
-Tensor GroupNormLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  Tensor &normalized = this->get_mutable_cache(mb_id, "norm");
-  Tensor &inv_std = this->get_mutable_cache(mb_id, "inv_std");
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+Tensor GroupNormLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  Tensor &normalized = residuals["norm"];
+  Tensor &inv_std = residuals["inv_std"];
+  const Tensor &input = residuals["input"];
   if (!normalized || !inv_std || !input) {
-    throw std::runtime_error("No cached tensors found for micro-batch ID in GroupNormLayerImpl: " +
-                             std::to_string(mb_id));
+    throw std::runtime_error("No cached tensors found for GroupNormLayerImpl backward pass");
   }
 
-  const size_t batch_size = input.dimension(0);
-  const size_t channels = input.dimension(1);
-  const size_t spatial_size = input.stride(1);
+  size_t batch_size = input.dimension(0);
+  size_t channels = input.dimension(1);
+  size_t spatial_size = input.stride(1);
 
   Tensor grad_input = get_tensor(input.shape(), io_dtype_);
 

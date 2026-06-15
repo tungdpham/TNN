@@ -26,9 +26,6 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  // Cache input shapes for backward pass
-  std::unordered_map<size_t, Vec<size_t>> micro_batch_input_shapes_;
-
   template <typename Compute_T>
   std::unique_ptr<Task> run_forward(const Tensor &input_data, Tensor &output_data,
                                     size_t batch_size, size_t channels, size_t input_h,
@@ -51,8 +48,8 @@ private:
                                      size_t input_w, size_t output_h, size_t output_w,
                                      flowHandle_t handle) const;
 
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   LegacyAvgPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,

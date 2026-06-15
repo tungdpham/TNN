@@ -33,25 +33,23 @@ LegacyMaxPool2DLayerImpl::LegacyMaxPool2DLayerImpl(size_t pool_h, size_t pool_w,
   }
 }
 
-Tensor LegacyMaxPool2DLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor LegacyMaxPool2DLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   const auto &shape = input.shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("MaxPool2D: Input tensor must be 4-dimensional (NCHW)");
   }
-  const size_t batch_size = shape[0];
-  const size_t channels = shape[1];
-  const size_t input_h = shape[2];
-  const size_t input_w = shape[3];
+  size_t batch_size = shape[0];
+  size_t channels = shape[1];
+  size_t input_h = shape[2];
+  size_t input_w = shape[3];
 
-  micro_batch_input_shapes_[mb_id] = {batch_size, channels, input_h, input_w};
-
-  const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
-  const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
+  size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
   Tensor output = get_tensor({batch_size, channels, output_h, output_w}, input.data_type());
 
   Tensor mask_indices = get_tensor({batch_size, channels, output_h, output_w}, DType_t::SIZE_T);
-  set_mutable_cache(mb_id, "mask_indices", mask_indices);
+  residuals["mask_indices"] = mask_indices;
 
   run_forward(input, output, batch_size, channels, input_h, input_w, output_h, output_w,
               mask_indices, this->flow_handle_);
@@ -59,28 +57,20 @@ Tensor LegacyMaxPool2DLayerImpl::forward_impl(const Tensor &input, size_t mb_id)
   return output;
 }
 
-Tensor LegacyMaxPool2DLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  Tensor &mask_indices = get_mutable_cache(mb_id, "mask_indices");
-  auto it_shape = micro_batch_input_shapes_.find(mb_id);
+Tensor LegacyMaxPool2DLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  Tensor &mask_indices = residuals["mask_indices"];
 
-  if (it_shape == micro_batch_input_shapes_.end()) {
-    throw std::runtime_error(
-        "No cached input shape found for micro-batch ID in LegacyMaxPool2DLayerImpl: " +
-        std::to_string(mb_id));
-  }
-
-  const Vec<size_t> &input_shape = it_shape->second;
-
-  const size_t batch_size = input_shape[0];
-  const size_t channels = input_shape[1];
-  const size_t input_h = input_shape[2];
-  const size_t input_w = input_shape[3];
   const auto &grad_shape = grad_output.shape();
   if (grad_shape.size() != 4) {
     throw std::invalid_argument("MaxPool2D: Gradient tensor must be 4-dimensional (NCHW)");
   }
-  const size_t output_h = grad_shape[2];
-  const size_t output_w = grad_shape[3];
+  size_t batch_size = grad_shape[0];
+  size_t channels = grad_shape[1];
+  size_t output_h = grad_shape[2];
+  size_t output_w = grad_shape[3];
+
+  size_t input_h = (output_h - 1) * stride_h_ + pool_h_ - 2 * pad_h_;
+  size_t input_w = (output_w - 1) * stride_w_ + pool_w_ - 2 * pad_w_;
 
   Tensor grad_input = get_tensor({batch_size, channels, input_h, input_w}, grad_output.data_type());
 

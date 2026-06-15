@@ -60,8 +60,9 @@ TEST_F(BF16Test, Dense) {
   Tensor input_fp32 = fp32_input.to_device(getGPU());
   Tensor input_bf16 = bf16_input.to_device(getGPU());
 
-  Tensor output_fp32 = fp32_dense_layer.forward({input_fp32})[0];
-  Tensor output_bf16 = bf16_dense_layer.forward({input_bf16})[0];
+  Residuals fp32_residuals, bf16_residuals;
+  Tensor output_fp32 = fp32_dense_layer.forward({input_fp32}, fp32_residuals)[0];
+  Tensor output_bf16 = bf16_dense_layer.forward({input_bf16}, bf16_residuals)[0];
 
   Tensor cpu_output_fp32 = output_fp32.to_host();
   Tensor cpu_output_bf16 = output_bf16.to_host();
@@ -96,8 +97,8 @@ TEST_F(BF16Test, Dense) {
   auto gpu_gradient_fp32 = gradient_fp32.to_device(getGPU());
   auto gpu_gradient_bf16 = gradient_bf16.to_device(getGPU());
 
-  Tensor grad_input_bf16 = bf16_dense_layer.backward({gpu_gradient_bf16})[0];
-  Tensor grad_input_fp32 = fp32_dense_layer.backward({gpu_gradient_fp32})[0];
+  Tensor grad_input_bf16 = bf16_dense_layer.backward({gpu_gradient_bf16}, bf16_residuals)[0];
+  Tensor grad_input_fp32 = fp32_dense_layer.backward({gpu_gradient_fp32}, fp32_residuals)[0];
 
   Tensor cpu_grad_input_fp32 = grad_input_fp32.to_host();
   Tensor cpu_grad_input_bf16 = grad_input_bf16.to_host();
@@ -158,8 +159,10 @@ TEST_F(BF16Test, Attention) {
   Tensor input_fp32 = fp32_input.to_device(getGPU());
   Tensor input_bf16 = bf16_input.to_device(getGPU());
 
-  Tensor output_fp32 = fp32_attention_layer.forward({input_fp32})[0];
-  Tensor output_bf16 = bf16_attention_layer.forward({input_bf16})[0];
+  Residuals fp32_residuals, bf16_residuals;
+
+  Tensor output_fp32 = fp32_attention_layer.forward({input_fp32}, fp32_residuals)[0];
+  Tensor output_bf16 = bf16_attention_layer.forward({input_bf16}, bf16_residuals)[0];
 
   Tensor cpu_output_fp32 = output_fp32.to_host();
   Tensor cpu_output_bf16 = output_bf16.to_host();
@@ -194,8 +197,8 @@ TEST_F(BF16Test, Attention) {
   auto gpu_gradient_fp32 = gradient_fp32.to_device(getGPU());
   auto gpu_gradient_bf16 = gradient_bf16.to_device(getGPU());
 
-  Tensor grad_input_bf16 = bf16_attention_layer.backward({gpu_gradient_bf16})[0];
-  Tensor grad_input_fp32 = fp32_attention_layer.backward({gpu_gradient_fp32})[0];
+  Tensor grad_input_bf16 = bf16_attention_layer.backward({gpu_gradient_bf16}, bf16_residuals)[0];
+  Tensor grad_input_fp32 = fp32_attention_layer.backward({gpu_gradient_fp32}, fp32_residuals)[0];
 
   Tensor cpu_grad_input_fp32 = grad_input_fp32.to_host();
   Tensor cpu_grad_input_bf16 = grad_input_bf16.to_host();

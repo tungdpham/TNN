@@ -191,9 +191,9 @@ std::unique_ptr<Task> LayerNormLayerImpl::cudnn_run_backward(
                           beta_gradients ? beta_gradients.data() : nullptr, workspace.data());
 }
 
-Tensor LayerNormLayerImpl::cudnn_forward(const Tensor &input, size_t mb_id) {
+Tensor LayerNormLayerImpl::cudnn_forward(const Tensor &input, Residuals &residuals) {
   if (this->is_training_) {
-    set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
   const auto &shape = input.shape();
@@ -208,8 +208,8 @@ Tensor LayerNormLayerImpl::cudnn_forward(const Tensor &input, size_t mb_id) {
 
   Tensor batch_mean = this->get_tensor({batch_size}, compute_dtype_);
   Tensor batch_invar = this->get_tensor({batch_size}, compute_dtype_);
-  set_mutable_cache(mb_id, "batch_mean", batch_mean);
-  set_mutable_cache(mb_id, "batch_invar", batch_invar);
+  residuals["batch_mean"] = batch_mean;
+  residuals["batch_invar"] = batch_invar;
 
   Tensor output = get_tensor(shape, io_dtype_);
 
@@ -230,8 +230,8 @@ Tensor LayerNormLayerImpl::cudnn_forward(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor LayerNormLayerImpl::cudnn_backward(const Tensor &grad_output, size_t mb_id) {
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+Tensor LayerNormLayerImpl::cudnn_backward(const Tensor &grad_output, Residuals &residuals) {
+  const Tensor &input = residuals["input"];
   if (!input) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
   }
@@ -254,12 +254,10 @@ Tensor LayerNormLayerImpl::cudnn_backward(const Tensor &grad_output, size_t mb_i
   Tensor cudnn_workspace = this->get_tensor({workspace_size}, DType_t::BYTE);
 
   // Retrieve cached mean and inv_variance from forward pass (like batch norm)
-  const Tensor &batch_mean = this->get_mutable_cache(mb_id, "batch_mean");
-  const Tensor &batch_invar = this->get_mutable_cache(mb_id, "batch_invar");
+  const Tensor &batch_mean = residuals["batch_mean"];
+  const Tensor &batch_invar = residuals["batch_invar"];
   if (!batch_mean || !batch_invar) {
-    throw std::runtime_error(
-        "No cached batch statistics found for micro-batch ID in LayerNormLayerImpl: " +
-        std::to_string(mb_id));
+    throw std::runtime_error("No cached batch statistics found in LayerNormLayerImpl");
   }
 
   Tensor dscale_scratch_ = this->get_tensor({normalized_shape_}, compute_dtype_);
@@ -282,7 +280,7 @@ Tensor LayerNormLayerImpl::cudnn_backward(const Tensor &grad_output, size_t mb_i
 }
 #endif
 
-Tensor LayerNormLayerImpl::def_forward(const Tensor &input, size_t mb_id) {
+Tensor LayerNormLayerImpl::def_forward(const Tensor &input, Residuals &residuals) {
   const auto &shape = input.shape();
   size_t last_dim = shape.back();
   size_t channels = last_dim;
@@ -299,8 +297,8 @@ Tensor LayerNormLayerImpl::def_forward(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor LayerNormLayerImpl::def_backward(const Tensor &grad_output, size_t mb_id) {
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+Tensor LayerNormLayerImpl::def_backward(const Tensor &grad_output, Residuals &residuals) {
+  const Tensor &input = residuals["input"];
   if (!input) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
   }
@@ -322,29 +320,29 @@ Tensor LayerNormLayerImpl::def_backward(const Tensor &grad_output, size_t mb_id)
   return grad_input;
 }
 
-Tensor LayerNormLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor LayerNormLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (this->is_training_) {
-    set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
 #ifdef USE_CUDNN
   if (get_engine_type() == EngineType::CUDA) {
-    return cudnn_forward(input, mb_id);
+    return cudnn_forward(input, residuals);
   } else
 #endif
   {
-    return def_forward(input, mb_id);
+    return def_forward(input, residuals);
   }
 }
 
-Tensor LayerNormLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+Tensor LayerNormLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
 #ifdef USE_CUDNN
   if (get_engine_type() == EngineType::CUDA) {
-    return cudnn_backward(grad_output, mb_id);
+    return cudnn_backward(grad_output, residuals);
   } else
 #endif
   {
-    return def_backward(grad_output, mb_id);
+    return def_backward(grad_output, residuals);
   }
 }
 

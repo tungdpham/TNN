@@ -12,11 +12,10 @@ constexpr size_t DEFAULT_BLOCK_SIZE = 32;
 #ifdef __AVX2__
 inline bool is_aligned_32(const void *ptr) { return (reinterpret_cast<uintptr_t>(ptr) & 31) == 0; }
 
-inline void sgemm_kernel_avx2_nn(const float *A, const float *B, float *C, const size_t M,
-                                 const size_t N, const size_t K, const size_t i, const size_t j,
-                                 const size_t k, const size_t i_max, const size_t j_max,
-                                 const size_t k_max, const float alpha, const size_t lda,
-                                 const size_t ldb, const size_t ldc) {
+inline void sgemm_kernel_avx2_nn(const float *A, const float *B, float *C, size_t M, size_t N,
+                                 size_t K, size_t i, size_t j, size_t k, size_t i_max, size_t j_max,
+                                 size_t k_max, const float alpha, size_t lda, size_t ldb,
+                                 size_t ldc) {
   __m256 alpha_vec = _mm256_broadcast_ss(&alpha);
   size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
@@ -85,10 +84,9 @@ inline void sgemm_kernel_avx2_nn(const float *A, const float *B, float *C, const
   }
 }
 
-inline void sgemm_kernel_avx2_nn_aligned(const float *A, const float *B, float *C, const size_t M,
-                                         const size_t N, const size_t K, const size_t i,
-                                         const size_t j, const size_t k, const size_t i_max,
-                                         const size_t j_max, const size_t k_max,
+inline void sgemm_kernel_avx2_nn_aligned(const float *A, const float *B, float *C, size_t M,
+                                         size_t N, size_t K, size_t i, size_t j, size_t k,
+                                         size_t i_max, size_t j_max, size_t k_max,
                                          const float alpha) {
   __m256 alpha_vec = _mm256_broadcast_ss(&alpha);
   size_t ii = i;
@@ -158,11 +156,10 @@ inline void sgemm_kernel_avx2_nn_aligned(const float *A, const float *B, float *
   }
 }
 
-inline void sgemm_kernel_avx2_nt(const float *A, const float *B, float *C, const size_t M,
-                                 const size_t N, const size_t K, const size_t i, const size_t j,
-                                 const size_t k, const size_t i_max, const size_t j_max,
-                                 const size_t k_max, const float alpha, const size_t lda,
-                                 const size_t ldb, const size_t ldc) {
+inline void sgemm_kernel_avx2_nt(const float *A, const float *B, float *C, size_t M, size_t N,
+                                 size_t K, size_t i, size_t j, size_t k, size_t i_max, size_t j_max,
+                                 size_t k_max, const float alpha, size_t lda, size_t ldb,
+                                 size_t ldc) {
   for (size_t ii = i; ii < i_max; ++ii) {
     size_t jj = j;
     for (; jj + 3 < j_max; jj += 4) {
@@ -238,10 +235,9 @@ inline void sgemm_kernel_avx2_nt(const float *A, const float *B, float *C, const
   }
 }
 
-inline void sgemm_kernel_avx2_nt_aligned(const float *A, const float *B, float *C, const size_t M,
-                                         const size_t N, const size_t K, const size_t i,
-                                         const size_t j, const size_t k, const size_t i_max,
-                                         const size_t j_max, const size_t k_max,
+inline void sgemm_kernel_avx2_nt_aligned(const float *A, const float *B, float *C, size_t M,
+                                         size_t N, size_t K, size_t i, size_t j, size_t k,
+                                         size_t i_max, size_t j_max, size_t k_max,
                                          const float alpha) {
   for (size_t ii = i; ii < i_max; ++ii) {
     size_t jj = j;
@@ -318,11 +314,10 @@ inline void sgemm_kernel_avx2_nt_aligned(const float *A, const float *B, float *
   }
 }
 
-inline void sgemm_kernel_avx2_tn(const float *A, const float *B, float *C, const size_t M,
-                                 const size_t N, const size_t K, const size_t i, const size_t j,
-                                 const size_t k, const size_t i_max, const size_t j_max,
-                                 const size_t k_max, const float alpha, const size_t lda,
-                                 const size_t ldb, const size_t ldc) {
+inline void sgemm_kernel_avx2_tn(const float *A, const float *B, float *C, size_t M, size_t N,
+                                 size_t K, size_t i, size_t j, size_t k, size_t i_max, size_t j_max,
+                                 size_t k_max, const float alpha, size_t lda, size_t ldb,
+                                 size_t ldc) {
   __m256 alpha_vec = _mm256_broadcast_ss(&alpha);
   size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
@@ -396,10 +391,9 @@ inline void sgemm_kernel_avx2_tn(const float *A, const float *B, float *C, const
   }
 }
 
-inline void sgemm_kernel_avx2_tn_aligned(const float *A, const float *B, float *C, const size_t M,
-                                         const size_t N, const size_t K, const size_t i,
-                                         const size_t j, const size_t k, const size_t i_max,
-                                         const size_t j_max, const size_t k_max,
+inline void sgemm_kernel_avx2_tn_aligned(const float *A, const float *B, float *C, size_t M,
+                                         size_t N, size_t K, size_t i, size_t j, size_t k,
+                                         size_t i_max, size_t j_max, size_t k_max,
                                          const float alpha) {
   __m256 alpha_vec = _mm256_broadcast_ss(&alpha);
   size_t ii = i;
@@ -470,14 +464,14 @@ inline void sgemm_kernel_avx2_tn_aligned(const float *A, const float *B, float *
 }
 #endif
 
-void transpose_matrix(const float *src, float *dst, const size_t rows, const size_t cols) {
+void transpose_matrix(const float *src, float *dst, size_t rows, size_t cols) {
   constexpr size_t block_size = 64;
   parallel_for_2d((rows + block_size - 1) / block_size, (cols + block_size - 1) / block_size,
                   [&](size_t i_block, size_t j_block) {
-                    const size_t start_row = i_block * block_size;
-                    const size_t start_col = j_block * block_size;
-                    const size_t end_row = std::min(start_row + block_size, rows);
-                    const size_t end_col = std::min(start_col + block_size, cols);
+                    size_t start_row = i_block * block_size;
+                    size_t start_col = j_block * block_size;
+                    size_t end_row = std::min(start_row + block_size, rows);
+                    size_t end_col = std::min(start_col + block_size, cols);
                     for (size_t i = start_row; i < end_row; ++i) {
                       for (size_t j = start_col; j < end_col; ++j) {
                         dst[j * rows + i] = src[i * cols + j];
@@ -486,7 +480,7 @@ void transpose_matrix(const float *src, float *dst, const size_t rows, const siz
                   });
 }
 
-void sgemm(const float *A, const float *B, float *C, const size_t M, const size_t N, const size_t K,
+void sgemm(const float *A, const float *B, float *C, size_t M, size_t N, size_t K,
            const bool trans_A, const bool trans_B, const float alpha, const float beta) {
   if (beta == 0.0f) {
     parallel_for<size_t>(0, M * N, [&](size_t i) { C[i] = 0.0f; });
@@ -629,7 +623,7 @@ void sgemm(const float *A, const float *B, float *C, const size_t M, const size_
     free(D_T);
   }
 #else
-  const size_t BLOCK_SIZE = 32;
+  size_t BLOCK_SIZE = 32;
 
   for (size_t i = 0; i < M; i += BLOCK_SIZE) {
     for (size_t j = 0; j < N; j += BLOCK_SIZE) {

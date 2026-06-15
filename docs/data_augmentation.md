@@ -188,10 +188,10 @@ public:
         const auto shape = data.shape();
         if (shape.size() != 4) return; // Expected: [batch, channels, height, width]
         
-        const size_t batch_size = shape[0];
-        const size_t channels = shape[1];
-        const size_t height = shape[2];
-        const size_t width = shape[3];
+        size_t batch_size = shape[0];
+        size_t channels = shape[1];
+        size_t height = shape[2];
+        size_t width = shape[3];
         
         for (size_t b = 0; b < batch_size; ++b) {
             if (dist(this->rng_) < probability_) {
@@ -259,10 +259,10 @@ const auto shape = data.shape();
 if (shape.size() != 4) return; // Expected format validation
 
 // Extract dimensions
-const size_t batch_size = shape[0];
-const size_t channels = shape[1];
-const size_t height = shape[2];
-const size_t width = shape[3];
+size_t batch_size = shape[0];
+size_t channels = shape[1];
+size_t height = shape[2];
+size_t width = shape[3];
 ```
 
 ### Integration with Builder Pattern
@@ -305,7 +305,7 @@ public:
         const auto shape = data.shape();
         if (shape.size() != 4) return;
         
-        const size_t batch_size = shape[0];
+        size_t batch_size = shape[0];
         
         for (size_t b = 0; b < batch_size; ++b) {
             if (dist(this->rng_) < probability_) {

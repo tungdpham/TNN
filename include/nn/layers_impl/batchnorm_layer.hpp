@@ -48,8 +48,8 @@ private:
 
 #ifdef USE_DNNL
   void build_dnnl_handle(const Vec<size_t> &input_shape) const;
-  Tensor dnnl_forward(const Tensor &input, size_t mb_id);
-  Tensor dnnl_backward(const Tensor &grad_output, size_t mb_id);
+  Tensor dnnl_forward(const Tensor &input, Residuals &residuals);
+  Tensor dnnl_backward(const Tensor &grad_output, Residuals &residuals);
 
   mutable std::unordered_map<size_t, cpu::dnnl_batchnorm::dnnlBNHandle_t *> dnnl_handle_cache;
   mutable std::unordered_map<size_t, BatchNormStats> dnnl_stats_cache;
@@ -85,16 +85,16 @@ private:
                                       const Tensor &batch_mean, const Tensor &batch_invar,
                                       Tensor &workspace, flowHandle_t handle);
 
-  Tensor cudnn_forward(const Tensor &input, size_t mb_id);
-  Tensor cudnn_backward(const Tensor &grad_output, size_t mb_id);
+  Tensor cudnn_forward(const Tensor &input, Residuals &residuals);
+  Tensor cudnn_backward(const Tensor &grad_output, Residuals &residuals);
 #endif
 
-  Tensor def_forward(const Tensor &input, size_t mb_id);
-  Tensor def_backward(const Tensor &grad_output, size_t mb_id);
+  Tensor def_forward(const Tensor &input, Residuals &residuals);
+  Tensor def_backward(const Tensor &grad_output, Residuals &residuals);
 
   void init_impl() override;
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   explicit BatchNormLayerImpl(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,

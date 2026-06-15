@@ -19,8 +19,8 @@ template <typename T>
 __global__ void compute_precision_recall_kernel(const T* __restrict__ predictions,
                                                 const int* __restrict__ targets,
                                                 int* __restrict__ tp, int* __restrict__ fp,
-                                                int* __restrict__ fn, const size_t batch_size,
-                                                const size_t num_classes, int class_id) {
+                                                int* __restrict__ fn, size_t batch_size,
+                                                size_t num_classes, int class_id) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int local_tp = 0, local_fp = 0, local_fn = 0;
 
@@ -91,8 +91,8 @@ __global__ void compute_precision_recall_kernel(const T* __restrict__ prediction
 }
 
 template <typename T>
-float compute_precision(const T* predictions, const int* targets, const size_t batch_size,
-                        const size_t num_classes, int class_id, cudaStream_t stream) {
+float compute_precision(const T* predictions, const int* targets, size_t batch_size,
+                        size_t num_classes, int class_id, cudaStream_t stream) {
   if (class_id == -1) {
     // Macro-average precision across all classes
     float total_precision = 0.0f;
@@ -138,8 +138,8 @@ float compute_precision(const T* predictions, const int* targets, const size_t b
 }
 
 template <typename T>
-float compute_recall(const T* predictions, const int* targets, const size_t batch_size,
-                     const size_t num_classes, int class_id, cudaStream_t stream) {
+float compute_recall(const T* predictions, const int* targets, size_t batch_size,
+                     size_t num_classes, int class_id, cudaStream_t stream) {
   if (class_id == -1) {
     // Macro-average recall across all classes
     float total_recall = 0.0f;
@@ -184,8 +184,8 @@ float compute_recall(const T* predictions, const int* targets, const size_t batc
 }
 
 template <typename T>
-float compute_f1_score(const T* predictions, const int* targets, const size_t batch_size,
-                       const size_t num_classes, int class_id, cudaStream_t stream) {
+float compute_f1_score(const T* predictions, const int* targets, size_t batch_size,
+                       size_t num_classes, int class_id, cudaStream_t stream) {
   float precision =
       compute_precision(predictions, targets, batch_size, num_classes, class_id, stream);
   float recall = compute_recall(predictions, targets, batch_size, num_classes, class_id, stream);
@@ -200,8 +200,8 @@ float compute_f1_score(const T* predictions, const int* targets, const size_t ba
 template <typename T>
 __global__ void compute_perplexity_kernel(const T* __restrict__ predictions,
                                           const int* __restrict__ targets,
-                                          double* __restrict__ log_likelihood,
-                                          const size_t batch_size, const size_t num_classes) {
+                                          double* __restrict__ log_likelihood, size_t batch_size,
+                                          size_t num_classes) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   double local_ll = 0.0;
   const double epsilon = 1e-10;
@@ -239,8 +239,8 @@ __global__ void compute_perplexity_kernel(const T* __restrict__ predictions,
 }
 
 template <typename T>
-float compute_perplexity(const T* predictions, const int* targets, const size_t batch_size,
-                         const size_t num_classes, cudaStream_t stream) {
+float compute_perplexity(const T* predictions, const int* targets, size_t batch_size,
+                         size_t num_classes, cudaStream_t stream) {
   double* d_log_likelihood;
   cudaMalloc(&d_log_likelihood, sizeof(double));
   cudaMemsetAsync(d_log_likelihood, 0, sizeof(double), stream);
@@ -266,9 +266,8 @@ float compute_perplexity(const T* predictions, const int* targets, const size_t 
 template <typename T>
 __global__ void compute_top_k_accuracy_kernel(const T* __restrict__ predictions,
                                               const int* __restrict__ targets,
-                                              int* __restrict__ correct_count,
-                                              const size_t batch_size, const size_t num_classes,
-                                              int k) {
+                                              int* __restrict__ correct_count, size_t batch_size,
+                                              size_t num_classes, int k) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int local_hit = 0;
 
@@ -358,8 +357,8 @@ __global__ void compute_top_k_accuracy_kernel(const T* __restrict__ predictions,
 }
 
 template <typename T>
-float compute_top_k_accuracy(const T* predictions, const int* targets, const size_t batch_size,
-                             const size_t num_classes, int k, cudaStream_t stream) {
+float compute_top_k_accuracy(const T* predictions, const int* targets, size_t batch_size,
+                             size_t num_classes, int k, cudaStream_t stream) {
   int* d_correct_count;
   cudaMalloc(&d_correct_count, sizeof(int));
   cudaMemsetAsync(d_correct_count, 0, sizeof(int), stream);
@@ -382,7 +381,7 @@ float compute_top_k_accuracy(const T* predictions, const int* targets, const siz
 // MAE kernel
 template <typename T>
 __global__ void compute_mae_kernel(const T* __restrict__ predictions, const T* __restrict__ targets,
-                                   double* __restrict__ total_error, const size_t total_elements) {
+                                   double* __restrict__ total_error, size_t total_elements) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   double local_error = 0.0;
 
@@ -417,7 +416,7 @@ __global__ void compute_mae_kernel(const T* __restrict__ predictions, const T* _
 }
 
 template <typename T>
-float compute_mae(const T* predictions, const T* targets, const size_t total_elements,
+float compute_mae(const T* predictions, const T* targets, size_t total_elements,
                   cudaStream_t stream) {
   double* d_total_error;
   cudaMalloc(&d_total_error, sizeof(double));
@@ -442,7 +441,7 @@ float compute_mae(const T* predictions, const T* targets, const size_t total_ele
 template <typename T>
 __global__ void compute_mse_kernel(const T* __restrict__ predictions, const T* __restrict__ targets,
                                    double* __restrict__ total_squared_error,
-                                   const size_t total_elements) {
+                                   size_t total_elements) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   double local_error = 0.0;
 
@@ -477,7 +476,7 @@ __global__ void compute_mse_kernel(const T* __restrict__ predictions, const T* _
 }
 
 template <typename T>
-float compute_mse(const T* predictions, const T* targets, const size_t total_elements,
+float compute_mse(const T* predictions, const T* targets, size_t total_elements,
                   cudaStream_t stream) {
   double* d_total_squared_error;
   cudaMalloc(&d_total_squared_error, sizeof(double));
@@ -504,7 +503,7 @@ template <typename T>
 __global__ void compute_class_corrects_kernel(const T* __restrict__ predictions,
                                               const int* __restrict__ targets,
                                               int* __restrict__ global_correct_count,
-                                              const size_t batch_size, const size_t num_classes,
+                                              size_t batch_size, size_t num_classes,
                                               float threshold) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int local_hit = 0;
@@ -552,8 +551,8 @@ __global__ void compute_class_corrects_kernel(const T* __restrict__ predictions,
 }
 
 template <typename T>
-int compute_class_corrects(const T* predictions, const int* targets, const size_t batch_size,
-                           const size_t num_classes, float threshold, cudaStream_t stream) {
+int compute_class_corrects(const T* predictions, const int* targets, size_t batch_size,
+                           size_t num_classes, float threshold, cudaStream_t stream) {
   int* d_correct_count;
   cudaMalloc(&d_correct_count, sizeof(int));
   cudaMemsetAsync(d_correct_count, 0, sizeof(int), stream);
@@ -574,29 +573,26 @@ int compute_class_corrects(const T* predictions, const int* targets, const size_
   return h_correct_count;
 }
 
-#define INSTANTIATE(T)                                                                        \
-  template float compute_precision<T>(const T* predictions, const int* targets,               \
-                                      const size_t batch_size, const size_t num_classes,      \
-                                      int class_id, cudaStream_t stream);                     \
-  template float compute_recall<T>(const T* predictions, const int* targets,                  \
-                                   const size_t batch_size, const size_t num_classes,         \
-                                   int class_id, cudaStream_t stream);                        \
-  template float compute_f1_score<T>(const T* predictions, const int* targets,                \
-                                     const size_t batch_size, const size_t num_classes,       \
-                                     int class_id, cudaStream_t stream);                      \
-  template float compute_perplexity<T>(const T* predictions, const int* targets,              \
-                                       const size_t batch_size, const size_t num_classes,     \
-                                       cudaStream_t stream);                                  \
-  template float compute_top_k_accuracy<T>(const T* predictions, const int* targets,          \
-                                           const size_t batch_size, const size_t num_classes, \
-                                           int k, cudaStream_t stream);                       \
-  template float compute_mae<T>(const T* predictions, const T* targets,                       \
-                                const size_t total_elements, cudaStream_t stream);            \
-  template float compute_mse<T>(const T* predictions, const T* targets,                       \
-                                const size_t total_elements, cudaStream_t stream);            \
-  template int compute_class_corrects<T>(const T* predictions, const int* targets,            \
-                                         const size_t batch_size, const size_t num_classes,   \
-                                         float threshold, cudaStream_t stream);
+#define INSTANTIATE(T)                                                                             \
+  template float compute_precision<T>(const T* predictions, const int* targets, size_t batch_size, \
+                                      size_t num_classes, int class_id, cudaStream_t stream);      \
+  template float compute_recall<T>(const T* predictions, const int* targets, size_t batch_size,    \
+                                   size_t num_classes, int class_id, cudaStream_t stream);         \
+  template float compute_f1_score<T>(const T* predictions, const int* targets, size_t batch_size,  \
+                                     size_t num_classes, int class_id, cudaStream_t stream);       \
+  template float compute_perplexity<T>(const T* predictions, const int* targets,                   \
+                                       size_t batch_size, size_t num_classes,                      \
+                                       cudaStream_t stream);                                       \
+  template float compute_top_k_accuracy<T>(const T* predictions, const int* targets,               \
+                                           size_t batch_size, size_t num_classes, int k,           \
+                                           cudaStream_t stream);                                   \
+  template float compute_mae<T>(const T* predictions, const T* targets, size_t total_elements,     \
+                                cudaStream_t stream);                                              \
+  template float compute_mse<T>(const T* predictions, const T* targets, size_t total_elements,     \
+                                cudaStream_t stream);                                              \
+  template int compute_class_corrects<T>(const T* predictions, const int* targets,                 \
+                                         size_t batch_size, size_t num_classes, float threshold,   \
+                                         cudaStream_t stream);
 #include "macros/floating_type_instantiation.hpp"
 
 #undef INSTANTIATE

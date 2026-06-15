@@ -55,7 +55,7 @@ std::unique_ptr<Task> LeakyReLU::apply_impl(const Tensor &input, Tensor &output,
     throw std::runtime_error("LeakyReLU tensor dtype mismatch with dispatch type");
   }
 
-  const size_t size = input.size();
+  size_t size = input.size();
   const Compute_T slope_typed = static_cast<Compute_T>(negative_slope_);
   if (input.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, cpu::leaky_relu<Compute_T>, input.data_as<Compute_T>(),
@@ -84,7 +84,7 @@ std::unique_ptr<Task> LeakyReLU::compute_gradient_impl(const Tensor &input,
     throw std::runtime_error("LeakyReLU tensor dtype mismatch with dispatch type");
   }
 
-  const size_t size = grad_output.size();
+  size_t size = grad_output.size();
   const Compute_T slope_typed = static_cast<Compute_T>(negative_slope_);
   if (grad_output.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, cpu::leaky_relu_gradient<Compute_T>, input.data_as<Compute_T>(),

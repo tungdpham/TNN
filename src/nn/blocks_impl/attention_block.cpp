@@ -38,7 +38,7 @@ AttentionBlockImpl::AttentionBlockImpl(size_t embed_dim, size_t num_heads, bool 
   head_dim_ = embed_dim / num_heads;
 }
 
-Vec<Tensor> AttentionBlockImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
+Vec<Tensor> AttentionBlockImpl::forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) {
   const Tensor &input = inputs[0];
   const auto &input_shape = input.shape();
 
@@ -46,36 +46,37 @@ Vec<Tensor> AttentionBlockImpl::forward_impl(const Vec<Tensor> &inputs, size_t m
   size_t seq_len = input_shape[1];
 
   if (is_training_) {
-    set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
-  Tensor q = q_proj_.forward({input}, mb_id)[0];
-  Tensor k = k_proj_.forward({input}, mb_id)[0];
-  Tensor v = v_proj_.forward({input}, mb_id)[0];
+  Tensor q = q_proj_.forward({input}, residuals["q_proj"])[0];
+  Tensor k = k_proj_.forward({input}, residuals["k_proj"])[0];
+  Tensor v = v_proj_.forward({input}, residuals["v_proj"])[0];
 
   Tensor attn_out = get_tensor(input_shape, io_dtype_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_attention_forward, q, k, v, attn_out, batch_size, seq_len,
                                  defaultFlowHandle);
 
-  return out_proj_.forward({attn_out}, mb_id);
+  return out_proj_.forward({attn_out}, residuals["out_proj"]);
 }
 
-Vec<Tensor> AttentionBlockImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> AttentionBlockImpl::backward_impl(const Vec<Tensor> &grad_outputs,
+                                              Residuals &residuals) {
   const Tensor &grad_output = grad_outputs[0];
-  const Tensor &input = get_immutable_cache(mb_id, "input");
+  const Tensor &input = residuals["input"];
   if (!input) {
-    throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
+    throw std::runtime_error("No cached input found");
   }
 
   size_t batch_size = input.dimension(0);
   size_t seq_len = input.dimension(1);
 
-  Tensor q = q_proj_.forward({input}, mb_id)[0];
-  Tensor k = k_proj_.forward({input}, mb_id)[0];
-  Tensor v = v_proj_.forward({input}, mb_id)[0];
+  Tensor q = q_proj_.forward({input}, residuals["q_proj"])[0];
+  Tensor k = k_proj_.forward({input}, residuals["k_proj"])[0];
+  Tensor v = v_proj_.forward({input}, residuals["v_proj"])[0];
 
-  Tensor d_attn_out = out_proj_.backward({grad_output}, mb_id)[0];
+  Tensor d_attn_out = out_proj_.backward({grad_output}, residuals["out_proj"])[0];
 
   Tensor dq = get_tensor(q.shape(), io_dtype_);
   Tensor dk = get_tensor(k.shape(), io_dtype_);
@@ -84,9 +85,9 @@ Vec<Tensor> AttentionBlockImpl::backward_impl(const Vec<Tensor> &grad_outputs, s
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_attention_backward, q, k, v, d_attn_out, dq, dk, dv,
                                  batch_size, seq_len, defaultFlowHandle);
 
-  Tensor dq_in = q_proj_.backward({dq}, mb_id)[0];
-  Tensor dk_in = k_proj_.backward({dk}, mb_id)[0];
-  Tensor dv_in = v_proj_.backward({dv}, mb_id)[0];
+  Tensor dq_in = q_proj_.backward({dq}, residuals["q_proj"])[0];
+  Tensor dk_in = k_proj_.backward({dk}, residuals["k_proj"])[0];
+  Tensor dv_in = v_proj_.backward({dv}, residuals["v_proj"])[0];
 
   Tensor grad_input = get_tensor(input.shape(), io_dtype_);
   size_t size = dq_in.size();

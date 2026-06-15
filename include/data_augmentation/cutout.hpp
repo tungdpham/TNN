@@ -39,10 +39,10 @@ private:
     const auto shape = data.shape();
     if (shape.size() != 4) return;
 
-    const size_t batch_size = shape[0];
-    const size_t height = shape[1];
-    const size_t width = shape[2];
-    const size_t channels = shape[3];
+    size_t batch_size = shape[0];
+    size_t height = shape[1];
+    size_t width = shape[2];
+    size_t channels = shape[3];
 
     std::uniform_int_distribution<size_t> x_dist(0, width - cutout_size_);
     std::uniform_int_distribution<size_t> y_dist(0, height - cutout_size_);
@@ -59,8 +59,8 @@ private:
 
     parallel_for<size_t>(0, batch_size, [&](size_t b) {
       if (std::get<0>(decisions[b])) {
-        const size_t x = std::get<1>(decisions[b]);
-        const size_t y = std::get<2>(decisions[b]);
+        size_t x = std::get<1>(decisions[b]);
+        size_t y = std::get<2>(decisions[b]);
         for (size_t h = y; h < y + cutout_size_ && h < height; ++h) {
           for (size_t w = x; w < x + cutout_size_ && w < width; ++w) {
             for (size_t c = 0; c < channels; ++c) {

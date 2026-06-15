@@ -41,8 +41,8 @@ private:
                                                    Tensor &dk, Tensor &dv, size_t batch_size,
                                                    size_t seq_len, flowHandle_t handle);
 
-  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id = 0) override;
-  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id = 0) override;
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) override;
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) override;
 
 public:
   AttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal = true,

@@ -63,10 +63,10 @@ private:
     const auto shape = data.shape();
     if (shape.size() != 4) return;
 
-    const size_t batch_size = shape[0];
-    const size_t height = shape[1];
-    const size_t width = shape[2];
-    const size_t channels = shape[3];
+    size_t batch_size = shape[0];
+    size_t height = shape[1];
+    size_t width = shape[2];
+    size_t channels = shape[3];
 
     if (channels != 3 && channels != 1) {
       throw std::invalid_argument("NormalizationAugmentation: unsupported number of channels");

@@ -20,8 +20,10 @@ SliceLayerImpl::SliceLayerImpl(size_t axis, size_t start, size_t length, const s
       start_(start),
       length_(length) {}
 
-Tensor SliceLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
-  micro_batch_original_shapes_[mb_id] = input.shape();
+Tensor SliceLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
+  Tensor shape_tensor = Tensor({input.shape().size()});
+  std::copy(input.shape().begin(), input.shape().end(), shape_tensor.data_as<size_t>());
+  residuals["original_shape"] = shape_tensor;
 
   Vec<size_t> output_shape = compute_output_shape(input.shape());
   Tensor output = get_tensor(output_shape, io_dtype_);
@@ -30,12 +32,14 @@ Tensor SliceLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor SliceLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  auto it = micro_batch_original_shapes_.find(mb_id);
-  if (it == micro_batch_original_shapes_.end()) {
-    throw std::runtime_error("No cached shape found for micro-batch ID in SliceLayerImpl");
+Tensor SliceLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  const Tensor &shape_tensor = residuals["original_shape"];
+  if (!shape_tensor) {
+    throw std::runtime_error("No cached original shape found for backward pass in SliceLayerImpl");
   }
-  const Vec<size_t> &original_shape = it->second;
+  Vec<size_t> original_shape(shape_tensor.size());
+  std::copy(shape_tensor.data_as<size_t>(), shape_tensor.data_as<size_t>() + shape_tensor.size(),
+            original_shape.begin());
 
   Tensor grad_input = get_tensor(original_shape, io_dtype_);
 

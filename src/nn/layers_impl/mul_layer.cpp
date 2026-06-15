@@ -23,7 +23,7 @@ Vec<Vec<size_t>> MulLayerImpl::output_shapes(const Vec<Vec<size_t>> &input_shape
   return {input_shapes[0]};
 }
 
-Vec<Tensor> MulLayerImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
+Vec<Tensor> MulLayerImpl::forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) {
   if (inputs.size() != 2) {
     throw std::runtime_error("MulLayerImpl: expected exactly 2 inputs");
   }
@@ -35,12 +35,11 @@ Vec<Tensor> MulLayerImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) 
   }
 
   Tensor output = get_tensor(a.shape(), io_dtype_);
-  const size_t n = a.size();
+  size_t n = a.size();
 
-  // Cache inputs for backward pass
   if (this->is_training_) {
-    this->set_immutable_cache(mb_id, "a", a);
-    this->set_immutable_cache(mb_id, "b", b);
+    residuals["a"] = a;
+    residuals["b"] = b;
   }
 
   DISPATCH_DTYPE(a.data_type(), T, {
@@ -50,14 +49,14 @@ Vec<Tensor> MulLayerImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) 
   return {output};
 }
 
-Vec<Tensor> MulLayerImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> MulLayerImpl::backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) {
   if (grad_outputs.size() != 1) {
     throw std::runtime_error("MulLayerImpl: expected exactly 1 grad output");
   }
   const Tensor &grad_out = grad_outputs[0];
-  const Tensor &a = this->get_immutable_cache(mb_id, "a");
-  const Tensor &b = this->get_immutable_cache(mb_id, "b");
-  const size_t n = grad_out.size();
+  const Tensor &a = residuals["a"];
+  const Tensor &b = residuals["b"];
+  size_t n = grad_out.size();
 
   // grad_a = grad_out * b,  grad_b = grad_out * a
   Tensor grad_a = get_tensor(grad_out.shape(), this->io_dtype_);

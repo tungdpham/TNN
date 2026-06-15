@@ -38,10 +38,10 @@ private:
     std::uniform_real_distribution<float> factor_dist(1.0f - saturation_range_,
                                                       1.0f + saturation_range_);
 
-    const size_t batch_size = data.dimension(0);
-    const size_t height = data.dimension(1);
-    const size_t width = data.dimension(2);
-    const size_t channels = data.dimension(3);
+    size_t batch_size = data.dimension(0);
+    size_t height = data.dimension(1);
+    size_t width = data.dimension(2);
+    size_t channels = data.dimension(3);
 
     T *ptr = data.data_as<T>();
 
@@ -59,7 +59,7 @@ private:
 
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
-          const size_t idx = b * height * width * channels + h * width * channels + w * channels;
+          size_t idx = b * height * width * channels + h * width * channels + w * channels;
           const float r = static_cast<float>(ptr[idx + 0]);
           const float g = static_cast<float>(ptr[idx + 1]);
           const float bval = static_cast<float>(ptr[idx + 2]);

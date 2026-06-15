@@ -65,7 +65,7 @@ void DenseLayerImpl::init_impl() {
   }
 }
 
-Tensor DenseLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor DenseLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   const Vec<size_t> &in_shape = input.shape();
   size_t last_dim = in_shape.back();
 
@@ -76,20 +76,20 @@ Tensor DenseLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   }
 
   if (this->is_training_) {
-    set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
 #ifdef USE_CUDNN
   if (get_engine_type() == EngineType::CUDA) {
-    return cudnn_forward(input, mb_id);
+    return cudnn_forward(input, residuals);
   } else
 #endif
   {
-    return def_forward(input, mb_id);
+    return def_forward(input, residuals);
   }
 }
 
-Tensor DenseLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+Tensor DenseLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
   if (grad_output.shape().back() != output_features_) {
     throw std::invalid_argument("Gradient feature size mismatch in DenseLayerImpl. Expected " +
                                 std::to_string(output_features_) + " features in grad_output" +
@@ -99,15 +99,15 @@ Tensor DenseLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
 
 #ifdef USE_CUDNN
   if (get_engine_type() == EngineType::CUDA) {
-    return cudnn_backward(grad_output, mb_id);
+    return cudnn_backward(grad_output, residuals);
   } else
 #endif
   {
-    return def_backward(grad_output, mb_id);
+    return def_backward(grad_output, residuals);
   }
 }
 
-Tensor DenseLayerImpl::def_forward(const Tensor &input, size_t mb_id) {
+Tensor DenseLayerImpl::def_forward(const Tensor &input, Residuals &residuals) {
   Vec<size_t> input_shape = input.shape();
   size_t batch_size = 1;
   for (size_t i = 0; i < input.shape().size() - 1; ++i) {
@@ -131,7 +131,7 @@ Tensor DenseLayerImpl::def_forward(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor DenseLayerImpl::def_backward(const Tensor &grad_output, size_t mb_id) {
+Tensor DenseLayerImpl::def_backward(const Tensor &grad_output, Residuals &residuals) {
   if (grad_output.shape().back() != output_features_) {
     throw std::invalid_argument("Gradient feature size mismatch in DenseLayerImpl. Expected " +
                                 std::to_string(output_features_) + " features in grad_output" +
@@ -139,7 +139,7 @@ Tensor DenseLayerImpl::def_backward(const Tensor &grad_output, size_t mb_id) {
                                 " features in grad_output" + ".");
   }
 
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+  const Tensor &input = residuals["input"];
 
   Vec<size_t> input_shape = input.shape();
 
@@ -261,7 +261,7 @@ std::unique_ptr<Task> DenseLayerImpl::add_bias(Tensor &output, const Tensor &bia
   return nullptr;
 }
 
-Tensor DenseLayerImpl::cudnn_forward(const Tensor &input, size_t mb_id) {
+Tensor DenseLayerImpl::cudnn_forward(const Tensor &input, Residuals &residuals) {
   const Vec<size_t> &in_shape = input.shape();
 
   build_cudnn_graph(in_shape);
@@ -293,8 +293,8 @@ Tensor DenseLayerImpl::cudnn_forward(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor DenseLayerImpl::cudnn_backward(const Tensor &grad_output, size_t mb_id) {
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+Tensor DenseLayerImpl::cudnn_backward(const Tensor &grad_output, Residuals &residuals) {
+  const Tensor &input = residuals["input"];
 
   const Vec<size_t> &in_shape = input.shape();
   size_t batch_size = 1;

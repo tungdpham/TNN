@@ -40,19 +40,19 @@ private:
   std::unique_ptr<Task> add_bias(Tensor &output, const Tensor &bias, size_t batch_size,
                                  size_t output_features, flowHandle_t handle) const;
 
-  Tensor cudnn_forward(const Tensor &input, size_t mb_id);
-  Tensor cudnn_backward(const Tensor &grad_output, size_t mb_id);
+  Tensor cudnn_forward(const Tensor &input, Residuals &residuals);
+  Tensor cudnn_backward(const Tensor &grad_output, Residuals &residuals);
 
   mutable std::unordered_map<size_t, cuda::cudnn_gemm::feHandle_t *> fe_handle_cache;
 #endif
   mutable std::unordered_map<size_t, GemmStats> stats_cache;
 
-  Tensor def_forward(const Tensor &input, size_t mb_id);
-  Tensor def_backward(const Tensor &grad_output, size_t mb_id);
+  Tensor def_forward(const Tensor &input, Residuals &residuals);
+  Tensor def_backward(const Tensor &grad_output, Residuals &residuals);
 
   void init_impl() override;
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   DenseLayerImpl(size_t input_features, size_t output_features, bool use_bias = true,

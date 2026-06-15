@@ -107,7 +107,7 @@ private:
   template <typename T>
   std::unique_ptr<Task> compute_loss_t(const Tensor &predictions, const Tensor &targets,
                                        float &loss) {
-    const size_t num_classes = predictions.shape().back();
+    size_t num_classes = predictions.shape().back();
     size_t batch_size = 1;
     for (size_t i = 0; i < predictions.dims() - 1; ++i) {
       batch_size *= predictions.shape()[i];
@@ -149,7 +149,7 @@ private:
   std::unique_ptr<Task> compute_gradient_t(const Tensor &predictions, const Tensor &targets,
                                            Tensor &gradient) {
     gradient = Tensor(predictions.shape(), predictions.data_type(), predictions.device());
-    const size_t num_classes = predictions.shape().back();
+    size_t num_classes = predictions.shape().back();
     size_t batch_size = 1;
     for (size_t i = 0; i < predictions.dims() - 1; ++i) {
       batch_size *= predictions.shape()[i];
@@ -230,7 +230,7 @@ private:
   template <typename T>
   std::unique_ptr<Task> compute_loss_t(const Tensor &predictions, const Tensor &targets,
                                        float &loss) {
-    const size_t batch_size = predictions.shape()[0];
+    size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
     for (size_t i = 1; i < predictions.dims(); ++i) {
       output_size *= predictions.shape()[i];
@@ -255,7 +255,7 @@ private:
   std::unique_ptr<Task> compute_gradient_t(const Tensor &predictions, const Tensor &targets,
                                            Tensor &gradient) {
     gradient = Tensor(predictions.shape(), predictions.data_type(), predictions.device());
-    const size_t batch_size = predictions.shape()[0];
+    size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
     for (size_t i = 1; i < predictions.dims(); ++i) {
       output_size *= predictions.shape()[i];
@@ -315,7 +315,7 @@ private:
   template <typename T>
   std::unique_ptr<Task> compute_loss_t(const Tensor &predictions, const Tensor &targets,
                                        float &loss) {
-    const size_t batch_size = predictions.shape()[0];
+    size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
     for (size_t i = 1; i < predictions.dims(); ++i) {
       output_size *= predictions.shape()[i];
@@ -340,7 +340,7 @@ private:
   std::unique_ptr<Task> compute_gradient_t(const Tensor &predictions, const Tensor &targets,
                                            Tensor &gradient) {
     gradient = Tensor(predictions.shape(), predictions.data_type(), predictions.device());
-    const size_t batch_size = predictions.shape()[0];
+    size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
     for (size_t i = 1; i < predictions.dims(); ++i) {
       output_size *= predictions.shape()[i];
@@ -407,7 +407,7 @@ private:
   template <typename T>
   std::unique_ptr<Task> compute_loss_t(const Tensor &predictions, const Tensor &targets,
                                        float &loss) {
-    const size_t batch_size = predictions.shape()[0];
+    size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
     for (size_t i = 1; i < predictions.dims(); ++i) {
       output_size *= predictions.shape()[i];
@@ -432,7 +432,7 @@ private:
   std::unique_ptr<Task> compute_gradient_t(const Tensor &predictions, const Tensor &targets,
                                            Tensor &gradient) {
     gradient = Tensor(predictions.shape(), predictions.data_type(), predictions.device());
-    const size_t batch_size = predictions.shape()[0];
+    size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
     for (size_t i = 1; i < predictions.dims(); ++i) {
       output_size *= predictions.shape()[i];

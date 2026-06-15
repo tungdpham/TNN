@@ -38,8 +38,8 @@ private:
 
     if (data.dims() != 4) return;
 
-    const size_t batch_size = data.dimension(0);
-    const size_t spatial_size = data.stride(0);
+    size_t batch_size = data.dimension(0);
+    size_t spatial_size = data.stride(0);
     T *ptr = data.data_as<T>();
 
     // Pre-compute per-batch apply flags sequentially to avoid data races

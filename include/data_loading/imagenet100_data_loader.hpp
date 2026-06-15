@@ -81,8 +81,7 @@ private:
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
     if (this->current_index_ >= sample_list_.size()) return false;
 
-    const size_t actual_batch_size =
-        std::min(batch_size, sample_list_.size() - this->current_index_);
+    size_t actual_batch_size = std::min(batch_size, sample_list_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
     batch_data = Tensor({actual_batch_size, imagenet100_constants::IMAGE_HEIGHT,
@@ -92,18 +91,16 @@ private:
 
     T *batch_raw = batch_data.data_as<T>();
     int *labels_raw = batch_labels.data_as<int>();
-    const size_t image_size = imagenet100_constants::IMAGE_SIZE;
+    size_t image_size = imagenet100_constants::IMAGE_SIZE;
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
-      // Memory Optimization: Contiguous access patterns improve CPU cache prefetching performance
-      const size_t current_batch_offset = this->current_index_ + i;
+      size_t current_batch_offset = this->current_index_ + i;
       const auto &[path, class_index] = sample_list_[current_batch_offset];
 
       T *sample_dst = batch_raw + i * image_size;
       bool success = false;
 
       if constexpr (std::is_same_v<T, float>) {
-        // Load directly into the batch tensor's memory (HWC format)
         success = load_jpeg_image(path, sample_dst);
       } else {
         dptr hwc_dptr = allocator_.allocate(image_size * sizeof(float));

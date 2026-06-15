@@ -10,12 +10,11 @@
 
 #include <cstddef>
 #include <cstring>
-#include <map>
 #include <memory>
 #include <numeric>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include "common/config.hpp"
@@ -46,48 +45,45 @@ inline size_t get_shapes_bytes(const Vec<Vec<size_t>> &shapes, DType_t dtype) {
   return total_bytes;
 }
 
-struct Cache {
-  struct CacheKey {
-    size_t mb_id;
-    std::string key;
+namespace detail {
+struct ResidualsMap {
+public:
+  using ResidualValue = std::variant<std::monostate, std::map<std::string, ResidualsMap>, Tensor>;
 
-    bool operator==(const CacheKey &other) const {
-      return mb_id == other.mb_id && key == other.key;
+  ResidualValue data_;
+
+  ResidualsMap &operator[](const std::string &key) {
+    if (data_.index() == 0) {
+      data_ = std::map<std::string, ResidualsMap>{};
+    } else if (data_.index() == 1) {
+      // already a map, do nothing
+    } else if (data_.index() == 2) {
+      throw std::runtime_error("ResidualsMap: Attempting to index into a leaf node");
     }
-  };
 
-  struct CacheKeyHash {
-    size_t operator()(const CacheKey &cache_key) const noexcept {
-      size_t seed = std::hash<size_t>{}(cache_key.mb_id);
-      seed ^= std::hash<std::string>{}(cache_key.key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-      return seed;
-    }
-  };
-
-  std::unordered_map<CacheKey, Tensor, CacheKeyHash> cache;
-
-  void set(size_t mb_id, const std::string &key, const Tensor &value) {
-    cache[{mb_id, key}] = value;
+    return std::get<1>(data_)[key];
   }
 
-  Tensor &get(size_t mb_id, const std::string &key) {
-    auto it = cache.find({mb_id, key});
-    if (it == cache.end()) {
-      throw std::runtime_error(fmt::format("Cache miss for key: {} (mb_id={})", key, mb_id));
+  ResidualsMap &operator=(const Tensor &tensor) {
+    if (data_.index() == 0) {
+      data_ = tensor;
+    } else if (data_.index() == 1) {
+      throw std::runtime_error("ResidualsMap: Attempting to assign a Tensor to a non-leaf node");
     }
-    return it->second;
+    return *this;
   }
 
-  void clear(size_t mb_id) {
-    for (auto it = cache.begin(); it != cache.end();) {
-      if (it->first.mb_id == mb_id) {
-        it = cache.erase(it);
-      } else {
-        ++it;
-      }
+  operator Tensor &() {
+    if (data_.index() != 2) {
+      throw std::runtime_error("ResidualsMap: Attempting to convert a non-leaf node to Tensor");
     }
+    return std::get<2>(data_);
   }
 };
+
+}  // namespace detail
+
+using Residuals = detail::ResidualsMap;
 
 // Single input/output layer interface. Can be easily extended to multiple inputs/outputs later if
 // needed.
@@ -103,8 +99,10 @@ public:
   EngineType get_engine_type() const;
 
   void init();
-  Vec<Tensor> forward(const Vec<Tensor> &inputs, size_t mb_id = 0);
-  Vec<Tensor> backward(const Vec<Tensor> &grad_outputs, size_t mb_id = 0);
+
+  Vec<Tensor> forward(const Vec<Tensor> &inputs);
+  Vec<Tensor> forward(const Vec<Tensor> &inputs, Residuals &residuals);
+  Vec<Tensor> backward(const Vec<Tensor> &grad_outputs, Residuals &residuals);
 
   // Note: have to call init again after changing param dtype
   LayerImpl &set_allocator(DELAllocatorV2 &allocator);
@@ -142,7 +140,6 @@ public:
     }
     return grads;
   }
-  void clear_cache(size_t mb_id);
 
   const Device &device() const {
     if (!allocator_) {
@@ -161,9 +158,8 @@ protected:
   virtual void on_set_io_dtype(DType_t dtype) {}
   virtual void on_set_param_dtype(DType_t dtype) {}
   virtual void on_set_compute_dtype(DType_t dtype) {}
-  virtual Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id) = 0;
-  virtual Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) = 0;
-  virtual void on_clear_cache(size_t mb_id) {}
+  virtual Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) = 0;
+  virtual Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) = 0;
 
 protected:
   bool initialized_ = false;
@@ -173,8 +169,6 @@ protected:
   bool is_fwd_ = false;
   bool use_seed_ = false;
   unsigned long long srand_seed_ = 0;
-  std::map<std::pair<size_t, std::string>, Tensor> immutable_cache_;
-  std::map<std::pair<size_t, std::string>, Tensor> mutable_cache_;
   flowHandle_t flow_handle_;
   std::string name_;
   DType_t io_dtype_ = DType_t::FP32;       // data type for input/output tensors
@@ -182,10 +176,6 @@ protected:
   DType_t compute_dtype_ = DType_t::FP32;  // data type for internal computations
 
   // helpers
-  void set_immutable_cache(size_t mb_id, const std::string &key, const Tensor &value);
-  const Tensor &get_immutable_cache(size_t mb_id, const std::string &key);
-  void set_mutable_cache(size_t mb_id, const std::string &key, Tensor &value);
-  Tensor &get_mutable_cache(size_t mb_id, const std::string &key);
   Tensor get_tensor(const Vec<size_t> &shape, DType_t dtype);
 };
 
@@ -276,14 +266,19 @@ public:
     impl_->init();
   }
 
-  Vec<Tensor> forward(const Vec<Tensor> &inputs, size_t mb_id = 0) {
+  Vec<Tensor> forward(const Vec<Tensor> &inputs) {
     check_layer("forward");
-    return impl_->forward(inputs, mb_id);
+    return impl_->forward(inputs);
   }
 
-  Vec<Tensor> backward(const Vec<Tensor> &grad_outputs, size_t mb_id = 0) {
+  Vec<Tensor> forward(const Vec<Tensor> &inputs, Residuals &residuals) {
+    check_layer("forward");
+    return impl_->forward(inputs, residuals);
+  }
+
+  Vec<Tensor> backward(const Vec<Tensor> &grad_outputs, Residuals &residuals) {
     check_layer("backward");
-    return impl_->backward(grad_outputs, mb_id);
+    return impl_->backward(grad_outputs, residuals);
   }
 
   LayerRef &set_allocator(DELAllocatorV2 &allocator) {
@@ -401,11 +396,6 @@ public:
   Vec<Tensor *> gradients() {
     check_layer("gradients");
     return impl_->gradients();
-  }
-
-  void clear_cache(size_t mb_id) {
-    check_layer("clear_cache");
-    impl_->clear_cache(mb_id);
   }
 
   const Device &device() const {

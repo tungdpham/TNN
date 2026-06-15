@@ -51,8 +51,8 @@ private:
                                  size_t output_features, flowHandle_t handle) const;
 
   void init_impl() override;
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   LegacyDenseLayerImpl(size_t input_features, size_t output_features, bool use_bias = true,

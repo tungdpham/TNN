@@ -86,8 +86,8 @@ __global__ void cuda_col2im_kernel(const T* col_data, T* output, size_t batch_si
     size_t n = temp / channels;
 
     T sum = T(0);
-    const size_t spatial_out = output_h * output_w;
-    const size_t batch_spatial = batch_size * spatial_out;
+    size_t spatial_out = output_h * output_w;
+    size_t batch_spatial = batch_size * spatial_out;
 
     for (size_t kh = 0; kh < kernel_h; ++kh) {
       int h_out_base = (int)h_in + (int)pad_h - (int)kh;

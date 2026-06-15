@@ -35,8 +35,8 @@ private:
                                               size_t padding_idx, flowHandle_t handle) const;
 
   void init_impl() override;
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residualsuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residualsuals) override;
 
 public:
   EmbeddingLayerImpl(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",

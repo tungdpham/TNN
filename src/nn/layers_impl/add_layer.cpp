@@ -23,7 +23,7 @@ Vec<Vec<size_t>> AddLayerImpl::output_shapes(const Vec<Vec<size_t>> &input_shape
   return {input_shapes[0]};
 }
 
-Vec<Tensor> AddLayerImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
+Vec<Tensor> AddLayerImpl::forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) {
   if (inputs.size() != 2) {
     throw std::runtime_error("AddLayerImpl: expected exactly 2 inputs");
   }
@@ -35,7 +35,7 @@ Vec<Tensor> AddLayerImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) 
   }
 
   Tensor output = get_tensor(a.shape(), a.data_type());
-  const size_t n = a.size();
+  size_t n = a.size();
 
   DISPATCH_DTYPE(a.data_type(), T, {
     ops::add<T>(a.data_ptr(), b.data_ptr(), output.data_ptr(), n, this->flow_handle_);
@@ -44,12 +44,12 @@ Vec<Tensor> AddLayerImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) 
   return {output};
 }
 
-Vec<Tensor> AddLayerImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> AddLayerImpl::backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) {
   if (grad_outputs.size() != 1) {
     throw std::runtime_error("AddLayerImpl: expected exactly 1 grad output");
   }
   const Tensor &grad_out = grad_outputs[0];
-  const size_t n = grad_out.size();
+  size_t n = grad_out.size();
 
   // grad_a = grad_out, grad_b = grad_out
   Tensor grad_a = get_tensor(grad_out.shape(), this->io_dtype_);

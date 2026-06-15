@@ -16,7 +16,6 @@
 #include "device/pool_allocator.hpp"
 #include "device/task.hpp"
 #include "nn/graph.hpp"
-#include "nn/graph_context.hpp"
 #include "optimizers_impl/cpu/adam_kernels.hpp"
 #include "optimizers_impl/cpu/sgd_kernels.hpp"
 #include "optimizers_impl/cuda/adam_kernels.hpp"
@@ -124,7 +123,7 @@ private:
 
   template <typename T>
   void update_impl(Tensor &param, const Tensor &grad, Tensor &velocity) {
-    const size_t size = param.size();
+    size_t size = param.size();
 
     if (param.device_type() == DeviceType::CPU) {
       if (momentum_ > 0.0f) {
@@ -231,7 +230,7 @@ private:
   template <typename T>
   void update_impl(Tensor &param, const Tensor &grad, Tensor &m, Tensor &v, float bias_correction1,
                    float bias_correction2) {
-    const size_t size = param.size();
+    size_t size = param.size();
     if (param.device_type() == DeviceType::CPU) {
       create_cpu_task(defaultFlowHandle, cpu::adam::update_adam<T>, param.data_as<T>(),
                       grad.data_as<T>(), m.data_as<T>(), v.data_as<T>(), size, this->learning_rate_,

@@ -50,7 +50,7 @@ std::unique_ptr<Task> Tanh::apply_impl(const Tensor &input, Tensor &output,
     throw std::runtime_error("Tanh tensor dtype mismatch with dispatch type");
   }
 
-  const size_t size = input.size();
+  size_t size = input.size();
   if (input.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, cpu::tanh<Compute_T>, input.data_as<Compute_T>(),
                            output.data_as<Compute_T>(), size);
@@ -76,7 +76,7 @@ std::unique_ptr<Task> Tanh::compute_gradient_impl(const Tensor &input, const Ten
     throw std::runtime_error("Tanh tensor dtype mismatch with dispatch type");
   }
 
-  const size_t size = grad_output.size();
+  size_t size = grad_output.size();
   if (grad_output.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, cpu::tanh_gradient<Compute_T>, input.data_as<Compute_T>(),
                            grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(), size);

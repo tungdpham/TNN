@@ -14,8 +14,8 @@ namespace synet {
 namespace cpu {
 
 template <typename T>
-void gemm(const T *A, const T *B, T *C, const size_t M, const size_t N, const size_t K,
-          const bool trans_A, const bool trans_B, const T alpha, const T beta) {
+void gemm(const T *A, const T *B, T *C, size_t M, size_t N, size_t K, const bool trans_A,
+          const bool trans_B, const T alpha, const T beta) {
 #ifdef USE_MKL
   if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
     char transa = trans_A ? 'T' : 'N';

@@ -20,8 +20,8 @@ private:
   std::unique_ptr<Task> permute(const Tensor &input, Tensor &output, size_t B, size_t L, size_t H,
                                 size_t D, flowHandle_t handle) const;
 
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   TransposeLayerImpl(const std::string &name = "transpose");

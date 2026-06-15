@@ -52,7 +52,7 @@ std::unique_ptr<Task> ELU::apply_impl(const Tensor &input, Tensor &output,
     throw std::runtime_error("ELU tensor dtype mismatch with dispatch type");
   }
 
-  const size_t size = input.size();
+  size_t size = input.size();
   const Compute_T alpha_typed = static_cast<Compute_T>(alpha_);
   if (input.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, cpu::elu<Compute_T>, input.data_as<Compute_T>(),
@@ -79,7 +79,7 @@ std::unique_ptr<Task> ELU::compute_gradient_impl(const Tensor &input, const Tens
     throw std::runtime_error("ELU tensor dtype mismatch with dispatch type");
   }
 
-  const size_t size = grad_output.size();
+  size_t size = grad_output.size();
   const Compute_T alpha_typed = static_cast<Compute_T>(alpha_);
   if (grad_output.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, cpu::elu_gradient<Compute_T>, input.data_as<Compute_T>(),

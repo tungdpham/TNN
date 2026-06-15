@@ -12,7 +12,6 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
-#include <unordered_map>
 
 #include "nn/block.hpp"
 #include "nn/blocks_impl/sequential.hpp"
@@ -38,15 +37,13 @@ private:
   Vec<size_t> execution_order_;
   bool execution_order_cached_ = false;
 
-  std::unordered_map<size_t, Vec<Vec<size_t>>> input_shapes_cache_;
+  Vec<size_t> compute_execution_order(const Vec<Tensor> &inputs, Residuals &residuals);
 
-  Vec<size_t> compute_execution_order(const Vec<Tensor> &inputs, size_t mb_id);
-
-  SequenceMemInfo measure_sequence_memory(size_t seq_idx, Tensor input, size_t mb_id);
+  SequenceMemInfo measure_sequence_memory(size_t seq_idx, Tensor input, Residuals &residuals);
 
 protected:
-  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id) override;
-  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) override;
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) override;
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) override;
 
 public:
   /**

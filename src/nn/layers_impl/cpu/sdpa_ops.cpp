@@ -23,9 +23,9 @@ void run_forward(const T *q, const T *k, const T *v, T *output,
   using AccT = typename TypeTraits<T>::ComputePrecision;
 
   // Shapes: Q, K, V: (batch, heads, seq_len, head_dim)
-  const size_t q_stride_b = num_heads * seq_len * head_dim;
-  const size_t q_stride_h = seq_len * head_dim;
-  const size_t q_stride_s = head_dim;
+  size_t q_stride_b = num_heads * seq_len * head_dim;
+  size_t q_stride_h = seq_len * head_dim;
+  size_t q_stride_s = head_dim;
 
   // Compute attention scores: (B, H, S, S) = Q @ K^T * scale
   for (size_t b = 0; b < batch_size; ++b) {
@@ -112,9 +112,9 @@ void run_backward(const T *q, const T *k, const T *v, const T *attn_weights, con
   using AccT = typename TypeTraits<T>::ComputePrecision;
   (void)is_causal;
 
-  const size_t q_stride_b = num_heads * seq_len * head_dim;
-  const size_t q_stride_h = seq_len * head_dim;
-  const size_t q_stride_s = head_dim;
+  size_t q_stride_b = num_heads * seq_len * head_dim;
+  size_t q_stride_h = seq_len * head_dim;
+  size_t q_stride_s = head_dim;
 
   // grad_V = A^T @ grad_O
   for (size_t b = 0; b < batch_size; ++b) {

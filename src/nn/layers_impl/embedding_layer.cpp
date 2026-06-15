@@ -51,9 +51,9 @@ void EmbeddingLayerImpl::init_impl() {
   weight_gradients_.fill(0.0f);
 }
 
-Tensor EmbeddingLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor EmbeddingLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (this->is_training_) {
-    set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
   size_t num_tokens = input.size();
@@ -69,8 +69,8 @@ Tensor EmbeddingLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor EmbeddingLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+Tensor EmbeddingLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  const Tensor &input = residuals["input"];
 
   Tensor grad_input = get_tensor(input.shape(), io_dtype_);
   grad_input.fill(0);

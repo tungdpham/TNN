@@ -165,12 +165,10 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
 
   Tensor input = Tensor({2, num_channels, 3, 3}, DType_t::FP32, getHost());
 
-  float *data = input.data_as<float>();
   for (size_t i = 0; i < input.size(); ++i) {
-    data[i] = static_cast<float>(i % 10);
+    input.at<float>({i}) = static_cast<float>(i % 10);
   }
 
-  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
   Tensor output = layer.forward({input})[0];
   verify_output_shape(input, output);
 
@@ -192,12 +190,10 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
 
   Tensor input = Tensor({2, num_channels, 3, 3}, DType_t::FP32, getHost());
 
-  float *data = input.data_as<float>();
   for (size_t i = 0; i < input.size(); ++i) {
-    data[i] = static_cast<float>(i % 10) + 1.0f;
+    input.at<float>({i}) = static_cast<float>(i % 10) + 1.0f;
   }
 
-  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
   Tensor output = layer.forward({input})[0];
   verify_output_shape(input, output);
 
@@ -223,12 +219,10 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
 
   Tensor input = Tensor({2, num_channels, 2, 2}, DType_t::FP32, getHost());
 
-  float *data = input.data_as<float>();
   for (size_t i = 0; i < input.size(); ++i) {
-    data[i] = static_cast<float>(i) + 1.0f;
+    input.at<float>({i}) = static_cast<float>(i) + 1.0f;
   }
 
-  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
   Tensor output = layer.forward({input})[0];
   verify_output_shape(input, output);
 
@@ -250,12 +244,10 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
 
   Tensor input = Tensor({2, num_channels, 3, 3}, DType_t::FP32, getHost());
 
-  float *data = input.data_as<float>();
   for (size_t i = 0; i < input.size(); ++i) {
-    data[i] = static_cast<float>((i * 3) % 7) + 0.5f;
+    input.at<float>({i}) = static_cast<float>((i * 3) % 7) + 0.5f;
   }
 
-  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
   Tensor output = layer.forward({input})[0];
   verify_output_shape(input, output);
 
@@ -277,21 +269,22 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
 
   Tensor input = Tensor({2, num_channels, 3, 3}, DType_t::FP32, getHost());
 
-  float *data = input.data_as<float>();
   for (size_t i = 0; i < input.size(); ++i) {
-    data[i] = static_cast<float>(i % 10) + 1.0f;
+    input.at<float>({i}) = static_cast<float>(i % 10) + 1.0f;
   }
 
-  Vec<size_t> output_shape = layer.output_shapes({input.shape()})[0];
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = output.clone();
   grad_output.fill(1.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   auto input_shape = input.shape();
   auto grad_input_shape = grad_input.shape();
+  EXPECT_EQ(grad_input_shape.size(), input_shape.size());
   EXPECT_EQ(grad_input_shape[0], input_shape[0]);
   EXPECT_EQ(grad_input_shape[1], input_shape[1]);
   EXPECT_EQ(grad_input_shape[2], input_shape[2]);

@@ -22,7 +22,7 @@ using namespace synet;
 
 /**
  * Test fixture for ResidualBlock validation tests.
- * These tests verify the mathematical correctness of residual block operations
+ * These tests verify the mathematical correctness of residual_layer block operations
  * including forward pass (skip connection addition) and backward pass (grad_output distribution).
  */
 class ResidualBlockTest : public ::testing::Test {
@@ -81,7 +81,7 @@ protected:
   }
 
   /**
-   * Verify backward pass for residual block
+   * Verify backward pass for residual_layer block
    * Gradients are summed from both paths: grad_input = grad_main + grad_shortcut
    */
   void verify_backward_gradient_distribution(const Tensor &grad_main, const Tensor &grad_shortcut,
@@ -231,18 +231,17 @@ TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
 
   auto residual_layer =
       ResidualBlock(std::move(main_path), std::move(shortcut), "none", "projection_residual");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(0.5f);
-  residual->parameters()[1]->fill(0.25f);
+  residual_layer.parameters()[0]->fill(0.5f);
+  residual_layer.parameters()[1]->fill(0.25f);
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *input_data = input.data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = 4.0f;
   }
 
-  auto output = residual->forward({input})[0];
+  auto output = residual_layer.forward({input})[0];
 
   // Expected: F(x) + shortcut(x) = 0.5*4 + 0.25*4 = 2 + 1 = 3
   const float *output_data = output.data_as<float>();
@@ -260,18 +259,17 @@ TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
 
   auto residual_layer =
       ResidualBlock(std::move(main_path), std::move(shortcut), "relu", "projection_relu");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(-1.0f);
-  residual->parameters()[1]->fill(0.5f);
+  residual_layer.parameters()[0]->fill(-1.0f);
+  residual_layer.parameters()[1]->fill(0.5f);
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *input_data = input.data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = 2.0f;
   }
 
-  auto output = residual->forward({input})[0];
+  auto output = residual_layer.forward({input})[0];
 
   // Expected: relu(F(x) + shortcut(x)) = relu(-1*2 + 0.5*2) = relu(-1) = 0
   const float *output_data = output.data_as<float>();
@@ -288,10 +286,9 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
 
   auto residual_layer =
       ResidualBlock(std::move(main_path), Vec<Layer>{}, "none", "identity_backward");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(2.0f);
+  residual_layer.parameters()[0]->fill(2.0f);
 
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *input_data = input.data_as<float>();
@@ -299,7 +296,9 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
     input_data[i] = 1.0f;
   }
 
-  auto output = residual->forward({input})[0];
+  Residuals residuals;
+
+  auto output = residual_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *grad_data = grad_output.data_as<float>();
@@ -307,7 +306,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
     grad_data[i] = 1.0f;
   }
 
-  auto grad_input = residual->backward({grad_output})[0];
+  auto grad_input = residual_layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
 
@@ -327,10 +326,9 @@ TEST_F(ResidualBlockTest, ComputeOutputShape) {
   main_path.push_back(Conv2DLayer(3, 3, 1, 1, 1, 1, 0, 0, false, "scale"));
 
   auto residual_layer = ResidualBlock(std::move(main_path), Vec<Layer>{}, "none", "test_shape");
-  ResidualBlockImpl *residual = residual_layer.get();
 
   Vec<size_t> input_shape = {1, 3, 32, 32};
-  Vec<size_t> output_shape = residual->output_shapes({input_shape})[0];
+  Vec<size_t> output_shape = residual_layer.output_shapes({input_shape})[0];
 
   // Since main path is just scaling, output shape should match input
   EXPECT_EQ(output_shape, input_shape);
@@ -343,20 +341,20 @@ TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
   main_path.push_back(Conv2DLayer(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2x"));
 
   auto residual_layer = ResidualBlock(std::move(main_path), Vec<Layer>{}, "none", "zero_gradient");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(2.0f);
+  residual_layer.parameters()[0]->fill(2.0f);
 
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  auto output = residual->forward({input})[0];
+  Residuals residuals;
+  auto output = residual_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   grad_output.fill(0.0f);
 
-  auto grad_input = residual->backward({grad_output})[0];
+  auto grad_input = residual_layer.backward({grad_output}, residuals)[0];
 
   for (size_t i = 0; i < grad_input.size(); ++i) {
     EXPECT_NEAR(grad_input.data_as<float>()[i], 0.0f, 1e-5f);
@@ -368,10 +366,9 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
   main_path.push_back(Conv2DLayer(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
 
   auto residual_layer = ResidualBlock(std::move(main_path), Vec<Layer>{}, "none", "large_values");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(1.0f);
+  residual_layer.parameters()[0]->fill(1.0f);
 
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *input_data = input.data_as<float>();
@@ -379,7 +376,7 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
     input_data[i] = 1e6f;
   }
 
-  auto output = residual->forward({input})[0];
+  auto output = residual_layer.forward({input})[0];
 
   // Expected: F(x) + x = 1*1e6 + 1e6 = 2e6
   const float *output_data = output.data_as<float>();
@@ -394,10 +391,9 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
 
   auto residual_layer =
       ResidualBlock(std::move(main_path), Vec<Layer>{}, "none", "negative_values");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(-1.0f);
+  residual_layer.parameters()[0]->fill(-1.0f);
 
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *input_data = input.data_as<float>();
@@ -405,7 +401,7 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
     input_data[i] = -2.0f;
   }
 
-  auto output = residual->forward({input})[0];
+  auto output = residual_layer.forward({input})[0];
 
   // Expected: F(x) + x = -1*(-2) + (-2) = 2 - 2 = 0
   const float *output_data = output.data_as<float>();
@@ -419,10 +415,9 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
   main_path.push_back(Conv2DLayer(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_1x"));
 
   auto residual_layer = ResidualBlock(std::move(main_path), Vec<Layer>{}, "none", "small_values");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(1.0f);
+  residual_layer.parameters()[0]->fill(1.0f);
 
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *input_data = input.data_as<float>();
@@ -430,7 +425,7 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
     input_data[i] = 1e-6f;
   }
 
-  auto output = residual->forward({input})[0];
+  auto output = residual_layer.forward({input})[0];
 
   // Expected: F(x) + x = 1*1e-6 + 1e-6 = 2e-6
   const float *output_data = output.data_as<float>();
@@ -445,20 +440,20 @@ TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
 
   auto residual_layer =
       ResidualBlock(std::move(main_path), Vec<Layer>{}, "none", "backward_stability");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(1.0f);
+  residual_layer.parameters()[0]->fill(1.0f);
 
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   input.fill(1e-6f);
 
-  auto output = residual->forward({input})[0];
+  Residuals residuals;
+  auto output = residual_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   grad_output.fill(1e-6f);
 
-  auto grad_input = residual->backward({grad_output})[0];
+  auto grad_input = residual_layer.backward({grad_output}, residuals)[0];
 
   // grad_main (1.0 * 1e-6) + grad_shortcut (1e-6) = 2e-6
   const float *grad_input_data = grad_input.data_as<float>();
@@ -475,11 +470,10 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
   main_path.push_back(Conv2DLayer(1, 1, 1, 1, 1, 1, 0, 0, false, "scale_2"));
 
   auto residual_layer = ResidualBlock(std::move(main_path), Vec<Layer>{}, "none", "multi_layer");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(0.5f);
-  residual->parameters()[1]->fill(2.0f);
+  residual_layer.parameters()[0]->fill(0.5f);
+  residual_layer.parameters()[1]->fill(2.0f);
 
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *input_data = input.data_as<float>();
@@ -487,7 +481,7 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
     input_data[i] = 2.0f;
   }
 
-  auto output = residual->forward({input})[0];
+  auto output = residual_layer.forward({input})[0];
 
   // Expected: F(x) + x = (2.0 * (0.5 * 2.0)) + 2.0 = (2.0 * 1.0) + 2.0 = 4.0
   const float *output_data = output.data_as<float>();
@@ -503,21 +497,22 @@ TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
 
   auto residual_layer =
       ResidualBlock(std::move(main_path), Vec<Layer>{}, "none", "multi_layer_backward");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(0.5f);
-  residual->parameters()[1]->fill(2.0f);
+  residual_layer.parameters()[0]->fill(0.5f);
+  residual_layer.parameters()[1]->fill(2.0f);
 
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  auto output = residual->forward({input})[0];
+  Residuals residuals;
+
+  auto output = residual_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  auto grad_input = residual->backward({grad_output})[0];
+  auto grad_input = residual_layer.backward({grad_output}, residuals)[0];
 
   // grad_main = 2.0 * 0.5 * 1.0 = 1.0
   // grad_shortcut = 1.0
@@ -534,10 +529,9 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
 
   auto residual_layer =
       ResidualBlock(std::move(main_path), Vec<Layer>{}, "relu", "relu_suppression");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(0.0f);
+  residual_layer.parameters()[0]->fill(0.0f);
 
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *input_data = input.data_as<float>();
@@ -545,7 +539,7 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
     input_data[i] = -1.0f;
   }
 
-  auto output = residual->forward({input})[0];
+  auto output = residual_layer.forward({input})[0];
 
   // Expected: relu(F(x) + x) = relu(0 + (-1)) = relu(-1) = 0
   const float *output_data = output.data_as<float>();
@@ -560,10 +554,9 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
 
   auto residual_layer =
       ResidualBlock(std::move(main_path), Vec<Layer>{}, "relu", "relu_suppression_bwd");
-  ResidualBlockImpl *residual = residual_layer.get();
   auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
   Graph graph = test::compile_single_layer(residual_layer, allocator);
-  residual->parameters()[0]->fill(0.0f);
+  residual_layer.parameters()[0]->fill(0.0f);
 
   Tensor input = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *input_data = input.data_as<float>();
@@ -571,12 +564,13 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
     input_data[i] = -1.0f;
   }
 
-  auto output = residual->forward({input})[0];
+  Residuals residuals;
+  auto output = residual_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  auto grad_input = residual->backward({grad_output})[0];
+  auto grad_input = residual_layer.backward({grad_output}, residuals)[0];
 
   // ReLU blocks grad_output when output is negative
   const float *grad_input_data = grad_input.data_as<float>();

@@ -50,7 +50,7 @@ void LegacyDenseLayerImpl::init_impl() {
   }
 }
 
-Tensor LegacyDenseLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor LegacyDenseLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   const Vec<size_t> &in_shape = input.shape();
   size_t last_dim = in_shape.back();
   size_t batch_size = 1;
@@ -65,7 +65,7 @@ Tensor LegacyDenseLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   }
 
   if (this->is_training_) {
-    set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
   Vec<size_t> out_shape = in_shape;
@@ -83,11 +83,11 @@ Tensor LegacyDenseLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor LegacyDenseLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+Tensor LegacyDenseLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
   if (grad_output.shape().back() != output_features_) {
     throw std::invalid_argument("Gradient feature size mismatch in LegacyDenseLayerImpl");
   }
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+  const Tensor &input = residuals["input"];
   const Vec<size_t> &in_shape = input.shape();
   size_t batch_size = 1;
   for (size_t i = 0; i < in_shape.size() - 1; ++i) {

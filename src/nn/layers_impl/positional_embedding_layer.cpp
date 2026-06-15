@@ -30,7 +30,7 @@ void PositionalEmbeddingLayerImpl::init_impl() {
   pos_embedding_gradients_.fill(0.0f);
 }
 
-Tensor PositionalEmbeddingLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor PositionalEmbeddingLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   const auto &shape = input.shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayerImpl: Input tensor must be at least 2D");
@@ -58,7 +58,8 @@ Tensor PositionalEmbeddingLayerImpl::forward_impl(const Tensor &input, size_t mb
   return output;
 }
 
-Tensor PositionalEmbeddingLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+Tensor PositionalEmbeddingLayerImpl::backward_impl(const Tensor &grad_output,
+                                                   Residuals &residuals) {
   const auto &shape = grad_output.shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayerImpl: Gradient tensor must be at least 2D");

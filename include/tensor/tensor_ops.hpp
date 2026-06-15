@@ -17,15 +17,15 @@ std::unique_ptr<Task> im2col_t(const Tensor &input_tensor, Tensor &col_data, siz
                                size_t pad_h = 0, size_t pad_w = 0,
                                flowHandle_t handle = defaultFlowHandle) {
   const auto &shape = input_tensor.shape();
-  const size_t batch_size = shape[0];
-  const size_t channels = shape[1];
-  const size_t height = shape[2];
-  const size_t width = shape[3];
+  size_t batch_size = shape[0];
+  size_t channels = shape[1];
+  size_t height = shape[2];
+  size_t width = shape[3];
 
-  const size_t padded_h = height + 2 * pad_h;
-  const size_t padded_w = width + 2 * pad_w;
-  const size_t output_h = (padded_h - kernel_h) / stride_h + 1;
-  const size_t output_w = (padded_w - kernel_w) / stride_w + 1;
+  size_t padded_h = height + 2 * pad_h;
+  size_t padded_w = width + 2 * pad_w;
+  size_t output_h = (padded_h - kernel_h) / stride_h + 1;
+  size_t output_w = (padded_w - kernel_w) / stride_w + 1;
 
   const T *input_data = input_tensor.data_as<T>();
   T *col_data_ptr = col_data.data_as<T>();
@@ -76,10 +76,10 @@ std::unique_ptr<Task> col2im_t(const Tensor &col_data, Tensor &result_data, size
                                size_t channels, size_t height, size_t width, size_t kernel_h,
                                size_t kernel_w, size_t stride_h, size_t stride_w, size_t pad_h,
                                size_t pad_w, flowHandle_t handle = defaultFlowHandle) {
-  const size_t padded_h = height + 2 * pad_h;
-  const size_t padded_w = width + 2 * pad_w;
-  const size_t output_h = (padded_h - kernel_h) / stride_h + 1;
-  const size_t output_w = (padded_w - kernel_w) / stride_w + 1;
+  size_t padded_h = height + 2 * pad_h;
+  size_t padded_w = width + 2 * pad_w;
+  size_t output_h = (padded_h - kernel_h) / stride_h + 1;
+  size_t output_w = (padded_w - kernel_w) / stride_w + 1;
 
   const T *col_data_ptr = col_data.data_as<T>();
   T *result_data_ptr = result_data.data_as<T>();
@@ -125,10 +125,10 @@ template <typename T>
 std::unique_ptr<Task> pad_t(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
                             T value = T(0), flowHandle_t handle = defaultFlowHandle) {
   const auto &shape = input.shape();
-  const size_t batch_size = shape[0];
-  const size_t channels = shape[1];
-  const size_t height = shape[2];
-  const size_t width = shape[3];
+  size_t batch_size = shape[0];
+  size_t channels = shape[1];
+  size_t height = shape[2];
+  size_t width = shape[3];
 
   const T *input_data = input.data_as<T>();
   T *result_data = result.data_as<T>();
@@ -172,13 +172,13 @@ template <typename T>
 std::unique_ptr<Task> unpad_t(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
                               flowHandle_t handle = defaultFlowHandle) {
   const auto &shape = input.shape();
-  const size_t batch_size = shape[0];
-  const size_t channels = shape[1];
-  const size_t padded_height = shape[2];
-  const size_t padded_width = shape[3];
+  size_t batch_size = shape[0];
+  size_t channels = shape[1];
+  size_t padded_height = shape[2];
+  size_t padded_width = shape[3];
 
-  const size_t height = padded_height - 2 * pad_h;
-  const size_t width = padded_width - 2 * pad_w;
+  size_t height = padded_height - 2 * pad_h;
+  size_t width = padded_width - 2 * pad_w;
 
   const T *input_data = input.data_as<T>();
   T *result_data = result.data_as<T>();
@@ -213,8 +213,8 @@ inline std::unique_ptr<Task> unpad(const Tensor &input, Tensor &result, size_t p
     throw std::invalid_argument("unpad: Input tensor must be 4-dimensional (NCHW)");
   }
 
-  const size_t padded_height = shape[2];
-  const size_t padded_width = shape[3];
+  size_t padded_height = shape[2];
+  size_t padded_width = shape[3];
 
   if (padded_height <= 2 * pad_h || padded_width <= 2 * pad_w) {
     throw std::invalid_argument("Padding size too large for unpadding");
@@ -226,17 +226,16 @@ inline std::unique_ptr<Task> unpad(const Tensor &input, Tensor &result, size_t p
 }
 
 template <typename T>
-std::unique_ptr<Task> crop_t(const Tensor &input, Tensor &result, const size_t start_h,
-                             const size_t start_w, const size_t end_h, const size_t end_w,
-                             flowHandle_t handle = defaultFlowHandle) {
+std::unique_ptr<Task> crop_t(const Tensor &input, Tensor &result, size_t start_h, size_t start_w,
+                             size_t end_h, size_t end_w, flowHandle_t handle = defaultFlowHandle) {
   const auto &shape = input.shape();
-  const size_t batch_size = shape[0];
-  const size_t channels = shape[1];
-  const size_t height = shape[2];
-  const size_t width = shape[3];
+  size_t batch_size = shape[0];
+  size_t channels = shape[1];
+  size_t height = shape[2];
+  size_t width = shape[3];
 
-  const size_t new_height = end_h - start_h + 1;
-  const size_t new_width = end_w - start_w + 1;
+  size_t new_height = end_h - start_h + 1;
+  size_t new_width = end_w - start_w + 1;
 
   const T *input_data = input.data_as<T>();
   T *result_data = result.data_as<T>();
@@ -256,8 +255,8 @@ std::unique_ptr<Task> crop_t(const Tensor &input, Tensor &result, const size_t s
   }
 }
 
-inline std::unique_ptr<Task> crop(const Tensor &input, Tensor &result, const size_t start_h,
-                                  const size_t start_w, const size_t end_h, const size_t end_w,
+inline std::unique_ptr<Task> crop(const Tensor &input, Tensor &result, size_t start_h,
+                                  size_t start_w, size_t end_h, size_t end_w,
                                   flowHandle_t handle = defaultFlowHandle) {
   if (input.device_type() != result.device_type()) {
     throw std::runtime_error("crop: Mismatched device types between input and result");
@@ -272,8 +271,8 @@ inline std::unique_ptr<Task> crop(const Tensor &input, Tensor &result, const siz
     throw std::invalid_argument("crop: Input tensor must be 4-dimensional (NCHW)");
   }
 
-  const size_t height = shape[2];
-  const size_t width = shape[3];
+  size_t height = shape[2];
+  size_t width = shape[3];
 
   if (end_h >= height || end_w >= width || start_h > end_h || start_w > end_w) {
     throw std::invalid_argument("Invalid crop dimensions");
@@ -301,7 +300,7 @@ std::unique_ptr<Task> slice_batch_t(const Tensor &input, Tensor &result, size_t 
   const T *input_data = input.data_as<T>();
   T *result_data = result.data_as<T>();
 
-  const size_t copy_size = (end_batch - start_batch) * batch_stride;
+  size_t copy_size = (end_batch - start_batch) * batch_stride;
 
   if (input.device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, ops::cpu::copy<T>, &input_data[start_batch * batch_stride],
@@ -330,7 +329,7 @@ inline std::unique_ptr<Task> slice_batch(const Tensor &input, Tensor &result, si
   }
 
   const auto &shape = input.shape();
-  const size_t batch_size = shape[0];
+  size_t batch_size = shape[0];
 
   if (end_batch > batch_size || start_batch > end_batch) {
     throw std::invalid_argument("Invalid batch slice range");
@@ -346,11 +345,11 @@ template <typename T>
 std::unique_ptr<Task> split_t(const Tensor &input, Vec<Tensor> &results, size_t num_splits,
                               flowHandle_t handle = defaultFlowHandle) {
   const auto &shape = input.shape();
-  const size_t batch_size = shape[0];
+  size_t batch_size = shape[0];
 
   results.clear();
   results.reserve(num_splits);
-  const size_t split_size = batch_size / num_splits;
+  size_t split_size = batch_size / num_splits;
 
   for (size_t i = 0; i < num_splits; ++i) {
     size_t start = i * split_size;
@@ -372,7 +371,7 @@ std::unique_ptr<Task> split_t(const Tensor &input, Vec<Tensor> &results, size_t 
 inline std::unique_ptr<Task> split(const Tensor &input, Vec<Tensor> &results, size_t num_splits,
                                    flowHandle_t handle = defaultFlowHandle) {
   const auto &shape = input.shape();
-  const size_t batch_size = shape[0];
+  size_t batch_size = shape[0];
 
   if (num_splits == 0 || num_splits > batch_size) {
     throw std::invalid_argument("Invalid number of splits");

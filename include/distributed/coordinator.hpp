@@ -165,8 +165,7 @@ public:
    * @param expected_count The number of confirmations to wait for.
    * @param timeout The maximum time to wait in seconds (default is 60 seconds).
    */
-  bool join(const CommandType type, const size_t expected_count,
-            const size_t timeout_duration = 60) {
+  bool join(const CommandType type, size_t expected_count, size_t timeout_duration = 60) {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
     auto timeout = Time::steady_clock::now() + Time::seconds(timeout_duration);
@@ -305,7 +304,7 @@ public:
       throw std::runtime_error("Mismatched number of inputs and labels in sync_train_batch");
     }
 
-    const size_t num_microbatches = microbatch_inputs.size();
+    size_t num_microbatches = microbatch_inputs.size();
     float total_loss = 0.0f;
     int total_corrects = 0;
 
@@ -383,7 +382,7 @@ public:
       throw std::runtime_error("Mismatched number of inputs and labels in sync_val_batch");
     }
 
-    const size_t num_microbatches = microbatch_inputs.size();
+    size_t num_microbatches = microbatch_inputs.size();
     float total_loss = 0.0f;
     int total_corrects = 0;
 

@@ -253,12 +253,13 @@ TEST_F(LegacyDenseLayerTest, BasicBackwardPass) {
   Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   auto grad_input_shape = grad_input.shape();
@@ -277,12 +278,13 @@ TEST_F(LegacyDenseLayerTest, BackwardPassSingleBatch) {
   Tensor input = Tensor({1, 20}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   auto grad_input_shape = grad_input.shape();
@@ -298,12 +300,13 @@ TEST_F(LegacyDenseLayerTest, BackwardPassMultiBatch) {
   Tensor input = Tensor({4, 15}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   auto grad_input_shape = grad_input.shape();
@@ -322,7 +325,8 @@ TEST_F(LegacyDenseLayerTest, BackwardPassVariableGradient) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   float *grad_data = grad_output.data_as<float>();
@@ -330,7 +334,7 @@ TEST_F(LegacyDenseLayerTest, BackwardPassVariableGradient) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   EXPECT_EQ(grad_input.shape(), input.shape());
@@ -345,12 +349,13 @@ TEST_F(LegacyDenseLayerTest, BackwardPassWithBias) {
   Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
@@ -364,12 +369,13 @@ TEST_F(LegacyDenseLayerTest, BackwardPassWithoutBias) {
   Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
@@ -434,12 +440,13 @@ TEST_F(LegacyDenseLayerTest, EdgeCaseZeroGradient) {
   Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(0.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
@@ -514,12 +521,13 @@ TEST_F(LegacyDenseLayerTest, BackwardNumericalStability) {
   Tensor input = Tensor({2, 10}, DType_t::FP32, getHost());
   input.fill(1e-6f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1e-6f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
@@ -550,18 +558,21 @@ TEST_F(LegacyDenseLayerTest, MultipleForwardBackwardPasses) {
   Tensor input1 = Tensor({2, 10}, DType_t::FP32, getHost());
   input1.fill(1.0f);
 
-  Tensor output1 = layer.forward({input1})[0];
+  Residuals residuals1;
+  Tensor output1 = layer.forward({input1}, residuals1)[0];
 
   Tensor gradient1 = Tensor(output1.shape(), DType_t::FP32, getHost());
   gradient1.fill(1.0f);
-  Tensor grad_input1 = layer.backward({gradient1})[0];
+  Tensor grad_input1 = layer.backward({gradient1}, residuals1)[0];
 
   Tensor input2 = Tensor({2, 10}, DType_t::FP32, getHost());
   input2.fill(2.0f);
-  Tensor output2 = layer.forward({input2})[0];
+
+  Residuals residuals2;
+  Tensor output2 = layer.forward({input2}, residuals2)[0];
   Tensor gradient2 = Tensor(output2.shape(), DType_t::FP32, getHost());
   gradient2.fill(1.0f);
-  Tensor grad_input2 = layer.backward({gradient2})[0];
+  Tensor grad_input2 = layer.backward({gradient2}, residuals2)[0];
 
   verify_gradient_shape(gradient2, grad_input2, input2);
 }

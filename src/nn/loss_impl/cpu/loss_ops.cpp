@@ -18,10 +18,10 @@ namespace loss {
 
 template <typename T>
 void compute_crossentropy_loss_probs(const T *predictions, const int *labels, float &loss,
-                                     const size_t batch_size, const size_t num_classes, T epsilon) {
+                                     size_t batch_size, size_t num_classes, T epsilon) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   ComputeT total_loss = static_cast<ComputeT>(0);
-  const size_t batch_stride = num_classes;
+  size_t batch_stride = num_classes;
 
   for (size_t i = 0; i < batch_size; ++i) {
     size_t batch_start = i * batch_stride;
@@ -39,8 +39,7 @@ void compute_crossentropy_loss_probs(const T *predictions, const int *labels, fl
 
 template <typename T>
 void compute_crossentropy_gradient_probs(const T *predictions, const int *labels, T *grad_output,
-                                         const size_t batch_size, const size_t num_classes,
-                                         T epsilon) {
+                                         size_t batch_size, size_t num_classes, T epsilon) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   const ComputeT inv_batch_size = static_cast<ComputeT>(1.0) / static_cast<ComputeT>(batch_size);
 
@@ -61,11 +60,11 @@ void compute_crossentropy_gradient_probs(const T *predictions, const int *labels
 }
 
 template <typename T>
-void compute_mse_loss(const T *predictions, const T *targets, float &loss, const size_t batch_size,
-                      const size_t output_size) {
+void compute_mse_loss(const T *predictions, const T *targets, float &loss, size_t batch_size,
+                      size_t output_size) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   ComputeT total_loss = static_cast<ComputeT>(0);
-  const size_t total_size = batch_size * output_size;
+  size_t total_size = batch_size * output_size;
 
   for (size_t idx = 0; idx < total_size; ++idx) {
     const ComputeT diff =
@@ -77,12 +76,12 @@ void compute_mse_loss(const T *predictions, const T *targets, float &loss, const
 }
 
 template <typename T>
-void compute_mse_gradient(const T *predictions, const T *targets, T *grad_output,
-                          const size_t batch_size, const size_t output_size) {
+void compute_mse_gradient(const T *predictions, const T *targets, T *grad_output, size_t batch_size,
+                          size_t output_size) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   const ComputeT scale =
       static_cast<ComputeT>(2.0) / static_cast<ComputeT>(batch_size * output_size);
-  const size_t total_size = batch_size * output_size;
+  size_t total_size = batch_size * output_size;
 
   parallel_for<size_t>(0, total_size, [&](size_t idx) {
     grad_output[idx] = static_cast<T>(
@@ -92,10 +91,10 @@ void compute_mse_gradient(const T *predictions, const T *targets, T *grad_output
 
 template <typename T>
 void compute_crossentropy_loss_logits(const T *logits, const int *labels, float &loss,
-                                      const size_t batch_size, const size_t num_classes) {
+                                      size_t batch_size, size_t num_classes) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   ComputeT total_loss = static_cast<ComputeT>(0);
-  const size_t batch_stride = num_classes;
+  size_t batch_stride = num_classes;
 
   for (size_t i = 0; i < batch_size; ++i) {
     size_t batch_start = i * batch_stride;
@@ -120,10 +119,10 @@ void compute_crossentropy_loss_logits(const T *logits, const int *labels, float 
 
 template <typename T>
 void compute_crossentropy_gradient_logits(const T *logits, const int *labels, T *grad_output,
-                                          const size_t batch_size, const size_t num_classes) {
+                                          size_t batch_size, size_t num_classes) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   const ComputeT inv_batch_size = static_cast<ComputeT>(1.0) / static_cast<ComputeT>(batch_size);
-  const size_t batch_stride = num_classes;
+  size_t batch_stride = num_classes;
 
   parallel_for<size_t>(0, batch_size, [&](size_t i) {
     size_t batch_start = i * batch_stride;
@@ -150,11 +149,11 @@ void compute_crossentropy_gradient_logits(const T *logits, const int *labels, T 
 }
 
 template <typename T>
-void compute_mae_loss(const T *predictions, const T *targets, float &loss, const size_t batch_size,
-                      const size_t output_size) {
+void compute_mae_loss(const T *predictions, const T *targets, float &loss, size_t batch_size,
+                      size_t output_size) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   ComputeT total_loss = static_cast<ComputeT>(0);
-  const size_t total_size = batch_size * output_size;
+  size_t total_size = batch_size * output_size;
 
   for (size_t idx = 0; idx < total_size; ++idx) {
     total_loss +=
@@ -165,12 +164,12 @@ void compute_mae_loss(const T *predictions, const T *targets, float &loss, const
 }
 
 template <typename T>
-void compute_mae_gradient(const T *predictions, const T *targets, T *grad_output,
-                          const size_t batch_size, const size_t output_size) {
+void compute_mae_gradient(const T *predictions, const T *targets, T *grad_output, size_t batch_size,
+                          size_t output_size) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   const ComputeT scale =
       static_cast<ComputeT>(1.0) / static_cast<ComputeT>(batch_size * output_size);
-  const size_t total_size = batch_size * output_size;
+  size_t total_size = batch_size * output_size;
 
   parallel_for<size_t>(0, total_size, [&](size_t idx) {
     const ComputeT diff =
@@ -180,11 +179,11 @@ void compute_mae_gradient(const T *predictions, const T *targets, T *grad_output
 }
 
 template <typename T>
-void compute_huber_loss(const T *predictions, const T *targets, float &loss,
-                        const size_t batch_size, const size_t output_size, T delta) {
+void compute_huber_loss(const T *predictions, const T *targets, float &loss, size_t batch_size,
+                        size_t output_size, T delta) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   ComputeT total_loss = static_cast<ComputeT>(0);
-  const size_t total_size = batch_size * output_size;
+  size_t total_size = batch_size * output_size;
   const ComputeT delta_c = static_cast<ComputeT>(delta);
 
   for (size_t idx = 0; idx < total_size; ++idx) {
@@ -202,11 +201,11 @@ void compute_huber_loss(const T *predictions, const T *targets, float &loss,
 
 template <typename T>
 void compute_huber_gradient(const T *predictions, const T *targets, T *grad_output,
-                            const size_t batch_size, const size_t output_size, T delta) {
+                            size_t batch_size, size_t output_size, T delta) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   const ComputeT scale =
       static_cast<ComputeT>(1.0) / static_cast<ComputeT>(batch_size * output_size);
-  const size_t total_size = batch_size * output_size;
+  size_t total_size = batch_size * output_size;
   const ComputeT delta_c = static_cast<ComputeT>(delta);
 
   parallel_for<size_t>(0, total_size, [&](size_t idx) {
@@ -223,41 +222,38 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *grad_outp
   });
 }
 
-#define INSTANTIATE(T)                                                                             \
-  template void compute_crossentropy_loss_probs<T>(const T *predictions, const int *labels,        \
-                                                   float &loss, const size_t batch_size,           \
-                                                   const size_t num_classes, T epsilon);           \
-                                                                                                   \
-  template void compute_crossentropy_gradient_probs<T>(const T *predictions, const int *labels,    \
-                                                       T *grad_output, const size_t batch_size,    \
-                                                       const size_t num_classes, T epsilon);       \
-                                                                                                   \
-  template void compute_crossentropy_loss_logits<T>(const T *logits, const int *labels,            \
-                                                    float &loss, const size_t batch_size,          \
-                                                    const size_t num_classes);                     \
-                                                                                                   \
-  template void compute_crossentropy_gradient_logits<T>(const T *logits, const int *labels,        \
-                                                        T *grad_output, const size_t batch_size,   \
-                                                        const size_t num_classes);                 \
-                                                                                                   \
-  template void compute_mse_loss<T>(const T *predictions, const T *targets, float &loss,           \
-                                    const size_t batch_size, const size_t output_size);            \
-                                                                                                   \
-  template void compute_mse_gradient<T>(const T *predictions, const T *targets, T *grad_output,    \
-                                        const size_t batch_size, const size_t output_size);        \
-                                                                                                   \
-  template void compute_mae_loss<T>(const T *predictions, const T *targets, float &loss,           \
-                                    const size_t batch_size, const size_t output_size);            \
-                                                                                                   \
-  template void compute_mae_gradient<T>(const T *predictions, const T *targets, T *grad_output,    \
-                                        const size_t batch_size, const size_t output_size);        \
-                                                                                                   \
-  template void compute_huber_loss<T>(const T *predictions, const T *targets, float &loss,         \
-                                      const size_t batch_size, const size_t output_size, T delta); \
-                                                                                                   \
-  template void compute_huber_gradient<T>(const T *predictions, const T *targets, T *grad_output,  \
-                                          const size_t batch_size, const size_t output_size,       \
-                                          T delta);
+#define INSTANTIATE(T)                                                                            \
+  template void compute_crossentropy_loss_probs<T>(const T *predictions, const int *labels,       \
+                                                   float &loss, size_t batch_size,                \
+                                                   size_t num_classes, T epsilon);                \
+                                                                                                  \
+  template void compute_crossentropy_gradient_probs<T>(const T *predictions, const int *labels,   \
+                                                       T *grad_output, size_t batch_size,         \
+                                                       size_t num_classes, T epsilon);            \
+                                                                                                  \
+  template void compute_crossentropy_loss_logits<T>(                                              \
+      const T *logits, const int *labels, float &loss, size_t batch_size, size_t num_classes);    \
+                                                                                                  \
+  template void compute_crossentropy_gradient_logits<T>(                                          \
+      const T *logits, const int *labels, T *grad_output, size_t batch_size, size_t num_classes); \
+                                                                                                  \
+  template void compute_mse_loss<T>(const T *predictions, const T *targets, float &loss,          \
+                                    size_t batch_size, size_t output_size);                       \
+                                                                                                  \
+  template void compute_mse_gradient<T>(const T *predictions, const T *targets, T *grad_output,   \
+                                        size_t batch_size, size_t output_size);                   \
+                                                                                                  \
+  template void compute_mae_loss<T>(const T *predictions, const T *targets, float &loss,          \
+                                    size_t batch_size, size_t output_size);                       \
+                                                                                                  \
+  template void compute_mae_gradient<T>(const T *predictions, const T *targets, T *grad_output,   \
+                                        size_t batch_size, size_t output_size);                   \
+                                                                                                  \
+  template void compute_huber_loss<T>(const T *predictions, const T *targets, float &loss,        \
+                                      size_t batch_size, size_t output_size, T delta);            \
+                                                                                                  \
+  template void compute_huber_gradient<T>(const T *predictions, const T *targets, T *grad_output, \
+                                          size_t batch_size, size_t output_size, T delta);
 #include "macros/floating_type_instantiation.hpp"
 
 #undef INSTANTIATE

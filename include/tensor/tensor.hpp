@@ -276,9 +276,9 @@ public:
 
   size_t dims() const { return shape_.size(); }
 
-  size_t dimension(const size_t index) const { return shape_[index]; }
+  size_t dimension(size_t index) const { return shape_[index]; }
 
-  size_t stride(const size_t index) const { return compute_stride(index); }
+  size_t stride(size_t index) const { return compute_stride(index); }
 
   size_t size() const { return data_size_; }
 

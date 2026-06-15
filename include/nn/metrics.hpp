@@ -167,7 +167,7 @@ inline float compute_precision(const Tensor &predictions, const Tensor &targets,
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
   DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_precision_impl<T>(predictions, targets, batch_size,
@@ -186,7 +186,7 @@ inline float compute_recall(const Tensor &predictions, const Tensor &targets, in
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
   DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_recall_impl<T>(predictions, targets, batch_size,
@@ -205,7 +205,7 @@ inline float compute_f1_score(const Tensor &predictions, const Tensor &targets, 
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
   DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_f1_score_impl<T>(predictions, targets, batch_size,
@@ -223,7 +223,7 @@ inline float compute_perplexity(const Tensor &predictions, const Tensor &targets
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
   DISPATCH_DTYPE(
       predictions.data_type(), T,
@@ -242,7 +242,7 @@ inline float compute_top_k_accuracy(const Tensor &predictions, const Tensor &tar
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
   DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_top_k_accuracy_impl<T>(predictions, targets, batch_size,
@@ -304,7 +304,7 @@ inline int compute_class_corrects(const Tensor &predictions, const Tensor &targe
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
   DISPATCH_DTYPE(predictions.data_type(), T,
                  return detail::compute_class_corrects_impl<T>(predictions, targets, batch_size,

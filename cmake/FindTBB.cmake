@@ -1,2 +1,5 @@
 find_package(TBB CONFIG REQUIRED)
+if(TARGET TBB::tbb)
+    set_property(TARGET TBB::tbb PROPERTY MAP_IMPORTED_CONFIG_DEBUG Release)
+endif()
 add_compile_definitions(USE_TBB)

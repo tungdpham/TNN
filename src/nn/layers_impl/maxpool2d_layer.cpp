@@ -51,31 +51,29 @@ MaxPool2DLayerImpl::~MaxPool2DLayerImpl() {
 #endif
 }
 
-Tensor MaxPool2DLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor MaxPool2DLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   const auto &shape = input.shape();
   if (shape.size() != 4) {
     throw std::runtime_error("MaxPool2DLayerImpl: input must be 4D (NHWC format)");
   }
-  const size_t batch_size = shape[0];
-  const size_t input_h = shape[1];
-  const size_t input_w = shape[2];
-  const size_t channels = shape[3];
+  size_t batch_size = shape[0];
+  size_t input_h = shape[1];
+  size_t input_w = shape[2];
+  size_t channels = shape[3];
 
-  micro_batch_input_shapes_[mb_id] = {batch_size, input_h, input_w, channels};
-
-  const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
-  const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
+  size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
 #ifdef USE_DNNL
   if (get_engine_type() == EngineType::CPU) {
-    return dnnl_forward(input, mb_id);
+    return dnnl_forward(input, residuals);
   }
 #endif
 
   if (is_training_) {
     Tensor mask_indices =
         this->get_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
-    set_mutable_cache(mb_id, "mask_indices", mask_indices);
+    residuals["mask_indices"] = mask_indices;
 
     Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.data_type());
 
@@ -96,26 +94,25 @@ Tensor MaxPool2DLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   }
 }
 
-Tensor MaxPool2DLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+Tensor MaxPool2DLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
 #ifdef USE_DNNL
   if (get_engine_type() == EngineType::CPU) {
-    return dnnl_backward(grad_output, mb_id);
+    return dnnl_backward(grad_output, residuals);
   }
 #endif
 
-  const Tensor &mask_indices = this->get_mutable_cache(mb_id, "mask_indices");
-  const Vec<size_t> &input_shape = micro_batch_input_shapes_[mb_id];
+  const Tensor &mask_indices = residuals["mask_indices"];
 
-  const size_t batch_size = input_shape[0];
-  const size_t input_h = input_shape[1];
-  const size_t input_w = input_shape[2];
-  const size_t channels = input_shape[3];
   const auto &grad_shape = grad_output.shape();
   if (grad_shape.size() != 4) {
     throw std::runtime_error("MaxPool2DLayerImpl: grad_output must be 4D (NHWC format)");
   }
-  const size_t output_h = grad_shape[1];
-  const size_t output_w = grad_shape[2];
+  size_t batch_size = grad_shape[0];
+  size_t output_h = grad_shape[1];
+  size_t output_w = grad_shape[2];
+  size_t channels = grad_shape[3];
+  size_t input_h = (output_h - 1) * stride_h_ - 2 * pad_h_ + pool_h_;
+  size_t input_w = (output_w - 1) * stride_w_ - 2 * pad_w_ + pool_w_;
 
   Tensor grad_input = get_tensor({batch_size, input_h, input_w, channels}, grad_output.data_type());
 
@@ -259,9 +256,9 @@ void MaxPool2DLayerImpl::build_dnnl_handle(const Vec<size_t> &input_shape) const
   }
 }
 
-Tensor MaxPool2DLayerImpl::dnnl_forward(const Tensor &input, size_t mb_id) {
+Tensor MaxPool2DLayerImpl::dnnl_forward(const Tensor &input, Residuals &residuals) {
   build_dnnl_handle(input.shape());
-  const size_t shape_key = get_shape_hash(input.shape());
+  size_t shape_key = get_shape_hash(input.shape());
   cpu::dnnl_maxpool::dnnlMaxPoolHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
   const MaxPoolStats &current_stats = dnnl_stats_cache.at(shape_key);
 
@@ -271,7 +268,7 @@ Tensor MaxPool2DLayerImpl::dnnl_forward(const Tensor &input, size_t mb_id) {
 
   if (this->is_training_) {
     Tensor pool_ws = get_tensor({current_stats.pool_workspace_size}, DType_t::BYTE);
-    set_mutable_cache(mb_id, "dnnl_pool_ws", pool_ws);
+    residuals["dnnl_pool_ws"] = pool_ws;
 
     create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_forward, dnnl_handle, current_stats,
                     input.data(), output.data(), pool_ws.data(), nullptr);
@@ -283,16 +280,27 @@ Tensor MaxPool2DLayerImpl::dnnl_forward(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor MaxPool2DLayerImpl::dnnl_backward(const Tensor &grad_output, size_t mb_id) {
-  const Vec<size_t> &input_shape = micro_batch_input_shapes_[mb_id];
+Tensor MaxPool2DLayerImpl::dnnl_backward(const Tensor &grad_output, Residuals &residuals) {
+  const Vec<size_t> &grad_shape = grad_output.shape();
+  if (grad_shape.size() != 4) {
+    throw std::runtime_error("MaxPool2DLayerImpl: grad_output must be 4D (NHWC format)");
+  }
+  size_t batch_size = grad_shape[0];
+  size_t output_h = grad_shape[1];
+  size_t output_w = grad_shape[2];
+  size_t channels = grad_shape[3];
+  size_t input_h = (output_h - 1) * stride_h_ - 2 * pad_h_ + pool_h_;
+  size_t input_w = (output_w - 1) * stride_w_ - 2 * pad_w_ + pool_w_;
+
+  Vec<size_t> input_shape = {batch_size, input_h, input_w, channels};
 
   build_dnnl_handle(input_shape);
-  const size_t shape_key = get_shape_hash(input_shape);
+  size_t shape_key = get_shape_hash(input_shape);
   cpu::dnnl_maxpool::dnnlMaxPoolHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
   const MaxPoolStats &current_stats = dnnl_stats_cache.at(shape_key);
 
   Tensor grad_input = get_tensor(input_shape, io_dtype_);
-  Tensor &pool_ws = this->get_mutable_cache(mb_id, "dnnl_pool_ws");
+  Tensor &pool_ws = residuals["dnnl_pool_ws"];
 
   create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_backward, dnnl_handle, current_stats,
                   grad_output.data(), grad_input.data(), pool_ws.data(), nullptr);

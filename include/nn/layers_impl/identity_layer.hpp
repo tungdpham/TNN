@@ -10,7 +10,7 @@ private:
     // no-op
   }
 
-  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id = 0) override {
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) override {
     Vec<Tensor> outputs;
     outputs.reserve(inputs.size());
     for (size_t i = 0; i < inputs.size(); ++i) {
@@ -21,7 +21,7 @@ private:
     return outputs;
   }
 
-  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id = 0) override {
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) override {
     Vec<Tensor> grad_inputs;
     grad_inputs.reserve(grad_outputs.size());
     for (size_t i = 0; i < grad_outputs.size(); ++i) {

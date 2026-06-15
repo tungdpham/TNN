@@ -610,7 +610,19 @@ void Graph::forward_edge(Edge &edge, size_t mb_id) {
     input_data.push_back(producer->data(mb_id));
     producer->decrement_data_ref_count(mb_id);
   }
-  Vec<Tensor> output_data = edge->layer()->forward(input_data, mb_id);
+  Residuals residuals;  // can be used to store intermediate results for reuse within the same
+                        // forward pass
+  Vec<Tensor> output_data = edge->layer()->forward(input_data, residuals);
+  // std::cout << "Forwarding edge with layer type: " << edge->layer()->name()
+  //           << " and input tensors:" << std::endl;
+  // for (const Tensor &tensor : input_data) {
+  //   std::cout << "Input tensor shape: " << tensor.shape_str() << std::endl;
+  // }
+  // for (const Tensor &tensor : output_data) {
+  //   std::cout << "Output tensor shape: " << tensor.shape_str() << std::endl;
+  // }
+  edge->set_residuals(mb_id, std::move(residuals));
+
   for (size_t i = 0; i < edge->consumers().size(); ++i) {
     Node consumer = edge->consumers()[i];
     consumer->set_data(mb_id, output_data[i], out_degree_[consumer]);
@@ -626,7 +638,17 @@ void Graph::backward(Edge &edge, size_t mb_id) {
     output_grads.push_back(consumer->grad(mb_id));
     consumer->decrement_grad_ref_count(mb_id);
   }
-  Vec<Tensor> input_grads = edge->layer()->backward(output_grads, mb_id);
+  Residuals &residuals = edge->residuals(mb_id);
+  Vec<Tensor> input_grads = edge->layer()->backward(output_grads, residuals);
+  // std::cout << "Backwarding edge with layer type: " << edge->layer()->name()
+  //           << " and output gradient tensors:" << std::endl;
+  // for (const Tensor &tensor : output_grads) {
+  //   std::cout << "Output gradient tensor shape: " << tensor.shape_str() << std::endl;
+  // }
+  // for (const Tensor &tensor : input_grads) {
+  //   std::cout << "Input gradient tensor shape: " << tensor.shape_str() << std::endl;
+  // }
+  edge->clear_residuals(mb_id);
   for (size_t i = 0; i < edge->producers().size(); ++i) {
     Node producer = edge->producers()[i];
     producer->accumulate_grad(mb_id, input_grads[i], in_degree_[producer]);

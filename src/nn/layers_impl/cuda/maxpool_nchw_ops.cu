@@ -30,7 +30,7 @@ __global__ void run_forward_kernel(const T* input_data, T* output_data, size_t b
   int out_h = remaining / output_w;
   int out_w = remaining % output_w;
 
-  const size_t input_offset = (n * channels + c) * input_h * input_w;
+  size_t input_offset = (n * channels + c) * input_h * input_w;
 
   long h_start = static_cast<long>(out_h * stride_h) - static_cast<long>(pad_h);
   long w_start = static_cast<long>(out_w * stride_w) - static_cast<long>(pad_w);
@@ -47,7 +47,7 @@ __global__ void run_forward_kernel(const T* input_data, T* output_data, size_t b
 
   for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
     for (long iw = w_start_valid; iw < w_end_valid; ++iw) {
-      const size_t cur_input_idx = input_offset + ih * input_w + iw;
+      size_t cur_input_idx = input_offset + ih * input_w + iw;
       T val = input_data[cur_input_idx];
 
       if (val > max_val || (ih == h_start_valid && iw == w_start_valid)) {
@@ -71,7 +71,7 @@ __global__ void run_backward_kernel(const T* gradient_data, T* grad_input_data, 
   if (idx >= total_outputs) return;
 
   const T grad_val = gradient_data[idx];
-  const size_t input_idx = mask_indices[idx];
+  size_t input_idx = mask_indices[idx];
 
   atomicAdd(&grad_input_data[input_idx], grad_val);
 }

@@ -69,8 +69,7 @@ private:
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
     if (this->current_index_ >= access_order_.size()) return false;
 
-    const size_t actual_batch_size =
-        std::min(batch_size, access_order_.size() - this->current_index_);
+    size_t actual_batch_size = std::min(batch_size, access_order_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
     batch_data = Tensor(
@@ -80,7 +79,7 @@ private:
     batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
-      const size_t sample_idx = access_order_[this->current_index_ + i];
+      size_t sample_idx = access_order_[this->current_index_ + i];
       const auto &[path, class_index] = sample_list_[sample_idx];
 
       // Temporary CHW buffer for stbi_load output
@@ -91,7 +90,7 @@ private:
       for (size_t c = 0; c < tiny_imagenet_constants::NUM_CHANNELS; ++c) {
         for (size_t h = 0; h < tiny_imagenet_constants::IMAGE_HEIGHT; ++h) {
           for (size_t w = 0; w < tiny_imagenet_constants::IMAGE_WIDTH; ++w) {
-            const size_t src_idx =
+            size_t src_idx =
                 c * tiny_imagenet_constants::IMAGE_HEIGHT * tiny_imagenet_constants::IMAGE_WIDTH +
                 h * tiny_imagenet_constants::IMAGE_WIDTH + w;
             batch_data.at<T>({i, h, w, c}) = static_cast<T>(chw_buf[src_idx]);
@@ -303,7 +302,7 @@ public:
     bool success = is_train ? load_train_data(source) : load_val_data(source);
 
     if (success) {
-      const size_t n = sample_list_.size();
+      size_t n = sample_list_.size();
       access_order_.resize(n);
       std::iota(access_order_.begin(), access_order_.end(), 0);
       this->current_index_ = 0;

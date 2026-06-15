@@ -35,12 +35,12 @@ void cpu_im2col_pad_1_stride_1_kernel_3(const T *input_data, T *col_data, size_t
         batch_size, channels,
         [&](size_t n, size_t c) {
           const float *input_channel_ptr = input_data + (n * channels + c) * height * width;
-          const size_t batch_offset = n * col_width;
-          const size_t col_stride = batch_size * col_width;
+          size_t batch_offset = n * col_width;
+          size_t col_stride = batch_size * col_width;
           constexpr size_t simd_width = 8;
 
-          const size_t simd_end_full = (width >> 3) << 3;
-          const size_t simd_end_minus2 = ((width - 2) >> 3) << 3;
+          size_t simd_end_full = (width >> 3) << 3;
+          size_t simd_end_minus2 = ((width - 2) >> 3) << 3;
 
           // kh=0: Process all 3 kw values together (top row)
           {
@@ -203,37 +203,36 @@ void cpu_im2col(const T *input_data, T *col_data, size_t batch_size, size_t chan
       batch_size, channels,
       [&](size_t n, size_t c) {
         const T *input_channel_ptr = input_data + (n * channels + c) * height * width;
-        const size_t batch_offset = n * col_width;
-        const size_t col_stride = batch_size * col_width;
+        size_t batch_offset = n * col_width;
+        size_t col_stride = batch_size * col_width;
 
         for (size_t kh = 0; kh < kernel_h; ++kh) {
           for (size_t kw = 0; kw < kernel_w; ++kw) {
             size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
             T *col_row_base = col_data + col_row_idx * col_stride + batch_offset;
 
-            const size_t h_start = (pad_h > kh) ? ((pad_h - kh + stride_h - 1) / stride_h) : 0;
-            const size_t h_end =
-                std::min(output_h, (height + pad_h - kh + stride_h - 1) / stride_h);
-            const size_t w_start = (pad_w > kw) ? ((pad_w - kw + stride_w - 1) / stride_w) : 0;
-            const size_t w_end = std::min(output_w, (width + pad_w - kw + stride_w - 1) / stride_w);
+            size_t h_start = (pad_h > kh) ? ((pad_h - kh + stride_h - 1) / stride_h) : 0;
+            size_t h_end = std::min(output_h, (height + pad_h - kh + stride_h - 1) / stride_h);
+            size_t w_start = (pad_w > kw) ? ((pad_w - kw + stride_w - 1) / stride_w) : 0;
+            size_t w_end = std::min(output_w, (width + pad_w - kw + stride_w - 1) / stride_w);
 
             std::fill(col_row_base, col_row_base + h_start * output_w, T(0));
 
             for (size_t h = h_start; h < h_end; ++h) {
-              const size_t h_in = h * stride_h + kh - pad_h;
+              size_t h_in = h * stride_h + kh - pad_h;
               const T *input_row = input_channel_ptr + h_in * width;
               T *col_ptr = col_row_base + h * output_w;
 
               std::fill(col_ptr, col_ptr + w_start, T(0));
 
               if (stride_w == 1) {
-                const size_t w_in_start = w_start + kw - pad_w;
-                const size_t copy_len = w_end - w_start;
+                size_t w_in_start = w_start + kw - pad_w;
+                size_t copy_len = w_end - w_start;
                 std::copy(input_row + w_in_start, input_row + w_in_start + copy_len,
                           col_ptr + w_start);
               } else {
                 for (size_t w = w_start; w < w_end; ++w) {
-                  const size_t w_in = w * stride_w + kw - pad_w;
+                  size_t w_in = w * stride_w + kw - pad_w;
                   col_ptr[w] = input_row[w_in];
                 }
               }
@@ -252,7 +251,7 @@ template <typename T>
 void cpu_col2im(const T *col_data, T *result_data, size_t batch_size, size_t channels,
                 size_t height, size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h,
                 size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w) {
-  const size_t col_width = output_h * output_w;
+  size_t col_width = output_h * output_w;
 
   // Initialize result buffer to zero
   std::fill(result_data, result_data + batch_size * channels * height * width, T(0));
@@ -268,17 +267,16 @@ void cpu_col2im(const T *col_data, T *result_data, size_t batch_size, size_t cha
             const T *col_row_ptr =
                 col_data + col_row_idx * (batch_size * col_width) + n * col_width;
 
-            const size_t h_start = pad_h > kh ? ((pad_h - kh + stride_h - 1) / stride_h) : 0;
-            const size_t h_end =
-                std::min(output_h, (height + pad_h - kh + stride_h - 1) / stride_h);
+            size_t h_start = pad_h > kh ? ((pad_h - kh + stride_h - 1) / stride_h) : 0;
+            size_t h_end = std::min(output_h, (height + pad_h - kh + stride_h - 1) / stride_h);
 
-            const size_t w_start = pad_w > kw ? ((pad_w - kw + stride_w - 1) / stride_w) : 0;
-            const size_t w_end = std::min(output_w, (width + pad_w - kw + stride_w - 1) / stride_w);
+            size_t w_start = pad_w > kw ? ((pad_w - kw + stride_w - 1) / stride_w) : 0;
+            size_t w_end = std::min(output_w, (width + pad_w - kw + stride_w - 1) / stride_w);
 
             col_row_ptr += h_start * output_w;
 
             for (size_t h = h_start; h < h_end; ++h) {
-              const size_t h_out = h * stride_h + kh - pad_h;
+              size_t h_out = h * stride_h + kh - pad_h;
               T *result_row = result_channel_ptr + h_out * width;
 
               col_row_ptr += w_start;
@@ -291,7 +289,7 @@ void cpu_col2im(const T *col_data, T *result_data, size_t batch_size, size_t cha
                 col_row_ptr += valid_width;
               } else {
                 for (size_t w = w_start; w < w_end; ++w) {
-                  const size_t w_out = w * stride_w + kw - pad_w;
+                  size_t w_out = w * stride_w + kw - pad_w;
                   result_row[w_out] += *col_row_ptr++;
                 }
               }
@@ -308,8 +306,8 @@ void cpu_col2im(const T *col_data, T *result_data, size_t batch_size, size_t cha
 template <typename T>
 void cpu_pad(const T *input_data, T *result_data, size_t batch_size, size_t channels, size_t height,
              size_t width, size_t pad_h, size_t pad_w, T value) {
-  const size_t padded_height = height + 2 * pad_h;
-  const size_t padded_width = width + 2 * pad_w;
+  size_t padded_height = height + 2 * pad_h;
+  size_t padded_width = width + 2 * pad_w;
 
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     // fill top padding rows
@@ -322,7 +320,7 @@ void cpu_pad(const T *input_data, T *result_data, size_t batch_size, size_t chan
 
     // Copy middle rows with left and right padding
     for (size_t h = 0; h < height; ++h) {
-      const size_t new_h = h + pad_h;
+      size_t new_h = h + pad_h;
       // copy the row over
       std::copy(&input_data[((n * channels + c) * height + h) * width],
                 &input_data[((n * channels + c) * height + h) * width] + width,
@@ -353,12 +351,12 @@ void cpu_pad(const T *input_data, T *result_data, size_t batch_size, size_t chan
 template <typename T>
 void cpu_unpad(const T *input_data, T *result_data, size_t batch_size, size_t channels,
                size_t height, size_t width, size_t pad_h, size_t pad_w) {
-  const size_t padded_height = height + 2 * pad_h;
-  const size_t padded_width = width + 2 * pad_w;
+  size_t padded_height = height + 2 * pad_h;
+  size_t padded_width = width + 2 * pad_w;
 
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     for (size_t h = 0; h < height; ++h) {
-      const size_t src_h = h + pad_h;
+      size_t src_h = h + pad_h;
       std::copy(
           &input_data[((n * channels + c) * padded_height + src_h) * padded_width + pad_w],
           &input_data[((n * channels + c) * padded_height + src_h) * padded_width + pad_w] + width,
@@ -384,14 +382,14 @@ void cpu_crop(const T *input_data, T *result_data, size_t batch_size, size_t cha
 }
 
 template <typename T>
-void cpu_transpose_2d(const T *src, T *dst, const size_t rows, const size_t cols) {
-  const size_t block_size = 64;
+void cpu_transpose_2d(const T *src, T *dst, size_t rows, size_t cols) {
+  size_t block_size = 64;
   parallel_for_2d((rows + block_size - 1) / block_size, (cols + block_size - 1) / block_size,
                   [&](size_t i_block, size_t j_block) {
-                    const size_t start_row = i_block * block_size;
-                    const size_t start_col = j_block * block_size;
-                    const size_t end_row = std::min(start_row + block_size, rows);
-                    const size_t end_col = std::min(start_col + block_size, cols);
+                    size_t start_row = i_block * block_size;
+                    size_t start_col = j_block * block_size;
+                    size_t end_row = std::min(start_row + block_size, rows);
+                    size_t end_col = std::min(start_col + block_size, cols);
                     for (size_t i = start_row; i < end_row; ++i) {
                       for (size_t j = start_col; j < end_col; ++j) {
                         dst[j * rows + i] = src[i * cols + j];

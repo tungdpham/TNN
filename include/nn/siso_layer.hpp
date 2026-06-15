@@ -9,17 +9,17 @@ public:
   SISOLayerImpl(const std::string &name)
       : LayerImpl(name) {}
 
-  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id) override {
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) override {
     if (inputs.size() != 1) {
       throw std::runtime_error("SISOLayerImpl only supports single input");
     }
-    return {forward_impl(inputs[0], mb_id)};
+    return {forward_impl(inputs[0], residuals)};
   }
-  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) override {
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) override {
     if (grad_outputs.size() != 1) {
       throw std::runtime_error("SISOLayerImpl only supports single grad output");
     }
-    return {backward_impl(grad_outputs[0], mb_id)};
+    return {backward_impl(grad_outputs[0], residuals)};
   }
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
@@ -38,8 +38,8 @@ public:
   }
 
 protected:
-  virtual Tensor forward_impl(const Tensor &input, size_t mb_id = 0) = 0;
-  virtual Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) = 0;
+  virtual Tensor forward_impl(const Tensor &input, Residuals &residuals) = 0;
+  virtual Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) = 0;
 
   virtual Vec<size_t> compute_output_shape(const Vec<size_t> &input_shape) const = 0;
 };

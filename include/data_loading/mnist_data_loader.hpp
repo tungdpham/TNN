@@ -142,7 +142,7 @@ private:
       ++pos;
     }
 
-    const size_t n = line_offsets_.size();
+    size_t n = line_offsets_.size();
     access_order_.resize(n);
     std::iota(access_order_.begin(), access_order_.end(), 0);
 
@@ -155,8 +155,7 @@ private:
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
     if (this->current_index_ >= access_order_.size()) return false;
 
-    const size_t actual_batch_size =
-        std::min(batch_size, access_order_.size() - this->current_index_);
+    size_t actual_batch_size = std::min(batch_size, access_order_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
     batch_data = Tensor({actual_batch_size, mnist_constants::IMAGE_HEIGHT,
@@ -165,8 +164,8 @@ private:
     batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
-      const size_t sample_idx = access_order_[this->current_index_ + i];
-      const size_t line_start = line_offsets_[sample_idx];
+      size_t sample_idx = access_order_[this->current_index_ + i];
+      size_t line_start = line_offsets_[sample_idx];
 
       // Compute line length (up to next newline or end-of-file)
       size_t line_end = line_start;

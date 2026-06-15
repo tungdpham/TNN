@@ -43,7 +43,7 @@ void LegacyBatchNormLayerImpl::init_impl() {
   dummy_var_gradients_.fill(0.0f);
 }
 
-Tensor LegacyBatchNormLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor LegacyBatchNormLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (input.dims() < 3) {
     throw std::invalid_argument("BatchNorm: Input tensor must have at least 3 dimensions");
   }
@@ -51,14 +51,14 @@ Tensor LegacyBatchNormLayerImpl::forward_impl(const Tensor &input, size_t mb_id)
     throw std::invalid_argument("BatchNorm: Input channels must match num_features");
   }
 
-  return def_forward(input, mb_id);
+  return def_forward(input, residuals);
 }
 
-Tensor LegacyBatchNormLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  return def_backward(grad_output, mb_id);
+Tensor LegacyBatchNormLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  return def_backward(grad_output, residuals);
 }
 
-Tensor LegacyBatchNormLayerImpl::def_forward(const Tensor &input, size_t mb_id) {
+Tensor LegacyBatchNormLayerImpl::def_forward(const Tensor &input, Residuals &residuals) {
   size_t batch_size, channels, spatial_size;
   batch_size = input.dimension(0);
   channels = input.dimension(1);
@@ -74,9 +74,9 @@ Tensor LegacyBatchNormLayerImpl::def_forward(const Tensor &input, size_t mb_id) 
   Tensor batch_inv_std = this->get_tensor({num_features_}, io_dtype_);
   Tensor batch_mean = this->get_tensor({num_features_}, io_dtype_);
 
-  set_mutable_cache(mb_id, "norm", norm);
-  set_mutable_cache(mb_id, "inv_std", batch_inv_std);
-  set_mutable_cache(mb_id, "mean", batch_mean);
+  residuals["norm"] = norm;
+  residuals["inv_std"] = batch_inv_std;
+  residuals["mean"] = batch_mean;
 
   if (this->is_training_) {
     DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward, input, batch_mean, batch_inv_std, running_mean_,
@@ -90,13 +90,13 @@ Tensor LegacyBatchNormLayerImpl::def_forward(const Tensor &input, size_t mb_id) 
   return output;
 }
 
-Tensor LegacyBatchNormLayerImpl::def_backward(const Tensor &grad_output, size_t mb_id) {
-  const Tensor &norm = this->get_mutable_cache(mb_id, "norm");
-  const Tensor &inv_std = this->get_mutable_cache(mb_id, "inv_std");
+Tensor LegacyBatchNormLayerImpl::def_backward(const Tensor &grad_output, Residuals &residuals) {
+  const Tensor &norm = residuals["norm"];
+  const Tensor &inv_std = residuals["inv_std"];
 
-  const size_t batch_size = grad_output.dimension(0);
-  const size_t channels = grad_output.dimension(1);
-  const size_t spatial_size = grad_output.stride(1);
+  size_t batch_size = grad_output.dimension(0);
+  size_t channels = grad_output.dimension(1);
+  size_t spatial_size = grad_output.stride(1);
 
   Tensor grad_input = get_tensor(grad_output.shape(), io_dtype_);
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward, grad_output, norm, inv_std, gamma_, gamma_gradients_,
