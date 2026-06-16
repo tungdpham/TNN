@@ -11,7 +11,6 @@ function(link_dnnl visibility target_name)
         endif()
 
         if(TARGET TBB::tbb)
-            target_link_libraries(${target_name} ${visibility} TBB::tbb)
             target_compile_definitions(${target_name} ${visibility} DNNL_CPU_RUNTIME=DNNL_RUNTIME_TBB)
             message(STATUS "oneDNN CPU runtime: TBB (via CMake config)")
         endif()

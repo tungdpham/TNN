@@ -389,10 +389,6 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
            << ", Accuracy: " << setprecision(2) << avg_val_accuracy * 100.0 << "%" << endl;
       cout << string(60, '=') << endl;
 
-      if ((epoch + 1) % 5 == 0) {
-        thread_wrapper.clean_buffers();
-      }
-
       // Log epoch metrics
       {
         std::unordered_map<std::string, double> metrics;
@@ -408,6 +404,8 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       }
     }
   });
+
+  thread_wrapper.clean_buffers();
 }
 
 static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
