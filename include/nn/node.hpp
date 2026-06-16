@@ -22,14 +22,12 @@ public:
   const std::string &uid() const { return uid_; }
   void set_uid(const std::string &uid) { uid_ = uid; }
 
-  const Tensor &data(size_t mb_id) const { return data_.at(mb_id).tensor; }
-  int data_ref_count(size_t mb_id) const { return data_.at(mb_id).ref_count; }
-  void set_data(size_t mb_id, const Tensor &data, int ref_count) {
-    data_[mb_id] = {data, ref_count};
-  }
-  void clear_data(size_t mb_id) { data_.erase(mb_id); }
-  bool decrement_data_ref_count(size_t mb_id) {
-    auto it = data_.find(mb_id);
+  const Tensor &data(size_t pid) const { return data_.at(pid).tensor; }
+  int data_ref_count(size_t pid) const { return data_.at(pid).ref_count; }
+  void set_data(size_t pid, const Tensor &data, int ref_count) { data_[pid] = {data, ref_count}; }
+  void clear_data(size_t pid) { data_.erase(pid); }
+  bool decrement_data_ref_count(size_t pid) {
+    auto it = data_.find(pid);
     if (it != data_.end() && it->second.ref_count > 0) {
       --it->second.ref_count;
       if (it->second.ref_count == 0) {
@@ -41,21 +39,19 @@ public:
     return false;
   }
 
-  const Tensor &grad(size_t mb_id) const { return grad_.at(mb_id).tensor; }
-  int grad_ref_count(size_t mb_id) const { return grad_.at(mb_id).ref_count; }
-  void set_grad(size_t mb_id, const Tensor &grad, int ref_count) {
-    grad_[mb_id] = {grad, ref_count};
-  }
-  void clear_grad(size_t mb_id) { grad_[mb_id].tensor = Tensor(); }
-  void accumulate_grad(size_t mb_id, const Tensor &grad, int ref_count) {
-    if (grad_.count(mb_id) == 0) {
-      grad_[mb_id] = {grad, ref_count};
+  const Tensor &grad(size_t pid) const { return grad_.at(pid).tensor; }
+  int grad_ref_count(size_t pid) const { return grad_.at(pid).ref_count; }
+  void set_grad(size_t pid, const Tensor &grad, int ref_count) { grad_[pid] = {grad, ref_count}; }
+  void clear_grad(size_t pid) { grad_[pid].tensor = Tensor(); }
+  void accumulate_grad(size_t pid, const Tensor &grad, int ref_count) {
+    if (grad_.count(pid) == 0) {
+      grad_[pid] = {grad, ref_count};
     } else {
-      grad_[mb_id].tensor += grad;  // Accumulate the new gradient
+      grad_[pid].tensor += grad;  // Accumulate the new gradient
     }
   }
-  bool decrement_grad_ref_count(size_t mb_id) {
-    auto it = grad_.find(mb_id);
+  bool decrement_grad_ref_count(size_t pid) {
+    auto it = grad_.find(pid);
     if (it != grad_.end() && it->second.ref_count > 0) {
       --it->second.ref_count;
       if (it->second.ref_count == 0) {

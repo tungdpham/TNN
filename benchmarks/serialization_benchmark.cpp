@@ -21,7 +21,7 @@ signed main() {
   Tensor tensor = Tensor({data_size}, DType_t::FP32);
   tensor.fill_random_normal(0.0, 0.5);
   Job job;
-  job.mb_id = microbatch_id;
+  job.pid = microbatch_id;
   job.data = TensorBundle{{{"output", tensor}}};
 
   Message message(CommandType::FORWARD_JOB, std::move(job));

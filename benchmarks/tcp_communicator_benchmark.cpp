@@ -173,7 +173,7 @@ int main(int argc, char *argv[]) {
     Tensor tensor = Tensor(master_tensor.shape(), DType_t::FP32, getHost());
     master_tensor.copy_to(tensor);
     Job job;
-    job.mb_id = 10;
+    job.pid = 10;
     job.data = TensorBundle({
         {"input", std::move(tensor)},
     });

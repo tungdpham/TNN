@@ -84,8 +84,8 @@ public:
 
   void sort();
 
-  TensorBundle forward(TensorBundle &input_map, size_t mb_id = 0);
-  TensorBundle backward(TensorBundle &output_grad_map, size_t mb_id = 0);
+  TensorBundle forward(TensorBundle &input_map, size_t pid = 0);
+  TensorBundle backward(TensorBundle &output_grad_map, size_t pid = 0);
 
   Node make_node(std::string uid = "");
 
@@ -139,8 +139,8 @@ private:
   Vec<Node> outputs();
 
   void on_add_edge(const Edge &edge);
-  void forward_edge(Edge &edge, size_t mb_id = 0);
-  void backward(Edge &edge, size_t mb_id = 0);
+  void forward_edge(Edge &edge, size_t pid = 0);
+  void backward(Edge &edge, size_t pid = 0);
 };
 
 }  // namespace synet

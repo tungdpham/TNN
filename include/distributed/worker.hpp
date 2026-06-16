@@ -147,22 +147,22 @@ protected:
       case CommandType::FORWARD_JOB: {
         const Job &forward_job = message.get<Job>();
         TensorBundle inputs = forward_job.data;
-        auto outputs = graph_->forward(inputs, forward_job.mb_id);
-        Job output_job(outputs, forward_job.mb_id);
+        auto outputs = graph_->forward(inputs, forward_job.pid);
+        Job output_job(outputs, forward_job.pid);
         message = Message(CommandType::FORWARD_JOB, std::move(output_job));
         communicator_->send_message(std::move(message), next_stage_endpoint_);
       } break;
       case CommandType::BACKWARD_JOB: {
         const Job &backward_job = message.get<Job>();
         TensorBundle output_grads = backward_job.data;
-        auto outputs = graph_->backward(output_grads, backward_job.mb_id);
+        auto outputs = graph_->backward(output_grads, backward_job.pid);
         if (prev_stage_endpoint_ == Endpoint::empty()) {
           // only send backward complete if there is no previous stage
           Message complete_msg(CommandType::BACKWARD_COMPLETE);
           communicator_->send_message(std::move(complete_msg), coordinator_endpoint_);
           break;
         }
-        Job output_job(outputs, backward_job.mb_id);
+        Job output_job(outputs, backward_job.pid);
         message = Message(CommandType::BACKWARD_JOB, std::move(output_job));
         communicator_->send_message(std::move(message), prev_stage_endpoint_);
       } break;

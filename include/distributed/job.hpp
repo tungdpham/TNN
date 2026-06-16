@@ -11,28 +11,28 @@
 namespace synet {
 struct Job {
   TensorBundle data;
-  size_t mb_id;
+  size_t pid;
 
   Job()
       : data(),
-        mb_id(0) {}
+        pid(0) {}
 
-  Job(TensorBundle d, size_t mb_id)
+  Job(TensorBundle d, size_t pid)
       : data(std::move(d)),
-        mb_id(mb_id) {}
+        pid(pid) {}
 
   Job(const Job &other) = default;
 
   Job(Job &&other) noexcept
       : data(std::move(other.data)),
-        mb_id(other.mb_id) {}
+        pid(other.pid) {}
 
   Job &operator=(const Job &other) = default;
 
   Job &operator=(Job &&other) noexcept {
     if (this != &other) {
       data = std::move(other.data);
-      mb_id = other.mb_id;
+      pid = other.pid;
     }
     return *this;
   }
@@ -40,12 +40,12 @@ struct Job {
 
 template <typename Archiver>
 void archive(Archiver &archiver, const Job &job) {
-  archiver(job.mb_id, job.data);
+  archiver(job.pid, job.data);
 }
 
 template <typename Archiver>
 void archive(Archiver &archiver, Job &job) {
-  archiver(job.mb_id, job.data);
+  archiver(job.pid, job.data);
 }
 
 }  // namespace synet

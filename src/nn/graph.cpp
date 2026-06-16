@@ -351,7 +351,7 @@ void Graph::sort() {
   nodes_ = std::move(sorted_nodes);
 }
 
-TensorBundle Graph::forward(TensorBundle &input_map, size_t mb_id) {
+TensorBundle Graph::forward(TensorBundle &input_map, size_t pid) {
   ForwardPlanCacheEntry &plan = get_or_create_forward_plan(input_map);
   std::map<std::string, Node> uid_to_node;
   for (const auto &node : nodes_) {
@@ -367,7 +367,7 @@ TensorBundle Graph::forward(TensorBundle &input_map, size_t mb_id) {
     if (tensor.device() != context_->device()) {
       device_tensor = tensor.to_device(context_->device());
     }
-    it->second->set_data(mb_id, device_tensor, out_degree_[node]);
+    it->second->set_data(pid, device_tensor, out_degree_[node]);
   }
 
   size_t hook_id = 0;
@@ -384,11 +384,11 @@ TensorBundle Graph::forward(TensorBundle &input_map, size_t mb_id) {
   for (size_t edge_index = 0; edge_index < edges_.size(); ++edge_index) {
     size_t usage_before = workspace_allocator_ ? workspace_allocator_->total_allocated() : 0;
     edge_peak_usage = usage_before;
-    forward_edge(edges_[edge_index], mb_id);
+    forward_edge(edges_[edge_index], pid);
 
     for (const auto &consumer : edges_[edge_index]->consumers()) {
       if (is_output(consumer)) {
-        output_map.set(consumer->uid(), consumer->data(mb_id));
+        output_map.set(consumer->uid(), consumer->data(pid));
       }
     }
 
@@ -412,15 +412,15 @@ TensorBundle Graph::forward(TensorBundle &input_map, size_t mb_id) {
 
   // clean up boundary node data
   for (Node &node : nodes_) {
-    if (node->data_ref_count(mb_id) == 0) {
-      node->clear_data(mb_id);
+    if (node->data_ref_count(pid) == 0) {
+      node->clear_data(pid);
     }
   }
 
   return output_map;
 }
 
-TensorBundle Graph::backward(TensorBundle &output_grad_map, size_t mb_id) {
+TensorBundle Graph::backward(TensorBundle &output_grad_map, size_t pid) {
   std::map<std::string, Node> uid_to_node;
   for (const auto &node : nodes_) {
     uid_to_node[node->uid()] = node;
@@ -435,23 +435,23 @@ TensorBundle Graph::backward(TensorBundle &output_grad_map, size_t mb_id) {
     if (tensor.device() != context_->device()) {
       device_tensor = tensor.to_device(context_->device());
     }
-    it->second->set_grad(mb_id, device_tensor, in_degree_[node]);
+    it->second->set_grad(pid, device_tensor, in_degree_[node]);
   }
   TensorBundle input_grad_map;
   for (auto it = edges_.rbegin(); it != edges_.rend(); ++it) {
     Edge &edge = *it;
-    backward(edge, mb_id);
+    backward(edge, pid);
     for (auto &producer : edge->producers()) {
       if (is_input(producer)) {
-        input_grad_map.set(producer->uid(), producer->grad(mb_id));
+        input_grad_map.set(producer->uid(), producer->grad(pid));
       }
     }
   }
 
   // clean up boundary node grads
   for (Node &node : nodes_) {
-    if (node->grad_ref_count(mb_id) == 0) {
-      node->clear_grad(mb_id);
+    if (node->grad_ref_count(pid) == 0) {
+      node->clear_grad(pid);
     }
   }
   return input_grad_map;
@@ -601,14 +601,14 @@ void Graph::on_add_edge(const Edge &edge) {
   }
 }
 
-void Graph::forward_edge(Edge &edge, size_t mb_id) {
+void Graph::forward_edge(Edge &edge, size_t pid) {
   Vec<Tensor> input_data;
   for (const auto &producer : edge->producers()) {
-    if (!producer->data(mb_id)) {
+    if (!producer->data(pid)) {
       throw std::runtime_error("Null input data while forwarding graph");
     }
-    input_data.push_back(producer->data(mb_id));
-    producer->decrement_data_ref_count(mb_id);
+    input_data.push_back(producer->data(pid));
+    producer->decrement_data_ref_count(pid);
   }
   Residuals residuals;  // can be used to store intermediate results for reuse within the same
                         // forward pass
@@ -621,24 +621,24 @@ void Graph::forward_edge(Edge &edge, size_t mb_id) {
   // for (const Tensor &tensor : output_data) {
   //   std::cout << "Output tensor shape: " << tensor.shape_str() << std::endl;
   // }
-  edge->set_residuals(mb_id, std::move(residuals));
+  edge->set_residuals(pid, std::move(residuals));
 
   for (size_t i = 0; i < edge->consumers().size(); ++i) {
     Node consumer = edge->consumers()[i];
-    consumer->set_data(mb_id, output_data[i], out_degree_[consumer]);
+    consumer->set_data(pid, output_data[i], out_degree_[consumer]);
   }
 }
 
-void Graph::backward(Edge &edge, size_t mb_id) {
+void Graph::backward(Edge &edge, size_t pid) {
   Vec<Tensor> output_grads;
   for (const auto &consumer : edge->consumers()) {
-    if (!consumer->grad(mb_id)) {
+    if (!consumer->grad(pid)) {
       throw std::runtime_error("Null output gradient while backwarding graph");
     }
-    output_grads.push_back(consumer->grad(mb_id));
-    consumer->decrement_grad_ref_count(mb_id);
+    output_grads.push_back(consumer->grad(pid));
+    consumer->decrement_grad_ref_count(pid);
   }
-  Residuals &residuals = edge->residuals(mb_id);
+  Residuals &residuals = edge->residuals(pid);
   Vec<Tensor> input_grads = edge->layer()->backward(output_grads, residuals);
   // std::cout << "Backwarding edge with layer type: " << edge->layer()->name()
   //           << " and output gradient tensors:" << std::endl;
@@ -648,10 +648,10 @@ void Graph::backward(Edge &edge, size_t mb_id) {
   // for (const Tensor &tensor : input_grads) {
   //   std::cout << "Input gradient tensor shape: " << tensor.shape_str() << std::endl;
   // }
-  edge->clear_residuals(mb_id);
+  edge->clear_residuals(pid);
   for (size_t i = 0; i < edge->producers().size(); ++i) {
     Node producer = edge->producers()[i];
-    producer->accumulate_grad(mb_id, input_grads[i], in_degree_[producer]);
+    producer->accumulate_grad(pid, input_grads[i], in_degree_[producer]);
   }
 }
 
