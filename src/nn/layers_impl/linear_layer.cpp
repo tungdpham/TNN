@@ -17,14 +17,14 @@ LinearLayerImpl::LinearLayerImpl(const std::string &name)
 Tensor LinearLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   // Linear activation is identity, just copy the input
   Tensor output = get_tensor(input.shape(), io_dtype_);
-  output.share_from(input);
+  input.copy_to(output);
   return output;
 }
 
 Tensor LinearLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
   // Gradient of identity is identity, just copy grad_output
   Tensor grad_input = get_tensor(grad_output.shape(), io_dtype_);
-  grad_input.share_from(grad_output);
+  grad_output.copy_to(grad_input);
   return grad_input;
 }
 

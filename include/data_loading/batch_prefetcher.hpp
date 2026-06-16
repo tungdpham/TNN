@@ -111,11 +111,6 @@ private:
         Batch batch;
         batch.valid = loader_.get_batch(batch_size_, batch.data, batch.labels);
 
-        // IMPORTANT:
-        // Queue a deep copy, not the loader's immediate output objects.
-        // This protects the training thread from allocator/pool reuse and
-        // shallow Tensor ownership surprises while the producer thread is
-        // already loading/augmenting the next batch.
         if (batch.valid) {
           batch.data = batch.data.clone();
           batch.labels = batch.labels.clone();

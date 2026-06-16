@@ -30,7 +30,7 @@ DropoutLayerImpl::DropoutLayerImpl(float dropout_rate, const std::string &name)
 Tensor DropoutLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (!this->is_training_) {
     Tensor output = get_tensor(input.shape(), io_dtype_);
-    output.share_from(input);
+    input.copy_to(output);
     return output;
   }
 

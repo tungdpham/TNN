@@ -15,7 +15,6 @@
 #include "distributed/message.hpp"
 #include "distributed/packet.hpp"
 #include "profiling/profiler.hpp"
-#include "tensor/tensor_factory.hpp"
 #include "type/type.hpp"
 
 using namespace synet;

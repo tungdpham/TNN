@@ -13,6 +13,7 @@
 
 #include "device/flow.hpp"
 #include "tensor/tensor.hpp"
+#include "tensor/tensor_ops.hpp"
 #include "type/type.hpp"
 
 namespace synet {
@@ -134,17 +135,17 @@ LayerImpl &LayerImpl::set_training(bool training) {
 
 bool LayerImpl::is_training() const { return is_training_; }
 
-void LayerImpl::save_state(std::ofstream &file) {
+void LayerImpl::save_state(std::ostream &out) const {
   auto config = get_config();
   nlohmann::json j = config.to_json();
   std::string j_str = j.dump();
   size_t j_size = j_str.size();
-  file.write(reinterpret_cast<const char *>(&j_size), sizeof(size_t));
-  file.write(j_str.c_str(), j_size);
+  out.write(reinterpret_cast<const char *>(&j_size), sizeof(size_t));
+  out.write(j_str.c_str(), j_size);
   auto descs = param_descriptors();
   for (const auto &desc : descs) {
     Tensor param = *desc.data_ptr;
-    param.save(file);
+    ops::save_tensor(param, out);
   }
 }
 

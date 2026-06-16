@@ -186,7 +186,7 @@ TEST_F(GPUTensorTest, InPlaceAddition) {
   tensor1.fill(2.0);
   tensor2.fill(3.0);
 
-  tensor1.add(tensor2);
+  tensor1 += tensor2;
 
   Tensor cpu_result = tensor1.to_host();
 
@@ -203,7 +203,7 @@ TEST_F(GPUTensorTest, InPlaceSubtraction) {
   tensor1.fill(5.0);
   tensor2.fill(2.0);
 
-  tensor1.sub(tensor2);
+  tensor1 -= tensor2;
 
   Tensor cpu_result = tensor1.to_host();
 
@@ -220,7 +220,7 @@ TEST_F(GPUTensorTest, InPlaceMultiplication) {
   tensor1.fill(3.0);
   tensor2.fill(4.0);
 
-  tensor1.mul(tensor2);
+  tensor1 *= tensor2;
 
   Tensor cpu_result = tensor1.to_host();
 
@@ -234,7 +234,7 @@ TEST_F(GPUTensorTest, InPlaceScalarMultiplication) {
   Tensor tensor = Tensor({1, 1, 2, 2}, DType_t::FP32, getGPU());
   tensor.fill(3.0);
 
-  tensor.mul_scalar(2.0);
+  tensor *= 2.0;
 
   Tensor cpu_result = tensor.to_host();
 
@@ -248,7 +248,7 @@ TEST_F(GPUTensorTest, InPlaceScalarDivision) {
   Tensor tensor = Tensor({1, 1, 2, 2}, DType_t::FP32, getGPU());
   tensor.fill(8.0);
 
-  tensor.div_scalar(2.0);
+  tensor /= 2.0;
 
   Tensor cpu_result = tensor.to_host();
 
@@ -439,7 +439,7 @@ TEST_F(GPUTensorTest, ToCPUIdempotent) {
 
 TEST_F(GPUTensorTest, FillRandomUniform) {
   Tensor tensor = Tensor({1, 10, 10, 10}, DType_t::FP32, getGPU());
-  tensor.fill_random_uniform(1.0);
+  tensor.fill_random_uniform(0.0, 1.0);
 
   Tensor cpu_result = tensor.to_host();
 

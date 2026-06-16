@@ -121,8 +121,11 @@ public:
 
   virtual Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const = 0;
   std::string name() const { return name_; }
-  void save_state(std::ofstream &file);
+  void save_state(std::ostream &out) const;
   virtual Vec<ParamDescriptor> param_descriptors() { return {}; }
+  const Vec<ParamDescriptor> param_descriptors() const {
+    return const_cast<LayerImpl *>(this)->param_descriptors();
+  }
   virtual std::string type() const = 0;
   virtual LayerConfig get_config() const = 0;
 

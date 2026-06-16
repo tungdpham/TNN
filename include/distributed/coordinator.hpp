@@ -222,7 +222,7 @@ public:
               PoolAllocator::instance(predictions.device(), defaultFlowHandle);
           Tensor grad_output(predictions.shape(), predictions.data_type(), allocator);
           criterion->compute_gradient(predictions, device_targets, grad_output);
-          grad_output.mul_scalar(1.0 / (num_microbatches * accumulation_steps));
+          grad_output *= 1.0 / (num_microbatches * accumulation_steps);
 
           TensorBundle grad_outputs{{{"output", grad_output}}};
           backward(std::move(grad_outputs), job.pid);
@@ -351,7 +351,7 @@ public:
       PoolAllocator &allocator = PoolAllocator::instance(predictions.device(), defaultFlowHandle);
       Tensor grad_output(predictions.shape(), predictions.data_type(), allocator);
       criterion->compute_gradient(predictions, device_targets, grad_output);
-      grad_output.mul_scalar(1.0 / (num_microbatches * accumulation_steps));
+      grad_output *= (1.0f / (num_microbatches * accumulation_steps));
 
       TensorBundle grad_outputs{{{"output", grad_output}}};
       backward(std::move(grad_outputs), i);

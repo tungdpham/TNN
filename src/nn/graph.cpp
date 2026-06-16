@@ -16,7 +16,7 @@
 
 #include "nn/layer.hpp"
 #include "nn/layers.hpp"
-#include "tensor/tensor_factory.hpp"
+#include "tensor/tensor_ops.hpp"
 
 namespace synet {
 
@@ -815,7 +815,7 @@ void Graph::save_state(std::ostream &stream) const {
       if (!descriptor.data_ptr) {
         throw std::runtime_error("Cannot save uninitialized layer parameter");
       }
-      descriptor.data_ptr->save(stream);
+      ops::save_tensor(*descriptor.data_ptr, stream);
     }
   }
 }
@@ -920,7 +920,7 @@ Graph Graph::load_state(std::istream &stream, IAllocator &allocator) {
       throw std::runtime_error("Graph state parameter count does not match layer definition");
     }
     for (auto &descriptor : descriptors) {
-      load_into(stream, *descriptor.data_ptr);
+      ops::load_tensor(*descriptor.data_ptr, stream);
     }
   }
 

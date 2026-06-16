@@ -15,7 +15,7 @@ private:
     outputs.reserve(inputs.size());
     for (size_t i = 0; i < inputs.size(); ++i) {
       Tensor output = get_tensor(inputs[i].shape(), inputs[i].data_type());
-      output.share_from(inputs[i]);
+      output = inputs[i];
       outputs.push_back(output);
     }
     return outputs;
@@ -26,7 +26,7 @@ private:
     grad_inputs.reserve(grad_outputs.size());
     for (size_t i = 0; i < grad_outputs.size(); ++i) {
       Tensor grad_input = get_tensor(grad_outputs[i].shape(), grad_outputs[i].data_type());
-      grad_input.share_from(grad_outputs[i]);
+      grad_input = grad_outputs[i];
       grad_inputs.push_back(grad_input);
     }
     return grad_inputs;

@@ -10,6 +10,56 @@
 
 namespace synet {
 namespace ops {
+inline void save_tensor(const Tensor &tensor, std::ostream &out) {
+  if (!out) {
+    throw std::runtime_error("Stream is not ready for writing");
+  }
+
+  // write dims, shape
+  size_t dims = tensor.dims();
+  DType_t dtype = tensor.data_type();
+  out.write(reinterpret_cast<const char *>(&dtype), sizeof(DType_t));
+  out.write(reinterpret_cast<const char *>(&dims), sizeof(size_t));
+  out.write(reinterpret_cast<const char *>(tensor.shape().data()),
+            tensor.shape().size() * sizeof(size_t));
+
+  if (tensor.device_type() == DeviceType::CPU) {
+    out.write(reinterpret_cast<const char *>(tensor.data_as<uchar>()),
+              tensor.size() * get_dtype_size(dtype));
+  } else {
+    Vec<uchar> host_buffer(tensor.size() * get_dtype_size(dtype));
+    tensor.device().copyToHost(host_buffer.data(), tensor.data_as<uchar>(),
+                               tensor.size() * get_dtype_size(dtype));
+    out.write(reinterpret_cast<const char *>(host_buffer.data()),
+              tensor.size() * get_dtype_size(dtype));
+  }
+}
+
+inline void load_tensor(Tensor &tensor, std::istream &in) {
+  if (!in) {
+    throw std::runtime_error("Stream is not ready for reading");
+  }
+
+  // read dims, shape
+  DType_t dtype;
+  size_t dims;
+  in.read(reinterpret_cast<char *>(&dtype), sizeof(DType_t));
+  in.read(reinterpret_cast<char *>(&dims), sizeof(size_t));
+  Vec<size_t> shape(dims);
+  in.read(reinterpret_cast<char *>(shape.data()), dims * sizeof(size_t));
+
+  tensor = Tensor(shape, dtype, tensor.allocator());
+
+  if (tensor.device_type() == DeviceType::CPU) {
+    in.read(reinterpret_cast<char *>(tensor.data_as<uchar>()),
+            tensor.size() * get_dtype_size(dtype));
+  } else {
+    Tensor host_tensor(shape, dtype, DeviceAllocator::instance(getHost()));
+    in.read(reinterpret_cast<char *>(host_tensor.data_as<uchar>()),
+            tensor.size() * get_dtype_size(dtype));
+    host_tensor.copy_to(tensor);
+  }
+}
 
 template <typename T>
 std::unique_ptr<Task> im2col_t(const Tensor &input_tensor, Tensor &col_data, size_t kernel_h,

@@ -282,7 +282,7 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
     predictions = Tensor();  // free prediction buffer early
 
     if (config.gradient_accumulation_steps > 1) {
-      loss_gradient.mul_scalar(1.0 / config.gradient_accumulation_steps);
+      loss_gradient *= (1.0f / static_cast<float>(config.gradient_accumulation_steps));
     }
 
     TensorBundle output_grads{{"output", loss_gradient}};
@@ -497,7 +497,7 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
       if (config.gradient_accumulation_steps > 1) {
-        loss_gradient.mul_scalar(1.0 / config.gradient_accumulation_steps);
+        loss_gradient *= (1.0f / static_cast<float>(config.gradient_accumulation_steps));
       }
       TensorBundle output_grads{{"output", loss_gradient}};
       graph.backward(output_grads);

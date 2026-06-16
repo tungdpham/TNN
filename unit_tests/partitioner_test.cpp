@@ -223,9 +223,6 @@ TEST_F(GraphPlannerStateTest, PartitionedResNet9MatchesFullGraphForwardAndBackwa
   TensorBundle stage1_inputs = make_partition_input_map(stage0_outputs, partitions[1].input_uids);
   TensorBundle stage1_outputs = stage1.forward(stage1_inputs);
 
-  full_outputs.get("output").head(10, "Full Graph Output");
-  stage1_outputs.get(partitions[1].output_uids.front()).head(10, "Partitioned Graph Output");
-
   expect_tensors_close(full_outputs.get("output"),
                        stage1_outputs.get(partitions[1].output_uids.front()), 1e-4f);
 
@@ -241,10 +238,6 @@ TEST_F(GraphPlannerStateTest, PartitionedResNet9MatchesFullGraphForwardAndBackwa
   TensorBundle stage0_output_grads =
       make_partition_input_map(stage1_input_grads, partitions[0].output_uids);
   TensorBundle stage0_input_grads = stage0.backward(stage0_output_grads);
-
-  full_input_grads.get("input").head(10, "Full Graph Input Gradients");
-  stage0_input_grads.get(partitions[0].input_uids.front())
-      .head(10, "Partitioned Graph Input Gradients");
 
   expect_tensors_close(full_input_grads.get("input"),
                        stage0_input_grads.get(partitions[0].input_uids.front()), 1e-4f);

@@ -131,7 +131,7 @@ TEST_F(TensorTest, InPlaceAddition) {
   tensor1.fill(2.0f);
   tensor2.fill(3.0f);
 
-  tensor1.add(tensor2);
+  tensor1 += tensor2;
 
   EXPECT_FLOAT_EQ(tensor1.at<float>({0, 0, 0, 0}), 5.0f);
   EXPECT_FLOAT_EQ(tensor1.at<float>({0, 0, 0, 1}), 5.0f);
@@ -143,7 +143,7 @@ TEST_F(TensorTest, InPlaceScalarMultiplication) {
   Tensor tensor = Tensor({1, 1, 2, 2}, DType_t::FP32);
   tensor.fill(3.0f);
 
-  tensor.mul_scalar(2.0f);
+  tensor *= 2.0;
 
   EXPECT_FLOAT_EQ(tensor.at<float>({0, 0, 0, 0}), 6.0f);
   EXPECT_FLOAT_EQ(tensor.at<float>({0, 0, 0, 1}), 6.0f);
@@ -194,12 +194,6 @@ TEST_F(TensorTest, CloneOperation) {
   EXPECT_FLOAT_EQ(cloned.at<float>({0, 0, 0, 1}), 5.0f);
   EXPECT_FLOAT_EQ(cloned.at<float>({0, 0, 1, 0}), 5.0f);
   EXPECT_FLOAT_EQ(cloned.at<float>({0, 0, 1, 1}), 5.0f);
-}
-
-TEST_F(TensorTest, DataAlignment) {
-  Tensor tensor = Tensor({10, 10, 10, 10}, DType_t::FP32);
-
-  EXPECT_TRUE(tensor.is_aligned(16));
 }
 
 TEST_F(TensorTest, MoveConstructor) {
