@@ -114,10 +114,10 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyDenseLayerImpl::compute_dense_forward(
     const Tensor &input, const Tensor &weights, Tensor &output, size_t batch_size,
     size_t input_features, size_t output_features, flowHandle_t handle) const {
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (weights.data_type() != dtype_of<Param_T>()) {
+  if (weights.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "LegacyDenseLayerImpl weight tensor dtype mismatch with dispatch Param_T");
   }
@@ -152,10 +152,10 @@ std::unique_ptr<Task> LegacyDenseLayerImpl::run_wgrad(const Tensor &input,
                                                       Tensor &weight_grad, size_t batch_size,
                                                       size_t input_features, size_t output_features,
                                                       flowHandle_t handle) const {
-  if (input.data_type() != dtype_of<IO_T>() || grad_output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || grad_output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (weight_grad.data_type() != dtype_of<Param_T>()) {
+  if (weight_grad.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "LegacyDenseLayerImpl weight grad_output dtype mismatch with dispatch Param_T");
   }
@@ -189,10 +189,10 @@ std::unique_ptr<Task> LegacyDenseLayerImpl::run_dgrad(const Tensor &grad_output,
                                                       size_t batch_size, size_t input_features,
                                                       size_t output_features,
                                                       flowHandle_t handle) const {
-  if (grad_output.data_type() != dtype_of<IO_T>() || grad_input.data_type() != dtype_of<IO_T>()) {
+  if (grad_output.dtype() != dtype_of<IO_T>() || grad_input.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (weights.data_type() != dtype_of<Param_T>()) {
+  if (weights.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "LegacyDenseLayerImpl weight tensor dtype mismatch with dispatch Param_T");
   }
@@ -225,10 +225,10 @@ std::unique_ptr<Task> LegacyDenseLayerImpl::run_bgrad(const Tensor &grad_output,
                                                       Tensor &bias_gradient, size_t batch_size,
                                                       size_t output_features,
                                                       flowHandle_t handle) const {
-  if (grad_output.data_type() != dtype_of<IO_T>()) {
+  if (grad_output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayerImpl grad_output dtype mismatch with dispatch IO_T");
   }
-  if (bias_gradient.data_type() != dtype_of<Param_T>()) {
+  if (bias_gradient.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "LegacyDenseLayerImpl bias grad_output dtype mismatch with dispatch Param_T");
   }
@@ -258,10 +258,10 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyDenseLayerImpl::add_bias(Tensor &output, const Tensor &bias,
                                                      size_t batch_size, size_t output_features,
                                                      flowHandle_t handle) const {
-  if (output.data_type() != dtype_of<IO_T>()) {
+  if (output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayerImpl output dtype mismatch with dispatch IO_T");
   }
-  if (bias.data_type() != dtype_of<Param_T>()) {
+  if (bias.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error("LegacyDenseLayerImpl bias dtype mismatch with dispatch Param_T");
   }
   if (get_engine_type() == EngineType::CPU) {

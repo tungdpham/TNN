@@ -108,8 +108,8 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> AttentionBlockImpl::compute_attention_forward(
     const Tensor &q, const Tensor &k, const Tensor &v, Tensor &output, size_t batch_size,
     size_t seq_len, flowHandle_t handle) {
-  if (q.data_type() != dtype_of<IO_T>() || k.data_type() != dtype_of<IO_T>() ||
-      v.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (q.dtype() != dtype_of<IO_T>() || k.dtype() != dtype_of<IO_T>() ||
+      v.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("AttentionBlock IO tensor dtype mismatch with dispatch IO_T");
   }
 
@@ -182,10 +182,10 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> AttentionBlockImpl::compute_attention_backward(
     const Tensor &q, const Tensor &k, const Tensor &v, Tensor &d_attn_out, Tensor &dq, Tensor &dk,
     Tensor &dv, size_t batch_size, size_t seq_len, flowHandle_t handle) {
-  if (q.data_type() != dtype_of<IO_T>() || k.data_type() != dtype_of<IO_T>() ||
-      v.data_type() != dtype_of<IO_T>() || d_attn_out.data_type() != dtype_of<IO_T>() ||
-      dq.data_type() != dtype_of<IO_T>() || dk.data_type() != dtype_of<IO_T>() ||
-      dv.data_type() != dtype_of<IO_T>()) {
+  if (q.dtype() != dtype_of<IO_T>() || k.dtype() != dtype_of<IO_T>() ||
+      v.dtype() != dtype_of<IO_T>() || d_attn_out.dtype() != dtype_of<IO_T>() ||
+      dq.dtype() != dtype_of<IO_T>() || dk.dtype() != dtype_of<IO_T>() ||
+      dv.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("AttentionBlock IO tensor dtype mismatch with dispatch IO_T");
   }
 

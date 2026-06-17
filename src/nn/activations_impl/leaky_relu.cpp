@@ -26,7 +26,7 @@ std::unique_ptr<Task> LeakyReLU::apply(const Tensor &input, Tensor &output) cons
     throw std::runtime_error("Input and output must be on the same device for LeakyReLU");
   }
 
-  DISPATCH_DTYPE(input.data_type(), T, return apply_impl<T>(input, output, defaultFlowHandle));
+  DISPATCH_DTYPE(input.dtype(), T, return apply_impl<T>(input, output, defaultFlowHandle));
 }
 
 std::unique_ptr<Task> LeakyReLU::compute_gradient(const Tensor &input, const Tensor &grad_output,
@@ -38,7 +38,7 @@ std::unique_ptr<Task> LeakyReLU::compute_gradient(const Tensor &input, const Ten
         "Input and upstream grad_output must be on the same device for LeakyReLU");
   }
   DISPATCH_DTYPE(
-      input.data_type(), T,
+      input.dtype(), T,
       return compute_gradient_impl<T>(input, grad_output, grad_input, defaultFlowHandle));
 }
 
@@ -51,7 +51,7 @@ std::unique_ptr<ActivationFunction> LeakyReLU::clone() const {
 template <typename Compute_T>
 std::unique_ptr<Task> LeakyReLU::apply_impl(const Tensor &input, Tensor &output,
                                             flowHandle_t handle) const {
-  if (input.data_type() != dtype_of<Compute_T>() || output.data_type() != dtype_of<Compute_T>()) {
+  if (input.dtype() != dtype_of<Compute_T>() || output.dtype() != dtype_of<Compute_T>()) {
     throw std::runtime_error("LeakyReLU tensor dtype mismatch with dispatch type");
   }
 
@@ -78,9 +78,8 @@ std::unique_ptr<Task> LeakyReLU::compute_gradient_impl(const Tensor &input,
                                                        const Tensor &grad_output,
                                                        Tensor &grad_input,
                                                        flowHandle_t handle) const {
-  if (input.data_type() != dtype_of<Compute_T>() ||
-      grad_output.data_type() != dtype_of<Compute_T>() ||
-      grad_input.data_type() != dtype_of<Compute_T>()) {
+  if (input.dtype() != dtype_of<Compute_T>() || grad_output.dtype() != dtype_of<Compute_T>() ||
+      grad_input.dtype() != dtype_of<Compute_T>()) {
     throw std::runtime_error("LeakyReLU tensor dtype mismatch with dispatch type");
   }
 

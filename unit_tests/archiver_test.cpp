@@ -39,7 +39,7 @@ void expect_float_tensors_equal(const Tensor& actual, const Tensor& expected) {
   ASSERT_TRUE(actual);
   ASSERT_TRUE(expected);
   EXPECT_EQ(actual.shape(), expected.shape());
-  EXPECT_EQ(actual.data_type(), expected.data_type());
+  EXPECT_EQ(actual.dtype(), expected.dtype());
   EXPECT_EQ(actual.size(), expected.size());
 
   const float* actual_data = actual.data_as<float>();
@@ -188,7 +188,7 @@ TEST_F(ArchiverTest, TestTensorArchiver) {
   bserializer.deserialize(reader, deserialized_tensor);
 
   EXPECT_EQ(deserialized_tensor.shape(), tensor.shape());
-  EXPECT_EQ(deserialized_tensor.data_type(), tensor.data_type());
+  EXPECT_EQ(deserialized_tensor.dtype(), tensor.dtype());
   EXPECT_EQ(deserialized_tensor.device(), tensor.device());
   EXPECT_EQ(deserialized_tensor.size(), tensor.size());
   float* tensor_data = tensor.data_as<float>();
@@ -230,7 +230,7 @@ TEST_F(ArchiverTest, TestJobArchiver) {
     ASSERT_TRUE(expected);
     ASSERT_TRUE(actual);
     EXPECT_EQ(actual.shape(), expected.shape());
-    EXPECT_EQ(actual.data_type(), expected.data_type());
+    EXPECT_EQ(actual.dtype(), expected.dtype());
     EXPECT_EQ(actual.device(), expected.device());
     EXPECT_EQ(actual.size(), expected.size());
 

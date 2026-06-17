@@ -46,7 +46,7 @@ Tensor LegacyMaxPool2DLayerImpl::forward_impl(const Tensor &input, Residuals &re
   size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  Tensor output = get_tensor({batch_size, channels, output_h, output_w}, input.data_type());
+  Tensor output = get_tensor({batch_size, channels, output_h, output_w}, input.dtype());
 
   Tensor mask_indices = get_tensor({batch_size, channels, output_h, output_w}, DType_t::SIZE_T);
   residuals["mask_indices"] = mask_indices;
@@ -72,7 +72,7 @@ Tensor LegacyMaxPool2DLayerImpl::backward_impl(const Tensor &grad_output, Residu
   size_t input_h = (output_h - 1) * stride_h_ + pool_h_ - 2 * pad_h_;
   size_t input_w = (output_w - 1) * stride_w_ + pool_w_ - 2 * pad_w_;
 
-  Tensor grad_input = get_tensor({batch_size, channels, input_h, input_w}, grad_output.data_type());
+  Tensor grad_input = get_tensor({batch_size, channels, input_h, input_w}, grad_output.dtype());
 
   grad_input.fill(0);
 
@@ -89,7 +89,7 @@ std::unique_ptr<Task> LegacyMaxPool2DLayerImpl::run_forward(const Tensor &input_
                                                             size_t input_w, size_t output_h,
                                                             size_t output_w, Tensor &mask_indices,
                                                             flowHandle_t handle) const {
-  if (input_data.data_type() != dtype_of<IO_T>() || output_data.data_type() != dtype_of<IO_T>()) {
+  if (input_data.dtype() != dtype_of<IO_T>() || output_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyMaxPool2DLayerImpl tensor dtype mismatch with dispatch type");
   }
   if (input_data.device_type() != output_data.device_type()) {
@@ -131,8 +131,7 @@ template <typename IO_T>
 std::unique_ptr<Task> LegacyMaxPool2DLayerImpl::run_backward(
     const Tensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
     size_t output_h, size_t output_w, const Tensor &mask_indices, flowHandle_t handle) const {
-  if (gradient_data.data_type() != dtype_of<IO_T>() ||
-      grad_input_data.data_type() != dtype_of<IO_T>()) {
+  if (gradient_data.dtype() != dtype_of<IO_T>() || grad_input_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyMaxPool2DLayerImpl tensor dtype mismatch with dispatch type");
   }
   if (gradient_data.device_type() != grad_input_data.device_type()) {

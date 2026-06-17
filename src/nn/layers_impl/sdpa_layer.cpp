@@ -219,12 +219,12 @@ std::unique_ptr<Task> SDPALayerImpl::compute_sdpa_forward_impl(
     flowHandle_t handle, Residuals &residuals) const {
   using AccT = typename TypeTraits<IO_T>::ComputePrecision;
 
-  if (q.data_type() != dtype_of<IO_T>() || k.data_type() != dtype_of<IO_T>() ||
-      v.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>() ||
-      attn_weights.data_type() != dtype_of<IO_T>()) {
+  if (q.dtype() != dtype_of<IO_T>() || k.dtype() != dtype_of<IO_T>() ||
+      v.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>() ||
+      attn_weights.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("SDPALayerImpl: data type mismatch in forward pass");
   }
-  if (scores.data_type() != sdpa_workspace_dtype<IO_T>()) {
+  if (scores.dtype() != sdpa_workspace_dtype<IO_T>()) {
     throw std::runtime_error("SDPALayerImpl: score workspace dtype mismatch in forward pass");
   }
 
@@ -255,12 +255,12 @@ std::unique_ptr<Task> SDPALayerImpl::compute_sdpa_backward_impl(
     Residuals &residuals) const {
   using AccT = typename TypeTraits<IO_T>::ComputePrecision;
 
-  if (q.data_type() != dtype_of<IO_T>() || grad_output.data_type() != dtype_of<IO_T>() ||
-      attn_weights.data_type() != dtype_of<IO_T>() || grad_q.data_type() != dtype_of<IO_T>() ||
-      grad_k.data_type() != dtype_of<IO_T>() || grad_v.data_type() != dtype_of<IO_T>()) {
+  if (q.dtype() != dtype_of<IO_T>() || grad_output.dtype() != dtype_of<IO_T>() ||
+      attn_weights.dtype() != dtype_of<IO_T>() || grad_q.dtype() != dtype_of<IO_T>() ||
+      grad_k.dtype() != dtype_of<IO_T>() || grad_v.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("SDPALayerImpl: data type mismatch in backward pass");
   }
-  if (grad_scores.data_type() != sdpa_workspace_dtype<IO_T>()) {
+  if (grad_scores.dtype() != sdpa_workspace_dtype<IO_T>()) {
     throw std::runtime_error("SDPALayerImpl: grad-score workspace dtype mismatch in backward pass");
   }
 
@@ -306,12 +306,12 @@ void SDPALayerImpl::cudnn_forward(const Tensor &q, const Tensor &k, const Tensor
     cudnnHandle_t cudnn_handle = CUDAContext::getCudnnHandle();
 
     // Convert dtype
-    cudnnDataType_t io_data_type = cuda::cudnn::to_cudnn_datatype(q.data_type());
-    cudnnDataType_t compute_data_type = cuda::cudnn::to_cudnn_datatype(this->compute_dtype_);
+    cudnnDataType_t io_dtype = cuda::cudnn::to_cudnn_datatype(q.dtype());
+    cudnnDataType_t compute_dtype = cuda::cudnn::to_cudnn_datatype(this->compute_dtype_);
 
     // Initialize cuDNN flash attention handle
-    auto fe_handle = cuda::cudnn_flash_attention::initialize_fe_handle(cudnn_handle, io_data_type,
-                                                                       compute_data_type, *stats);
+    auto fe_handle = cuda::cudnn_flash_attention::initialize_fe_handle(cudnn_handle, io_dtype,
+                                                                       compute_dtype, *stats);
 
     fe_handle_cache_[shape_key] = fe_handle;
     stats_cache_[shape_key] = stats;
@@ -330,8 +330,8 @@ void SDPALayerImpl::cudnn_forward(const Tensor &q, const Tensor &k, const Tensor
   }
 
   create_cuda_task(this->flow_handle_, cuda::cudnn_flash_attention::run_forward, fe_handle, stats,
-                   q.data(), k.data(), v.data(), output.data(), stats_tensor.data(),
-                   workspace.data());
+                   q.data_as<void>(), k.data_as<void>(), v.data_as<void>(), output.data_as<void>(),
+                   stats_tensor.data_as<void>(), workspace.data_as<void>());
 }
 
 void SDPALayerImpl::cudnn_backward(const Tensor &q, const Tensor &k, const Tensor &v,
@@ -355,9 +355,10 @@ void SDPALayerImpl::cudnn_backward(const Tensor &q, const Tensor &k, const Tenso
 
   // Call cuDNN flash attention backward
   create_cuda_task(this->flow_handle_, cuda::cudnn_flash_attention::run_backward, fe_handle, stats,
-                   q.data(), k.data(), v.data(), output.data(), grad_output.data(),
-                   stats_tensor.data(), grad_q.data(), grad_k.data(), grad_v.data(),
-                   workspace.data());
+                   q.data_as<void>(), k.data_as<void>(), v.data_as<void>(), output.data_as<void>(),
+                   grad_output.data_as<void>(), stats_tensor.data_as<void>(),
+                   grad_q.data_as<void>(), grad_k.data_as<void>(), grad_v.data_as<void>(),
+                   workspace.data_as<void>());
 }
 #endif
 

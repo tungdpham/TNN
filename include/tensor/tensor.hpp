@@ -97,16 +97,14 @@ public:
   Tensor &operator=(Tensor &&) noexcept = default;
 
   explicit operator bool() const { return data_.get<void>() != nullptr; }
-  void *data() { return data_.get<void>(); }
-  const void *data() const { return data_.get<void>(); }
 
-  template <typename T>
+  template <typename T = void>
   T *data_as() {
-    return reinterpret_cast<T *>(data());
+    return data_.get<T>();
   }
-  template <typename T>
+  template <typename T = void>
   const T *data_as() const {
-    return reinterpret_cast<const T *>(data());
+    return data_.get<T>();
   }
 
   template <typename T>
@@ -129,8 +127,7 @@ public:
   IAllocator &allocator() const { return allocator_; }
   const Device &device() const { return data_.device(); }
   DeviceType device_type() const { return device().device_type(); }
-  DType_t &data_type() { return dtype_; }
-  const DType_t &data_type() const { return dtype_; }
+  DType_t dtype() const { return dtype_; }
 
   Tensor span(Vec<size_t> start_offset, Vec<size_t> span_sizes) const {
     size_t offset = 0, span_size = 1;
@@ -174,14 +171,14 @@ public:
   std::unique_ptr<Task> fill_random_normal(double mean, double stddev) {
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
-        reinterpret_cast<uintptr_t>(data()));
+        reinterpret_cast<uintptr_t>(data_as<void>()));
     return fill_random_normal(mean, stddev, seed);
   }
 
   std::unique_ptr<Task> fill_random_uniform(double low, double high) {
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
-        reinterpret_cast<uintptr_t>(data()));
+        reinterpret_cast<uintptr_t>(data_as<void>()));
     return fill_random_uniform(low, high, seed);
   }
 
@@ -205,7 +202,7 @@ public:
 
 template <typename Archiver>
 void archive(Archiver &archive, const Tensor &tensor) {
-  const DType_t &dtype = tensor.data_type();
+  DType_t dtype = tensor.dtype();
   Vec<size_t> shape_vec = tensor.shape();
   archive(dtype);
   archive(shape_vec);

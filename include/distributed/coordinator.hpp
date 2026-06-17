@@ -220,7 +220,7 @@ public:
           total_loss += loss;
           PoolAllocator &allocator =
               PoolAllocator::instance(predictions.device(), defaultFlowHandle);
-          Tensor grad_output(predictions.shape(), predictions.data_type(), allocator);
+          Tensor grad_output(predictions.shape(), predictions.dtype(), allocator);
           criterion->compute_gradient(predictions, device_targets, grad_output);
           grad_output *= 1.0 / (num_microbatches * accumulation_steps);
 
@@ -349,7 +349,7 @@ public:
       total_corrects += compute_class_corrects(predictions, device_targets);
 
       PoolAllocator &allocator = PoolAllocator::instance(predictions.device(), defaultFlowHandle);
-      Tensor grad_output(predictions.shape(), predictions.data_type(), allocator);
+      Tensor grad_output(predictions.shape(), predictions.dtype(), allocator);
       criterion->compute_gradient(predictions, device_targets, grad_output);
       grad_output *= (1.0f / (num_microbatches * accumulation_steps));
 

@@ -55,7 +55,7 @@ std::unique_ptr<Task> SliceLayerImpl::slice_forward(const Tensor &input, Tensor 
     throw std::runtime_error(
         "SliceLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("SliceLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 
@@ -87,7 +87,7 @@ std::unique_ptr<Task> SliceLayerImpl::slice_backward(const Tensor &grad_output, 
     throw std::runtime_error(
         "SliceLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
   }
-  if (grad_output.data_type() != dtype_of<IO_T>() || grad_input.data_type() != dtype_of<IO_T>()) {
+  if (grad_output.dtype() != dtype_of<IO_T>() || grad_input.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("SliceLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 

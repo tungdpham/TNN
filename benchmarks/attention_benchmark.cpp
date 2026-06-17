@@ -61,8 +61,8 @@ signed main() {
 
   auto cpu_full_attn_output = full_attn_output.to_host();
   auto cpu_flash_attn_output = flash_attn_output.to_host();
-  float *full_attn_data = static_cast<float *>(cpu_full_attn_output.data());
-  float *flash_attn_data = static_cast<float *>(cpu_flash_attn_output.data());
+  float *full_attn_data = static_cast<float *>(cpu_full_attn_output.data_as<void>());
+  float *flash_attn_data = static_cast<float *>(cpu_flash_attn_output.data_as<void>());
 
   int mismatch_count = 0;
   for (size_t i = 0; i < full_attn_output.size(); ++i) {

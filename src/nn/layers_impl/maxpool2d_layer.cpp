@@ -75,14 +75,14 @@ Tensor MaxPool2DLayerImpl::forward_impl(const Tensor &input, Residuals &residual
         this->get_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
     residuals["mask_indices"] = mask_indices;
 
-    Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.data_type());
+    Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.dtype());
 
     run_forward(input, output, batch_size, input_h, input_w, channels, output_h, output_w,
                 mask_indices, this->flow_handle_);
 
     return output;
   } else {
-    Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.data_type());
+    Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.dtype());
 
     Tensor mask_indices =
         this->get_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
@@ -114,7 +114,7 @@ Tensor MaxPool2DLayerImpl::backward_impl(const Tensor &grad_output, Residuals &r
   size_t input_h = (output_h - 1) * stride_h_ - 2 * pad_h_ + pool_h_;
   size_t input_w = (output_w - 1) * stride_w_ - 2 * pad_w_ + pool_w_;
 
-  Tensor grad_input = get_tensor({batch_size, input_h, input_w, channels}, grad_output.data_type());
+  Tensor grad_input = get_tensor({batch_size, input_h, input_w, channels}, grad_output.dtype());
 
   grad_input.fill(0);
 
@@ -131,7 +131,7 @@ std::unique_ptr<Task> MaxPool2DLayerImpl::run_forward(const Tensor &input_data, 
                                                       size_t output_h, size_t output_w,
                                                       Tensor &mask_indices,
                                                       flowHandle_t handle) const {
-  if (input_data.data_type() != dtype_of<IO_T>() || output_data.data_type() != dtype_of<IO_T>()) {
+  if (input_data.dtype() != dtype_of<IO_T>() || output_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("MaxPool2DLayerImpl: data type mismatch in forward pass");
   }
 
@@ -172,8 +172,7 @@ std::unique_ptr<Task> MaxPool2DLayerImpl::run_backward(const Tensor &gradient_da
                                                        size_t channels, size_t output_h,
                                                        size_t output_w, const Tensor &mask_indices,
                                                        flowHandle_t handle) const {
-  if (gradient_data.data_type() != dtype_of<IO_T>() ||
-      grad_input_data.data_type() != dtype_of<IO_T>()) {
+  if (gradient_data.dtype() != dtype_of<IO_T>() || grad_input_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("MaxPool2DLayerImpl: data type mismatch in backward pass");
   }
 
@@ -264,17 +263,18 @@ Tensor MaxPool2DLayerImpl::dnnl_forward(const Tensor &input, Residuals &residual
 
   Tensor output = get_tensor({current_stats.batch_size, current_stats.output_h,
                               current_stats.output_w, current_stats.channels},
-                             input.data_type());
+                             input.dtype());
 
   if (this->is_training_) {
     Tensor pool_ws = get_tensor({current_stats.pool_workspace_size}, DType_t::BYTE);
     residuals["dnnl_pool_ws"] = pool_ws;
 
     create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_forward, dnnl_handle, current_stats,
-                    input.data(), output.data(), pool_ws.data(), nullptr);
+                    input.data_as<void>(), output.data_as<void>(), pool_ws.data_as<void>(),
+                    nullptr);
   } else {
     create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_inference, dnnl_handle,
-                    current_stats, input.data(), output.data(), nullptr);
+                    current_stats, input.data_as<void>(), output.data_as<void>(), nullptr);
   }
 
   return output;
@@ -303,7 +303,8 @@ Tensor MaxPool2DLayerImpl::dnnl_backward(const Tensor &grad_output, Residuals &r
   Tensor &pool_ws = residuals["dnnl_pool_ws"];
 
   create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_backward, dnnl_handle, current_stats,
-                  grad_output.data(), grad_input.data(), pool_ws.data(), nullptr);
+                  grad_output.data_as<void>(), grad_input.data_as<void>(), pool_ws.data_as<void>(),
+                  nullptr);
 
   return grad_input;
 }

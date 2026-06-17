@@ -97,11 +97,11 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::add_positional_embedding(
         "PositionalEmbeddingLayerImpl mixed dtype dispatch not implemented "
         "(io/param/compute must match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (pos_embedding.data_type() != dtype_of<Param_T>()) {
+  if (pos_embedding.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl pos_embedding dtype mismatch with dispatch Param_T");
   }
@@ -148,11 +148,11 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::accumulate_pos_gradients(
         "PositionalEmbeddingLayerImpl mixed dtype dispatch not implemented "
         "(io/param/compute must match).");
   }
-  if (grad_output.data_type() != dtype_of<IO_T>()) {
+  if (grad_output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl grad_output dtype mismatch with dispatch IO_T");
   }
-  if (pos_embedding_gradients.data_type() != dtype_of<Param_T>()) {
+  if (pos_embedding_gradients.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl pos_embedding_gradients dtype mismatch with dispatch "
         "Param_T");

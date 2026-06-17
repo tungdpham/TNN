@@ -20,10 +20,10 @@ namespace cudnn_layer_norm {
 
 struct feHandle_t;
 
-cudnnDataType_t get_cudnn_data_type(DType_t dtype);
+cudnnDataType_t get_cudnn_dtype(DType_t dtype);
 
-feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
-                                 cudnnDataType_t compute_data_type, LayerNormStats &stats);
+feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_dtype,
+                                 cudnnDataType_t compute_dtype, LayerNormStats &stats);
 
 void destroy_fe_handle(feHandle_t *handle);
 

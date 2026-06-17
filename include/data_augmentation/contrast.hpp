@@ -22,7 +22,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.dtype(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {

@@ -43,10 +43,10 @@ std::unique_ptr<Task> ClassTokenLayerImpl::forward_task(const Tensor &input, Ten
     throw std::runtime_error(
         "ClassTokenLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("ClassTokenLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (class_token.data_type() != dtype_of<Param_T>()) {
+  if (class_token.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "ClassTokenLayerImpl class_token dtype mismatch with dispatch Param_T");
   }
@@ -78,10 +78,10 @@ std::unique_ptr<Task> ClassTokenLayerImpl::backward_task(
     throw std::runtime_error(
         "ClassTokenLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (grad_output.data_type() != dtype_of<IO_T>() || grad_input.data_type() != dtype_of<IO_T>()) {
+  if (grad_output.dtype() != dtype_of<IO_T>() || grad_input.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("ClassTokenLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (class_token_gradients.data_type() != dtype_of<Param_T>()) {
+  if (class_token_gradients.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "ClassTokenLayerImpl class_token_gradients dtype mismatch with dispatch Param_T");
   }
@@ -119,7 +119,7 @@ Tensor ClassTokenLayerImpl::forward_impl(const Tensor &input, Residuals &residua
     throw std::runtime_error("ClassTokenLayerImpl: Input embed_dim must match layer embed_dim");
   }
 
-  Tensor output = get_tensor({batch_size, seq_len + 1, embed_dim}, input.data_type());
+  Tensor output = get_tensor({batch_size, seq_len + 1, embed_dim}, input.dtype());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(forward_task, input, output, class_token_, batch_size, seq_len,
                                  embed_dim, this->flow_handle_);
@@ -137,7 +137,7 @@ Tensor ClassTokenLayerImpl::backward_impl(const Tensor &grad_output, Residuals &
   size_t embed_dim = grad_output.dimension(2);
   size_t seq_len = seq_len_plus_1 - 1;
 
-  Tensor grad_input = get_tensor({batch_size, seq_len, embed_dim}, grad_output.data_type());
+  Tensor grad_input = get_tensor({batch_size, seq_len, embed_dim}, grad_output.dtype());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, grad_output, grad_input, class_token_gradients_,
                                  class_token_, batch_size, seq_len, embed_dim, this->flow_handle_);

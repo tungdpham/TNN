@@ -107,8 +107,9 @@ std::unique_ptr<Task> FlashAttentionBlockImpl::flash_attention_forward_task(
     const Tensor &q_heads, const Tensor &k_heads, const Tensor &v_heads, Tensor &attn_heads,
     Tensor &stats_tensor, Tensor &workspace, flowHandle_t handle) const {
   return create_cuda_task(defaultFlowHandle, cuda::cudnn_flash_attention::run_forward, fe_handle,
-                          stats, q_heads.data(), k_heads.data(), v_heads.data(), attn_heads.data(),
-                          stats_tensor.data(), workspace.data());
+                          stats, q_heads.data_as<void>(), k_heads.data_as<void>(),
+                          v_heads.data_as<void>(), attn_heads.data_as<void>(),
+                          stats_tensor.data_as<void>(), workspace.data_as<void>());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -118,9 +119,11 @@ std::unique_ptr<Task> FlashAttentionBlockImpl::flash_attention_backward_task(
     Tensor &grad_attn_heads, Tensor &stats_tensor, Tensor &grad_q_heads, Tensor &grad_k_heads,
     Tensor &grad_v_heads, Tensor &workspace, flowHandle_t handle) const {
   return create_cuda_task(defaultFlowHandle, cuda::cudnn_flash_attention::run_backward, fe_handle,
-                          stats, q_heads.data(), k_heads.data(), v_heads.data(), attn_heads.data(),
-                          grad_attn_heads.data(), stats_tensor.data(), grad_q_heads.data(),
-                          grad_k_heads.data(), grad_v_heads.data(), workspace.data());
+                          stats, q_heads.data_as<void>(), k_heads.data_as<void>(),
+                          v_heads.data_as<void>(), attn_heads.data_as<void>(),
+                          grad_attn_heads.data_as<void>(), stats_tensor.data_as<void>(),
+                          grad_q_heads.data_as<void>(), grad_k_heads.data_as<void>(),
+                          grad_v_heads.data_as<void>(), workspace.data_as<void>());
 }
 
 Tensor FlashAttentionBlockImpl::cudnn_forward(const Tensor &input, Residuals &residuals) {

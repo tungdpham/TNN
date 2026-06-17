@@ -55,14 +55,14 @@ struct dnnlBNHandle_t {
   bool has_affine_bwd = false;  // true when prop_kind::backward (computes diff_scale/shift)
 };
 
-static dnnl::memory::data_type get_dnnl_dtype(DType_t dtype) {
+static dnnl::memory::dtype get_dnnl_dtype(DType_t dtype) {
   switch (dtype) {
     case DType_t::FP32:
-      return dnnl::memory::data_type::f32;
+      return dnnl::memory::dtype::f32;
     case DType_t::FP16:
-      return dnnl::memory::data_type::f16;
+      return dnnl::memory::dtype::f16;
     case DType_t::BF16:
-      return dnnl::memory::data_type::bf16;
+      return dnnl::memory::dtype::bf16;
     default:
       throw std::runtime_error("dnnl_batchnorm: unsupported dtype");
   }
@@ -78,7 +78,7 @@ dnnlBNHandle_t *initialize_dnnl_handle(BatchNormStats &stats, DType_t dtype) {
   handle->has_affine_bwd = stats.affine;
 
   auto io_dt = get_dnnl_dtype(dtype);
-  const auto f32_dt = dnnl::memory::data_type::f32;
+  const auto f32_dt = dnnl::memory::dtype::f32;
 
   const int64_t n = static_cast<int64_t>(stats.batch_size);
   const int64_t c = static_cast<int64_t>(stats.channels);

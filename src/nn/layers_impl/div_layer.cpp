@@ -42,7 +42,7 @@ Vec<Tensor> DivLayerImpl::forward_impl(const Vec<Tensor> &inputs, Residuals &res
     residuals["b"] = b;
   }
 
-  DISPATCH_DTYPE(a.data_type(), T, {
+  DISPATCH_DTYPE(a.dtype(), T, {
     ops::div<T>(a.data_ptr(), b.data_ptr(), output.data_ptr(), n, this->flow_handle_);
   });
 
@@ -63,7 +63,7 @@ Vec<Tensor> DivLayerImpl::backward_impl(const Vec<Tensor> &grad_outputs, Residua
   Tensor grad_a = get_tensor(grad_out.shape(), this->io_dtype_);
   Tensor grad_b = get_tensor(grad_out.shape(), this->io_dtype_);
 
-  DISPATCH_DTYPE(grad_out.data_type(), T, {
+  DISPATCH_DTYPE(grad_out.dtype(), T, {
     // grad_a = grad_out / b
     ops::div<T>(grad_out.data_ptr(), b.data_ptr(), grad_a.data_ptr(), n, this->flow_handle_);
 

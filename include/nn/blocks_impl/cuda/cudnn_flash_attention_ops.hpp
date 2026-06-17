@@ -18,8 +18,8 @@ namespace cudnn_flash_attention {
 
 struct feHandle_t;
 
-feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
-                                 cudnnDataType_t compute_data_type, AttentionStats &stats);
+feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_dtype,
+                                 cudnnDataType_t compute_dtype, AttentionStats &stats);
 
 void destroy_fe_handle(feHandle_t *handle);
 

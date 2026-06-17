@@ -145,7 +145,7 @@ Tensor LegacyConv2DLayerImpl::def_forward(const Tensor &input, Residuals &residu
   size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  Tensor output = get_tensor({batch_size, out_channels_, output_h, output_w}, input.data_type());
+  Tensor output = get_tensor({batch_size, out_channels_, output_h, output_w}, input.dtype());
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
@@ -329,9 +329,10 @@ std::unique_ptr<Task> LegacyConv2DLayerImpl::cudnn_run_forward(
       convolution_handle_cache.at(shape_key);
 
   return create_cuda_task(handle, cuda::cudnn_conv2d::forward_with_bias<IO_T>, convolution_handle,
-                          input.data(), weight.data(), bias ? bias.data() : nullptr, output.data(),
-                          batch_size, in_channels_, input_h, input_w, out_channels_, output_h,
-                          output_w, cudnn_workspace.data(), cudnn_workspace.capacity());
+                          input.data_as<void>(), weight.data_as<void>(),
+                          bias ? bias.data_as<void>() : nullptr, output.data_as<void>(), batch_size,
+                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
+                          cudnn_workspace.data_as<void>(), cudnn_workspace.capacity());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -349,9 +350,10 @@ std::unique_ptr<Task> LegacyConv2DLayerImpl::cudnn_run_dgrad(
       convolution_handle_cache.at(shape_key);
 
   return create_cuda_task(handle, cuda::cudnn_conv2d::run_dgrad<IO_T>, convolution_handle,
-                          grad_output.data(), weight.data(), input_grad.data(), batch_size,
-                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                          cudnn_workspace.data(), cudnn_workspace.capacity());
+                          grad_output.data_as<void>(), weight.data_as<void>(),
+                          input_grad.data_as<void>(), batch_size, in_channels_, input_h, input_w,
+                          out_channels_, output_h, output_w, cudnn_workspace.data_as<void>(),
+                          cudnn_workspace.capacity());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -369,9 +371,10 @@ std::unique_ptr<Task> LegacyConv2DLayerImpl::cudnn_run_wgrad(
       convolution_handle_cache.at(shape_key);
 
   return create_cuda_task(handle, cuda::cudnn_conv2d::backward_filter<IO_T>, convolution_handle,
-                          input.data(), grad_output.data(), weight_grad.data(), batch_size,
-                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                          cudnn_workspace.data(), cudnn_workspace.capacity());
+                          input.data_as<void>(), grad_output.data_as<void>(),
+                          weight_grad.data_as<void>(), batch_size, in_channels_, input_h, input_w,
+                          out_channels_, output_h, output_w, cudnn_workspace.data_as<void>(),
+                          cudnn_workspace.capacity());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -393,8 +396,8 @@ std::unique_ptr<Task> LegacyConv2DLayerImpl::cudnn_run_bgrad(const Tensor &grad_
       convolution_handle_cache.at(shape_key);
 
   return create_cuda_task(handle, cuda::cudnn_conv2d::run_bgrad<IO_T>, convolution_handle,
-                          grad_output.data(), bias_grad.data(), batch_size, out_channels, output_h,
-                          output_w);
+                          grad_output.data_as<void>(), bias_grad.data_as<void>(), batch_size,
+                          out_channels, output_h, output_w);
 }
 #endif
 
@@ -409,10 +412,10 @@ std::unique_ptr<Task> LegacyConv2DLayerImpl::run_forward(const Tensor &col_data,
         "LegacyConv2DLayerImpl mixed dtype dispatch not implemented (io/param/compute must "
         "match).");
   }
-  if (col_data.data_type() != dtype_of<IO_T>() || output_data.data_type() != dtype_of<IO_T>()) {
+  if (col_data.dtype() != dtype_of<IO_T>() || output_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyConv2DLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (weight_data.data_type() != dtype_of<Param_T>()) {
+  if (weight_data.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "LegacyConv2DLayerImpl weight tensor dtype mismatch with dispatch Param_T");
   }
@@ -452,10 +455,10 @@ std::unique_ptr<Task> LegacyConv2DLayerImpl::run_wgrad(const Tensor &col_data,
         "LegacyConv2DLayerImpl mixed dtype dispatch not implemented (io/param/compute must "
         "match).");
   }
-  if (col_data.data_type() != dtype_of<IO_T>() || gradient_data.data_type() != dtype_of<IO_T>()) {
+  if (col_data.dtype() != dtype_of<IO_T>() || gradient_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyConv2DLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (weight_grad_data.data_type() != dtype_of<Param_T>()) {
+  if (weight_grad_data.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "LegacyConv2DLayerImpl weight grad_output dtype mismatch with dispatch Param_T");
   }
@@ -495,11 +498,10 @@ std::unique_ptr<Task> LegacyConv2DLayerImpl::run_dgrad(const Tensor &gradient_da
         "LegacyConv2DLayerImpl mixed dtype dispatch not implemented (io/param/compute must "
         "match).");
   }
-  if (gradient_data.data_type() != dtype_of<IO_T>() ||
-      col_grad_data.data_type() != dtype_of<IO_T>()) {
+  if (gradient_data.dtype() != dtype_of<IO_T>() || col_grad_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyConv2DLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (weight_data.data_type() != dtype_of<Param_T>()) {
+  if (weight_data.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "LegacyConv2DLayerImpl weight tensor dtype mismatch with dispatch Param_T");
   }
@@ -538,10 +540,10 @@ std::unique_ptr<Task> LegacyConv2DLayerImpl::run_bgrad(const Tensor &gradient_da
         "LegacyConv2DLayerImpl mixed dtype dispatch not implemented (io/param/compute must "
         "match).");
   }
-  if (gradient_data.data_type() != dtype_of<IO_T>()) {
+  if (gradient_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyConv2DLayerImpl grad_output dtype mismatch with dispatch IO_T");
   }
-  if (bias_grad_data.data_type() != dtype_of<Param_T>()) {
+  if (bias_grad_data.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "LegacyConv2DLayerImpl bias grad_output dtype mismatch with dispatch Param_T");
   }
@@ -577,10 +579,10 @@ std::unique_ptr<Task> LegacyConv2DLayerImpl::add_bias(Tensor &output_data, const
         "LegacyConv2DLayerImpl mixed dtype dispatch not implemented (io/param/compute must "
         "match).");
   }
-  if (output_data.data_type() != dtype_of<IO_T>()) {
+  if (output_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyConv2DLayerImpl output dtype mismatch with dispatch IO_T");
   }
-  if (bias_data.data_type() != dtype_of<Param_T>()) {
+  if (bias_data.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error("LegacyConv2DLayerImpl bias dtype mismatch with dispatch Param_T");
   }
   if (output_data.device_type() != bias_data.device_type()) {

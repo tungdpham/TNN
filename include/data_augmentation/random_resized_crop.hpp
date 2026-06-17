@@ -43,7 +43,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.dtype(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {
@@ -169,10 +169,10 @@ private:
     }
 
     PoolAllocator &allocator = PoolAllocator::instance(data.device(), defaultFlowHandle);
-    Tensor output(Vec<size_t>{batch_size, out_h_, out_w_, channels}, data.data_type(), allocator);
+    Tensor output(Vec<size_t>{batch_size, out_h_, out_w_, channels}, data.dtype(), allocator);
 
     parallel_for<size_t>(0, batch_size, [&](size_t b) {
-      Tensor buf(Vec<size_t>{1, out_h_, out_w_, channels}, data.data_type(), allocator);
+      Tensor buf(Vec<size_t>{1, out_h_, out_w_, channels}, data.dtype(), allocator);
       bilinear_resize_crop<T>(data, b, params[b], buf);
 
       for (size_t h = 0; h < out_h_; ++h) {

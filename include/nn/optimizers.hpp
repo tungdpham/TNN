@@ -84,8 +84,7 @@ public:
     auto &grads = this->gradients_;
 
     for (size_t i = 0; i < params.size(); ++i) {
-      DISPATCH_DTYPE(params[i]->data_type(), T,
-                     update_impl<T>(*params[i], *grads[i], velocities_[i]));
+      DISPATCH_DTYPE(params[i]->dtype(), T, update_impl<T>(*params[i], *grads[i], velocities_[i]));
     }
   }
 
@@ -110,7 +109,7 @@ protected:
       velocities_.resize(this->parameters_.size());
       for (size_t i = 0; i < this->parameters_.size(); ++i) {
         velocities_[i] =
-            Tensor(this->parameters_[i]->shape(), this->parameters_[i]->data_type(),
+            Tensor(this->parameters_[i]->shape(), this->parameters_[i]->dtype(),
                    PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
         velocities_[i].fill(0.0f);
       }
@@ -177,7 +176,7 @@ public:
 
     for (size_t i = 0; i < params.size(); ++i) {
       DISPATCH_DTYPE(
-          params[i]->data_type(), T,
+          params[i]->dtype(), T,
           update_impl<T>(*params[i], *grads[i], m_[i], v_[i], bias_correction1, bias_correction2));
     }
   }
@@ -207,10 +206,10 @@ protected:
     m_.resize(this->parameters_.size());
     v_.resize(this->parameters_.size());
     for (size_t i = 0; i < this->parameters_.size(); ++i) {
-      m_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->data_type(),
+      m_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->dtype(),
                      PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
       m_[i].fill(0.0f);
-      v_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->data_type(),
+      v_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->dtype(),
                      PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
       v_[i].fill(0.0f);
     }

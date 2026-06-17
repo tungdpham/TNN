@@ -31,7 +31,7 @@ Tensor ReLULayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
 
     // Fused kernel: compute ReLU and mask in a single pass
     if (input.device_type() == DeviceType::CPU) {
-      DISPATCH_DTYPE(input.data_type(), T, {
+      DISPATCH_DTYPE(input.dtype(), T, {
         create_cpu_task(this->flow_handle_, cpu::relu::relu_forward_with_mask<T>,
                         input.data_as<T>(), output.data_as<T>(), mask.data_as<uint8_t>(),
                         num_elements);
@@ -39,7 +39,7 @@ Tensor ReLULayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
     }
 #ifdef USE_CUDA
     else if (input.device_type() == DeviceType::GPU) {
-      DISPATCH_DTYPE(input.data_type(), T, {
+      DISPATCH_DTYPE(input.dtype(), T, {
         create_cuda_task(this->flow_handle_, cuda::relu::relu_forward_with_mask<T>,
                          input.data_as<T>(), output.data_as<T>(), mask.data_as<uint8_t>(),
                          num_elements);
@@ -67,7 +67,7 @@ Tensor ReLULayerImpl::backward_impl(const Tensor &grad_output, Residuals &residu
   size_t num_elements = grad_output.size();
 
   if (grad_output.device_type() == DeviceType::CPU) {
-    DISPATCH_DTYPE(grad_output.data_type(), T, {
+    DISPATCH_DTYPE(grad_output.dtype(), T, {
       create_cpu_task(this->flow_handle_, cpu::relu::relu_backward_with_mask<T>,
                       grad_output.data_as<T>(), grad_input.data_as<T>(), mask.data_as<uint8_t>(),
                       num_elements);
@@ -75,7 +75,7 @@ Tensor ReLULayerImpl::backward_impl(const Tensor &grad_output, Residuals &residu
   }
 #ifdef USE_CUDA
   else if (grad_output.device_type() == DeviceType::GPU) {
-    DISPATCH_DTYPE(grad_output.data_type(), T, {
+    DISPATCH_DTYPE(grad_output.dtype(), T, {
       create_cuda_task(this->flow_handle_, cuda::relu::relu_backward_with_mask<T>,
                        grad_output.data_as<T>(), grad_input.data_as<T>(), mask.data_as<uint8_t>(),
                        num_elements);

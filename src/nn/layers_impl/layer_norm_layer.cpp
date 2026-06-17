@@ -62,10 +62,10 @@ std::unique_ptr<Task> LayerNormLayerImpl::run_forward(const Tensor &input, Tenso
     throw std::runtime_error(
         "LayerNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LayerNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (gamma && gamma.data_type() != dtype_of<Param_T>()) {
+  if (gamma && gamma.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error("LayerNormLayerImpl gamma dtype mismatch with dispatch Param_T");
   }
 
@@ -98,10 +98,10 @@ std::unique_ptr<Task> LayerNormLayerImpl::run_backward(const Tensor &grad_output
     throw std::runtime_error(
         "LayerNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (grad_output.data_type() != dtype_of<IO_T>() || grad_input.data_type() != dtype_of<IO_T>()) {
+  if (grad_output.dtype() != dtype_of<IO_T>() || grad_input.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LayerNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (gamma && gamma.data_type() != dtype_of<Param_T>()) {
+  if (gamma && gamma.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error("LayerNormLayerImpl gamma dtype mismatch with dispatch Param_T");
   }
 
@@ -145,10 +145,10 @@ void LayerNormLayerImpl::build_graph(const Vec<size_t> &input_shape) const {
     init_layer_norm_stats(new_stats, batch_size, channels, affine_, epsilon_);
 
     cudnnHandle_t shared_handle = CUDAContext::getCudnnHandle();
-    auto io_data_type = cuda::cudnn::to_cudnn_datatype(io_dtype_);
+    auto io_dtype = cuda::cudnn::to_cudnn_datatype(io_dtype_);
     auto compute_type = cuda::cudnn::to_cudnn_datatype(compute_dtype_);
     fe_handle_cache[shape_key] = cuda::cudnn_layer_norm::initialize_fe_handle(
-        shared_handle, io_data_type, compute_type, new_stats);
+        shared_handle, io_dtype, compute_type, new_stats);
     stats_cache[shape_key] = new_stats;
   }
 }
@@ -161,14 +161,15 @@ std::unique_ptr<Task> LayerNormLayerImpl::cudnn_run_forward(
   if (!std::is_same_v<IO_T, Param_T>) {
     throw std::runtime_error("LayerNormLayerImpl IO_T and Param_T must be the same type");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LayerNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 
   return create_cuda_task(handle, cuda::cudnn_layer_norm::run_forward, fe_handle, stats,
-                          input.data(), gamma ? gamma.data() : nullptr,
-                          beta ? beta.data() : nullptr, output.data(), mean.data(),
-                          inv_variance.data(), workspace.data());
+                          input.data_as<void>(), gamma ? gamma.data_as<void>() : nullptr,
+                          beta ? beta.data_as<void>() : nullptr, output.data_as<void>(),
+                          mean.data_as<void>(), inv_variance.data_as<void>(),
+                          workspace.data_as<void>());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -180,15 +181,16 @@ std::unique_ptr<Task> LayerNormLayerImpl::cudnn_run_backward(
   if (!std::is_same_v<IO_T, Param_T>) {
     throw std::runtime_error("LayerNormLayerImpl IO_T and Param_T must be the same type");
   }
-  if (grad_output.data_type() != dtype_of<IO_T>() || grad_input.data_type() != dtype_of<IO_T>()) {
+  if (grad_output.dtype() != dtype_of<IO_T>() || grad_input.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("LayerNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  return create_cuda_task(handle, cuda::cudnn_layer_norm::run_backward, fe_handle, stats,
-                          grad_output.data(), input.data(), gamma ? gamma.data() : nullptr,
-                          mean.data(), inv_variance.data(), grad_input.data(),
-                          gamma_gradients ? gamma_gradients.data() : nullptr,
-                          beta_gradients ? beta_gradients.data() : nullptr, workspace.data());
+  return create_cuda_task(
+      handle, cuda::cudnn_layer_norm::run_backward, fe_handle, stats, grad_output.data_as<void>(),
+      input.data_as<void>(), gamma ? gamma.data_as<void>() : nullptr, mean.data_as<void>(),
+      inv_variance.data_as<void>(), grad_input.data_as<void>(),
+      gamma_gradients ? gamma_gradients.data_as<void>() : nullptr,
+      beta_gradients ? beta_gradients.data_as<void>() : nullptr, workspace.data_as<void>());
 }
 
 Tensor LayerNormLayerImpl::cudnn_forward(const Tensor &input, Residuals &residuals) {

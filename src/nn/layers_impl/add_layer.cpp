@@ -34,10 +34,10 @@ Vec<Tensor> AddLayerImpl::forward_impl(const Vec<Tensor> &inputs, Residuals &res
     throw std::runtime_error("AddLayerImpl: both inputs must have the same shape");
   }
 
-  Tensor output = get_tensor(a.shape(), a.data_type());
+  Tensor output = get_tensor(a.shape(), a.dtype());
   size_t n = a.size();
 
-  DISPATCH_DTYPE(a.data_type(), T, {
+  DISPATCH_DTYPE(a.dtype(), T, {
     ops::add<T>(a.data_ptr(), b.data_ptr(), output.data_ptr(), n, this->flow_handle_);
   });
 
@@ -55,7 +55,7 @@ Vec<Tensor> AddLayerImpl::backward_impl(const Vec<Tensor> &grad_outputs, Residua
   Tensor grad_a = get_tensor(grad_out.shape(), this->io_dtype_);
   Tensor grad_b = get_tensor(grad_out.shape(), this->io_dtype_);
 
-  DISPATCH_DTYPE(grad_out.data_type(), T, {
+  DISPATCH_DTYPE(grad_out.dtype(), T, {
     ops::copy<T>(grad_out.data_ptr(), grad_a.data_ptr(), n, this->flow_handle_);
     ops::copy<T>(grad_out.data_ptr(), grad_b.data_ptr(), n, this->flow_handle_);
   });

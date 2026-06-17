@@ -276,7 +276,7 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
       step_metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_labels, 5);
     }
 
-    Tensor loss_gradient = Tensor(predictions.shape(), batch_data.data_type(), mem_pool);
+    Tensor loss_gradient = Tensor(predictions.shape(), batch_data.dtype(), mem_pool);
     criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
     predictions = Tensor();  // free prediction buffer early
@@ -493,7 +493,7 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
             compute_top_k_accuracy(predictions, device_labels, 5);
       }
 
-      Tensor loss_gradient = Tensor(predictions.shape(), batch_data.data_type(), mem_pool);
+      Tensor loss_gradient = Tensor(predictions.shape(), batch_data.dtype(), mem_pool);
       criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
       if (config.gradient_accumulation_steps > 1) {

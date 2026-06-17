@@ -57,7 +57,7 @@ struct feHandle_t {
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_dbias;
 };
 
-cudnnDataType_t get_cudnn_data_type(DType_t dtype) {
+cudnnDataType_t get_cudnn_dtype(DType_t dtype) {
   switch (dtype) {
     case DType_t::FP32:
       return CUDNN_DATA_FLOAT;

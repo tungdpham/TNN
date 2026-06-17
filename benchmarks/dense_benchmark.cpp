@@ -141,8 +141,8 @@ signed main() {
 
   auto cpu_grad_input_current = grad_input_current.to_host();
   auto cpu_grad_input_legacy = grad_input_legacy.to_host();
-  float *grad_input_current_data = (float *)cpu_grad_input_current.data();
-  float *grad_input_legacy_data = (float *)cpu_grad_input_legacy.data();
+  float *grad_input_current_data = (float *)cpu_grad_input_current.data_as<void>();
+  float *grad_input_legacy_data = (float *)cpu_grad_input_legacy.data_as<void>();
   max_diff = 0.0f;
   for (size_t i = 0; i < total_elements; ++i) {
     float diff = std::abs(grad_input_current_data[i] - grad_input_legacy_data[i]);
@@ -163,8 +163,8 @@ signed main() {
   for (size_t i = 0; i < grad_weights_current.size(); ++i) {
     auto cpu_grad_current = grad_weights_current[i].grad_ptr->to_host();
     auto cpu_grad_legacy = grad_weights_legacy[i].grad_ptr->to_host();
-    float *grad_current_data = (float *)cpu_grad_current.data();
-    float *grad_legacy_data = (float *)cpu_grad_legacy.data();
+    float *grad_current_data = (float *)cpu_grad_current.data_as<void>();
+    float *grad_legacy_data = (float *)cpu_grad_legacy.data_as<void>();
     size_t grad_elements = cpu_grad_current.size();
     max_diff = 0.0f;
     for (size_t j = 0; j < grad_elements; ++j) {

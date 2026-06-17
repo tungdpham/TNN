@@ -104,10 +104,10 @@ std::unique_ptr<Task> GroupNormLayerImpl::run_forward(const Tensor &input, Tenso
     throw std::runtime_error(
         "GroupNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("GroupNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (gamma.data_type() != dtype_of<Param_T>()) {
+  if (gamma.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error("GroupNormLayerImpl gamma dtype mismatch with dispatch Param_T");
   }
 #ifdef USE_CUDA
@@ -141,10 +141,10 @@ std::unique_ptr<Task> GroupNormLayerImpl::run_backward(
     throw std::runtime_error(
         "GroupNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (grad_output.data_type() != dtype_of<IO_T>() || grad_input.data_type() != dtype_of<IO_T>()) {
+  if (grad_output.dtype() != dtype_of<IO_T>() || grad_input.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("GroupNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (gamma.data_type() != dtype_of<Param_T>()) {
+  if (gamma.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error("GroupNormLayerImpl gamma dtype mismatch with dispatch Param_T");
   }
 #ifdef USE_CUDA

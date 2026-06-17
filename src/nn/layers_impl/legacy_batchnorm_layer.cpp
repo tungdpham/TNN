@@ -115,7 +115,7 @@ std::unique_ptr<Task> LegacyBatchNormLayerImpl::run_inference_impl(
         "LegacyBatchNormLayerImpl mixed dtype dispatch not implemented (io/param/compute must "
         "match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error(
         "LegacyBatchNormLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }

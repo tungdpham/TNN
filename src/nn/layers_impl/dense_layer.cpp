@@ -114,7 +114,7 @@ Tensor DenseLayerImpl::def_forward(const Tensor &input, Residuals &residuals) {
     batch_size *= input.shape()[i];
   }
 
-  Tensor output = get_tensor({batch_size, output_features_}, input.data_type());
+  Tensor output = get_tensor({batch_size, output_features_}, input.dtype());
   if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
       create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_forward<T>, input.data_as<T>(),
@@ -149,7 +149,7 @@ Tensor DenseLayerImpl::def_backward(const Tensor &grad_output, Residuals &residu
     batch_size *= input_shape[i];
   }
 
-  Tensor grad_input = get_tensor(input_shape, grad_output.data_type());
+  Tensor grad_input = get_tensor(input_shape, grad_output.dtype());
 
   if (get_engine_type() == EngineType::CPU) {
     DISPATCH_DTYPE(io_dtype_, T, {
@@ -200,10 +200,10 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> DenseLayerImpl::run_bgrad(const Tensor &grad_output, Tensor &bias_gradient,
                                                 size_t batch_size, size_t output_features,
                                                 flowHandle_t handle) const {
-  if (grad_output.data_type() != dtype_of<IO_T>()) {
+  if (grad_output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayerImpl grad_output dtype mismatch with dispatch IO_T");
   }
-  if (bias_gradient.data_type() != dtype_of<Param_T>()) {
+  if (bias_gradient.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "DenseLayerImpl bias grad_output dtype mismatch with dispatch Param_T");
   }
@@ -233,10 +233,10 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> DenseLayerImpl::add_bias(Tensor &output, const Tensor &bias,
                                                size_t batch_size, size_t output_features,
                                                flowHandle_t handle) const {
-  if (output.data_type() != dtype_of<IO_T>()) {
+  if (output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayerImpl output dtype mismatch with dispatch IO_T");
   }
-  if (bias.data_type() != dtype_of<Param_T>()) {
+  if (bias.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error("DenseLayerImpl bias dtype mismatch with dispatch Param_T");
   }
   if (get_engine_type() == EngineType::CPU) {
@@ -282,8 +282,9 @@ Tensor DenseLayerImpl::cudnn_forward(const Tensor &input, Residuals &residuals) 
 
   Tensor cudnn_workspace = this->get_tensor({stats.fwd_workspace_size}, DType_t::BYTE);
 
-  create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_forward, handle, stats, input.data(),
-                   weights_.data(), output.data(), cudnn_workspace.data());
+  create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_forward, handle, stats,
+                   input.data_as<void>(), weights_.data_as<void>(), output.data_as<void>(),
+                   cudnn_workspace.data_as<void>());
 
   if (use_bias_) {
     DISPATCH_ON_3_DTYPES_TO_METHOD(add_bias, output, bias_, batch_size, output_features_,
@@ -313,8 +314,9 @@ Tensor DenseLayerImpl::cudnn_backward(const Tensor &grad_output, Residuals &resi
       {std::max(stats.dgrad_workspace_size, stats.wgrad_workspace_size)}, DType_t::BYTE);
 
   // Compute weight gradients
-  create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_wgrad, handle, stats, input.data(),
-                   grad_output.data(), weight_gradients_.data(), cudnn_workspace.data());
+  create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_wgrad, handle, stats,
+                   input.data_as<void>(), grad_output.data_as<void>(),
+                   weight_gradients_.data_as<void>(), cudnn_workspace.data_as<void>());
 
   if (use_bias_) {
     DISPATCH_ON_3_DTYPES_TO_METHOD(run_bgrad, grad_output, bias_gradients_, batch_size,
@@ -323,7 +325,8 @@ Tensor DenseLayerImpl::cudnn_backward(const Tensor &grad_output, Residuals &resi
 
   // Compute input gradients
   create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_dgrad, handle, stats,
-                   grad_output.data(), weights_.data(), grad_input.data(), cudnn_workspace.data());
+                   grad_output.data_as<void>(), weights_.data_as<void>(),
+                   grad_input.data_as<void>(), cudnn_workspace.data_as<void>());
 
   return grad_input;
 }
