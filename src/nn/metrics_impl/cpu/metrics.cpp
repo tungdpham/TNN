@@ -18,8 +18,8 @@ namespace cpu {
 namespace metrics {
 
 template <typename T>
-float compute_precision(const T* predictions, const int* targets, const size_t batch_size,
-                        const size_t num_classes, int class_id) {
+float compute_precision(const T* predictions, const int* targets, size_t batch_size,
+                        size_t num_classes, int class_id) {
   if (class_id == -1) {
     // Macro-average precision across all classes
     float total_precision = 0.0f;
@@ -69,8 +69,8 @@ float compute_precision(const T* predictions, const int* targets, const size_t b
 }
 
 template <typename T>
-float compute_recall(const T* predictions, const int* targets, const size_t batch_size,
-                     const size_t num_classes, int class_id) {
+float compute_recall(const T* predictions, const int* targets, size_t batch_size,
+                     size_t num_classes, int class_id) {
   if (class_id == -1) {
     // Macro-average recall across all classes
     float total_recall = 0.0f;
@@ -119,8 +119,8 @@ float compute_recall(const T* predictions, const int* targets, const size_t batc
 }
 
 template <typename T>
-float compute_f1_score(const T* predictions, const int* targets, const size_t batch_size,
-                       const size_t num_classes, int class_id) {
+float compute_f1_score(const T* predictions, const int* targets, size_t batch_size,
+                       size_t num_classes, int class_id) {
   float precision = compute_precision(predictions, targets, batch_size, num_classes, class_id);
   float recall = compute_recall(predictions, targets, batch_size, num_classes, class_id);
 
@@ -131,8 +131,8 @@ float compute_f1_score(const T* predictions, const int* targets, const size_t ba
 }
 
 template <typename T>
-float compute_perplexity(const T* predictions, const int* targets, const size_t batch_size,
-                         const size_t num_classes) {
+float compute_perplexity(const T* predictions, const int* targets, size_t batch_size,
+                         size_t num_classes) {
   double total_log_likelihood = 0.0;
   const double epsilon = 1e-10;  // To avoid log(0)
 
@@ -148,8 +148,8 @@ float compute_perplexity(const T* predictions, const int* targets, const size_t 
 }
 
 template <typename T>
-float compute_top_k_accuracy(const T* predictions, const int* targets, const size_t batch_size,
-                             const size_t num_classes, int k) {
+float compute_top_k_accuracy(const T* predictions, const int* targets, size_t batch_size,
+                             size_t num_classes, int k) {
   int correct = 0;
 
   for (size_t i = 0; i < batch_size; ++i) {
@@ -183,7 +183,7 @@ float compute_top_k_accuracy(const T* predictions, const int* targets, const siz
 }
 
 template <typename T>
-float compute_mae(const T* predictions, const T* targets, const size_t total_elements) {
+float compute_mae(const T* predictions, const T* targets, size_t total_elements) {
   double total_error = 0.0;
 
   for (size_t i = 0; i < total_elements; ++i) {
@@ -195,7 +195,7 @@ float compute_mae(const T* predictions, const T* targets, const size_t total_ele
 }
 
 template <typename T>
-float compute_mse(const T* predictions, const T* targets, const size_t total_elements) {
+float compute_mse(const T* predictions, const T* targets, size_t total_elements) {
   double total_squared_error = 0.0;
 
   for (size_t i = 0; i < total_elements; ++i) {
@@ -207,8 +207,8 @@ float compute_mse(const T* predictions, const T* targets, const size_t total_ele
 }
 
 template <typename T>
-int compute_class_corrects(const T* predictions, const int* targets, const size_t batch_size,
-                           const size_t num_classes, float threshold) {
+int compute_class_corrects(const T* predictions, const int* targets, size_t batch_size,
+                           size_t num_classes, float threshold) {
   int total_correct = 0;
 
   for (size_t i = 0; i < batch_size; ++i) {
@@ -232,28 +232,21 @@ int compute_class_corrects(const T* predictions, const int* targets, const size_
   return total_correct;
 }
 
-#define INSTANTIATE(T)                                                                        \
-  template float compute_precision<T>(const T* predictions, const int* targets,               \
-                                      const size_t batch_size, const size_t num_classes,      \
-                                      int class_id);                                          \
-  template float compute_recall<T>(const T* predictions, const int* targets,                  \
-                                   const size_t batch_size, const size_t num_classes,         \
-                                   int class_id);                                             \
-  template float compute_f1_score<T>(const T* predictions, const int* targets,                \
-                                     const size_t batch_size, const size_t num_classes,       \
-                                     int class_id);                                           \
-  template float compute_perplexity<T>(const T* predictions, const int* targets,              \
-                                       const size_t batch_size, const size_t num_classes);    \
-  template float compute_top_k_accuracy<T>(const T* predictions, const int* targets,          \
-                                           const size_t batch_size, const size_t num_classes, \
-                                           int k);                                            \
-  template float compute_mae<T>(const T* predictions, const T* targets,                       \
-                                const size_t total_elements);                                 \
-  template float compute_mse<T>(const T* predictions, const T* targets,                       \
-                                const size_t total_elements);                                 \
-  template int compute_class_corrects<T>(const T* predictions, const int* targets,            \
-                                         const size_t batch_size, const size_t num_classes,   \
-                                         float threshold);
+#define INSTANTIATE(T)                                                                             \
+  template float compute_precision<T>(const T* predictions, const int* targets, size_t batch_size, \
+                                      size_t num_classes, int class_id);                           \
+  template float compute_recall<T>(const T* predictions, const int* targets, size_t batch_size,    \
+                                   size_t num_classes, int class_id);                              \
+  template float compute_f1_score<T>(const T* predictions, const int* targets, size_t batch_size,  \
+                                     size_t num_classes, int class_id);                            \
+  template float compute_perplexity<T>(const T* predictions, const int* targets,                   \
+                                       size_t batch_size, size_t num_classes);                     \
+  template float compute_top_k_accuracy<T>(const T* predictions, const int* targets,               \
+                                           size_t batch_size, size_t num_classes, int k);          \
+  template float compute_mae<T>(const T* predictions, const T* targets, size_t total_elements);    \
+  template float compute_mse<T>(const T* predictions, const T* targets, size_t total_elements);    \
+  template int compute_class_corrects<T>(const T* predictions, const int* targets,                 \
+                                         size_t batch_size, size_t num_classes, float threshold);
 #include "macros/floating_type_instantiation.hpp"
 
 #undef INSTANTIATE

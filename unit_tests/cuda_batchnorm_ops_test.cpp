@@ -63,10 +63,10 @@ protected:
 };
 
 TEST_F(CUDABatchNormOpsTest, InferenceOutputAffine) {
-  const size_t batch_size = 2;
-  const size_t channels = 2;
-  const size_t spatial_size = 4;
-  const size_t total_size = batch_size * channels * spatial_size;
+  size_t batch_size = 2;
+  size_t channels = 2;
+  size_t spatial_size = 4;
+  size_t total_size = batch_size * channels * spatial_size;
   const float epsilon = 1e-5f;
   const bool affine = true;
 
@@ -118,10 +118,10 @@ TEST_F(CUDABatchNormOpsTest, InferenceOutputAffine) {
 }
 
 TEST_F(CUDABatchNormOpsTest, BackwardFusedAffine) {
-  const size_t batch_size = 2;
-  const size_t channels = 2;
-  const size_t spatial_size = 4;
-  const size_t total_size = batch_size * channels * spatial_size;
+  size_t batch_size = 2;
+  size_t channels = 2;
+  size_t spatial_size = 4;
+  size_t total_size = batch_size * channels * spatial_size;
   const bool affine = true;
 
   Vec<float> gradient_data(total_size);
@@ -195,10 +195,10 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedAffine) {
 }
 
 TEST_F(CUDABatchNormOpsTest, BackwardFusedNoAffine) {
-  const size_t batch_size = 2;
-  const size_t channels = 2;
-  const size_t spatial_size = 4;
-  const size_t total_size = batch_size * channels * spatial_size;
+  size_t batch_size = 2;
+  size_t channels = 2;
+  size_t spatial_size = 4;
+  size_t total_size = batch_size * channels * spatial_size;
   const bool affine = false;
 
   Vec<float> gradient_data(total_size);

@@ -16,7 +16,7 @@ namespace cpu {
 namespace adam {
 
 template <typename T>
-void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, const size_t size,
+void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, size_t size,
                  const float learning_rate, const float beta1, const float beta2,
                  const float epsilon, const float bias_correction1, const float bias_correction2,
                  const float weight_decay, const bool decouple_weight_decay) {
@@ -49,11 +49,11 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
   });
 }
 
-#define INSTANTIATE(T)                                                                          \
-  template void update_adam<T>(T * params_data, const T *grads_data, T *m_data, T *v_data,      \
-                               const size_t size, const float learning_rate, const float beta1, \
-                               const float beta2, const float epsilon,                          \
-                               const float bias_correction1, const float bias_correction2,      \
+#define INSTANTIATE(T)                                                                     \
+  template void update_adam<T>(T * params_data, const T *grads_data, T *m_data, T *v_data, \
+                               size_t size, const float learning_rate, const float beta1,  \
+                               const float beta2, const float epsilon,                     \
+                               const float bias_correction1, const float bias_correction2, \
                                const float weight_decay, const bool decouple_weight_decay);
 INSTANTIATE(fp16)
 INSTANTIATE(bf16)

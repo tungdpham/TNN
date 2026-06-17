@@ -32,9 +32,9 @@ __global__ void add_bias_kernel(T* output_data, const T* bias_data, size_t batch
 template <typename T>
 __global__ void run_bgrad_kernel(const T* gradient_data, T* bias_grad_data, size_t batch_size,
                                  size_t output_h, size_t output_w, size_t out_channels) {
-  const size_t spatial_size = output_h * output_w;
-  const size_t channel_stride = spatial_size;
-  const size_t batch_stride = out_channels * spatial_size;
+  size_t spatial_size = output_h * output_w;
+  size_t channel_stride = spatial_size;
+  size_t batch_stride = out_channels * spatial_size;
 
   int c = blockIdx.x;
   if (c >= out_channels) return;
@@ -69,8 +69,8 @@ __global__ void run_bgrad_kernel(const T* gradient_data, T* bias_grad_data, size
 }
 
 template <typename T>
-void run_forward(const T* col_data, const T* weight_data, T* output_data, const size_t output_size,
-                 const size_t kernel_size, const size_t out_channels, cudaStream_t stream) {
+void run_forward(const T* col_data, const T* weight_data, T* output_data, size_t output_size,
+                 size_t kernel_size, size_t out_channels, cudaStream_t stream) {
   cuda::gemm_ex<T, T, T, T>(weight_data, col_data, output_data, out_channels, output_size,
                             kernel_size, false, false, T(1.0), T(0.0), kernel_size, kernel_size,
                             output_size, stream);
@@ -79,9 +79,8 @@ void run_forward(const T* col_data, const T* weight_data, T* output_data, const 
 }
 
 template <typename T>
-void run_wgrad(const T* col_data, const T* gradient_data, T* weight_grad_data,
-               const size_t output_size, const size_t kernel_size, const size_t out_channels,
-               cudaStream_t stream) {
+void run_wgrad(const T* col_data, const T* gradient_data, T* weight_grad_data, size_t output_size,
+               size_t kernel_size, size_t out_channels, cudaStream_t stream) {
   cuda::gemm_ex<T, T, T, T>(gradient_data, col_data, weight_grad_data, out_channels, kernel_size,
                             output_size, false, true, T(1.0), T(1.0), output_size, output_size,
                             kernel_size, stream);
@@ -90,9 +89,8 @@ void run_wgrad(const T* col_data, const T* gradient_data, T* weight_grad_data,
 }
 
 template <typename T>
-void run_dgrad(const T* gradient_data, const T* weight_data, T* col_grad_data,
-               const size_t output_size, const size_t kernel_size, const size_t out_channels,
-               cudaStream_t stream) {
+void run_dgrad(const T* gradient_data, const T* weight_data, T* col_grad_data, size_t output_size,
+               size_t kernel_size, size_t out_channels, cudaStream_t stream) {
   cuda::gemm_ex<T, T, T, T>(weight_data, gradient_data, col_grad_data, kernel_size, output_size,
                             out_channels, true, false, T(1.0), T(0.0), kernel_size, output_size,
                             output_size, stream);
@@ -101,9 +99,8 @@ void run_dgrad(const T* gradient_data, const T* weight_data, T* col_grad_data,
 }
 
 template <typename T>
-void run_bgrad(const T* gradient_data, T* bias_grad_data, const size_t batch_size,
-               const size_t output_h, const size_t output_w, const size_t out_channels,
-               cudaStream_t stream) {
+void run_bgrad(const T* gradient_data, T* bias_grad_data, size_t batch_size, size_t output_h,
+               size_t output_w, size_t out_channels, cudaStream_t stream) {
   int threads_per_block = 256;
   int num_blocks = out_channels;
   size_t shared_mem_size = threads_per_block * sizeof(T);
@@ -115,8 +112,8 @@ void run_bgrad(const T* gradient_data, T* bias_grad_data, const size_t batch_siz
 }
 
 template <typename T>
-void add_bias(T* output_data, const T* bias_data, const size_t batch_size, const size_t output_h,
-              const size_t output_w, const size_t out_channels, cudaStream_t stream) {
+void add_bias(T* output_data, const T* bias_data, size_t batch_size, size_t output_h,
+              size_t output_w, size_t out_channels, cudaStream_t stream) {
   int total_size = batch_size * out_channels * output_h * output_w;
   int threads_per_block = 256;
   int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
@@ -127,26 +124,26 @@ void add_bias(T* output_data, const T* bias_data, const size_t batch_size, const
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
-#define INSTANTIATE(T)                                                                           \
-  template void run_forward<T>(const T* col_data, const T* weight_data, T* output_data,          \
-                               const size_t output_size, const size_t kernel_size,               \
-                               const size_t out_channels, cudaStream_t stream);                  \
-                                                                                                 \
-  template void run_wgrad<T>(const T* col_data, const T* gradient_data, T* weight_grad_data,     \
-                             const size_t output_size, const size_t kernel_size,                 \
-                             const size_t out_channels, cudaStream_t stream);                    \
-                                                                                                 \
-  template void run_dgrad<T>(const T* gradient_data, const T* weight_data, T* col_grad_data,     \
-                             const size_t output_size, const size_t kernel_size,                 \
-                             const size_t out_channels, cudaStream_t stream);                    \
-                                                                                                 \
-  template void run_bgrad<T>(const T* gradient_data, T* bias_grad_data, const size_t batch_size, \
-                             const size_t output_h, const size_t output_w,                       \
-                             const size_t out_channels, cudaStream_t stream);                    \
-                                                                                                 \
-  template void add_bias<T>(T * output_data, const T* bias_data, const size_t batch_size,        \
-                            const size_t output_h, const size_t output_w,                        \
-                            const size_t out_channels, cudaStream_t stream);
+#define INSTANTIATE(T)                                                                       \
+  template void run_forward<T>(const T* col_data, const T* weight_data, T* output_data,      \
+                               size_t output_size, size_t kernel_size, size_t out_channels,  \
+                               cudaStream_t stream);                                         \
+                                                                                             \
+  template void run_wgrad<T>(const T* col_data, const T* gradient_data, T* weight_grad_data, \
+                             size_t output_size, size_t kernel_size, size_t out_channels,    \
+                             cudaStream_t stream);                                           \
+                                                                                             \
+  template void run_dgrad<T>(const T* gradient_data, const T* weight_data, T* col_grad_data, \
+                             size_t output_size, size_t kernel_size, size_t out_channels,    \
+                             cudaStream_t stream);                                           \
+                                                                                             \
+  template void run_bgrad<T>(const T* gradient_data, T* bias_grad_data, size_t batch_size,   \
+                             size_t output_h, size_t output_w, size_t out_channels,          \
+                             cudaStream_t stream);                                           \
+                                                                                             \
+  template void add_bias<T>(T * output_data, const T* bias_data, size_t batch_size,          \
+                            size_t output_h, size_t output_w, size_t out_channels,           \
+                            cudaStream_t stream);
 #include "macros/floating_type_instantiation.hpp"
 
 #undef INSTANTIATE

@@ -29,12 +29,10 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  std::unordered_map<size_t, Vec<size_t>> micro_batch_input_shapes_;
-
 #ifdef USE_DNNL
   void build_dnnl_handle(const Vec<size_t> &input_shape) const;
-  Tensor dnnl_forward(const Tensor &input, size_t mb_id);
-  Tensor dnnl_backward(const Tensor &grad_output, size_t mb_id);
+  Tensor dnnl_forward(const Tensor &input, Residuals &residuals);
+  Tensor dnnl_backward(const Tensor &grad_output, Residuals &residuals);
 
   mutable std::unordered_map<size_t, cpu::dnnl_maxpool::dnnlMaxPoolHandle_t *> dnnl_handle_cache;
   mutable std::unordered_map<size_t, MaxPoolStats> dnnl_stats_cache;
@@ -62,8 +60,8 @@ private:
                                      size_t output_w, const Tensor &mask_indices,
                                      flowHandle_t handle) const;
 
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   MaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,

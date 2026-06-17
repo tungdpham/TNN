@@ -31,8 +31,8 @@ private:
                                        const Vec<size_t> &original_shape,
                                        flowHandle_t handle) const;
 
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   static constexpr const char *TYPE_NAME = "slice";

@@ -14,7 +14,7 @@ namespace cuda {
 namespace sgd {
 
 template <typename T>
-__global__ void update_sgd_kernel(T* params_data, const T* grads_data, const size_t size,
+__global__ void update_sgd_kernel(T* params_data, const T* grads_data, size_t size,
                                   const float learning_rate) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
@@ -24,7 +24,7 @@ __global__ void update_sgd_kernel(T* params_data, const T* grads_data, const siz
 
 template <typename T>
 __global__ void update_sgd_momentum_kernel(T* params_data, const T* grads_data, T* velocity_data,
-                                           const size_t size, const float learning_rate,
+                                           size_t size, const float learning_rate,
                                            const float momentum) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
@@ -35,7 +35,7 @@ __global__ void update_sgd_momentum_kernel(T* params_data, const T* grads_data, 
 }
 
 template <typename T>
-void update_sgd(T* params_data, const T* grads_data, const size_t size, const float learning_rate,
+void update_sgd(T* params_data, const T* grads_data, size_t size, const float learning_rate,
                 cudaStream_t stream) {
   const int threads_per_block = 256;
   const int num_blocks = (size + threads_per_block - 1) / threads_per_block;
@@ -45,7 +45,7 @@ void update_sgd(T* params_data, const T* grads_data, const size_t size, const fl
 }
 
 template <typename T>
-void update_sgd_momentum(T* params_data, const T* grads_data, T* velocity_data, const size_t size,
+void update_sgd_momentum(T* params_data, const T* grads_data, T* velocity_data, size_t size,
                          const float learning_rate, const float momentum, cudaStream_t stream) {
   const int threads_per_block = 256;
   const int num_blocks = (size + threads_per_block - 1) / threads_per_block;
@@ -55,10 +55,10 @@ void update_sgd_momentum(T* params_data, const T* grads_data, T* velocity_data, 
 }
 
 #define INSTANTIATE(T)                                                                         \
-  template void update_sgd<T>(T * params_data, const T* grads_data, const size_t size,         \
+  template void update_sgd<T>(T * params_data, const T* grads_data, size_t size,               \
                               const float learning_rate, cudaStream_t stream);                 \
   template void update_sgd_momentum<T>(T * params_data, const T* grads_data, T* velocity_data, \
-                                       const size_t size, const float learning_rate,           \
+                                       size_t size, const float learning_rate,                 \
                                        const float momentum, cudaStream_t stream);
 INSTANTIATE(fp16)
 INSTANTIATE(bf16)

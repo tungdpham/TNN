@@ -20,7 +20,7 @@ namespace {
 template <typename T>
 __global__ void run_forward_kernel(const T* input, T* output, const T* gamma, const T* beta,
                                    size_t channels, T epsilon) {
-  const size_t n = static_cast<size_t>(blockIdx.x);
+  size_t n = static_cast<size_t>(blockIdx.x);
 
   const T* x = input + n * channels;
   T* y = output + n * channels;
@@ -51,7 +51,7 @@ template <typename T>
 __global__ void run_backward_kernel(const T* grad_output, const T* input, const T* gamma,
                                     T* grad_input, T* grad_gamma, T* grad_beta, size_t channels,
                                     T epsilon) {
-  const size_t n = static_cast<size_t>(blockIdx.x);
+  size_t n = static_cast<size_t>(blockIdx.x);
 
   const T* x = input + n * channels;
   const T* go = grad_output + n * channels;

@@ -1,0 +1,51 @@
+// ! NOTE: This is a JSONC file, which is JSON with comments. To load the actual file, make a copy without comments.
+{
+  "epochs": 20,
+  "batch_size": 256,
+  "max_steps": -1, // If > 0, overrides epochs and batch_size to run for a fixed number of steps.
+  "gradient_accumulation_steps": 1, // 
+  "progress_print_interval": 10, // Number of steps between printing training progress
+  "num_threads": 8, // Number of threads for data loading and preprocessing
+  "profiler_type": "NONE", // Options: "NONE", "NORMAL"
+  "print_layer_profiling": false, // in development
+  "print_layer_memory_usage": false, // in development
+  "num_microbatches": 2, // for distributed pipelining
+  "device_type": "GPU", // Options: "GPU", "CPU". For now, only support CUDA-compatible GPUs.
+  "model_name": "cifar10_resnet9", // Options: see example_models.cpp
+  "model_path": "", // Path to load existing model if specified, otherwise will laod from model_name
+  "dataset_name": "cifar10", // Options: see data_loading.cpp
+  "dataset_path": "data/cifar-10-batches-bin", // Path to dataset. 
+  "io_dtype": "FP32", // Data type for loading and preprocessing data. Options: "FP32", "FP16", "BF16"
+  "param_dtype": "FP32", // Data type for model parameters.
+  "compute_dtype": "FP32", // Data type for computations. 
+  "optimizer": { // Options: "adam", "sgd"
+    "type": "adam",
+    "learning_rate": 0.001,
+    "beta1": 0.9,
+    "beta2": 0.999,
+    "epsilon": 1e-8,
+    "weight_decay": 0.0,
+    "decouple_weight_decay": false // AdamW or not.
+  },
+  "scheduler": { // Options: see optimizers.hpp
+    "type": "warmup_cosine_annealing",
+    "base_lr": 0.0005,
+    "T_max": 10,
+    "eta_min": 0.0
+  },
+  "loss": { // Options: see loss.hpp
+    "type": "logsoftmax_crossentropy"
+  },
+  "log_mode": { // Which metrics to log during training.
+    "log_loss": true,
+    "log_accuracy": true,
+    "log_precision": false,
+    "log_recall": false,
+    "log_f1_score": false,
+    "log_perplexity": false,
+    "log_top_k_accuracy": false,
+    "log_mae": false,
+    "log_mse": false,
+    "log_rmse": false
+  }
+}

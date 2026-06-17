@@ -71,7 +71,7 @@ protected:
     const float *actual_data = actual_cpu.data_as<float>();
 
     size_t mismatch_count = 0;
-    const size_t max_mismatches_to_show = 10;
+    size_t max_mismatches_to_show = 10;
 
     for (size_t i = 0; i < total_elements; ++i) {
       if (std::abs(expected_data[i] - actual_data[i]) > tolerance) {
@@ -89,7 +89,6 @@ protected:
   }
 
   void syncParamsToGPU(Layer cpu_layer, Layer gpu_layer) {
-    // auto cpu_params = cpu_layer.parameters();
     Vec<ParamDescriptor> cpu_descriptors = cpu_layer.param_descriptors();
     Vec<ParamDescriptor> gpu_descriptors = gpu_layer.param_descriptors();
     for (size_t i = 0; i < cpu_descriptors.size(); ++i) {
@@ -102,17 +101,17 @@ protected:
 };
 
 TEST_F(LayerIntegrationTest, LegacyConv2DLayerForwardBasic) {
-  const size_t batch_size = 2;
-  const size_t in_channels = 3;
-  const size_t out_channels = 48;
-  const size_t input_h = 28;
-  const size_t input_w = 28;
-  const size_t kernel_h = 3;
-  const size_t kernel_w = 3;
-  const size_t stride_h = 1;
-  const size_t stride_w = 1;
-  const size_t pad_h = 1;
-  const size_t pad_w = 1;
+  size_t batch_size = 2;
+  size_t in_channels = 3;
+  size_t out_channels = 48;
+  size_t input_h = 28;
+  size_t input_w = 28;
+  size_t kernel_h = 3;
+  size_t kernel_w = 3;
+  size_t stride_h = 1;
+  size_t stride_w = 1;
+  size_t pad_h = 1;
+  size_t pad_w = 1;
 
   auto cpu_layer = LegacyConv2DLayer(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                      stride_w, pad_h, pad_w, true, "cpu_conv");
@@ -128,26 +127,29 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerForwardBasic) {
   syncParamsToGPU(cpu_layer, gpu_layer);
 
   Tensor input = Tensor({batch_size, in_channels, input_h, input_w}, DType_t::FP32, getHost());
-  input.fill_random_uniform(2.0f);
+  input.fill_random_uniform(0, 2.0);
 
-  auto cpu_output = cpu_layer.forward({input})[0];
-  auto gpu_output = gpu_layer.forward({input})[0];
+  Residuals cpu_residuals;
+  Residuals gpu_residuals;
+
+  auto cpu_output = cpu_layer.forward({input}, cpu_residuals)[0];
+  auto gpu_output = gpu_layer.forward({input}, gpu_residuals)[0];
 
   compareTensors(cpu_output, gpu_output, 1e-2f, "LegacyConv2DLayerImpl Forward:");
 }
 
 TEST_F(LayerIntegrationTest, LegacyConv2DLayerBackwardBasic) {
-  const size_t batch_size = 2;
-  const size_t in_channels = 3;
-  const size_t out_channels = 4;
-  const size_t input_h = 8;
-  const size_t input_w = 8;
-  const size_t kernel_h = 3;
-  const size_t kernel_w = 3;
-  const size_t stride_h = 1;
-  const size_t stride_w = 1;
-  const size_t pad_h = 1;
-  const size_t pad_w = 1;
+  size_t batch_size = 2;
+  size_t in_channels = 3;
+  size_t out_channels = 4;
+  size_t input_h = 8;
+  size_t input_w = 8;
+  size_t kernel_h = 3;
+  size_t kernel_w = 3;
+  size_t stride_h = 1;
+  size_t stride_w = 1;
+  size_t pad_h = 1;
+  size_t pad_w = 1;
 
   auto cpu_layer = LegacyConv2DLayer(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                      stride_w, pad_h, pad_w, true, "cpu_conv");
@@ -163,17 +165,20 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerBackwardBasic) {
   syncParamsToGPU(cpu_layer, gpu_layer);
 
   Tensor input = Tensor({batch_size, in_channels, input_h, input_w}, DType_t::FP32, getHost());
-  input.fill_random_uniform(2.0f);
+  input.fill_random_uniform(0, 2.0);
 
-  auto cpu_output = cpu_layer.forward({input})[0];
-  auto gpu_output = gpu_layer.forward({input})[0];
+  Residuals cpu_residuals;
+  Residuals gpu_residuals;
+
+  auto cpu_output = cpu_layer.forward({input}, cpu_residuals)[0];
+  auto gpu_output = gpu_layer.forward({input}, gpu_residuals)[0];
 
   Tensor grad_output =
       Tensor({batch_size, out_channels, input_h, input_w}, DType_t::FP32, getHost());
-  grad_output.fill_random_uniform(2.0f);
+  grad_output.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_grad_input = cpu_layer.backward({grad_output})[0];
-  auto gpu_grad_input = gpu_layer.backward({grad_output})[0];
+  auto cpu_grad_input = cpu_layer.backward({grad_output}, cpu_residuals)[0];
+  auto gpu_grad_input = gpu_layer.backward({grad_output}, gpu_residuals)[0];
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f,
                  "LegacyConv2DLayerImpl Backward Input Gradient:");
@@ -188,17 +193,17 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerBackwardBasic) {
 }
 
 TEST_F(LayerIntegrationTest, LegacyConv2DLayerStridedConvolution) {
-  const size_t batch_size = 1;
-  const size_t in_channels = 2;
-  const size_t out_channels = 3;
-  const size_t input_h = 16;
-  const size_t input_w = 16;
-  const size_t kernel_h = 5;
-  const size_t kernel_w = 5;
-  const size_t stride_h = 2;
-  const size_t stride_w = 2;
-  const size_t pad_h = 2;
-  const size_t pad_w = 2;
+  size_t batch_size = 1;
+  size_t in_channels = 2;
+  size_t out_channels = 3;
+  size_t input_h = 16;
+  size_t input_w = 16;
+  size_t kernel_h = 5;
+  size_t kernel_w = 5;
+  size_t stride_h = 2;
+  size_t stride_w = 2;
+  size_t pad_h = 2;
+  size_t pad_w = 2;
 
   auto cpu_layer = LegacyConv2DLayer(in_channels, out_channels, kernel_h, kernel_w, stride_h,
                                      stride_w, pad_h, pad_w, false, "cpu_conv_strided");
@@ -214,27 +219,30 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerStridedConvolution) {
   syncParamsToGPU(cpu_layer, gpu_layer);
 
   Tensor input = Tensor({batch_size, in_channels, input_h, input_w}, DType_t::FP32, getHost());
-  input.fill_random_uniform(1.0f);
+  input.fill_random_uniform(0.0, 1.0);
 
-  auto cpu_output = cpu_layer.forward({input})[0];
-  auto gpu_output = gpu_layer.forward({input})[0];
+  Residuals cpu_residuals;
+  Residuals gpu_residuals;
+
+  auto cpu_output = cpu_layer.forward({input}, cpu_residuals)[0];
+  auto gpu_output = gpu_layer.forward({input}, gpu_residuals)[0];
 
   compareTensors(cpu_output, gpu_output, 1e-2f, "LegacyConv2DLayerImpl Strided Forward:");
 
   Tensor grad_output = Tensor(cpu_output.shape(), DType_t::FP32, getHost());
-  grad_output.fill_random_uniform(1.0f);
+  grad_output.fill_random_uniform(0.0, 1.0);
 
-  auto cpu_grad_input = cpu_layer.backward({grad_output})[0];
-  auto gpu_grad_input = gpu_layer.backward({grad_output})[0];
+  auto cpu_grad_input = cpu_layer.backward({grad_output}, cpu_residuals)[0];
+  auto gpu_grad_input = gpu_layer.backward({grad_output}, gpu_residuals)[0];
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "LegacyConv2DLayerImpl Strided Backward:");
   compareTensors(*cpu_layer.gradients()[0], *gpu_layer.gradients()[0], 1e-2f,
                  "LegacyConv2DLayerImpl Strided Weight Gradient:");
 }
 
 TEST_F(LayerIntegrationTest, DenseLayerForwardBasic) {
-  const size_t batch_size = 4;
-  const size_t input_features = 128;
-  const size_t output_features = 64;
+  size_t batch_size = 4;
+  size_t input_features = 128;
+  size_t output_features = 64;
 
   auto cpu_layer = DenseLayer(input_features, output_features, true, "cpu_dense");
   auto gpu_layer = DenseLayer(input_features, output_features, true, "gpu_dense");
@@ -248,18 +256,21 @@ TEST_F(LayerIntegrationTest, DenseLayerForwardBasic) {
   syncParamsToGPU(cpu_layer, gpu_layer);
 
   Tensor input = Tensor({batch_size, input_features}, DType_t::FP32, getHost());
-  input.fill_random_uniform(2.0f);
+  input.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_output = cpu_layer.forward({input})[0];
-  auto gpu_output = gpu_layer.forward({input})[0];
+  Residuals cpu_residuals;
+  Residuals gpu_residuals;
+
+  auto cpu_output = cpu_layer.forward({input}, cpu_residuals)[0];
+  auto gpu_output = gpu_layer.forward({input}, gpu_residuals)[0];
 
   compareTensors(cpu_output, gpu_output, 1e-2f, "DenseLayerImpl Forward:");
 }
 
 TEST_F(LayerIntegrationTest, DenseLayerBackwardBasic) {
-  const size_t batch_size = 4;
-  const size_t input_features = 128;
-  const size_t output_features = 64;
+  size_t batch_size = 4;
+  size_t input_features = 128;
+  size_t output_features = 64;
 
   auto cpu_layer = DenseLayer(input_features, output_features, true, "cpu_dense");
   auto gpu_layer = DenseLayer(input_features, output_features, true, "gpu_dense");
@@ -273,16 +284,19 @@ TEST_F(LayerIntegrationTest, DenseLayerBackwardBasic) {
   syncParamsToGPU(cpu_layer, gpu_layer);
 
   Tensor input = Tensor({batch_size, input_features}, DType_t::FP32, getHost());
-  input.fill_random_uniform(2.0f);
+  input.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_output = cpu_layer.forward({input})[0];
-  auto gpu_output = gpu_layer.forward({input})[0];
+  Residuals cpu_residuals;
+  Residuals gpu_residuals;
+
+  auto cpu_output = cpu_layer.forward({input}, cpu_residuals)[0];
+  auto gpu_output = gpu_layer.forward({input}, gpu_residuals)[0];
 
   Tensor grad_output = Tensor({batch_size, output_features}, DType_t::FP32, getHost());
-  grad_output.fill_random_uniform(2.0f);
+  grad_output.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_grad_input = cpu_layer.backward({grad_output})[0];
-  auto gpu_grad_input = gpu_layer.backward({grad_output})[0];
+  auto cpu_grad_input = cpu_layer.backward({grad_output}, cpu_residuals)[0];
+  auto gpu_grad_input = gpu_layer.backward({grad_output}, gpu_residuals)[0];
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "DenseLayerImpl Backward Input Gradient:");
   compareTensors(*cpu_layer.gradients()[0], *gpu_layer.gradients()[0], 1e-2f,
@@ -295,9 +309,9 @@ TEST_F(LayerIntegrationTest, DenseLayerBackwardBasic) {
 }
 
 TEST_F(LayerIntegrationTest, DenseLayerLargeMatrix) {
-  const size_t batch_size = 8;
-  const size_t input_features = 512;
-  const size_t output_features = 256;
+  size_t batch_size = 8;
+  size_t input_features = 512;
+  size_t output_features = 256;
 
   auto cpu_layer = DenseLayer(input_features, output_features, false, "cpu_dense_large");
   auto gpu_layer = DenseLayer(input_features, output_features, false, "gpu_dense_large");
@@ -311,32 +325,35 @@ TEST_F(LayerIntegrationTest, DenseLayerLargeMatrix) {
   syncParamsToGPU(cpu_layer, gpu_layer);
 
   Tensor input = Tensor({batch_size, input_features}, DType_t::FP32, getHost());
-  input.fill_random_uniform(1.0f);
+  input.fill_random_uniform(0.0, 1.0);
 
-  auto cpu_output = cpu_layer.forward({input})[0];
-  auto gpu_output = gpu_layer.forward({input})[0];
+  Residuals cpu_residuals;
+  Residuals gpu_residuals;
+
+  auto cpu_output = cpu_layer.forward({input}, cpu_residuals)[0];
+  auto gpu_output = gpu_layer.forward({input}, gpu_residuals)[0];
 
   compareTensors(cpu_output, gpu_output, 1e-2f, "DenseLayerImpl Large Forward:");
 
   Tensor grad_output = Tensor({batch_size, output_features}, DType_t::FP32, getHost());
-  grad_output.fill_random_uniform(1.0f);
+  grad_output.fill_random_uniform(0.0, 1.0);
 
-  auto cpu_grad_input = cpu_layer.backward({grad_output})[0];
-  auto gpu_grad_input = gpu_layer.backward({grad_output})[0];
+  auto cpu_grad_input = cpu_layer.backward({grad_output}, cpu_residuals)[0];
+  auto gpu_grad_input = gpu_layer.backward({grad_output}, gpu_residuals)[0];
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "DenseLayerImpl Large Backward:");
 }
 
 TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerForwardBasic) {
-  const size_t batch_size = 2;
-  const size_t channels = 3;
-  const size_t input_h = 8;
-  const size_t input_w = 8;
-  const size_t pool_h = 2;
-  const size_t pool_w = 2;
-  const size_t stride_h = 2;
-  const size_t stride_w = 2;
-  const size_t pad_h = 0;
-  const size_t pad_w = 0;
+  size_t batch_size = 2;
+  size_t channels = 3;
+  size_t input_h = 8;
+  size_t input_w = 8;
+  size_t pool_h = 2;
+  size_t pool_w = 2;
+  size_t stride_h = 2;
+  size_t stride_w = 2;
+  size_t pad_h = 0;
+  size_t pad_w = 0;
 
   auto cpu_layer =
       LegacyMaxPool2DLayer(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, "cpu_maxpool");
@@ -350,25 +367,28 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerForwardBasic) {
   Graph gpu_graph = test::compile_single_layer(gpu_layer, gpu_allocator);
 
   Tensor input = Tensor({batch_size, channels, input_h, input_w}, DType_t::FP32, getHost());
-  input.fill_random_uniform(10.0f);
+  input.fill_random_uniform(0, 10.0);
 
-  auto cpu_output = cpu_layer.forward({input})[0];
-  auto gpu_output = gpu_layer.forward({input})[0];
+  Residuals cpu_residuals;
+  Residuals gpu_residuals;
+
+  auto cpu_output = cpu_layer.forward({input}, cpu_residuals)[0];
+  auto gpu_output = gpu_layer.forward({input}, gpu_residuals)[0];
 
   compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayerImpl Forward:");
 }
 
 TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerBackwardBasic) {
-  const size_t batch_size = 2;
-  const size_t channels = 3;
-  const size_t input_h = 8;
-  const size_t input_w = 8;
-  const size_t pool_h = 2;
-  const size_t pool_w = 2;
-  const size_t stride_h = 2;
-  const size_t stride_w = 2;
-  const size_t pad_h = 0;
-  const size_t pad_w = 0;
+  size_t batch_size = 2;
+  size_t channels = 3;
+  size_t input_h = 8;
+  size_t input_w = 8;
+  size_t pool_h = 2;
+  size_t pool_w = 2;
+  size_t stride_h = 2;
+  size_t stride_w = 2;
+  size_t pad_h = 0;
+  size_t pad_w = 0;
 
   auto cpu_layer =
       LegacyMaxPool2DLayer(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, "cpu_maxpool");
@@ -382,31 +402,34 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerBackwardBasic) {
   Graph gpu_graph = test::compile_single_layer(gpu_layer, gpu_allocator);
 
   Tensor input = Tensor({batch_size, channels, input_h, input_w}, DType_t::FP32, getHost());
-  input.fill_random_uniform(20.0f);
+  input.fill_random_uniform(0.0, 20.0);
 
-  auto cpu_output = cpu_layer.forward({input})[0];
-  auto gpu_output = gpu_layer.forward({input})[0];
+  Residuals cpu_residuals;
+  Residuals gpu_residuals;
+
+  auto cpu_output = cpu_layer.forward({input}, cpu_residuals)[0];
+  auto gpu_output = gpu_layer.forward({input}, gpu_residuals)[0];
 
   Tensor grad_output = Tensor(cpu_output.shape(), DType_t::FP32, getHost());
-  grad_output.fill_random_uniform(2.0f);
+  grad_output.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_grad_input = cpu_layer.backward({grad_output})[0];
-  auto gpu_grad_input = gpu_layer.backward({grad_output})[0];
+  auto cpu_grad_input = cpu_layer.backward({grad_output}, cpu_residuals)[0];
+  auto gpu_grad_input = gpu_layer.backward({grad_output}, gpu_residuals)[0];
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f, "LegacyMaxPool2DLayerImpl Backward:");
 }
 
 TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerWithPadding) {
-  const size_t batch_size = 1;
-  const size_t channels = 4;
-  const size_t input_h = 7;
-  const size_t input_w = 7;
-  const size_t pool_h = 3;
-  const size_t pool_w = 3;
-  const size_t stride_h = 1;
-  const size_t stride_w = 1;
-  const size_t pad_h = 1;
-  const size_t pad_w = 1;
+  size_t batch_size = 1;
+  size_t channels = 4;
+  size_t input_h = 7;
+  size_t input_w = 7;
+  size_t pool_h = 3;
+  size_t pool_w = 3;
+  size_t stride_h = 1;
+  size_t stride_w = 1;
+  size_t pad_h = 1;
+  size_t pad_w = 1;
 
   auto cpu_layer =
       LegacyMaxPool2DLayer(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, "cpu_maxpool_pad");
@@ -420,34 +443,37 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerWithPadding) {
   Graph gpu_graph = test::compile_single_layer(gpu_layer, gpu_allocator);
 
   Tensor input = Tensor({batch_size, channels, input_h, input_w}, DType_t::FP32, getHost());
-  input.fill_random_uniform(10.0f);
+  input.fill_random_uniform(0.0, 10.0);
 
-  auto cpu_output = cpu_layer.forward({input})[0];
-  auto gpu_output = gpu_layer.forward({input})[0];
+  Residuals cpu_residuals;
+  Residuals gpu_residuals;
+
+  auto cpu_output = cpu_layer.forward({input}, cpu_residuals)[0];
+  auto gpu_output = gpu_layer.forward({input}, gpu_residuals)[0];
 
   compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayerImpl Padded Forward:");
 
   Tensor grad_output = Tensor(cpu_output.shape(), DType_t::FP32, getHost());
-  grad_output.fill_random_uniform(2.0f);
+  grad_output.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_grad_input = cpu_layer.backward({grad_output})[0];
-  auto gpu_grad_input = gpu_layer.backward({grad_output})[0];
+  auto cpu_grad_input = cpu_layer.backward({grad_output}, cpu_residuals)[0];
+  auto gpu_grad_input = gpu_layer.backward({grad_output}, gpu_residuals)[0];
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f,
                  "LegacyMaxPool2DLayerImpl Padded Backward:");
 }
 
 TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerNonSquare) {
-  const size_t batch_size = 3;
-  const size_t channels = 2;
-  const size_t input_h = 12;
-  const size_t input_w = 16;
-  const size_t pool_h = 3;
-  const size_t pool_w = 4;
-  const size_t stride_h = 3;
-  const size_t stride_w = 4;
-  const size_t pad_h = 0;
-  const size_t pad_w = 0;
+  size_t batch_size = 3;
+  size_t channels = 2;
+  size_t input_h = 12;
+  size_t input_w = 16;
+  size_t pool_h = 3;
+  size_t pool_w = 4;
+  size_t stride_h = 3;
+  size_t stride_w = 4;
+  size_t pad_h = 0;
+  size_t pad_w = 0;
 
   auto cpu_layer =
       LegacyMaxPool2DLayer(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, "cpu_maxpool_nonsq");
@@ -461,29 +487,32 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerNonSquare) {
   Graph gpu_graph = test::compile_single_layer(gpu_layer, gpu_allocator);
 
   Tensor input = Tensor({batch_size, channels, input_h, input_w}, DType_t::FP32, getHost());
-  input.fill_random_uniform(16.0f);
+  input.fill_random_uniform(0.0, 16.0);
 
-  auto cpu_output = cpu_layer.forward({input})[0];
-  auto gpu_output = gpu_layer.forward({input})[0];
+  Residuals cpu_residuals;
+  Residuals gpu_residuals;
+
+  auto cpu_output = cpu_layer.forward({input}, cpu_residuals)[0];
+  auto gpu_output = gpu_layer.forward({input}, gpu_residuals)[0];
 
   compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayerImpl Non-square Forward:");
 
   Tensor grad_output = Tensor(cpu_output.shape(), DType_t::FP32, getHost());
-  grad_output.fill_random_uniform(2.0f);
+  grad_output.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_grad_input = cpu_layer.backward({grad_output})[0];
-  auto gpu_grad_input = gpu_layer.backward({grad_output})[0];
+  auto cpu_grad_input = cpu_layer.backward({grad_output}, cpu_residuals)[0];
+  auto gpu_grad_input = gpu_layer.backward({grad_output}, gpu_residuals)[0];
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f,
                  "LegacyMaxPool2DLayerImpl Non-square Backward:");
 }
 
 TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
-  const size_t batch_size = 2;
-  const size_t in_channels = 3;
-  const size_t out_channels = 8;
-  const size_t input_h = 16;
-  const size_t input_w = 16;
+  size_t batch_size = 2;
+  size_t in_channels = 3;
+  size_t out_channels = 8;
+  size_t input_h = 16;
+  size_t input_w = 16;
 
   auto cpu_conv_layer =
       LegacyConv2DLayer(in_channels, out_channels, 3, 3, 1, 1, 1, 1, true, "cpu_conv");
@@ -502,37 +531,41 @@ TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
   syncParamsToGPU(cpu_conv_layer, gpu_conv_layer);
 
   Tensor input = Tensor({batch_size, in_channels, input_h, input_w}, DType_t::FP32, getHost());
-  input.fill_random_uniform(2.0f);
+  input.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_conv_out = cpu_conv_layer.forward({input})[0];
-  auto cpu_pool_out = cpu_pool_layer.forward({cpu_conv_out})[0];
+  // Separate tracking containers for pipeline chains
+  Residuals cpu_conv_res, cpu_pool_res;
+  Residuals gpu_conv_res, gpu_pool_res;
 
-  auto gpu_conv_out = gpu_conv_layer.forward({input})[0];
-  auto gpu_pool_out = gpu_pool_layer.forward({gpu_conv_out})[0];
+  auto cpu_conv_out = cpu_conv_layer.forward({input}, cpu_conv_res)[0];
+  auto cpu_pool_out = cpu_pool_layer.forward({cpu_conv_out}, cpu_pool_res)[0];
+
+  auto gpu_conv_out = gpu_conv_layer.forward({input}, gpu_conv_res)[0];
+  auto gpu_pool_out = gpu_pool_layer.forward({gpu_conv_out}, gpu_pool_res)[0];
 
   compareTensors(cpu_pool_out, gpu_pool_out, 1e-2f, "Conv2D-MaxPool Pipeline Forward:");
 
   Tensor grad_output = Tensor(cpu_pool_out.shape(), DType_t::FP32, getHost());
-  grad_output.fill_random_uniform(2.0f);
+  grad_output.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_grad_pool = cpu_pool_layer.backward({grad_output})[0];
-  auto cpu_grad_conv = cpu_conv_layer.backward({cpu_grad_pool})[0];
+  auto cpu_grad_pool = cpu_pool_layer.backward({grad_output}, cpu_pool_res)[0];
+  auto cpu_grad_conv = cpu_conv_layer.backward({cpu_grad_pool}, cpu_conv_res)[0];
 
-  auto gpu_grad_pool = gpu_pool_layer.backward({grad_output})[0];
-  auto gpu_grad_conv = gpu_conv_layer.backward({gpu_grad_pool})[0];
+  auto gpu_grad_pool = gpu_pool_layer.backward({grad_output}, gpu_pool_res)[0];
+  auto gpu_grad_conv = gpu_conv_layer.backward({gpu_grad_pool}, gpu_conv_res)[0];
 
   compareTensors(cpu_grad_conv, gpu_grad_conv, 1e-2f, "Conv2D-MaxPool Pipeline Backward:");
 }
 
 TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
-  const size_t batch_size = 2;
-  const size_t in_channels = 3;
-  const size_t out_channels = 8;
-  const size_t input_h = 8;
-  const size_t input_w = 8;
-  const size_t dense_output = 10;
+  size_t batch_size = 2;
+  size_t in_channels = 3;
+  size_t out_channels = 8;
+  size_t input_h = 8;
+  size_t input_w = 8;
+  size_t dense_output = 10;
 
-  const size_t flattened_size = input_h * input_w * out_channels;
+  size_t flattened_size = input_h * input_w * out_channels;
 
   auto cpu_conv_layer =
       LegacyConv2DLayer(in_channels, out_channels, 3, 3, 1, 1, 1, 1, false, "cpu_conv");
@@ -552,35 +585,39 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
   syncParamsToGPU(cpu_dense_layer, gpu_dense_layer);
 
   Tensor input = Tensor({batch_size, in_channels, input_h, input_w}, DType_t::FP32, getHost());
-  input.fill_random_uniform(2.0f);
+  input.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_conv_out = cpu_conv_layer.forward({input})[0];
+  // Track contexts independently for distinct sequential execution steps
+  Residuals cpu_conv_res, cpu_dense_res;
+  Residuals gpu_conv_res, gpu_dense_res;
+
+  auto cpu_conv_out = cpu_conv_layer.forward({input}, cpu_conv_res)[0];
 
   Tensor cpu_conv_flat = Tensor({batch_size, flattened_size}, DType_t::FP32, getHost());
   cpu_conv_out.copy_to(cpu_conv_flat);
-  auto cpu_dense_out = cpu_dense_layer.forward({cpu_conv_flat})[0];
+  auto cpu_dense_out = cpu_dense_layer.forward({cpu_conv_flat}, cpu_dense_res)[0];
 
-  auto gpu_conv_out = gpu_conv_layer.forward({input})[0];
+  auto gpu_conv_out = gpu_conv_layer.forward({input}, gpu_conv_res)[0];
   Tensor gpu_conv_flat = Tensor({batch_size, flattened_size}, DType_t::FP32, getGPU());
   gpu_conv_out.copy_to(gpu_conv_flat);
-  auto gpu_dense_out = gpu_dense_layer.forward({gpu_conv_flat})[0];
+  auto gpu_dense_out = gpu_dense_layer.forward({gpu_conv_flat}, gpu_dense_res)[0];
 
   compareTensors(cpu_dense_out, gpu_dense_out, 1e-2f, "Conv2D-Dense Pipeline Forward:");
 
   Tensor grad_output = Tensor({batch_size, dense_output}, DType_t::FP32, getHost());
-  grad_output.fill_random_uniform(2.0f);
+  grad_output.fill_random_uniform(0.0, 2.0);
 
-  auto cpu_grad_dense = cpu_dense_layer.backward({grad_output})[0];
+  auto cpu_grad_dense = cpu_dense_layer.backward({grad_output}, cpu_dense_res)[0];
   Tensor cpu_grad_dense_reshape =
       Tensor({batch_size, out_channels, input_h, input_w}, DType_t::FP32, getHost());
   cpu_grad_dense.copy_to(cpu_grad_dense_reshape);
-  auto cpu_grad_conv = cpu_conv_layer.backward({cpu_grad_dense_reshape})[0];
+  auto cpu_grad_conv = cpu_conv_layer.backward({cpu_grad_dense_reshape}, cpu_conv_res)[0];
 
-  auto gpu_grad_dense = gpu_dense_layer.backward({grad_output})[0];
+  auto gpu_grad_dense = gpu_dense_layer.backward({grad_output}, gpu_dense_res)[0];
   Tensor gpu_grad_dense_reshape =
       Tensor({batch_size, out_channels, input_h, input_w}, DType_t::FP32, getGPU());
   gpu_grad_dense.copy_to(gpu_grad_dense_reshape);
-  auto gpu_grad_conv = gpu_conv_layer.backward({gpu_grad_dense_reshape})[0];
+  auto gpu_grad_conv = gpu_conv_layer.backward({gpu_grad_dense_reshape}, gpu_conv_res)[0];
 
   compareTensors(cpu_grad_conv, gpu_grad_conv, 1e-2f, "Conv2D-Dense Pipeline Backward:");
 }

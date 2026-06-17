@@ -16,19 +16,16 @@ LeakyReLULayerImpl::LeakyReLULayerImpl(float negative_slope, const std::string &
       activation_(std::make_unique<LeakyReLU>(negative_slope)),
       negative_slope_(negative_slope) {}
 
-Tensor LeakyReLULayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor LeakyReLULayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   Tensor output = get_tensor(input.shape(), io_dtype_);
 
   if (this->is_training_) {
-    // Cache boolean mask (1 byte per element) instead of full input
     Tensor mask = this->get_tensor(input.shape(), DType_t::UINT8_T);
-    set_mutable_cache(mb_id, "mask", mask);
+    residuals["mask"] = mask;
 
-    // Compute LeakyReLU and mask
     activation_->apply(input, output);
 
-    // Compute mask: 1 where input > 0, 0 otherwise
-    const size_t num_elements = input.size();
+    size_t num_elements = input.size();
     if (input.device_type() == DeviceType::CPU) {
       const float *input_data = input.data_as<float>();
       uint8_t *mask_data = mask.data_as<uint8_t>();
@@ -48,8 +45,8 @@ Tensor LeakyReLULayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor LeakyReLULayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  Tensor &mask = this->get_mutable_cache(mb_id, "mask");
+Tensor LeakyReLULayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  Tensor &mask = residuals["mask"];
   if (!mask) {
     throw std::runtime_error("No cached mask found for backward pass in LeakyReLULayerImpl");
   }
@@ -57,7 +54,7 @@ Tensor LeakyReLULayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id
   Tensor grad_input = get_tensor(grad_output.shape(), io_dtype_);
 
   // Gradient: grad_input = grad_output * (mask ? 1.0 : negative_slope)
-  const size_t num_elements = grad_output.size();
+  size_t num_elements = grad_output.size();
   if (grad_output.device_type() == DeviceType::CPU) {
     const float *grad_out_data = grad_output.data_as<float>();
     const uint8_t *mask_data = mask.data_as<uint8_t>();

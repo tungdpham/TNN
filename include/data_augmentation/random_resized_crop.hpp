@@ -43,7 +43,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.dtype(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {
@@ -108,7 +108,7 @@ private:
   template <typename T>
   void bilinear_resize_crop(const Tensor &src, size_t batch_idx, const CropParams &crop,
                             Tensor &dst) {
-    const size_t channels = src.shape()[3];
+    size_t channels = src.shape()[3];
 
     for (size_t dy = 0; dy < out_h_; ++dy) {
       for (size_t dx = 0; dx < out_w_; ++dx) {
@@ -158,10 +158,10 @@ private:
     const auto shape = data.shape();
     if (shape.size() != 4) return;
 
-    const size_t batch_size = shape[0];
-    const size_t in_h = shape[1];
-    const size_t in_w = shape[2];
-    const size_t channels = shape[3];
+    size_t batch_size = shape[0];
+    size_t in_h = shape[1];
+    size_t in_w = shape[2];
+    size_t channels = shape[3];
 
     std::vector<CropParams> params(batch_size);
     for (size_t b = 0; b < batch_size; ++b) {
@@ -169,10 +169,10 @@ private:
     }
 
     PoolAllocator &allocator = PoolAllocator::instance(data.device(), defaultFlowHandle);
-    Tensor output(Vec<size_t>{batch_size, out_h_, out_w_, channels}, data.data_type(), allocator);
+    Tensor output(Vec<size_t>{batch_size, out_h_, out_w_, channels}, data.dtype(), allocator);
 
     parallel_for<size_t>(0, batch_size, [&](size_t b) {
-      Tensor buf(Vec<size_t>{1, out_h_, out_w_, channels}, data.data_type(), allocator);
+      Tensor buf(Vec<size_t>{1, out_h_, out_w_, channels}, data.dtype(), allocator);
       bilinear_resize_crop<T>(data, b, params[b], buf);
 
       for (size_t h = 0; h < out_h_; ++h) {

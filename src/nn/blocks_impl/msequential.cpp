@@ -39,7 +39,7 @@ MSequentialImpl::MSequentialImpl(Vec<Sequential> sequences, Layer join_layer,
 
 MSequentialImpl::SequenceMemInfo MSequentialImpl::measure_sequence_memory(size_t seq_idx,
                                                                           Tensor input,
-                                                                          size_t mb_id) {
+                                                                          Residuals &residuals) {
   auto &seq = sequences_[seq_idx];
 
   size_t m_prev = allocator_->total_allocated();
@@ -49,17 +49,13 @@ MSequentialImpl::SequenceMemInfo MSequentialImpl::measure_sequence_memory(size_t
     if (total_allocated > m_max) m_max = total_allocated;
   });
 
-  Vec<Tensor> trial_output = seq.forward({input}, mb_id);
+  Vec<Tensor> trial_output = seq.forward({input}, residuals["seq_" + std::to_string(seq_idx)]);
   this->device().getFlow(defaultFlowHandle)->synchronize();
   allocator_->remove_allocation_hook(hook_id);
 
   // Capture retained cost before cleanup: b_i = O_i + R_i
   size_t m_after = allocator_->total_allocated();
 
-  for (Layer &layer : seq.layers()) {
-    layer.clear_cache(mb_id);
-  }
-  seq.clear_cache(mb_id);
   trial_output.clear();  // release output tensors back to the allocator
 
   SequenceMemInfo info;
@@ -71,7 +67,8 @@ MSequentialImpl::SequenceMemInfo MSequentialImpl::measure_sequence_memory(size_t
   return info;
 }
 
-Vec<size_t> MSequentialImpl::compute_execution_order(const Vec<Tensor> &inputs, size_t mb_id) {
+Vec<size_t> MSequentialImpl::compute_execution_order(const Vec<Tensor> &inputs,
+                                                     Residuals &residuals) {
   if (inputs.size() != sequences_.size()) {
     throw std::runtime_error(
         fmt::format("MSequential: Expected {} inputs, got {}", sequences_.size(), inputs.size()));
@@ -81,7 +78,7 @@ Vec<size_t> MSequentialImpl::compute_execution_order(const Vec<Tensor> &inputs, 
   mem_infos.reserve(sequences_.size());
 
   for (size_t i = 0; i < sequences_.size(); ++i) {
-    mem_infos.push_back(measure_sequence_memory(i, inputs[i], mb_id));
+    mem_infos.push_back(measure_sequence_memory(i, inputs[i], residuals));
   }
 
   std::sort(
@@ -102,9 +99,9 @@ Vec<size_t> MSequentialImpl::compute_execution_order(const Vec<Tensor> &inputs, 
  *
  * @param inputs M input tensor corresponding to each sequence's input
  * @param outputs Output tensors from the join layer
- * @param mb_id Micro-batch ID
+ * @param residuals Micro-batch ID
  */
-Vec<Tensor> MSequentialImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_id) {
+Vec<Tensor> MSequentialImpl::forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) {
   if (sequences_.empty()) {
     throw std::runtime_error("Cannot forward through empty MSequential model");
   }
@@ -114,14 +111,16 @@ Vec<Tensor> MSequentialImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_i
         fmt::format("MSequential: Expected {} inputs, got {}", sequences_.size(), inputs.size()));
   }
 
-  Vec<Vec<size_t>> input_shapes(inputs.size());
+  // Vec<Vec<size_t>> input_shapes(inputs.size());
+  size_t max_input_dims = 0;
   for (size_t i = 0; i < inputs.size(); ++i) {
-    input_shapes[i] = inputs[i].shape();
+    if (inputs[i].dims() > max_input_dims) {
+      max_input_dims = inputs[i].dims();
+    }
   }
-  input_shapes_cache_[mb_id] = input_shapes;
 
   if (!execution_order_cached_) {
-    execution_order_ = compute_execution_order(inputs, mb_id);
+    execution_order_ = compute_execution_order(inputs, residuals);
     execution_order_cached_ = true;
   }
 
@@ -132,7 +131,7 @@ Vec<Tensor> MSequentialImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_i
     auto &seq = sequences_[seq_idx];
 
     Tensor input = inputs[seq_idx];
-    sequence_outputs[seq_idx] = seq.forward({input}, mb_id);
+    sequence_outputs[seq_idx] = seq.forward({input}, residuals);
   }
 
   Vec<Tensor> join_inputs;
@@ -141,22 +140,22 @@ Vec<Tensor> MSequentialImpl::forward_impl(const Vec<Tensor> &inputs, size_t mb_i
     join_inputs.insert(join_inputs.end(), out.begin(), out.end());
   }
 
-  Vec<Tensor> join_outputs = join_layer_.forward(join_inputs, mb_id);
+  Vec<Tensor> join_outputs = join_layer_.forward(join_inputs, residuals);
 
   return join_outputs;
 }
 
-Vec<Tensor> MSequentialImpl::backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> MSequentialImpl::backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) {
   if (sequences_.empty()) {
     throw std::runtime_error("Cannot backward through empty MSequential model");
   }
 
-  Vec<Tensor> current_grads = join_layer_.backward(grad_outputs, mb_id);
+  Vec<Tensor> current_grads = join_layer_.backward(grad_outputs, residuals);
 
   Vec<Tensor> grad_inputs(sequences_.size());
 
   for (int i = static_cast<int>(sequences_.size()) - 1; i >= 0; --i) {
-    grad_inputs[i] = sequences_[i].backward({current_grads[i]}, mb_id)[0];
+    grad_inputs[i] = sequences_[i].backward({current_grads[i]}, residuals)[0];
   }
 
   return grad_inputs;

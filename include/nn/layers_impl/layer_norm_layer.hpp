@@ -64,19 +64,19 @@ private:
                                            size_t batch_size, size_t channels,
                                            flowHandle_t handle) const;
 
-  Tensor cudnn_forward(const Tensor &input, size_t mb_id);
-  Tensor cudnn_backward(const Tensor &grad_output, size_t mb_id);
+  Tensor cudnn_forward(const Tensor &input, Residuals &residuals);
+  Tensor cudnn_backward(const Tensor &grad_output, Residuals &residuals);
 
   mutable std::unordered_map<size_t, cuda::cudnn_layer_norm::feHandle_t *> fe_handle_cache;
 #endif
   mutable std::unordered_map<size_t, LayerNormStats> stats_cache;
 
-  Tensor def_forward(const Tensor &input, size_t mb_id = 0);
-  Tensor def_backward(const Tensor &grad_output, size_t mb_id = 0);
+  Tensor def_forward(const Tensor &input, Residuals &residuals);
+  Tensor def_backward(const Tensor &grad_output, Residuals &residuals);
 
   void init_impl() override;
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   explicit LayerNormLayerImpl(size_t normalized_shape, float epsilon = 1e-5f, bool affine = true,

@@ -16,7 +16,6 @@
 #include "device/pool_allocator.hpp"
 #include "device/task.hpp"
 #include "nn/graph.hpp"
-#include "nn/graph_context.hpp"
 #include "optimizers_impl/cpu/adam_kernels.hpp"
 #include "optimizers_impl/cpu/sgd_kernels.hpp"
 #include "optimizers_impl/cuda/adam_kernels.hpp"
@@ -85,8 +84,7 @@ public:
     auto &grads = this->gradients_;
 
     for (size_t i = 0; i < params.size(); ++i) {
-      DISPATCH_DTYPE(params[i]->data_type(), T,
-                     update_impl<T>(*params[i], *grads[i], velocities_[i]));
+      DISPATCH_DTYPE(params[i]->dtype(), T, update_impl<T>(*params[i], *grads[i], velocities_[i]));
     }
   }
 
@@ -111,7 +109,7 @@ protected:
       velocities_.resize(this->parameters_.size());
       for (size_t i = 0; i < this->parameters_.size(); ++i) {
         velocities_[i] =
-            Tensor(this->parameters_[i]->shape(), this->parameters_[i]->data_type(),
+            Tensor(this->parameters_[i]->shape(), this->parameters_[i]->dtype(),
                    PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
         velocities_[i].fill(0.0f);
       }
@@ -124,7 +122,7 @@ private:
 
   template <typename T>
   void update_impl(Tensor &param, const Tensor &grad, Tensor &velocity) {
-    const size_t size = param.size();
+    size_t size = param.size();
 
     if (param.device_type() == DeviceType::CPU) {
       if (momentum_ > 0.0f) {
@@ -178,7 +176,7 @@ public:
 
     for (size_t i = 0; i < params.size(); ++i) {
       DISPATCH_DTYPE(
-          params[i]->data_type(), T,
+          params[i]->dtype(), T,
           update_impl<T>(*params[i], *grads[i], m_[i], v_[i], bias_correction1, bias_correction2));
     }
   }
@@ -208,10 +206,10 @@ protected:
     m_.resize(this->parameters_.size());
     v_.resize(this->parameters_.size());
     for (size_t i = 0; i < this->parameters_.size(); ++i) {
-      m_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->data_type(),
+      m_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->dtype(),
                      PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
       m_[i].fill(0.0f);
-      v_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->data_type(),
+      v_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->dtype(),
                      PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
       v_[i].fill(0.0f);
     }
@@ -231,7 +229,7 @@ private:
   template <typename T>
   void update_impl(Tensor &param, const Tensor &grad, Tensor &m, Tensor &v, float bias_correction1,
                    float bias_correction2) {
-    const size_t size = param.size();
+    size_t size = param.size();
     if (param.device_type() == DeviceType::CPU) {
       create_cpu_task(defaultFlowHandle, cpu::adam::update_adam<T>, param.data_as<T>(),
                       grad.data_as<T>(), m.data_as<T>(), v.data_as<T>(), size, this->learning_rate_,

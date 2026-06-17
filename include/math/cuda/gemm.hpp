@@ -15,17 +15,15 @@ namespace synet {
 namespace cuda {
 
 template <typename A_T, typename B_T, typename C_T, typename Compute_T>
-void gemm_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N, const size_t K,
+void gemm_ex(const A_T *A, const B_T *B, C_T *C, size_t M, size_t N, size_t K,
              const bool transpose_A, const bool transpose_B, const Compute_T alpha,
-             const Compute_T beta, const size_t lda, const size_t ldb, const size_t ldc,
-             cudaStream_t stream);
+             const Compute_T beta, size_t lda, size_t ldb, size_t ldc, cudaStream_t stream);
 
 template <typename A_T, typename B_T, typename C_T, typename Compute_T>
-void gemm_strided_batched_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N,
-                             const size_t K, const bool transpose_A, const bool transpose_B,
-                             const Compute_T alpha, const Compute_T beta, const size_t lda,
-                             const size_t ldb, const size_t ldc, const size_t strideA,
-                             const size_t strideB, const size_t strideC, const size_t batch_count,
+void gemm_strided_batched_ex(const A_T *A, const B_T *B, C_T *C, size_t M, size_t N, size_t K,
+                             const bool transpose_A, const bool transpose_B, const Compute_T alpha,
+                             const Compute_T beta, size_t lda, size_t ldb, size_t ldc,
+                             size_t strideA, size_t strideB, size_t strideC, size_t batch_count,
                              cudaStream_t stream);
 
 }  // namespace cuda

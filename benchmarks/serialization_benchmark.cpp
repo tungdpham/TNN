@@ -21,7 +21,7 @@ signed main() {
   Tensor tensor = Tensor({data_size}, DType_t::FP32);
   tensor.fill_random_normal(0.0, 0.5);
   Job job;
-  job.mb_id = microbatch_id;
+  job.pid = microbatch_id;
   job.data = TensorBundle{{{"output", tensor}}};
 
   Message message(CommandType::FORWARD_JOB, std::move(job));
@@ -63,9 +63,9 @@ signed main() {
     assert(deserialized_tensor.size() == data_size);
     std::cout << "Deserialized tensor dims: " << deserialized_tensor.dims() << std::endl;
     assert(deserialized_tensor.dims() == 1);
-    std::cout << "Deserialized tensor dtype: "
-              << static_cast<uint32_t>(deserialized_tensor.data_type()) << std::endl;
-    assert(deserialized_tensor.data_type() == DType_t::FP32);
+    std::cout << "Deserialized tensor dtype: " << static_cast<uint32_t>(deserialized_tensor.dtype())
+              << std::endl;
+    assert(deserialized_tensor.dtype() == DType_t::FP32);
     for (size_t i = 0; i < data_size; i++) {
       assert(std::abs(tensor.at<float>({i}) - deserialized_tensor.at<float>({i})) < 1e-6);
     }
@@ -73,10 +73,7 @@ signed main() {
 
   benchmark(
       "Raw Memory Copy",
-      [&]() {
-        std::memcpy(raw_data.data(), reinterpret_cast<uint8_t *>(temp.data()),
-                    data_size * sizeof(float));
-      },
+      [&]() { std::memcpy(raw_data.data(), temp.data_as<uchar>(), data_size * sizeof(float)); },
       10);
 
   return 0;

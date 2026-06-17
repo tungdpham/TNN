@@ -59,9 +59,9 @@ protected:
 };
 
 TEST_F(CUDADenseOpsTest, DenseForwardBasic) {
-  const size_t batch_size = 2;
-  const size_t input_features = 3;
-  const size_t output_features = 4;
+  size_t batch_size = 2;
+  size_t input_features = 3;
+  size_t output_features = 4;
 
   Vec<float> input_data(batch_size * input_features);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -100,9 +100,9 @@ TEST_F(CUDADenseOpsTest, DenseForwardBasic) {
 }
 
 TEST_F(CUDADenseOpsTest, DenseForwardLargeBatch) {
-  const size_t batch_size = 32;
-  const size_t input_features = 128;
-  const size_t output_features = 64;
+  size_t batch_size = 32;
+  size_t input_features = 128;
+  size_t output_features = 64;
 
   Vec<float> input_data(batch_size * input_features);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -141,9 +141,9 @@ TEST_F(CUDADenseOpsTest, DenseForwardLargeBatch) {
 }
 
 TEST_F(CUDADenseOpsTest, DenseForwardSingleSample) {
-  const size_t batch_size = 1;
-  const size_t input_features = 10;
-  const size_t output_features = 5;
+  size_t batch_size = 1;
+  size_t input_features = 10;
+  size_t output_features = 5;
 
   Vec<float> input_data(batch_size * input_features);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -182,9 +182,9 @@ TEST_F(CUDADenseOpsTest, DenseForwardSingleSample) {
 }
 
 TEST_F(CUDADenseOpsTest, WeightGradientsBasic) {
-  const size_t batch_size = 2;
-  const size_t input_features = 3;
-  const size_t output_features = 4;
+  size_t batch_size = 2;
+  size_t input_features = 3;
+  size_t output_features = 4;
 
   Vec<float> input_data(batch_size * input_features);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -227,9 +227,9 @@ TEST_F(CUDADenseOpsTest, WeightGradientsBasic) {
 }
 
 TEST_F(CUDADenseOpsTest, WeightGradientsLarge) {
-  const size_t batch_size = 16;
-  const size_t input_features = 64;
-  const size_t output_features = 32;
+  size_t batch_size = 16;
+  size_t input_features = 64;
+  size_t output_features = 32;
 
   Vec<float> input_data(batch_size * input_features);
   for (size_t i = 0; i < input_data.size(); ++i) {
@@ -272,9 +272,9 @@ TEST_F(CUDADenseOpsTest, WeightGradientsLarge) {
 }
 
 TEST_F(CUDADenseOpsTest, InputGradientsBasic) {
-  const size_t batch_size = 2;
-  const size_t input_features = 3;
-  const size_t output_features = 4;
+  size_t batch_size = 2;
+  size_t input_features = 3;
+  size_t output_features = 4;
 
   Vec<float> gradient_data(batch_size * output_features);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
@@ -317,9 +317,9 @@ TEST_F(CUDADenseOpsTest, InputGradientsBasic) {
 }
 
 TEST_F(CUDADenseOpsTest, InputGradientsLarge) {
-  const size_t batch_size = 16;
-  const size_t input_features = 64;
-  const size_t output_features = 32;
+  size_t batch_size = 16;
+  size_t input_features = 64;
+  size_t output_features = 32;
 
   Vec<float> gradient_data(batch_size * output_features);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
@@ -362,8 +362,8 @@ TEST_F(CUDADenseOpsTest, InputGradientsLarge) {
 }
 
 TEST_F(CUDADenseOpsTest, BiasGradientsBasic) {
-  const size_t batch_size = 2;
-  const size_t output_features = 4;
+  size_t batch_size = 2;
+  size_t output_features = 4;
 
   Vec<float> gradient_data(batch_size * output_features);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
@@ -397,8 +397,8 @@ TEST_F(CUDADenseOpsTest, BiasGradientsBasic) {
 }
 
 TEST_F(CUDADenseOpsTest, BiasGradientsLargeBatch) {
-  const size_t batch_size = 32;
-  const size_t output_features = 128;
+  size_t batch_size = 32;
+  size_t output_features = 128;
 
   Vec<float> gradient_data(batch_size * output_features);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
@@ -432,8 +432,8 @@ TEST_F(CUDADenseOpsTest, BiasGradientsLargeBatch) {
 }
 
 TEST_F(CUDADenseOpsTest, AddBiasBasic) {
-  const size_t batch_size = 2;
-  const size_t output_features = 4;
+  size_t batch_size = 2;
+  size_t output_features = 4;
 
   Vec<float> output_data(batch_size * output_features);
   for (size_t i = 0; i < output_data.size(); ++i) {
@@ -468,8 +468,8 @@ TEST_F(CUDADenseOpsTest, AddBiasBasic) {
 }
 
 TEST_F(CUDADenseOpsTest, AddBiasLarge) {
-  const size_t batch_size = 32;
-  const size_t output_features = 128;
+  size_t batch_size = 32;
+  size_t output_features = 128;
 
   Vec<float> output_data(batch_size * output_features);
   for (size_t i = 0; i < output_data.size(); ++i) {

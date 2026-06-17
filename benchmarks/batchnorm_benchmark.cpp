@@ -41,16 +41,20 @@ signed main() {
   Tensor input_data = Tensor({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, DType_t::FP32, getGPU());
   input_data.fill_random_normal(0.5f, 0.2f, 676767);
 
+  Residuals residuals;
+  Residuals legacy_residuals;
+  Residuals relu_residuals;
+
   // cold pass
-  Tensor output = bn_layer.forward({input_data})[0];
-  Tensor legacy_output = legacy_batchnorm_layer.forward({input_data})[0];
-  Tensor legacy_relu_output = relu_layer.forward({legacy_output})[0];
+  Tensor output = bn_layer.forward({input_data}, residuals)[0];
+  Tensor legacy_output = legacy_batchnorm_layer.forward({input_data}, legacy_residuals)[0];
+  Tensor legacy_relu_output = relu_layer.forward({legacy_output}, relu_residuals)[0];
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    output = bn_layer.forward({input_data})[0];
+    output = bn_layer.forward({input_data}, residuals)[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
@@ -70,8 +74,8 @@ signed main() {
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    legacy_output = legacy_batchnorm_layer.forward({input_data})[0];
-    legacy_relu_output = relu_layer.forward({legacy_output})[0];
+    legacy_output = legacy_batchnorm_layer.forward({input_data}, legacy_residuals)[0];
+    legacy_relu_output = relu_layer.forward({legacy_output}, relu_residuals)[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();

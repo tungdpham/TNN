@@ -24,7 +24,7 @@ std::unique_ptr<Task> TransposeLayerImpl::permute(const Tensor &input, Tensor &o
     throw std::runtime_error(
         "TransposeLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("TransposeLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 
@@ -44,7 +44,7 @@ std::unique_ptr<Task> TransposeLayerImpl::permute(const Tensor &input, Tensor &o
   return nullptr;
 }
 
-Tensor TransposeLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor TransposeLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (input.dims() != 3) {
     throw std::runtime_error("TransposeLayerImpl expects 3D input (Batch, D1, D2)");
   }
@@ -53,13 +53,13 @@ Tensor TransposeLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   size_t H = input.dimension(2);
   size_t D = 1;
 
-  Tensor output = get_tensor({B, H, L}, input.data_type());
+  Tensor output = get_tensor({B, H, L}, input.dtype());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, input, output, B, L, H, D, this->flow_handle_);
   return output;
 }
 
-Tensor TransposeLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+Tensor TransposeLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
   // Gradient is (B, H, L). We want (B, L, H).
   if (grad_output.dims() != 3) {
     throw std::runtime_error("TransposeLayerImpl: Gradient must be 3D");
@@ -70,7 +70,7 @@ Tensor TransposeLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id
   size_t L = grad_output.dimension(2);
   size_t D = 1;
 
-  Tensor grad_input = get_tensor({B, L, H}, grad_output.data_type());
+  Tensor grad_input = get_tensor({B, L, H}, grad_output.dtype());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, grad_output, grad_input, B, H, L, D, this->flow_handle_);
   return grad_input;

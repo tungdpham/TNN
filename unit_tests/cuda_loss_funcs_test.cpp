@@ -59,8 +59,8 @@ protected:
 };
 
 TEST_F(CUDALossOpsTest, CrossEntropyLossBasic) {
-  const size_t batch_size = 32;
-  const size_t num_classes = 10;
+  size_t batch_size = 32;
+  size_t num_classes = 10;
   const float epsilon = 1e-7f;
 
   Vec<float> predictions(batch_size * num_classes);
@@ -102,8 +102,8 @@ TEST_F(CUDALossOpsTest, CrossEntropyLossBasic) {
 }
 
 TEST_F(CUDALossOpsTest, CrossEntropyGradientBasic) {
-  const size_t batch_size = 16;
-  const size_t num_classes = 5;
+  size_t batch_size = 16;
+  size_t num_classes = 5;
   float epsilon = 1e-7f;
 
   Vec<float> predictions(batch_size * num_classes);
@@ -149,8 +149,8 @@ TEST_F(CUDALossOpsTest, CrossEntropyGradientBasic) {
 }
 
 TEST_F(CUDALossOpsTest, CrossEntropyLargeBatch) {
-  const size_t batch_size = 2048;
-  const size_t num_classes = 1000;
+  size_t batch_size = 2048;
+  size_t num_classes = 1000;
   const float epsilon = 1e-7f;
 
   Vec<float> predictions(batch_size * num_classes);
@@ -190,8 +190,8 @@ TEST_F(CUDALossOpsTest, CrossEntropyLargeBatch) {
 }
 
 TEST_F(CUDALossOpsTest, MSELossBasic) {
-  const size_t batch_size = 32;
-  const size_t output_size = 16;
+  size_t batch_size = 32;
+  size_t output_size = 16;
 
   Vec<float> predictions(batch_size * output_size);
   Vec<float> targets(batch_size * output_size);
@@ -221,8 +221,8 @@ TEST_F(CUDALossOpsTest, MSELossBasic) {
 }
 
 TEST_F(CUDALossOpsTest, MSEGradientBasic) {
-  const size_t batch_size = 32;
-  const size_t output_size = 16;
+  size_t batch_size = 32;
+  size_t output_size = 16;
 
   Vec<float> predictions(batch_size * output_size);
   Vec<float> targets(batch_size * output_size);
@@ -256,8 +256,8 @@ TEST_F(CUDALossOpsTest, MSEGradientBasic) {
 }
 
 TEST_F(CUDALossOpsTest, MSELargeBatch) {
-  const size_t batch_size = 8192;
-  const size_t output_size = 512;
+  size_t batch_size = 8192;
+  size_t output_size = 512;
 
   Vec<float> predictions(batch_size * output_size);
   Vec<float> targets(batch_size * output_size);
@@ -287,8 +287,8 @@ TEST_F(CUDALossOpsTest, MSELargeBatch) {
 }
 
 TEST_F(CUDALossOpsTest, MAELossBasic) {
-  const size_t batch_size = 128;
-  const size_t output_size = 256;
+  size_t batch_size = 128;
+  size_t output_size = 256;
 
   Vec<float> predictions(batch_size * output_size);
   Vec<float> targets(batch_size * output_size);
@@ -318,8 +318,8 @@ TEST_F(CUDALossOpsTest, MAELossBasic) {
 }
 
 TEST_F(CUDALossOpsTest, MAEGradientBasic) {
-  const size_t batch_size = 128;
-  const size_t output_size = 256;
+  size_t batch_size = 128;
+  size_t output_size = 256;
 
   Vec<float> predictions(batch_size * output_size);
   Vec<float> targets(batch_size * output_size);
@@ -353,8 +353,8 @@ TEST_F(CUDALossOpsTest, MAEGradientBasic) {
 }
 
 TEST_F(CUDALossOpsTest, MAELargeBatch) {
-  const size_t batch_size = 8192;
-  const size_t output_size = 512;
+  size_t batch_size = 8192;
+  size_t output_size = 512;
 
   Vec<float> predictions(batch_size * output_size);
   Vec<float> targets(batch_size * output_size);
@@ -384,8 +384,8 @@ TEST_F(CUDALossOpsTest, MAELargeBatch) {
 }
 
 TEST_F(CUDALossOpsTest, HuberLossBasic) {
-  const size_t batch_size = 128;
-  const size_t output_size = 256;
+  size_t batch_size = 128;
+  size_t output_size = 256;
   const float delta = 1.0f;
 
   Vec<float> predictions(batch_size * output_size);
@@ -416,8 +416,8 @@ TEST_F(CUDALossOpsTest, HuberLossBasic) {
 }
 
 TEST_F(CUDALossOpsTest, HuberGradientBasic) {
-  const size_t batch_size = 128;
-  const size_t output_size = 256;
+  size_t batch_size = 128;
+  size_t output_size = 256;
   const float delta = 1.0f;
 
   Vec<float> predictions(batch_size * output_size);
@@ -452,8 +452,8 @@ TEST_F(CUDALossOpsTest, HuberGradientBasic) {
 }
 
 TEST_F(CUDALossOpsTest, HuberLossVaryingDelta) {
-  const size_t batch_size = 128;
-  const size_t output_size = 256;
+  size_t batch_size = 128;
+  size_t output_size = 256;
 
   Vec<float> predictions(batch_size * output_size);
   Vec<float> targets(batch_size * output_size);
@@ -486,8 +486,8 @@ TEST_F(CUDALossOpsTest, HuberLossVaryingDelta) {
 }
 
 TEST_F(CUDALossOpsTest, HuberLargeBatch) {
-  const size_t batch_size = 8192;
-  const size_t output_size = 512;
+  size_t batch_size = 8192;
+  size_t output_size = 512;
   const float delta = 1.0f;
 
   Vec<float> predictions(batch_size * output_size);

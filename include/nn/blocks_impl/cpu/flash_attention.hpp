@@ -17,8 +17,8 @@ namespace cpu {
 template <typename T>
 void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, size_t head_dim,
                              size_t seq_len, bool is_causal = true) {
-  const size_t Br = 64;
-  const size_t Bc = 64;
+  size_t Br = 64;
+  size_t Bc = 64;
   size_t D = head_dim;
   size_t L = seq_len;
 

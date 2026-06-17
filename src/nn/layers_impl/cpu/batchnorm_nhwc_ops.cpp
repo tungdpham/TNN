@@ -31,7 +31,7 @@ void run_inference(const T *input, const float *running_mean, const float *runni
     bias[c] = beta[c] - (running_mean[c] * scale[c]);
   }
 
-  const size_t M = N * S;
+  size_t M = N * S;
   parallel_for<size_t>(0, M, [&](size_t i) {
     for (size_t c = 0; c < C; ++c) {
       size_t idx = i * C + c;

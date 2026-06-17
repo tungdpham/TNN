@@ -276,13 +276,13 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
       step_metrics["top_k_accuracy"] = compute_top_k_accuracy(predictions, device_labels, 5);
     }
 
-    Tensor loss_gradient = Tensor(predictions.shape(), batch_data.data_type(), mem_pool);
+    Tensor loss_gradient = Tensor(predictions.shape(), batch_data.dtype(), mem_pool);
     criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
     predictions = Tensor();  // free prediction buffer early
 
     if (config.gradient_accumulation_steps > 1) {
-      loss_gradient.mul_scalar(1.0 / config.gradient_accumulation_steps);
+      loss_gradient *= (1.0f / static_cast<float>(config.gradient_accumulation_steps));
     }
 
     TensorBundle output_grads{{"output", loss_gradient}};
@@ -389,10 +389,6 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
            << ", Accuracy: " << setprecision(2) << avg_val_accuracy * 100.0 << "%" << endl;
       cout << string(60, '=') << endl;
 
-      if ((epoch + 1) % 5 == 0) {
-        thread_wrapper.clean_buffers();
-      }
-
       // Log epoch metrics
       {
         std::unordered_map<std::string, double> metrics;
@@ -408,6 +404,8 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
       }
     }
   });
+
+  thread_wrapper.clean_buffers();
 }
 
 static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
@@ -495,11 +493,11 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
             compute_top_k_accuracy(predictions, device_labels, 5);
       }
 
-      Tensor loss_gradient = Tensor(predictions.shape(), batch_data.data_type(), mem_pool);
+      Tensor loss_gradient = Tensor(predictions.shape(), batch_data.dtype(), mem_pool);
       criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
       if (config.gradient_accumulation_steps > 1) {
-        loss_gradient.mul_scalar(1.0 / config.gradient_accumulation_steps);
+        loss_gradient *= (1.0f / static_cast<float>(config.gradient_accumulation_steps));
       }
       TensorBundle output_grads{{"output", loss_gradient}};
       graph.backward(output_grads);

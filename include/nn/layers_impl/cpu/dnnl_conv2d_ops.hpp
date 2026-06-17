@@ -18,7 +18,7 @@ namespace cpu {
 namespace dnnl_conv2d {
 struct dnnlHandle_t;
 
-dnnl::memory::data_type get_dnnl_dtype(DType_t dtype);
+dnnl::memory::dtype get_dnnl_dtype(DType_t dtype);
 
 dnnlHandle_t *initialize_dnnl_handle(ConvolutionStats &stats, DType_t dtype);
 

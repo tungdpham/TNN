@@ -30,7 +30,7 @@ void PositionalEmbeddingLayerImpl::init_impl() {
   pos_embedding_gradients_.fill(0.0f);
 }
 
-Tensor PositionalEmbeddingLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor PositionalEmbeddingLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   const auto &shape = input.shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayerImpl: Input tensor must be at least 2D");
@@ -58,7 +58,8 @@ Tensor PositionalEmbeddingLayerImpl::forward_impl(const Tensor &input, size_t mb
   return output;
 }
 
-Tensor PositionalEmbeddingLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+Tensor PositionalEmbeddingLayerImpl::backward_impl(const Tensor &grad_output,
+                                                   Residuals &residuals) {
   const auto &shape = grad_output.shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayerImpl: Gradient tensor must be at least 2D");
@@ -96,11 +97,11 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::add_positional_embedding(
         "PositionalEmbeddingLayerImpl mixed dtype dispatch not implemented "
         "(io/param/compute must match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (pos_embedding.data_type() != dtype_of<Param_T>()) {
+  if (pos_embedding.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl pos_embedding dtype mismatch with dispatch Param_T");
   }
@@ -147,11 +148,11 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::accumulate_pos_gradients(
         "PositionalEmbeddingLayerImpl mixed dtype dispatch not implemented "
         "(io/param/compute must match).");
   }
-  if (grad_output.data_type() != dtype_of<IO_T>()) {
+  if (grad_output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl grad_output dtype mismatch with dispatch IO_T");
   }
-  if (pos_embedding_gradients.data_type() != dtype_of<Param_T>()) {
+  if (pos_embedding_gradients.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "PositionalEmbeddingLayerImpl pos_embedding_gradients dtype mismatch with dispatch "
         "Param_T");

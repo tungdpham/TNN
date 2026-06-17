@@ -27,8 +27,6 @@ private:
   bool is_causal_;    // Whether to apply causal masking
   bool is_training_;
 
-  // Cache input shapes and forward pass data for backward
-  std::unordered_map<size_t, Vec<size_t>> micro_batch_q_shapes_;
 #ifdef USE_CUDNN
   std::unordered_map<size_t, void *> fe_handle_cache_;  // feHandle_t*
   std::unordered_map<size_t, void *> stats_cache_;      // AttentionStats*
@@ -39,7 +37,7 @@ private:
                                                   Tensor &output, Tensor &scores,
                                                   Tensor &attn_weights, size_t batch_size,
                                                   size_t num_heads, size_t seq_len, size_t head_dim,
-                                                  flowHandle_t handle, size_t mb_id) const;
+                                                  flowHandle_t handle, Residuals &residuals) const;
 
   template <typename IO_T>
   std::unique_ptr<Task> compute_sdpa_backward_impl(const Tensor &q, const Tensor &k,
@@ -48,18 +46,18 @@ private:
                                                    Tensor &grad_q, Tensor &grad_k, Tensor &grad_v,
                                                    size_t batch_size, size_t num_heads,
                                                    size_t seq_len, size_t head_dim,
-                                                   flowHandle_t handle, size_t mb_id) const;
+                                                   flowHandle_t handle, Residuals &residuals) const;
 
 #ifdef USE_CUDNN
   void cudnn_forward(const Tensor &q, const Tensor &k, const Tensor &v, Tensor &output,
-                     size_t mb_id);
+                     Residuals &residuals);
   void cudnn_backward(const Tensor &q, const Tensor &k, const Tensor &v, const Tensor &output,
                       const Tensor &grad_output, Tensor &grad_q, Tensor &grad_k, Tensor &grad_v,
-                      size_t mb_id);
+                      Residuals &residuals);
 #endif
 
-  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id = 0) override;
-  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id = 0) override;
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) override;
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) override;
 
 public:
   static constexpr const char *TYPE_NAME = "sdpa";

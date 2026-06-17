@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -17,12 +16,11 @@ namespace synet {
 
 class FlattenLayerImpl : public SISOLayerImpl {
 private:
-  std::unordered_map<size_t, Vec<size_t>> micro_batch_original_shapes_;
   int start_dim_;
   int end_dim_;
 
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   explicit FlattenLayerImpl(int start_dim = 1, int end_dim = -1,

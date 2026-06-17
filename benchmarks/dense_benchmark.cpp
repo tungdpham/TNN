@@ -38,14 +38,15 @@ signed main() {
   Tensor input_data = Tensor({128, INPUT_FEATURES}, DType_t::FP32, getGPU());
   input_data.fill_random_normal(0.5f, 0.2f, 676767);
 
+  Residuals residuals;
   // cold pass
-  Tensor current_output = dense_layer.forward({input_data})[0];
+  Tensor current_output = dense_layer.forward({input_data}, residuals)[0];
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    current_output = dense_layer.forward({input_data})[0];
+    current_output = dense_layer.forward({input_data}, residuals)[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
@@ -60,12 +61,13 @@ signed main() {
             << std::endl;
 
   // legacy dense benchmark
+  Residuals legacy_residuals;
   // cold pass
-  Tensor legacy_output = legacy_layer.forward({input_data})[0];
+  Tensor legacy_output = legacy_layer.forward({input_data}, legacy_residuals)[0];
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    legacy_output = legacy_layer.forward({input_data})[0];
+    legacy_output = legacy_layer.forward({input_data}, legacy_residuals)[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();
@@ -106,14 +108,14 @@ signed main() {
   criterion->compute_gradient(current_output, target, grad);
 
   // cold pass
-  Tensor grad_input_current = dense_layer.backward({grad})[0];
-  Tensor grad_input_legacy = legacy_layer.backward({grad})[0];
+  Tensor grad_input_current = dense_layer.backward({grad}, residuals)[0];
+  Tensor grad_input_legacy = legacy_layer.backward({grad}, legacy_residuals)[0];
 
   for (int i = 0; i < passes; ++i) {
     // forward pass to have cached data
-    dense_layer.forward({input_data});
+    dense_layer.forward({input_data}, residuals);
     auto pass_start = std::chrono::high_resolution_clock::now();
-    grad_input_current = dense_layer.backward({grad})[0];
+    grad_input_current = dense_layer.backward({grad}, residuals)[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();
@@ -125,9 +127,9 @@ signed main() {
 
   for (int i = 0; i < passes; ++i) {
     // forward pass to have cached data
-    legacy_layer.forward({input_data});
+    legacy_layer.forward({input_data}, legacy_residuals);
     auto pass_start = std::chrono::high_resolution_clock::now();
-    grad_input_legacy = legacy_layer.backward({grad})[0];
+    grad_input_legacy = legacy_layer.backward({grad}, legacy_residuals)[0];
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();
@@ -139,8 +141,8 @@ signed main() {
 
   auto cpu_grad_input_current = grad_input_current.to_host();
   auto cpu_grad_input_legacy = grad_input_legacy.to_host();
-  float *grad_input_current_data = (float *)cpu_grad_input_current.data();
-  float *grad_input_legacy_data = (float *)cpu_grad_input_legacy.data();
+  float *grad_input_current_data = (float *)cpu_grad_input_current.data_as<void>();
+  float *grad_input_legacy_data = (float *)cpu_grad_input_legacy.data_as<void>();
   max_diff = 0.0f;
   for (size_t i = 0; i < total_elements; ++i) {
     float diff = std::abs(grad_input_current_data[i] - grad_input_legacy_data[i]);
@@ -161,8 +163,8 @@ signed main() {
   for (size_t i = 0; i < grad_weights_current.size(); ++i) {
     auto cpu_grad_current = grad_weights_current[i].grad_ptr->to_host();
     auto cpu_grad_legacy = grad_weights_legacy[i].grad_ptr->to_host();
-    float *grad_current_data = (float *)cpu_grad_current.data();
-    float *grad_legacy_data = (float *)cpu_grad_legacy.data();
+    float *grad_current_data = (float *)cpu_grad_current.data_as<void>();
+    float *grad_legacy_data = (float *)cpu_grad_legacy.data_as<void>();
     size_t grad_elements = cpu_grad_current.size();
     max_diff = 0.0f;
     for (size_t j = 0; j < grad_elements; ++j) {

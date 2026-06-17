@@ -25,8 +25,8 @@ private:
   Vec<Layer> layers_;
 
 protected:
-  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, size_t mb_id) override;
-  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, size_t mb_id) override;
+  Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) override;
+  Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) override;
 
 public:
   explicit SequentialImpl(Vec<Layer> layers = {}, const std::string &name = "sequential");

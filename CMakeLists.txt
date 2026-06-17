@@ -23,6 +23,7 @@ option(ENABLE_TBB "Enable Intel TBB support" ON)
 option(ENABLE_MKL "Enable Intel MKL support" OFF)
 option(ENABLE_DNNL "Enable Intel oneDNN (DNNL) support" OFF)
 option(ENABLE_DEBUG "Enable debug build with sanitizers" OFF)
+option(BUILD_DOCS "Build documentation with Doxygen" ON)
 
 # default to release
 if(NOT CMAKE_BUILD_TYPE)
@@ -85,6 +86,11 @@ include(LinkDNNL)
 include(LinkCUDA)
 include(LinkWindowsLibs)
 include(LinkOpenMP)
+
+# Build documentation
+if(BUILD_DOCS)
+    add_subdirectory(doc)
+endif()
 
 # Template libraries instantiations
 add_subdirectory(src)

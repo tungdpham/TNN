@@ -27,15 +27,15 @@ DropoutLayerImpl::DropoutLayerImpl(float dropout_rate, const std::string &name)
   }
 }
 
-Tensor DropoutLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor DropoutLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (!this->is_training_) {
     Tensor output = get_tensor(input.shape(), io_dtype_);
-    output.share_from(input);
+    input.copy_to(output);
     return output;
   }
 
   Tensor mask = this->get_tensor(input.shape(), DType_t::BOOL);
-  set_mutable_cache(mb_id, "mask", mask);
+  residuals["mask"] = mask;
 
   Tensor output = get_tensor(input.shape(), io_dtype_);
 
@@ -43,11 +43,10 @@ Tensor DropoutLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor DropoutLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  Tensor &mask = this->get_mutable_cache(mb_id, "mask");
+Tensor DropoutLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  Tensor &mask = residuals["mask"];
   if (!mask) {
-    throw std::runtime_error("No cached mask found for micro-batch ID in DropoutLayerImpl: " +
-                             std::to_string(mb_id));
+    throw std::runtime_error("No cached mask found in DropoutLayerImpl backward pass");
   }
 
   Tensor grad_input = get_tensor(grad_output.shape(), io_dtype_);
@@ -62,7 +61,7 @@ std::unique_ptr<Task> DropoutLayerImpl::run_forward(const Tensor &input, Tensor 
     throw std::runtime_error(
         "DropoutLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("DropoutLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
 

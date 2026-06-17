@@ -12,6 +12,7 @@
 
 #include "activations.hpp"
 #include "nn/layer.hpp"
+#include "tensor/tensor_ops.hpp"
 
 namespace synet {
 inline std::unique_ptr<ActivationFunction> create_activation(const std::string &name) {
@@ -239,10 +240,10 @@ std::unique_ptr<LayerType> load_config(std::istream &file) {
   return layer;
 }
 
-inline void load_params(std::istream &file, LayerImpl &layer) {
+inline void load_params(std::istream &in, LayerImpl &layer) {
   Vec<ParamDescriptor> params = layer.param_descriptors();
   for (auto &param : params) {
-    load_into(file, *param.data_ptr);
+    ops::load_tensor(*param.data_ptr, in);
   }
 }
 

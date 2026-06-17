@@ -16,10 +16,9 @@ ELULayerImpl::ELULayerImpl(float alpha, const std::string &name)
       activation_(std::make_unique<ELU>(alpha)),
       alpha_(alpha) {}
 
-Tensor ELULayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor ELULayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (this->is_training_) {
-    // Cache input for backward pass (ELU gradient requires input values)
-    set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
   Tensor output = get_tensor(input.shape(), io_dtype_);
@@ -27,8 +26,8 @@ Tensor ELULayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor ELULayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+Tensor ELULayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  const Tensor &input = residuals["input"];
   if (!input) {
     throw std::runtime_error("No cached input found for backward pass in ELULayerImpl");
   }

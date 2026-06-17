@@ -19,8 +19,8 @@ void run_forward(const T *input_data, T *output_data, size_t batch_size, size_t 
   const T pool_size_inv = T(1.0) / T(pool_h * pool_w);
 
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
-    const size_t input_offset = (n * channels + c) * input_h * input_w;
-    const size_t output_offset = (n * channels + c) * output_h * output_w;
+    size_t input_offset = (n * channels + c) * input_h * input_w;
+    size_t output_offset = (n * channels + c) * output_h * output_w;
 
     for (size_t out_h = 0; out_h < output_h; ++out_h) {
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
@@ -42,7 +42,7 @@ void run_forward(const T *input_data, T *output_data, size_t batch_size, size_t 
           }
         }
 
-        const size_t output_idx = output_offset + out_h * output_w + out_w;
+        size_t output_idx = output_offset + out_h * output_w + out_w;
         output_data[output_idx] = sum * pool_size_inv;
       }
     }
@@ -56,12 +56,12 @@ void run_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
   const T pool_size_inv = T(1.0) / T(pool_h * pool_w);
 
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
-    const size_t input_offset = (n * channels + c) * input_h * input_w;
-    const size_t output_offset = (n * channels + c) * output_h * output_w;
+    size_t input_offset = (n * channels + c) * input_h * input_w;
+    size_t output_offset = (n * channels + c) * output_h * output_w;
 
     for (size_t out_h = 0; out_h < output_h; ++out_h) {
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
-        const size_t output_idx = output_offset + out_h * output_w + out_w;
+        size_t output_idx = output_offset + out_h * output_w + out_w;
 
         const T grad_val = gradient_data[output_idx] * pool_size_inv;
 

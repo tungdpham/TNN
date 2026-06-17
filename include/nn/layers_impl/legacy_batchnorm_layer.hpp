@@ -33,8 +33,8 @@ private:
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
 
-  Tensor def_forward(const Tensor &input, size_t mb_id);
-  Tensor def_backward(const Tensor &grad_output, size_t mb_id);
+  Tensor def_forward(const Tensor &input, Residuals &residuals);
+  Tensor def_backward(const Tensor &grad_output, Residuals &residuals);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> run_inference_impl(const Tensor &input, Tensor &output, size_t batch_size,
@@ -61,8 +61,8 @@ private:
                                      flowHandle_t handle = defaultFlowHandle);
 
   void init_impl() override;
-  Tensor forward_impl(const Tensor &input, size_t mb_id = 0) override;
-  Tensor backward_impl(const Tensor &grad_output, size_t mb_id = 0) override;
+  Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
+  Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
   explicit LegacyBatchNormLayerImpl(size_t num_features, float epsilon = 1e-5f,

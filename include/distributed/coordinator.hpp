@@ -165,8 +165,7 @@ public:
    * @param expected_count The number of confirmations to wait for.
    * @param timeout The maximum time to wait in seconds (default is 60 seconds).
    */
-  bool join(const CommandType type, const size_t expected_count,
-            const size_t timeout_duration = 60) {
+  bool join(const CommandType type, size_t expected_count, size_t timeout_duration = 60) {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
     auto timeout = Time::steady_clock::now() + Time::seconds(timeout_duration);
@@ -211,7 +210,7 @@ public:
 
           Job &job = forward_msg.get<Job>();
           Tensor predictions = job.data.get("output");
-          Tensor targets = microbatch_labels[job.mb_id];
+          Tensor targets = microbatch_labels[job.pid];
           Tensor device_targets = targets.to_device(predictions.device());
           float loss = 0.0f;
           criterion->compute_loss(predictions, device_targets, loss);
@@ -221,12 +220,12 @@ public:
           total_loss += loss;
           PoolAllocator &allocator =
               PoolAllocator::instance(predictions.device(), defaultFlowHandle);
-          Tensor grad_output(predictions.shape(), predictions.data_type(), allocator);
+          Tensor grad_output(predictions.shape(), predictions.dtype(), allocator);
           criterion->compute_gradient(predictions, device_targets, grad_output);
-          grad_output.mul_scalar(1.0 / (num_microbatches * accumulation_steps));
+          grad_output *= 1.0 / (num_microbatches * accumulation_steps);
 
           TensorBundle grad_outputs{{{"output", grad_output}}};
-          backward(std::move(grad_outputs), job.mb_id);
+          backward(std::move(grad_outputs), job.pid);
         } else {
           throw std::runtime_error("Unexpected message type in FORWARD_JOB");
         }
@@ -275,7 +274,7 @@ public:
 
           Job &job = forward_msg.get<Job>();
           Tensor predictions = job.data.get("output");
-          Tensor targets = microbatch_labels[job.mb_id];
+          Tensor targets = microbatch_labels[job.pid];
           Tensor device_targets = targets.to_device(predictions.device());
           float loss = 0.0f;
           criterion->compute_loss(predictions, device_targets, loss);
@@ -305,7 +304,7 @@ public:
       throw std::runtime_error("Mismatched number of inputs and labels in sync_train_batch");
     }
 
-    const size_t num_microbatches = microbatch_inputs.size();
+    size_t num_microbatches = microbatch_inputs.size();
     float total_loss = 0.0f;
     int total_corrects = 0;
 
@@ -328,7 +327,7 @@ public:
           if (!msg.has_type<Job>()) {
             throw std::runtime_error("Unexpected message type in sync_train_batch FORWARD_JOB");
           }
-          if (msg.get<Job>().mb_id == i && !found) {
+          if (msg.get<Job>().pid == i && !found) {
             forward_msg = std::move(msg);
             found = true;
           }
@@ -350,9 +349,9 @@ public:
       total_corrects += compute_class_corrects(predictions, device_targets);
 
       PoolAllocator &allocator = PoolAllocator::instance(predictions.device(), defaultFlowHandle);
-      Tensor grad_output(predictions.shape(), predictions.data_type(), allocator);
+      Tensor grad_output(predictions.shape(), predictions.dtype(), allocator);
       criterion->compute_gradient(predictions, device_targets, grad_output);
-      grad_output.mul_scalar(1.0 / (num_microbatches * accumulation_steps));
+      grad_output *= (1.0f / (num_microbatches * accumulation_steps));
 
       TensorBundle grad_outputs{{{"output", grad_output}}};
       backward(std::move(grad_outputs), i);
@@ -383,7 +382,7 @@ public:
       throw std::runtime_error("Mismatched number of inputs and labels in sync_val_batch");
     }
 
-    const size_t num_microbatches = microbatch_inputs.size();
+    size_t num_microbatches = microbatch_inputs.size();
     float total_loss = 0.0f;
     int total_corrects = 0;
 
@@ -406,7 +405,7 @@ public:
           if (!msg.has_type<Job>()) {
             throw std::runtime_error("Unexpected message type in sync_val_batch FORWARD_JOB");
           }
-          if (msg.get<Job>().mb_id == i && !found) {
+          if (msg.get<Job>().pid == i && !found) {
             forward_msg = std::move(msg);
             found = true;
           }

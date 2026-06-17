@@ -44,16 +44,16 @@ void EmbeddingLayerImpl::init_impl() {
   if (padding_idx_ < vocab_size_) {
     // Zero out the padding index row
     for (size_t i = 0; i < embed_dim_; ++i) {
-      DISPATCH_DTYPE(weight_.data_type(), T, weight_.at<T>({padding_idx_, i}) = 0.0f);
+      DISPATCH_DTYPE(weight_.dtype(), T, weight_.at<T>({padding_idx_, i}) = 0.0f);
     }
   }
 
   weight_gradients_.fill(0.0f);
 }
 
-Tensor EmbeddingLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor EmbeddingLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (this->is_training_) {
-    set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
   size_t num_tokens = input.size();
@@ -69,8 +69,8 @@ Tensor EmbeddingLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor EmbeddingLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+Tensor EmbeddingLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  const Tensor &input = residuals["input"];
 
   Tensor grad_input = get_tensor(input.shape(), io_dtype_);
   grad_input.fill(0);
@@ -92,10 +92,10 @@ std::unique_ptr<Task> EmbeddingLayerImpl::compute_forward_impl(
     throw std::runtime_error(
         "EmbeddingLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("EmbeddingLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (weight.data_type() != dtype_of<Param_T>()) {
+  if (weight.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "EmbeddingLayerImpl weight tensor dtype mismatch with dispatch Param_T");
   }
@@ -128,10 +128,10 @@ std::unique_ptr<Task> EmbeddingLayerImpl::compute_backward_impl(
     throw std::runtime_error(
         "EmbeddingLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (input.data_type() != dtype_of<IO_T>() || grad_output.data_type() != dtype_of<IO_T>()) {
+  if (input.dtype() != dtype_of<IO_T>() || grad_output.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("EmbeddingLayerImpl IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (weight_gradients.data_type() != dtype_of<Param_T>()) {
+  if (weight_gradients.dtype() != dtype_of<Param_T>()) {
     throw std::runtime_error(
         "EmbeddingLayerImpl weight grad_output dtype mismatch with dispatch Param_T");
   }

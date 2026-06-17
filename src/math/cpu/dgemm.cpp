@@ -14,10 +14,9 @@ constexpr size_t DEFAULT_BLOCK_SIZE = 32;
 #ifdef __AVX2__
 inline bool is_aligned_32(const void *ptr) { return (reinterpret_cast<uintptr_t>(ptr) & 31) == 0; }
 
-inline void dgemm_kernel_avx2_nn(const double *A, const double *B, double *C, const size_t M,
-                                 const size_t N, const size_t K, const size_t i, const size_t j,
-                                 const size_t k, const size_t i_max, const size_t j_max,
-                                 const size_t k_max, const double alpha) {
+inline void dgemm_kernel_avx2_nn(const double *A, const double *B, double *C, size_t M, size_t N,
+                                 size_t K, size_t i, size_t j, size_t k, size_t i_max, size_t j_max,
+                                 size_t k_max, const double alpha) {
   __m256d alpha_vec = _mm256_broadcast_sd(&alpha);
   size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
@@ -85,10 +84,9 @@ inline void dgemm_kernel_avx2_nn(const double *A, const double *B, double *C, co
   }
 }
 
-inline void dgemm_kernel_avx2_nn_aligned(const double *A, const double *B, double *C,
-                                         const size_t M, const size_t N, const size_t K,
-                                         const size_t i, const size_t j, const size_t k,
-                                         const size_t i_max, const size_t j_max, const size_t k_max,
+inline void dgemm_kernel_avx2_nn_aligned(const double *A, const double *B, double *C, size_t M,
+                                         size_t N, size_t K, size_t i, size_t j, size_t k,
+                                         size_t i_max, size_t j_max, size_t k_max,
                                          const double alpha) {
   __m256d alpha_vec = _mm256_broadcast_sd(&alpha);
   size_t ii = i;
@@ -157,10 +155,9 @@ inline void dgemm_kernel_avx2_nn_aligned(const double *A, const double *B, doubl
   }
 }
 
-inline void dgemm_kernel_avx2_nt(const double *A, const double *B, double *C, const size_t M,
-                                 const size_t N, const size_t K, const size_t i, const size_t j,
-                                 const size_t k, const size_t i_max, const size_t j_max,
-                                 const size_t k_max, const double alpha) {
+inline void dgemm_kernel_avx2_nt(const double *A, const double *B, double *C, size_t M, size_t N,
+                                 size_t K, size_t i, size_t j, size_t k, size_t i_max, size_t j_max,
+                                 size_t k_max, const double alpha) {
   for (size_t ii = i; ii < i_max; ++ii) {
     size_t jj = j;
     for (; jj + 3 < j_max; jj += 4) {
@@ -234,10 +231,9 @@ inline void dgemm_kernel_avx2_nt(const double *A, const double *B, double *C, co
   }
 }
 
-inline void dgemm_kernel_avx2_nt_aligned(const double *A, const double *B, double *C,
-                                         const size_t M, const size_t N, const size_t K,
-                                         const size_t i, const size_t j, const size_t k,
-                                         const size_t i_max, const size_t j_max, const size_t k_max,
+inline void dgemm_kernel_avx2_nt_aligned(const double *A, const double *B, double *C, size_t M,
+                                         size_t N, size_t K, size_t i, size_t j, size_t k,
+                                         size_t i_max, size_t j_max, size_t k_max,
                                          const double alpha) {
   for (size_t ii = i; ii < i_max; ++ii) {
     size_t jj = j;
@@ -312,10 +308,9 @@ inline void dgemm_kernel_avx2_nt_aligned(const double *A, const double *B, doubl
   }
 }
 
-inline void dgemm_kernel_avx2_tn(const double *A, const double *B, double *C, const size_t M,
-                                 const size_t N, const size_t K, const size_t i, const size_t j,
-                                 const size_t k, const size_t i_max, const size_t j_max,
-                                 const size_t k_max, const double alpha) {
+inline void dgemm_kernel_avx2_tn(const double *A, const double *B, double *C, size_t M, size_t N,
+                                 size_t K, size_t i, size_t j, size_t k, size_t i_max, size_t j_max,
+                                 size_t k_max, const double alpha) {
   __m256d alpha_vec = _mm256_broadcast_sd(&alpha);
   size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
@@ -386,10 +381,9 @@ inline void dgemm_kernel_avx2_tn(const double *A, const double *B, double *C, co
   }
 }
 
-inline void dgemm_kernel_avx2_tn_aligned(const double *A, const double *B, double *C,
-                                         const size_t M, const size_t N, const size_t K,
-                                         const size_t i, const size_t j, const size_t k,
-                                         const size_t i_max, const size_t j_max, const size_t k_max,
+inline void dgemm_kernel_avx2_tn_aligned(const double *A, const double *B, double *C, size_t M,
+                                         size_t N, size_t K, size_t i, size_t j, size_t k,
+                                         size_t i_max, size_t j_max, size_t k_max,
                                          const double alpha) {
   __m256d alpha_vec = _mm256_broadcast_sd(&alpha);
   size_t ii = i;
@@ -459,9 +453,8 @@ inline void dgemm_kernel_avx2_tn_aligned(const double *A, const double *B, doubl
 }
 #endif
 
-void dgemm(const double *A, const double *B, double *C, const size_t M, const size_t N,
-           const size_t K, const bool trans_A, const bool trans_B, const double alpha,
-           const double beta) {
+void dgemm(const double *A, const double *B, double *C, size_t M, size_t N, size_t K,
+           const bool trans_A, const bool trans_B, const double alpha, const double beta) {
   if (beta == 0.0) {
     parallel_for<size_t>(0, M * N, [&](size_t i) { C[i] = 0.0; });
   } else if (beta != 1.0) {
@@ -580,7 +573,7 @@ void dgemm(const double *A, const double *B, double *C, const size_t M, const si
     }
   }
 #else
-  const size_t BLOCK_SIZE = 32;
+  size_t BLOCK_SIZE = 32;
 
   if (beta == 0.0) {
     memset(C, 0, M * N * sizeof(double));

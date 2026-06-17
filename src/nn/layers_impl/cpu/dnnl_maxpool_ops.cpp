@@ -34,14 +34,14 @@ struct dnnlMaxPoolHandle_t {
   dnnl::memory bwd_user_dst_mem, bwd_user_src_mem;
 };
 
-static dnnl::memory::data_type get_dnnl_dtype(DType_t dtype) {
+static dnnl::memory::dtype get_dnnl_dtype(DType_t dtype) {
   switch (dtype) {
     case DType_t::FP32:
-      return dnnl::memory::data_type::f32;
+      return dnnl::memory::dtype::f32;
     case DType_t::FP16:
-      return dnnl::memory::data_type::f16;
+      return dnnl::memory::dtype::f16;
     case DType_t::BF16:
-      return dnnl::memory::data_type::bf16;
+      return dnnl::memory::dtype::bf16;
     default:
       throw std::runtime_error("dnnl_maxpool: unsupported dtype");
   }

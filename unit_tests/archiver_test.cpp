@@ -15,7 +15,6 @@
 #include "distributed/message.hpp"
 #include "distributed/packet.hpp"
 #include "profiling/profiler.hpp"
-#include "tensor/tensor_factory.hpp"
 #include "type/type.hpp"
 
 using namespace synet;
@@ -40,7 +39,7 @@ void expect_float_tensors_equal(const Tensor& actual, const Tensor& expected) {
   ASSERT_TRUE(actual);
   ASSERT_TRUE(expected);
   EXPECT_EQ(actual.shape(), expected.shape());
-  EXPECT_EQ(actual.data_type(), expected.data_type());
+  EXPECT_EQ(actual.dtype(), expected.dtype());
   EXPECT_EQ(actual.size(), expected.size());
 
   const float* actual_data = actual.data_as<float>();
@@ -189,7 +188,7 @@ TEST_F(ArchiverTest, TestTensorArchiver) {
   bserializer.deserialize(reader, deserialized_tensor);
 
   EXPECT_EQ(deserialized_tensor.shape(), tensor.shape());
-  EXPECT_EQ(deserialized_tensor.data_type(), tensor.data_type());
+  EXPECT_EQ(deserialized_tensor.dtype(), tensor.dtype());
   EXPECT_EQ(deserialized_tensor.device(), tensor.device());
   EXPECT_EQ(deserialized_tensor.size(), tensor.size());
   float* tensor_data = tensor.data_as<float>();
@@ -201,7 +200,7 @@ TEST_F(ArchiverTest, TestTensorArchiver) {
 
 TEST_F(ArchiverTest, TestJobArchiver) {
   Job job;
-  job.mb_id = 123;
+  job.pid = 123;
   Tensor left = Tensor({64, 256}, DType_t::FP32);
   Tensor right = Tensor({64, 128}, DType_t::FP32);
   left.fill_random_normal(0.0f, 1.0f);
@@ -220,7 +219,7 @@ TEST_F(ArchiverTest, TestJobArchiver) {
   BinarySerializer bserializer(allocator_);
   bserializer.deserialize(reader, deserialized_job);
 
-  EXPECT_EQ(deserialized_job.mb_id, job.mb_id);
+  EXPECT_EQ(deserialized_job.pid, job.pid);
   ASSERT_EQ(deserialized_job.data.size(), 2u);
   ASSERT_TRUE(deserialized_job.data.contains("left"));
   ASSERT_TRUE(deserialized_job.data.contains("right"));
@@ -231,7 +230,7 @@ TEST_F(ArchiverTest, TestJobArchiver) {
     ASSERT_TRUE(expected);
     ASSERT_TRUE(actual);
     EXPECT_EQ(actual.shape(), expected.shape());
-    EXPECT_EQ(actual.data_type(), expected.data_type());
+    EXPECT_EQ(actual.dtype(), expected.dtype());
     EXPECT_EQ(actual.device(), expected.device());
     EXPECT_EQ(actual.size(), expected.size());
 
@@ -269,7 +268,7 @@ TEST_F(ArchiverTest, LargeJobMessageSurvivesPacketSlicingAndReassembly) {
   right_host.fill_random_normal(0.0f, 1.0f);
 
   Job job;
-  job.mb_id = 77;
+  job.pid = 77;
   job.data.set("left", left_host.to_device(getGPU()));
   job.data.set("right", right_host.to_device(getGPU()));
 
@@ -309,7 +308,7 @@ TEST_F(ArchiverTest, LargeJobMessageSurvivesPacketSlicingAndReassembly) {
   ASSERT_TRUE(reconstructed.has_type<Job>());
 
   const Job& reconstructed_job = reconstructed.get<Job>();
-  EXPECT_EQ(reconstructed_job.mb_id, 77u);
+  EXPECT_EQ(reconstructed_job.pid, 77u);
   ASSERT_EQ(reconstructed_job.data.size(), 2u);
   ASSERT_TRUE(reconstructed_job.data.contains("left"));
   ASSERT_TRUE(reconstructed_job.data.contains("right"));

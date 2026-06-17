@@ -979,8 +979,8 @@ void set_scalar(double *c, double scalar, size_t size) {
 // BLAS-like Operations
 void axpy(double alpha, const double *x, double *y, size_t size) {
 #ifdef __AVX2__
-  const size_t simd_width = 4;
-  const size_t simd_end = size - (size % simd_width);
+  size_t simd_width = 4;
+  size_t simd_end = size - (size % simd_width);
   __m256d alpha_vec = _mm256_set1_pd(alpha);
 
   for (size_t i = 0; i < simd_end; i += simd_width) {

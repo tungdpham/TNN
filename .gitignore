@@ -100,3 +100,8 @@ __pycache__/
 # profiling artifacts
 /profile.json
 *.nsys-rep
+
+# doc
+doc/html/
+doc/latex/
+doc/Doxyfile.doxygen_docs

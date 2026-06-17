@@ -16,44 +16,43 @@ namespace metrics {
 
 // Compute precision for classification
 template <typename T>
-float compute_precision(const T *predictions, const int *targets, const size_t batch_size,
-                        const size_t num_classes, int class_id = -1, cudaStream_t stream = 0);
+float compute_precision(const T *predictions, const int *targets, size_t batch_size,
+                        size_t num_classes, int class_id = -1, cudaStream_t stream = 0);
 
 // Compute recall for classification
 template <typename T>
-float compute_recall(const T *predictions, const int *targets, const size_t batch_size,
-                     const size_t num_classes, int class_id = -1, cudaStream_t stream = 0);
+float compute_recall(const T *predictions, const int *targets, size_t batch_size,
+                     size_t num_classes, int class_id = -1, cudaStream_t stream = 0);
 
 // Compute F1 score for classification
 template <typename T>
-float compute_f1_score(const T *predictions, const int *targets, const size_t batch_size,
-                       const size_t num_classes, int class_id = -1, cudaStream_t stream = 0);
+float compute_f1_score(const T *predictions, const int *targets, size_t batch_size,
+                       size_t num_classes, int class_id = -1, cudaStream_t stream = 0);
 
 // Compute perplexity (common for language models)
 template <typename T>
-float compute_perplexity(const T *predictions, const int *targets, const size_t batch_size,
-                         const size_t num_classes, cudaStream_t stream = 0);
+float compute_perplexity(const T *predictions, const int *targets, size_t batch_size,
+                         size_t num_classes, cudaStream_t stream = 0);
 
 // Compute top-K accuracy
 template <typename T>
-float compute_top_k_accuracy(const T *predictions, const int *targets, const size_t batch_size,
-                             const size_t num_classes, int k = 5, cudaStream_t stream = 0);
+float compute_top_k_accuracy(const T *predictions, const int *targets, size_t batch_size,
+                             size_t num_classes, int k = 5, cudaStream_t stream = 0);
 
 // Compute Mean Absolute Error
 template <typename T>
-float compute_mae(const T *predictions, const T *targets, const size_t total_elements,
+float compute_mae(const T *predictions, const T *targets, size_t total_elements,
                   cudaStream_t stream = 0);
 
 // Compute Mean Squared Error
 template <typename T>
-float compute_mse(const T *predictions, const T *targets, const size_t total_elements,
+float compute_mse(const T *predictions, const T *targets, size_t total_elements,
                   cudaStream_t stream = 0);
 
 // Compute class corrects (number of correct predictions)
 template <typename T>
-int compute_class_corrects(const T *predictions, const int *targets, const size_t batch_size,
-                           const size_t num_classes, float threshold = 0.5f,
-                           cudaStream_t stream = 0);
+int compute_class_corrects(const T *predictions, const int *targets, size_t batch_size,
+                           size_t num_classes, float threshold = 0.5f, cudaStream_t stream = 0);
 
 }  // namespace metrics
 }  // namespace cuda

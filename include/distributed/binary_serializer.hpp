@@ -95,9 +95,9 @@ public:
   }
 
   void deserialize(Reader &reader, Job &job) {
-    uint64_t mb_id;
-    reader(mb_id);
-    job.mb_id = static_cast<size_t>(mb_id);
+    uint64_t pid;
+    reader(pid);
+    job.pid = static_cast<size_t>(pid);
     deserialize(reader, job.data);
   }
 

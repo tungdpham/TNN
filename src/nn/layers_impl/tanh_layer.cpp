@@ -15,21 +15,20 @@ TanhLayerImpl::TanhLayerImpl(const std::string &name)
     : SISOLayerImpl(name),
       activation_(std::make_unique<Tanh>()) {}
 
-Tensor TanhLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor TanhLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   Tensor output = get_tensor(input.shape(), io_dtype_);
   activation_->apply(input, output);
 
   if (this->is_training_) {
-    // Cache output for efficient backward pass
     // tanh'(x) = 1 - tanh(x)^2
-    set_mutable_cache(mb_id, "output", output);
+    residuals["output"] = output;
   }
 
   return output;
 }
 
-Tensor TanhLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  Tensor &output = this->get_mutable_cache(mb_id, "output");
+Tensor TanhLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  Tensor &output = residuals["output"];
   if (!output) {
     throw std::runtime_error("No cached output found for backward pass in TanhLayerImpl");
   }
@@ -37,7 +36,7 @@ Tensor TanhLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
   Tensor grad_input = get_tensor(grad_output.shape(), io_dtype_);
 
   // Gradient: grad_input = grad_output * (1 - output^2)
-  const size_t num_elements = grad_output.size();
+  size_t num_elements = grad_output.size();
   if (grad_output.device_type() == DeviceType::CPU) {
     const float *grad_out_data = grad_output.data_as<float>();
     const float *output_data = output.data_as<float>();

@@ -82,12 +82,5 @@ protected:
       layer.set_compute_dtype(dtype);
     }
   }
-
-  void on_clear_cache(size_t mb_id) override {
-    Vec<Layer> layers = this->layers();
-    for (Layer &layer : layers) {
-      layer.clear_cache(mb_id);
-    }
-  }
 };
 }  // namespace synet

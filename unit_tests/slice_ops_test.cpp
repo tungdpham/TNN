@@ -103,8 +103,8 @@ TEST(SliceOpsTest, CpuForwardBackwardMatchesReference) {
     reference_slice_forward(input, expected_out, input_shape, c.axis, c.start, c.length);
 
     Vec<T> actual_out(expected_out.size(), T(0));
-    synet::cpu::slice::slice_forward<T>(input.data(), actual_out.data(), input_shape, c.axis, c.start,
-                                      c.length);
+    synet::cpu::slice::slice_forward<T>(input.data(), actual_out.data(), input_shape, c.axis,
+                                        c.start, c.length);
 
     ASSERT_EQ(actual_out.size(), expected_out.size());
     for (size_t i = 0; i < expected_out.size(); ++i) {
@@ -123,7 +123,7 @@ TEST(SliceOpsTest, CpuForwardBackwardMatchesReference) {
 
     Vec<T> actual_grad_input(product(input_shape), T(-1));
     synet::cpu::slice::slice_backward<T>(grad_output.data(), actual_grad_input.data(), input_shape,
-                                       c.axis, c.start, c.length);
+                                         c.axis, c.start, c.length);
 
     ASSERT_EQ(actual_grad_input.size(), expected_grad_input.size());
     for (size_t i = 0; i < expected_grad_input.size(); ++i) {
@@ -143,9 +143,9 @@ TEST(SliceOpsTest, CudaForwardBackwardMatchesReference) {
     input[i] = static_cast<T>(i + 1);
   }
 
-  const size_t axis = 1;
-  const size_t start = 1;
-  const size_t length = 2;
+  size_t axis = 1;
+  size_t start = 1;
+  size_t length = 2;
 
   Vec<T> expected_out;
   reference_slice_forward(input, expected_out, input_shape, axis, start, length);

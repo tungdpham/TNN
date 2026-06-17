@@ -325,12 +325,13 @@ TEST_F(LegacyConv2DLayerTest, BasicBackwardPass) {
   Tensor input = Tensor({1, 1, 5, 5}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 
@@ -346,12 +347,13 @@ TEST_F(LegacyConv2DLayerTest, BackwardPassWithPadding) {
   Tensor input = Tensor({1, 1, 5, 5}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   EXPECT_EQ(grad_input.shape(), input.shape());
@@ -365,12 +367,13 @@ TEST_F(LegacyConv2DLayerTest, BackwardPassMultiChannel) {
   Tensor input = Tensor({1, 3, 5, 5}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   auto grad_input_shape = grad_input.shape();
@@ -385,12 +388,13 @@ TEST_F(LegacyConv2DLayerTest, BackwardPassMultiBatch) {
   Tensor input = Tensor({4, 1, 5, 5}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   auto grad_input_shape = grad_input.shape();
@@ -408,7 +412,8 @@ TEST_F(LegacyConv2DLayerTest, BackwardPassVariableGradient) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   float *grad_data = grad_output.data_as<float>();
@@ -416,7 +421,7 @@ TEST_F(LegacyConv2DLayerTest, BackwardPassVariableGradient) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
   EXPECT_EQ(grad_input.shape(), input.shape());
@@ -485,12 +490,13 @@ TEST_F(LegacyConv2DLayerTest, EdgeCaseZeroGradient) {
   Tensor input = Tensor({1, 1, 5, 5}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(0.0f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
 }
@@ -547,12 +553,13 @@ TEST_F(LegacyConv2DLayerTest, BackwardNumericalStability) {
   Tensor input = Tensor({1, 1, 5, 5}, DType_t::FP32, getHost());
   input.fill(1e-6f);
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1e-6f);
 
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   verify_gradient_shape(grad_output, grad_input, input);
 }
@@ -607,7 +614,8 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelIncrease) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   auto output_shape_actual = output.shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -620,7 +628,7 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelIncrease) {
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
   verify_backward_result(grad_output, grad_input, *params[0], 1, 1, 1, 1, 0, 0);
@@ -637,7 +645,8 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelDecrease) {
     input_data[i] = static_cast<float>((i % 50) * 0.02f);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   auto out_shape = output.shape();
   EXPECT_EQ(out_shape[0], 2);
@@ -650,7 +659,7 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelDecrease) {
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
   verify_backward_result(grad_output, grad_input, *params[0], 1, 1, 1, 1, 0, 0);
@@ -667,7 +676,8 @@ TEST_F(LegacyConv2DLayerTest, ResNetStridedDownsample) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   auto output_shape_actual = output.shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -680,7 +690,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetStridedDownsample) {
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
   verify_backward_result(grad_output, grad_input, *params[0], 3, 3, 2, 2, 0, 0);
@@ -697,7 +707,8 @@ TEST_F(LegacyConv2DLayerTest, ResNetStridedWithPadding) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   auto output_shape_actual = output.shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -710,7 +721,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetStridedWithPadding) {
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
   verify_backward_result(grad_output, grad_input, *params[0], 3, 3, 2, 2, 1, 1);
@@ -727,7 +738,8 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1StridedDownsample) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   auto output_shape_actual = output.shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -740,7 +752,7 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1StridedDownsample) {
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
   verify_backward_result(grad_output, grad_input, *params[0], 1, 1, 2, 2, 0, 0);
@@ -757,7 +769,8 @@ TEST_F(LegacyConv2DLayerTest, ResNetBottleneck3x3) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   auto output_shape_actual = output.shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -770,7 +783,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetBottleneck3x3) {
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
   verify_backward_result(grad_output, grad_input, *params[0], 3, 3, 1, 1, 1, 1);
@@ -787,7 +800,8 @@ TEST_F(LegacyConv2DLayerTest, ResNetFirstConv7x7) {
     input_data[i] = static_cast<float>((i % 256) / 255.0f);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   auto output_shape_actual = output.shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -801,7 +815,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetFirstConv7x7) {
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(0.01f);
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
   verify_backward_result(grad_output, grad_input, *params[0], 7, 7, 2, 2, 3, 3);
@@ -818,7 +832,8 @@ TEST_F(LegacyConv2DLayerTest, ResNetAsymmetricStride) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   auto output_shape_actual = output.shape();
   EXPECT_EQ(output_shape_actual[0], 1);
@@ -831,7 +846,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetAsymmetricStride) {
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
   verify_backward_result(grad_output, grad_input, *params[0], 3, 3, 2, 1, 1, 1);
@@ -848,7 +863,8 @@ TEST_F(LegacyConv2DLayerTest, ResNetSmallFeatureMap) {
     input_data[i] = static_cast<float>((i % 100) * 0.01f);
   }
 
-  Tensor output = layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = layer.forward({input}, residuals)[0];
 
   auto output_shape_actual = output.shape();
   EXPECT_EQ(output_shape_actual[0], 2);
@@ -861,7 +877,7 @@ TEST_F(LegacyConv2DLayerTest, ResNetSmallFeatureMap) {
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
-  Tensor grad_input = layer.backward({grad_output})[0];
+  Tensor grad_input = layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
   verify_backward_result(grad_output, grad_input, *params[0], 3, 3, 2, 2, 1, 1);

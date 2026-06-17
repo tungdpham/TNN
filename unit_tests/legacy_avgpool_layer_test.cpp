@@ -300,7 +300,8 @@ TEST_F(LegacyAvgPool2DLayerTest, BasicBackwardPass) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = avg_pool_layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = avg_pool_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *grad_data = grad_output.data_as<float>();
@@ -308,7 +309,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BasicBackwardPass) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = avg_pool_layer.backward({grad_output})[0];
+  Tensor grad_input = avg_pool_layer.backward({grad_output}, residuals)[0];
 
   verify_backward_result(grad_output, grad_input, 2, 2, 2, 2, 0, 0);
 
@@ -330,7 +331,8 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassWithPadding) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = avg_pool_layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = avg_pool_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   float *grad_data = grad_output.data_as<float>();
@@ -338,7 +340,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassWithPadding) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = avg_pool_layer.backward({grad_output})[0];
+  Tensor grad_input = avg_pool_layer.backward({grad_output}, residuals)[0];
 
   verify_backward_result(grad_output, grad_input, 3, 3, 1, 1, 1, 1);
 
@@ -358,7 +360,8 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassMultiChannel) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = avg_pool_layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = avg_pool_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   float *grad_data = grad_output.data_as<float>();
@@ -366,7 +369,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassMultiChannel) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = avg_pool_layer.backward({grad_output})[0];
+  Tensor grad_input = avg_pool_layer.backward({grad_output}, residuals)[0];
 
   verify_backward_result(grad_output, grad_input, 2, 2, 2, 2, 0, 0);
 
@@ -385,7 +388,8 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassVariableGradient) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor output = avg_pool_layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = avg_pool_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   float *grad_data = grad_output.data_as<float>();
@@ -393,7 +397,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassVariableGradient) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor grad_input = avg_pool_layer.backward({grad_output})[0];
+  Tensor grad_input = avg_pool_layer.backward({grad_output}, residuals)[0];
 
   verify_backward_result(grad_output, grad_input, 2, 2, 1, 1, 0, 0);
 
@@ -484,12 +488,13 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseZeroGradient) {
     input_data[i] = 1.0f;
   }
 
-  Tensor output = avg_pool_layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = avg_pool_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   grad_output.fill(0.0f);
 
-  Tensor grad_input = avg_pool_layer.backward({grad_output})[0];
+  Tensor grad_input = avg_pool_layer.backward({grad_output}, residuals)[0];
 
   verify_backward_result(grad_output, grad_input, 2, 2, 2, 2, 0, 0);
 
@@ -571,7 +576,8 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardNumericalStability) {
     input_data[i] = 1e-6f;
   }
 
-  Tensor output = avg_pool_layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = avg_pool_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor({1, 1, 2, 2}, DType_t::FP32, getHost());
   float *grad_data = grad_output.data_as<float>();
@@ -579,7 +585,7 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardNumericalStability) {
     grad_data[i] = 1e-6f;
   }
 
-  Tensor grad_input = avg_pool_layer.backward({grad_output})[0];
+  Tensor grad_input = avg_pool_layer.backward({grad_output}, residuals)[0];
 
   verify_backward_result(grad_output, grad_input, 2, 2, 2, 2, 0, 0);
 }

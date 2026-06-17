@@ -13,6 +13,7 @@
 
 #include "device/flow.hpp"
 #include "tensor/tensor.hpp"
+#include "tensor/tensor_ops.hpp"
 #include "type/type.hpp"
 
 namespace synet {
@@ -36,7 +37,12 @@ void LayerImpl::init() {
   initialized_ = true;
 }
 
-Vec<Tensor> LayerImpl::forward(const Vec<Tensor> &inputs, size_t mb_id) {
+Vec<Tensor> LayerImpl::forward(const Vec<Tensor> &inputs) {
+  Residuals dummy_residuals;
+  return forward(inputs, dummy_residuals);
+}
+
+Vec<Tensor> LayerImpl::forward(const Vec<Tensor> &inputs, Residuals &residuals) {
   if (!initialized_) {
     throw std::runtime_error("LayerImpl must be initialized before calling forward");
   }
@@ -48,14 +54,14 @@ Vec<Tensor> LayerImpl::forward(const Vec<Tensor> &inputs, size_t mb_id) {
     else
       current_inputs.push_back(input.to_device(this->device()));
   }
-  Vec<Tensor> outputs = forward_impl(current_inputs, mb_id);
+  Vec<Tensor> outputs = forward_impl(current_inputs, residuals);
 #ifndef NDEBUG
   this->device().getFlow(flow_handle_)->synchronize();
 #endif
   return outputs;
 }
 
-Vec<Tensor> LayerImpl::backward(const Vec<Tensor> &grad_outputs, size_t mb_id) {
+Vec<Tensor> LayerImpl::backward(const Vec<Tensor> &grad_outputs, Residuals &residuals) {
   if (!initialized_) {
     throw std::runtime_error("LayerImpl must be initialized before calling backward");
   }
@@ -67,8 +73,7 @@ Vec<Tensor> LayerImpl::backward(const Vec<Tensor> &grad_outputs, size_t mb_id) {
     else
       current_grad_outputs.push_back(grad.to_device(this->device()));
   }
-  auto grad_inputs = backward_impl(current_grad_outputs, mb_id);
-  clear_cache(mb_id);
+  auto grad_inputs = backward_impl(current_grad_outputs, residuals);
 #ifndef NDEBUG
   this->device().getFlow(flow_handle_)->synchronize();
 #endif
@@ -130,17 +135,17 @@ LayerImpl &LayerImpl::set_training(bool training) {
 
 bool LayerImpl::is_training() const { return is_training_; }
 
-void LayerImpl::save_state(std::ofstream &file) {
+void LayerImpl::save_state(std::ostream &out) const {
   auto config = get_config();
   nlohmann::json j = config.to_json();
   std::string j_str = j.dump();
   size_t j_size = j_str.size();
-  file.write(reinterpret_cast<const char *>(&j_size), sizeof(size_t));
-  file.write(j_str.c_str(), j_size);
+  out.write(reinterpret_cast<const char *>(&j_size), sizeof(size_t));
+  out.write(j_str.c_str(), j_size);
   auto descs = param_descriptors();
   for (const auto &desc : descs) {
     Tensor param = *desc.data_ptr;
-    param.save(file);
+    ops::save_tensor(param, out);
   }
 }
 
@@ -149,45 +154,6 @@ Tensor LayerImpl::get_tensor(const Vec<size_t> &shape, DType_t dtype) {
     throw std::runtime_error("Allocator is not set");
   }
   return Tensor(shape, dtype, *allocator_);
-}
-
-void LayerImpl::set_immutable_cache(size_t mb_id, const std::string &key, const Tensor &value) {
-  if (!is_training_) {
-    return;  // no need to cache in inference mode
-  }
-  immutable_cache_[{mb_id, key}] = value;
-}
-
-const Tensor &LayerImpl::get_immutable_cache(size_t mb_id, const std::string &key) {
-  return immutable_cache_[{mb_id, key}];
-}
-
-void LayerImpl::set_mutable_cache(size_t mb_id, const std::string &key, Tensor &value) {
-  if (!is_training_) {
-    return;  // no need to cache in inference mode
-  }
-  mutable_cache_[{mb_id, key}] = value;
-}
-
-Tensor &LayerImpl::get_mutable_cache(size_t mb_id, const std::string &key) {
-  return mutable_cache_[{mb_id, key}];
-}
-
-void LayerImpl::clear_cache(size_t mb_id) {
-  for (auto it = immutable_cache_.begin(); it != immutable_cache_.end();) {
-    if (it->first.first == mb_id) {
-      it = immutable_cache_.erase(it);
-    } else {
-      ++it;
-    }
-  }
-  for (auto it = mutable_cache_.begin(); it != mutable_cache_.end();) {
-    if (it->first.first == mb_id) {
-      it = mutable_cache_.erase(it);
-    } else {
-      ++it;
-    }
-  }
 }
 
 }  // namespace synet

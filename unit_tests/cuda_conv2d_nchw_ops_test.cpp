@@ -69,9 +69,9 @@ protected:
 // ==================== run_wgrad Tests ====================
 
 TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsBasic) {
-  const size_t output_size = 4;
-  const size_t kernel_size = 9;
-  const size_t out_channels = 2;
+  size_t output_size = 4;
+  size_t kernel_size = 9;
+  size_t out_channels = 2;
 
   Vec<float> col_data(kernel_size * output_size);
   for (size_t i = 0; i < col_data.size(); ++i) {
@@ -116,9 +116,9 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsBasic) {
 }
 
 TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsMultiOutput) {
-  const size_t output_size = 9;
-  const size_t kernel_size = 16;  // 4x4 kernel
-  const size_t out_channels = 8;
+  size_t output_size = 9;
+  size_t kernel_size = 16;  // 4x4 kernel
+  size_t out_channels = 8;
 
   Vec<float> col_data(kernel_size * output_size);
   for (size_t i = 0; i < col_data.size(); ++i) {
@@ -162,9 +162,9 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsMultiOutput) {
 }
 
 TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsLargeKernel) {
-  const size_t output_size = 25;
-  const size_t kernel_size = 25;  // 5x5 kernel
-  const size_t out_channels = 16;
+  size_t output_size = 25;
+  size_t kernel_size = 25;  // 5x5 kernel
+  size_t out_channels = 16;
 
   Vec<float> col_data(kernel_size * output_size);
   for (size_t i = 0; i < col_data.size(); ++i) {
@@ -210,9 +210,9 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsLargeKernel) {
 // ==================== run_dgrad Tests ====================
 
 TEST_F(CUDAConv2NCHWOpsTest, InputGradientsBasic) {
-  const size_t output_size = 4;
-  const size_t kernel_size = 9;
-  const size_t out_channels = 2;
+  size_t output_size = 4;
+  size_t kernel_size = 9;
+  size_t out_channels = 2;
 
   Vec<float> gradient_data(out_channels * output_size);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
@@ -256,9 +256,9 @@ TEST_F(CUDAConv2NCHWOpsTest, InputGradientsBasic) {
 }
 
 TEST_F(CUDAConv2NCHWOpsTest, InputGradientsLargeKernel) {
-  const size_t output_size = 16;
-  const size_t kernel_size = 25;
-  const size_t out_channels = 4;
+  size_t output_size = 16;
+  size_t kernel_size = 25;
+  size_t out_channels = 4;
 
   Vec<float> gradient_data(out_channels * output_size);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
@@ -304,10 +304,10 @@ TEST_F(CUDAConv2NCHWOpsTest, InputGradientsLargeKernel) {
 // ==================== run_bgrad Tests ====================
 
 TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsBasic) {
-  const size_t batch_size = 2;
-  const size_t output_h = 3;
-  const size_t output_w = 3;
-  const size_t out_channels = 2;
+  size_t batch_size = 2;
+  size_t output_h = 3;
+  size_t output_w = 3;
+  size_t out_channels = 2;
 
   Vec<float> gradient_data(batch_size * out_channels * output_h * output_w);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
@@ -343,10 +343,10 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsBasic) {
 }
 
 TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsMultiBatch) {
-  const size_t batch_size = 4;
-  const size_t output_h = 5;
-  const size_t output_w = 5;
-  const size_t out_channels = 16;
+  size_t batch_size = 4;
+  size_t output_h = 5;
+  size_t output_w = 5;
+  size_t out_channels = 16;
 
   Vec<float> gradient_data(batch_size * out_channels * output_h * output_w);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
@@ -382,10 +382,10 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsMultiBatch) {
 }
 
 TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsLargeChannels) {
-  const size_t batch_size = 8;
-  const size_t output_h = 8;
-  const size_t output_w = 8;
-  const size_t out_channels = 64;
+  size_t batch_size = 8;
+  size_t output_h = 8;
+  size_t output_w = 8;
+  size_t out_channels = 64;
 
   Vec<float> gradient_data(batch_size * out_channels * output_h * output_w);
   for (size_t i = 0; i < gradient_data.size(); ++i) {
@@ -423,10 +423,10 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsLargeChannels) {
 // ==================== add_bias Tests ====================
 
 TEST_F(CUDAConv2NCHWOpsTest, AddBiasBasic) {
-  const size_t batch_size = 1;
-  const size_t output_h = 3;
-  const size_t output_w = 3;
-  const size_t out_channels = 2;
+  size_t batch_size = 1;
+  size_t output_h = 3;
+  size_t output_w = 3;
+  size_t out_channels = 2;
 
   Vec<float> output_data(batch_size * out_channels * output_h * output_w);
   for (size_t i = 0; i < output_data.size(); ++i) {
@@ -464,10 +464,10 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasBasic) {
 }
 
 TEST_F(CUDAConv2NCHWOpsTest, AddBiasMultiBatch) {
-  const size_t batch_size = 4;
-  const size_t output_h = 4;
-  const size_t output_w = 4;
-  const size_t out_channels = 8;
+  size_t batch_size = 4;
+  size_t output_h = 4;
+  size_t output_w = 4;
+  size_t out_channels = 8;
 
   Vec<float> output_data(batch_size * out_channels * output_h * output_w);
   for (size_t i = 0; i < output_data.size(); ++i) {
@@ -505,10 +505,10 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasMultiBatch) {
 }
 
 TEST_F(CUDAConv2NCHWOpsTest, AddBiasLargeOutput) {
-  const size_t batch_size = 8;
-  const size_t output_h = 16;
-  const size_t output_w = 16;
-  const size_t out_channels = 32;
+  size_t batch_size = 8;
+  size_t output_h = 16;
+  size_t output_w = 16;
+  size_t out_channels = 32;
 
   Vec<float> output_data(batch_size * out_channels * output_h * output_w);
   for (size_t i = 0; i < output_data.size(); ++i) {

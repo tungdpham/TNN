@@ -14,14 +14,14 @@ namespace cpu {
 namespace sgd {
 
 template <typename T>
-void update_sgd(T *params_data, const T *grads_data, const size_t size, const float learning_rate) {
+void update_sgd(T *params_data, const T *grads_data, size_t size, const float learning_rate) {
   parallel_for<size_t>(0, size, [&](size_t i) {
     params_data[i] -= learning_rate * static_cast<float>(grads_data[i]);
   });
 }
 
 template <typename T>
-void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, const size_t size,
+void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, size_t size,
                          const float learning_rate, const float momentum) {
   parallel_for<size_t>(0, size, [&](size_t i) {
     velocity_data[i] = momentum * static_cast<float>(velocity_data[i]) -
@@ -31,10 +31,10 @@ void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, 
 }
 
 #define INSTANTIATE(T)                                                                         \
-  template void update_sgd<T>(T * params_data, const T *grads_data, const size_t size,         \
+  template void update_sgd<T>(T * params_data, const T *grads_data, size_t size,               \
                               const float learning_rate);                                      \
   template void update_sgd_momentum<T>(T * params_data, const T *grads_data, T *velocity_data, \
-                                       const size_t size, const float learning_rate,           \
+                                       size_t size, const float learning_rate,                 \
                                        const float momentum);
 INSTANTIATE(fp16)
 INSTANTIATE(bf16)

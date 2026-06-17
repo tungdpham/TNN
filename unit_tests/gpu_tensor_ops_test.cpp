@@ -5,6 +5,8 @@
  * project root for the full license text.
  */
 
+#include <fmt/core.h>
+#include <fmt/ranges.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -47,14 +49,12 @@ protected:
   template <typename T>
   void compareTensors(const Tensor &expected, const Tensor &actual,
                       T tolerance = static_cast<T>(1e-5)) {
-    ASSERT_TRUE(expected.shape() == actual.shape())
-        << "Tensors have different shapes. Expected: " << expected.shape_str()
-        << ", Actual: " << actual.shape_str();
+    ASSERT_TRUE(expected.shape() == actual.shape()) << fmt::format(
+        "Tensor have different shapes. Expected: {}, Actual: {}", expected.shape(), actual.shape());
 
     Tensor expected_cpu =
         expected.device_type() == DeviceType::CPU ? expected.clone() : expected.to_host();
-    Tensor actual_cpu =
-        actual.device_type() == DeviceType::CPU ? actual.clone() : actual.to_host();
+    Tensor actual_cpu = actual.device_type() == DeviceType::CPU ? actual.clone() : actual.to_host();
 
     auto shape = expected_cpu.shape();
     for (size_t n = 0; n < shape[0]; ++n) {

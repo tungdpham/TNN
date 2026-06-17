@@ -23,7 +23,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.dtype(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {
@@ -42,10 +42,10 @@ private:
     const auto shape = data.shape();
     if (shape.size() != 4) return;
 
-    const size_t batch_size = shape[0];
-    const size_t height = shape[1];
-    const size_t width = shape[2];
-    const size_t channels = shape[3];
+    size_t batch_size = shape[0];
+    size_t height = shape[1];
+    size_t width = shape[2];
+    size_t channels = shape[3];
 
     // Pre-compute per-batch random decisions sequentially to avoid data races
     std::vector<std::pair<bool, float>> decisions(batch_size);
@@ -70,7 +70,7 @@ private:
     const float center_x = width / 2.0f;
     const float center_y = height / 2.0f;
 
-    Tensor rotated(Vec<size_t>{1, height, width, channels}, data.data_type(), data.allocator());
+    Tensor rotated(Vec<size_t>{1, height, width, channels}, data.dtype(), data.allocator());
 
     rotated.fill(0.0);
 

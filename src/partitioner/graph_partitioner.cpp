@@ -100,7 +100,7 @@ Node ensure_partition_node(Graph &graph, const std::string &uid,
 
 GraphPartition build_partition(const Graph &graph, const Vec<Edge> &edges, size_t start_layer) {
   const Vec<Edge> sorted_edges = topologically_sorted_edges(graph);
-  const size_t end_layer = start_layer + edges.size();
+  size_t end_layer = start_layer + edges.size();
 
   GraphPartition partition;
   partition.start_layer = start_layer;
@@ -172,7 +172,7 @@ GraphPartitioner::GraphPartitioner(std::vector<double> layer_ratios)
 
 GraphPartitioner::GraphPartitioner(std::vector<size_t> layer_ratios) {
   layer_ratios_.reserve(layer_ratios.size());
-  for (const size_t layer_ratio : layer_ratios) {
+  for (size_t layer_ratio : layer_ratios) {
     layer_ratios_.push_back(static_cast<double>(layer_ratio));
   }
 }
@@ -185,7 +185,7 @@ std::vector<GraphPartition> GraphPartitioner::partition(const Graph &graph) cons
   partitions.reserve(layer_counts.size());
 
   size_t offset = 0;
-  for (const size_t layer_count : layer_counts) {
+  for (size_t layer_count : layer_counts) {
     Vec<Edge> partition_edges;
     partition_edges.reserve(layer_count);
     for (size_t i = 0; i < layer_count; ++i) {
@@ -231,7 +231,7 @@ std::vector<size_t> GraphPartitioner::resolve_layer_counts(size_t total_layers) 
   for (size_t i = 0; i < layer_ratios_.size(); ++i) {
     const double exact_layer_count =
         (layer_ratios_[i] / ratio_sum) * static_cast<double>(total_layers);
-    const size_t resolved_layer_count = static_cast<size_t>(std::floor(exact_layer_count));
+    size_t resolved_layer_count = static_cast<size_t>(std::floor(exact_layer_count));
     layer_counts[i] = resolved_layer_count;
     fractional_counts.push_back({i, exact_layer_count - static_cast<double>(resolved_layer_count)});
   }
@@ -249,7 +249,7 @@ std::vector<size_t> GraphPartitioner::resolve_layer_counts(size_t total_layers) 
     ++layer_counts[fractional_counts[i].index];
   }
 
-  for (const size_t layer_count : layer_counts) {
+  for (size_t layer_count : layer_counts) {
     if (layer_count == 0) {
       throw std::runtime_error(
           "GraphPartitioner partition ratios resolve to an empty partition for this graph");

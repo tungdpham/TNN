@@ -37,7 +37,7 @@ __global__ void run_forward_kernel(const T* input_data, T* output_data, size_t b
   long h_end_valid = min(static_cast<long>(input_h), h_start + static_cast<long>(pool_h));
   long w_end_valid = min(static_cast<long>(input_w), w_start + static_cast<long>(pool_w));
 
-  const size_t input_offset = (n * channels + c) * input_h * input_w;
+  size_t input_offset = (n * channels + c) * input_h * input_w;
   T sum = T(0);
 
   for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
@@ -77,7 +77,7 @@ __global__ void run_backward_kernel(const T* gradient_data, T* grad_input_data, 
   long h_end_valid = min(static_cast<long>(input_h), h_start + static_cast<long>(pool_h));
   long w_end_valid = min(static_cast<long>(input_w), w_start + static_cast<long>(pool_w));
 
-  const size_t input_offset = (n * channels + c) * input_h * input_w;
+  size_t input_offset = (n * channels + c) * input_h * input_w;
 
   for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
     for (long iw = w_start_valid; iw < w_end_valid; ++iw) {

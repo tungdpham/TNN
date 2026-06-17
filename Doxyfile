@@ -1,0 +1,26 @@
+# Basic Project Information
+PROJECT_NAME           = "Synet Framework"
+PROJECT_NUMBER         = "1.0.0"
+
+# Headers and Source
+INPUT                  = include/ src/
+
+# Parse recursively through subdirectories
+RECURSIVE              = YES
+
+# File patterns to look for
+FILE_PATTERNS          = *.hpp *.cpp
+
+# Where to save the generated documentation
+OUTPUT_DIRECTORY       = doc/
+
+# Optimization settings for C++
+OPTIMIZE_OUTPUT_FOR_C  = NO
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+
+# Visual Graphs
+HAVE_DOT               = YES
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES

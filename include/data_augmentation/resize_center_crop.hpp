@@ -40,7 +40,7 @@ public:
   }
 
   void apply(Tensor &data, Tensor &labels) override {
-    DISPATCH_DTYPE(data.data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data.dtype(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {
@@ -97,13 +97,13 @@ private:
     const auto shape = data.shape();
     if (shape.size() != 4) return;
 
-    const size_t batch_size = shape[0];
-    const size_t in_h = shape[1];
-    const size_t in_w = shape[2];
-    const size_t channels = shape[3];
+    size_t batch_size = shape[0];
+    size_t in_h = shape[1];
+    size_t in_w = shape[2];
+    size_t channels = shape[3];
 
     PoolAllocator &allocator = PoolAllocator::instance(data.device(), defaultFlowHandle);
-    Tensor output(Vec<size_t>{batch_size, crop_h_, crop_w_, channels}, data.data_type(), allocator);
+    Tensor output(Vec<size_t>{batch_size, crop_h_, crop_w_, channels}, data.dtype(), allocator);
 
     parallel_for<size_t>(0, batch_size, [&](size_t b) {
       size_t resized_h, resized_w;
@@ -119,18 +119,17 @@ private:
       resized_w = std::max(resized_w, crop_w_);
       resized_h = std::max(resized_h, crop_h_);
 
-      Tensor src_buf(Vec<size_t>{1, in_h, in_w, channels}, data.data_type(), allocator);
+      Tensor src_buf(Vec<size_t>{1, in_h, in_w, channels}, data.dtype(), allocator);
       for (size_t h = 0; h < in_h; ++h)
         for (size_t w = 0; w < in_w; ++w)
           for (size_t c = 0; c < channels; ++c)
             src_buf.at<T>({0, h, w, c}) = data.at<T>({b, h, w, c});
 
-      Tensor resized_buf(Vec<size_t>{1, resized_h, resized_w, channels}, data.data_type(),
-                         allocator);
+      Tensor resized_buf(Vec<size_t>{1, resized_h, resized_w, channels}, data.dtype(), allocator);
       bilinear_resize<T>(src_buf, in_h, in_w, resized_buf, resized_h, resized_w, channels);
 
-      const size_t cx = std::max<size_t>(0, (resized_w - crop_w_) / 2);
-      const size_t cy = std::max<size_t>(0, (resized_h - crop_h_) / 2);
+      size_t cx = std::max<size_t>(0, (resized_w - crop_w_) / 2);
+      size_t cy = std::max<size_t>(0, (resized_h - crop_h_) / 2);
 
       for (size_t h = 0; h < crop_h_; ++h)
         for (size_t w = 0; w < crop_w_; ++w)

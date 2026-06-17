@@ -301,12 +301,13 @@ TEST_F(LegacyBatchNormLayerTest, BasicBackwardPass) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  Tensor output = bn_layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = bn_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = bn_layer.backward({grad_output})[0];
+  Tensor grad_input = bn_layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
 }
@@ -324,7 +325,8 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassWithAffine) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  Tensor output = bn_layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = bn_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   float *grad_data = grad_output.data_as<float>();
@@ -332,7 +334,7 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassWithAffine) {
     grad_data[i] = static_cast<float>(i % 5) / 5.0f;
   }
 
-  Tensor grad_input = bn_layer.backward({grad_output})[0];
+  Tensor grad_input = bn_layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
 
@@ -350,12 +352,13 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassMultiBatch) {
   Tensor input = Tensor({8, 2, 4, 4}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = bn_layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = bn_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(1.0f);
 
-  Tensor grad_input = bn_layer.backward({grad_output})[0];
+  Tensor grad_input = bn_layer.backward({grad_output}, residuals)[0];
 
   auto grad_input_shape = grad_input.shape();
   EXPECT_EQ(grad_input_shape[0], 8);
@@ -372,12 +375,13 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassZeroGradient) {
   Tensor input = Tensor({2, 2, 4, 4}, DType_t::FP32, getHost());
   input.fill(1.0f);
 
-  Tensor output = bn_layer.forward({input})[0];
+  Residuals residuals;
+  Tensor output = bn_layer.forward({input}, residuals)[0];
 
   Tensor grad_output = Tensor(output.shape(), DType_t::FP32, getHost());
   grad_output.fill(0.0f);
 
-  Tensor grad_input = bn_layer.backward({grad_output})[0];
+  Tensor grad_input = bn_layer.backward({grad_output}, residuals)[0];
 
   EXPECT_EQ(grad_input.shape(), input.shape());
 

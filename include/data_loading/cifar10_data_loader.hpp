@@ -108,7 +108,7 @@ private:
     mf.data = static_cast<const uint8_t *>(ptr);
     mf.num_records = mf.size / cifar10_constants::RECORD_SIZE;
 
-    const size_t file_idx = mapped_files_.size();
+    size_t file_idx = mapped_files_.size();
     for (size_t r = 0; r < mf.num_records; ++r) {
       sample_map_.emplace_back(file_idx, r);
     }
@@ -126,7 +126,7 @@ private:
       if (!map_file(fn)) return false;
     }
 
-    const size_t n = sample_map_.size();
+    size_t n = sample_map_.size();
     access_order_.resize(n);
     std::iota(access_order_.begin(), access_order_.end(), 0);
 
@@ -139,11 +139,10 @@ private:
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
     if (this->current_index_ >= access_order_.size()) return false;
 
-    const size_t actual_batch_size =
-        std::min(batch_size, access_order_.size() - this->current_index_);
-    const size_t height = cifar10_constants::IMAGE_HEIGHT;
-    const size_t width = cifar10_constants::IMAGE_WIDTH;
-    const size_t channels = cifar10_constants::NUM_CHANNELS;
+    size_t actual_batch_size = std::min(batch_size, access_order_.size() - this->current_index_);
+    size_t height = cifar10_constants::IMAGE_HEIGHT;
+    size_t width = cifar10_constants::IMAGE_WIDTH;
+    size_t channels = cifar10_constants::NUM_CHANNELS;
 
     batch_data = Tensor({actual_batch_size, height, width, channels}, dtype_of<T>(), allocator_);
     batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
@@ -152,7 +151,7 @@ private:
     int *labels_ptr = batch_labels.data_as<int>();
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
-      const size_t sample_idx = access_order_[this->current_index_ + i];
+      size_t sample_idx = access_order_[this->current_index_ + i];
       const auto &[file_idx, record_idx] = sample_map_[sample_idx];
       const uint8_t *record =
           mapped_files_[file_idx].data + record_idx * cifar10_constants::RECORD_SIZE;
@@ -164,8 +163,8 @@ private:
       for (size_t c = 0; c < channels; ++c) {
         for (size_t h = 0; h < height; ++h) {
           for (size_t w = 0; w < width; ++w) {
-            const size_t src_idx = c * (height * width) + h * width + w;
-            const size_t dst_idx =
+            size_t src_idx = c * (height * width) + h * width + w;
+            size_t dst_idx =
                 i * height * width * channels + h * width * channels + w * channels + c;
             data_ptr[dst_idx] =
                 static_cast<T>(pixels[src_idx] / cifar10_constants::NORMALIZATION_FACTOR);
@@ -239,7 +238,7 @@ public:
   Vec<std::string> get_class_names() const override { return class_names_; }
 
   void print_data_stats() const override {
-    const size_t n = sample_map_.size();
+    size_t n = sample_map_.size();
     if (n == 0) {
       std::cout << "No data loaded" << std::endl;
       return;

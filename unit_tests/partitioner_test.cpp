@@ -12,7 +12,6 @@
 #include "nn/layers.hpp"
 #include "partitioner/graph_partitioner.hpp"
 #include "tensor/tensor.hpp"
-#include "test_graph_utils.hpp"
 
 using namespace synet;
 
@@ -152,43 +151,6 @@ TEST(GraphPartitionerTest, RejectsPartitionRatiosThatResolveToEmptyPartitions) {
   EXPECT_THROW(partitioner.partition(graph), std::runtime_error);
 }
 
-TEST(GraphPartitionerTest, ClassifiesLinearGraphAsSingleSPSCRegion) {
-  Graph graph = build_linear_graph();
-
-  GraphRegionSummary regions = graph.classify_regions();
-
-  ASSERT_EQ(regions.mpsc_regions.size(), 0u);
-  ASSERT_EQ(regions.spsc_regions.size(), 1u);
-  ASSERT_TRUE(regions.unsupported_edge_indices.empty());
-
-  const SPSCRegion &region = regions.spsc_regions.front();
-  ASSERT_EQ(region.edge_indices.size(), 4u);
-  EXPECT_EQ(graph.edges()[region.edge_indices.front()]->layer()->name(), "dense_a");
-  EXPECT_EQ(graph.edges()[region.edge_indices.back()]->layer()->name(), "dense_d");
-}
-
-TEST(GraphPartitionerTest, ClassifiesBranchedGraphAsSingleJoinMPSCPlusTailSPSC) {
-  Graph graph = build_branched_graph();
-
-  GraphRegionSummary regions = graph.classify_regions();
-
-  ASSERT_EQ(regions.mpsc_regions.size(), 1u);
-  ASSERT_EQ(regions.spsc_regions.size(), 1u);
-  ASSERT_TRUE(regions.unsupported_edge_indices.empty());
-
-  const MPSCRegion &mpsc = regions.mpsc_regions.front();
-  EXPECT_EQ(graph.edges()[mpsc.join_edge_index]->layer()->name(), "merge");
-  ASSERT_EQ(mpsc.branch_edge_indices.size(), 2u);
-  EXPECT_EQ(mpsc.branch_edge_indices[0].size(), 1u);
-  EXPECT_EQ(mpsc.branch_edge_indices[1].size(), 1u);
-  EXPECT_EQ(graph.edges()[mpsc.branch_edge_indices[0].front()]->layer()->name(), "left_dense");
-  EXPECT_EQ(graph.edges()[mpsc.branch_edge_indices[1].front()]->layer()->name(), "right_dense");
-
-  const SPSCRegion &tail = regions.spsc_regions.front();
-  ASSERT_EQ(tail.edge_indices.size(), 1u);
-  EXPECT_EQ(graph.edges()[tail.edge_indices.front()]->layer()->name(), "tail_dense");
-}
-
 TEST_F(GraphPlannerStateTest, PartitionedResNet9MatchesFullGraphForwardAndBackward) {
   auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
   ExampleGraphs::register_defaults();
@@ -223,9 +185,6 @@ TEST_F(GraphPlannerStateTest, PartitionedResNet9MatchesFullGraphForwardAndBackwa
   TensorBundle stage1_inputs = make_partition_input_map(stage0_outputs, partitions[1].input_uids);
   TensorBundle stage1_outputs = stage1.forward(stage1_inputs);
 
-  full_outputs.get("output").head(10, "Full Graph Output");
-  stage1_outputs.get(partitions[1].output_uids.front()).head(10, "Partitioned Graph Output");
-
   expect_tensors_close(full_outputs.get("output"),
                        stage1_outputs.get(partitions[1].output_uids.front()), 1e-4f);
 
@@ -241,10 +200,6 @@ TEST_F(GraphPlannerStateTest, PartitionedResNet9MatchesFullGraphForwardAndBackwa
   TensorBundle stage0_output_grads =
       make_partition_input_map(stage1_input_grads, partitions[0].output_uids);
   TensorBundle stage0_input_grads = stage0.backward(stage0_output_grads);
-
-  full_input_grads.get("input").head(10, "Full Graph Input Gradients");
-  stage0_input_grads.get(partitions[0].input_uids.front())
-      .head(10, "Partitioned Graph Input Gradients");
 
   expect_tensors_close(full_input_grads.get("input"),
                        stage0_input_grads.get(partitions[0].input_uids.front()), 1e-4f);
@@ -335,60 +290,4 @@ TEST_F(GraphPlannerStateTest, BackwardClearsAccumulatedGradientsBetweenPasses) {
   for (size_t i = 0; i < second_input_grad_tensor.size(); ++i) {
     EXPECT_NEAR(second_grad_input[i], 5.0f, 1e-5f);
   }
-}
-
-TEST_F(GraphPlannerStateTest, CompileUsesGraphLocalWorkspaceAllocator) {
-  auto layer_a = DenseLayer(4, 2, false, "dense_a");
-  auto layer_b = DenseLayer(4, 2, false, "dense_b");
-  auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-
-  Graph graph_a = test::compile_single_layer(layer_a, allocator);
-  Graph graph_b = test::compile_single_layer(layer_b, allocator);
-
-  ASSERT_NE(graph_a.workspace_allocator(), nullptr);
-  ASSERT_NE(graph_b.workspace_allocator(), nullptr);
-  EXPECT_NE(graph_a.workspace_allocator(), graph_b.workspace_allocator());
-  EXPECT_EQ(graph_a.cached_forward_plan_count(), 0u);
-  EXPECT_EQ(graph_b.cached_forward_plan_count(), 0u);
-}
-
-TEST_F(GraphPlannerStateTest, ForwardPlanCacheKeysOnModeAndShape) {
-  auto dense = DenseLayer(4, 2, false, "planner_dense");
-  auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
-  Graph graph = test::compile_single_layer(dense, allocator);
-
-  Tensor input = Tensor({1, 4}, DType_t::FP32, getHost());
-  input.fill(1.0f);
-  TensorBundle eval_inputs({{"input", input}});
-
-  graph.set_mode(ExecutionMode::EVAL);
-  graph.forward(eval_inputs);
-
-  EXPECT_TRUE(graph.has_cached_forward_plan(eval_inputs));
-  EXPECT_TRUE(graph.cached_forward_plan_profiled(eval_inputs));
-  EXPECT_EQ(graph.cached_forward_plan_spsc_region_count(eval_inputs), 1u);
-  EXPECT_EQ(graph.cached_forward_plan_mpsc_region_count(eval_inputs), 0u);
-  EXPECT_EQ(graph.cached_forward_plan_profiled_edge_count(eval_inputs), 1u);
-  EXPECT_EQ(graph.cached_forward_plan_execution_count(eval_inputs), 1u);
-  EXPECT_EQ(graph.cached_forward_plan_count(), 1u);
-
-  graph.forward(eval_inputs);
-  EXPECT_EQ(graph.cached_forward_plan_execution_count(eval_inputs), 2u);
-
-  Tensor wider_batch = Tensor({2, 4}, DType_t::FP32, getHost());
-  wider_batch.fill(2.0f);
-  TensorBundle wider_inputs({{"input", wider_batch}});
-
-  graph.forward(wider_inputs);
-  EXPECT_TRUE(graph.has_cached_forward_plan(wider_inputs));
-  EXPECT_EQ(graph.cached_forward_plan_count(), 2u);
-
-  graph.set_mode(ExecutionMode::TRAIN);
-  graph.forward(eval_inputs);
-  EXPECT_TRUE(graph.has_cached_forward_plan(eval_inputs));
-  EXPECT_EQ(graph.cached_forward_plan_execution_count(eval_inputs), 1u);
-  EXPECT_EQ(graph.cached_forward_plan_count(), 3u);
-
-  graph.set_mode(ExecutionMode::EVAL);
-  EXPECT_EQ(graph.cached_forward_plan_execution_count(eval_inputs), 2u);
 }

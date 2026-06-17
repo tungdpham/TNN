@@ -240,11 +240,10 @@ Node gpt_block(Node input, Shape &shape, size_t embed_dim, size_t num_heads, siz
   return x + ffn;
 }
 
-Graph finalize_graph(Graph graph, IAllocator &allocator, const Node &output) {
+void finalize_graph(Graph &graph, IAllocator &allocator, const Node &output) {
   output->set_uid("output");
   graph.set_output(output);
   graph.compile(allocator);
-  return graph;
 }
 
 Graph create_mnist_graph(IAllocator &allocator) {
@@ -263,7 +262,8 @@ Graph create_mnist_graph(IAllocator &allocator) {
   x = maxpool2d(x, shape, 2, 2, 2, 2, 0, 0, "pool2");
   x = flatten(x, shape, 1, -1, "flatten");
   Node output = dense(x, shape, 10, false, "output");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_cifar10_vgg_graph(IAllocator &allocator) {
@@ -299,7 +299,8 @@ Graph create_cifar10_vgg_graph(IAllocator &allocator) {
   x = dense(x, shape, 512, true, "fc0");
   x = relu(x, shape, "relu10");
   Node output = dense(x, shape, 10, true, "fc1");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_cifar10_test_graph(IAllocator &allocator) {
@@ -319,7 +320,8 @@ Graph create_cifar10_test_graph(IAllocator &allocator) {
   x = avgpool2d(x, shape, 4, 4, 1, 1, 0, 0, "avgpool");
   x = flatten(x, shape, 1, -1, "flatten");
   Node output = dense(x, shape, 10, true, "output");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_cifar10_resnet9_graph(IAllocator &allocator) {
@@ -346,7 +348,8 @@ Graph create_cifar10_resnet9_graph(IAllocator &allocator) {
   x = avgpool2d(x, shape, 4, 4, 1, 1, 0, 0, "avgpool");
   x = flatten(x, shape, 1, -1, "flatten");
   Node output = dense(x, shape, 10, true, "output");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_cifar100_resnet18_graph(IAllocator &allocator) {
@@ -368,7 +371,8 @@ Graph create_cifar100_resnet18_graph(IAllocator &allocator) {
   x = avgpool2d(x, shape, 2, 2, 1, 1, 0, 0, "avgpool");
   x = flatten(x, shape, 1, -1, "flatten");
   Node output = dense(x, shape, 100, true, "fc");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_cifar100_wrn16_8_graph(IAllocator &allocator) {
@@ -393,7 +397,8 @@ Graph create_cifar100_wrn16_8_graph(IAllocator &allocator) {
   x = avgpool2d(x, shape, 8, 8, 1, 1, 0, 0, "avgpool");
   x = flatten(x, shape, 1, -1, "flatten");
   Node output = dense(x, shape, 100, true, "fc");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_tiny_imagenet_resnet18_graph(IAllocator &allocator) {
@@ -415,7 +420,8 @@ Graph create_tiny_imagenet_resnet18_graph(IAllocator &allocator) {
   x = avgpool2d(x, shape, 4, 4, 1, 1, 0, 0, "avgpool");
   x = flatten(x, shape, 1, -1, "flatten");
   Node output = dense(x, shape, 200, true, "fc");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_tiny_imagenet_wrn16_8_graph(IAllocator &allocator) {
@@ -440,7 +446,8 @@ Graph create_tiny_imagenet_wrn16_8_graph(IAllocator &allocator) {
   x = avgpool2d(x, shape, 8, 8, 1, 1, 0, 0, "avgpool");
   x = flatten(x, shape, 1, -1, "flatten");
   Node output = dense(x, shape, 200, true, "fc");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_tiny_imagenet_resnet50_graph(IAllocator &allocator) {
@@ -470,7 +477,8 @@ Graph create_tiny_imagenet_resnet50_graph(IAllocator &allocator) {
   x = avgpool2d(x, shape, 4, 4, 1, 1, 0, 0, "avgpool");
   x = flatten(x, shape, 1, -1, "flatten");
   Node output = dense(x, shape, 200, true, "fc");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_resnet50_imagenet_graph(IAllocator &allocator) {
@@ -500,7 +508,8 @@ Graph create_resnet50_imagenet_graph(IAllocator &allocator) {
   x = avgpool2d(x, shape, 7, 7, 1, 1, 0, 0, "avgpool");
   x = flatten(x, shape, 1, -1, "flatten");
   Node output = dense(x, shape, 1000, true, "fc");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_imagenet100_resnet50_graph(IAllocator &allocator) {
@@ -530,7 +539,8 @@ Graph create_imagenet100_resnet50_graph(IAllocator &allocator) {
   x = avgpool2d(x, shape, 7, 7, 1, 1, 0, 0, "avgpool");
   x = flatten(x, shape, 1, -1, "flatten");
   Node output = dense(x, shape, 100, true, "fc");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_tiny_imagenet_vit_graph(IAllocator &allocator) {
@@ -563,7 +573,8 @@ Graph create_tiny_imagenet_vit_graph(IAllocator &allocator) {
   x = slice(x, shape, 1, 0, 1, "extract_cls");
   x = flatten(x, shape, 1, -1, "flatten_cls");
   Node output = dense(x, shape, num_classes, true, "head");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_tiny_imagenet_flash_vit_graph(IAllocator &allocator) {
@@ -596,7 +607,8 @@ Graph create_tiny_imagenet_flash_vit_graph(IAllocator &allocator) {
   x = slice(x, shape, 1, 0, 1, "extract_cls");
   x = flatten(x, shape, 1, -1, "flatten_cls");
   Node output = dense(x, shape, num_classes, true, "head");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 Graph create_gpt2_graph(IAllocator &allocator, size_t embed_dim, size_t num_heads,
@@ -620,7 +632,8 @@ Graph create_gpt2_graph(IAllocator &allocator, size_t embed_dim, size_t num_head
 
   x = layernorm(x, shape, 1e-5f, true, "ln_f");
   Node output = dense(x, shape, vocab_size, true, "head");
-  return finalize_graph(std::move(graph), allocator, output);
+  finalize_graph(graph, allocator, output);
+  return graph;
 }
 
 }  // namespace

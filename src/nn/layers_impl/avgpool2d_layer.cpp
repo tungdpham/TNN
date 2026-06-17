@@ -33,23 +33,21 @@ AvgPool2DLayerImpl::AvgPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stri
   }
 }
 
-Tensor AvgPool2DLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor AvgPool2DLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (input.dims() != 4) {
     throw std::runtime_error("AvgPool2DLayerImpl: input must be 4D (NHWC format)");
   }
 
   const auto &shape = input.shape();
-  const size_t batch_size = shape[0];
-  const size_t input_h = shape[1];
-  const size_t input_w = shape[2];
-  const size_t channels = shape[3];
+  size_t batch_size = shape[0];
+  size_t input_h = shape[1];
+  size_t input_w = shape[2];
+  size_t channels = shape[3];
 
-  micro_batch_input_shapes_[mb_id] = {batch_size, input_h, input_w, channels};
+  size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
-  const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
-
-  Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.data_type());
+  Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.dtype());
 
   DISPATCH_IO_DTYPE(run_forward, input, output, batch_size, input_h, input_w, channels, output_h,
                     output_w, this->flow_handle_);
@@ -57,26 +55,20 @@ Tensor AvgPool2DLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
   return output;
 }
 
-Tensor AvgPool2DLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
+Tensor AvgPool2DLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
   if (grad_output.dims() != 4) {
     throw std::runtime_error("AvgPool2DLayerImpl: grad_output must be 4D (NHWC format)");
   }
-  auto it_shape = micro_batch_input_shapes_.find(mb_id);
 
-  if (it_shape == micro_batch_input_shapes_.end()) {
-    throw std::runtime_error("AvgPool2DLayerImpl: forward must be called before backward");
-  }
-
-  const auto &input_shape = it_shape->second;
-  const size_t batch_size = input_shape[0];
-  const size_t input_h = input_shape[1];
-  const size_t input_w = input_shape[2];
-  const size_t channels = input_shape[3];
   const auto &grad_shape = grad_output.shape();
-  const size_t output_h = grad_shape[1];
-  const size_t output_w = grad_shape[2];
+  size_t batch_size = grad_shape[0];
+  size_t output_h = grad_shape[1];
+  size_t output_w = grad_shape[2];
+  size_t channels = grad_shape[3];
+  size_t input_h = (output_h - 1) * stride_h_ + pool_h_ - 2 * pad_h_;
+  size_t input_w = (output_w - 1) * stride_w_ + pool_w_ - 2 * pad_w_;
 
-  Tensor grad_input = get_tensor({batch_size, input_h, input_w, channels}, grad_output.data_type());
+  Tensor grad_input = get_tensor({batch_size, input_h, input_w, channels}, grad_output.dtype());
   grad_input.fill(0);
 
   DISPATCH_IO_DTYPE(run_backward, grad_output, grad_input, batch_size, input_h, input_w, channels,
@@ -91,7 +83,7 @@ std::unique_ptr<Task> AvgPool2DLayerImpl::run_forward(const Tensor &input_data, 
                                                       size_t width, size_t channels,
                                                       size_t output_h, size_t output_w,
                                                       flowHandle_t handle) const {
-  if (input_data.data_type() != dtype_of<IO_T>() || output_data.data_type() != dtype_of<IO_T>()) {
+  if (input_data.dtype() != dtype_of<IO_T>() || output_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("AvgPool2DLayerImpl: data type mismatch in forward pass");
   }
 
@@ -119,8 +111,7 @@ std::unique_ptr<Task> AvgPool2DLayerImpl::run_backward(const Tensor &gradient_da
                                                        size_t input_h, size_t input_w,
                                                        size_t channels, size_t output_h,
                                                        size_t output_w, flowHandle_t handle) const {
-  if (gradient_data.data_type() != dtype_of<IO_T>() ||
-      grad_input_data.data_type() != dtype_of<IO_T>()) {
+  if (gradient_data.dtype() != dtype_of<IO_T>() || grad_input_data.dtype() != dtype_of<IO_T>()) {
     throw std::runtime_error("AvgPool2DLayerImpl: data type mismatch in backward pass");
   }
 

@@ -167,9 +167,9 @@ inline float compute_precision(const Tensor &predictions, const Tensor &targets,
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
-  DISPATCH_DTYPE(predictions.data_type(), T,
+  DISPATCH_DTYPE(predictions.dtype(), T,
                  return detail::compute_precision_impl<T>(predictions, targets, batch_size,
                                                           num_classes, class_id));
 }
@@ -186,9 +186,9 @@ inline float compute_recall(const Tensor &predictions, const Tensor &targets, in
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
-  DISPATCH_DTYPE(predictions.data_type(), T,
+  DISPATCH_DTYPE(predictions.dtype(), T,
                  return detail::compute_recall_impl<T>(predictions, targets, batch_size,
                                                        num_classes, class_id));
 }
@@ -205,9 +205,9 @@ inline float compute_f1_score(const Tensor &predictions, const Tensor &targets, 
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
-  DISPATCH_DTYPE(predictions.data_type(), T,
+  DISPATCH_DTYPE(predictions.dtype(), T,
                  return detail::compute_f1_score_impl<T>(predictions, targets, batch_size,
                                                          num_classes, class_id));
 }
@@ -223,10 +223,10 @@ inline float compute_perplexity(const Tensor &predictions, const Tensor &targets
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
   DISPATCH_DTYPE(
-      predictions.data_type(), T,
+      predictions.dtype(), T,
       return detail::compute_perplexity_impl<T>(predictions, targets, batch_size, num_classes));
 }
 
@@ -242,9 +242,9 @@ inline float compute_top_k_accuracy(const Tensor &predictions, const Tensor &tar
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
-  DISPATCH_DTYPE(predictions.data_type(), T,
+  DISPATCH_DTYPE(predictions.dtype(), T,
                  return detail::compute_top_k_accuracy_impl<T>(predictions, targets, batch_size,
                                                                num_classes, k));
 }
@@ -261,7 +261,7 @@ inline float compute_mae(const Tensor &predictions, const Tensor &targets) {
     total_elements *= predictions.shape()[i];
   }
 
-  DISPATCH_DTYPE(predictions.data_type(), T,
+  DISPATCH_DTYPE(predictions.dtype(), T,
                  return detail::compute_mae_impl<T>(predictions, targets, total_elements));
 }
 
@@ -277,7 +277,7 @@ inline float compute_mse(const Tensor &predictions, const Tensor &targets) {
     total_elements *= predictions.shape()[i];
   }
 
-  DISPATCH_DTYPE(predictions.data_type(), T,
+  DISPATCH_DTYPE(predictions.dtype(), T,
                  return detail::compute_mse_impl<T>(predictions, targets, total_elements));
 }
 
@@ -304,9 +304,9 @@ inline int compute_class_corrects(const Tensor &predictions, const Tensor &targe
   for (size_t i = 0; i < predictions.dims() - 1; ++i) {
     batch_size *= predictions.shape()[i];
   }
-  const size_t num_classes = predictions.shape().back();
+  size_t num_classes = predictions.shape().back();
 
-  DISPATCH_DTYPE(predictions.data_type(), T,
+  DISPATCH_DTYPE(predictions.dtype(), T,
                  return detail::compute_class_corrects_impl<T>(predictions, targets, batch_size,
                                                                num_classes, threshold));
 }

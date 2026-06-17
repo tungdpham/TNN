@@ -18,22 +18,22 @@ ActivationLayerImpl::ActivationLayerImpl(std::unique_ptr<ActivationFunction> act
   }
 }
 
-Tensor ActivationLayerImpl::forward_impl(const Tensor &input, size_t mb_id) {
+Tensor ActivationLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   if (this->is_training_) {
-    set_immutable_cache(mb_id, "input", input);
+    residuals["input"] = input;
   }
 
-  Tensor output = get_tensor(input.shape(), input.data_type());
+  Tensor output = get_tensor(input.shape(), input.dtype());
   activation_->apply(input, output);
   return output;
 }
 
-Tensor ActivationLayerImpl::backward_impl(const Tensor &grad_output, size_t mb_id) {
-  const Tensor &input = this->get_immutable_cache(mb_id, "input");
+Tensor ActivationLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
+  const Tensor &input = residuals["input"];
   if (!input) {
     throw std::runtime_error("No cached input found for backward pass in ActivationLayerImpl");
   }
-  Tensor grad_input = get_tensor(input.shape(), input.data_type());
+  Tensor grad_input = get_tensor(input.shape(), input.dtype());
   activation_->compute_gradient(input, grad_output, grad_input);
   return grad_input;
 }

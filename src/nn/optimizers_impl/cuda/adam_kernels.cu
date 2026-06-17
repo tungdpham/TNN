@@ -17,7 +17,7 @@ namespace adam {
 
 template <typename T>
 __global__ void update_adam_kernel(T* params_data, const T* grads_data, T* m_data, T* v_data,
-                                   const size_t size, const float learning_rate, const float beta1,
+                                   size_t size, const float learning_rate, const float beta1,
                                    const float beta2, const float epsilon,
                                    const float bias_correction1, const float bias_correction2,
                                    const float weight_decay, const bool decouple_weight_decay) {
@@ -54,8 +54,8 @@ __global__ void update_adam_kernel(T* params_data, const T* grads_data, T* m_dat
 }
 template <typename T>
 __global__ void update_adam_kernel_vec(T* params_data, const T* grads_data, T* m_data, T* v_data,
-                                       const size_t size, const float learning_rate,
-                                       const float beta1, const float beta2, const float epsilon,
+                                       size_t size, const float learning_rate, const float beta1,
+                                       const float beta2, const float epsilon,
                                        const float bias_correction1, const float bias_correction2,
                                        const float weight_decay, const bool decouple_weight_decay) {
   using VecT = typename VectoredTraits<T>::type;
@@ -103,7 +103,7 @@ __global__ void update_adam_kernel_vec(T* params_data, const T* grads_data, T* m
 }
 
 template <typename T>
-void update_adam(T* params_data, const T* grads_data, T* m_data, T* v_data, const size_t size,
+void update_adam(T* params_data, const T* grads_data, T* m_data, T* v_data, size_t size,
                  const float learning_rate, const float beta1, const float beta2,
                  const float epsilon, const float bias_correction1, const float bias_correction2,
                  const float weight_decay, const bool decouple_weight_decay, cudaStream_t stream) {
@@ -131,7 +131,7 @@ void update_adam(T* params_data, const T* grads_data, T* m_data, T* v_data, cons
 
 #define INSTANTIATE(T)                                                                      \
   template void update_adam<T>(                                                             \
-      T * params_data, const T* grads_data, T* m_data, T* v_data, const size_t size,        \
+      T * params_data, const T* grads_data, T* m_data, T* v_data, size_t size,              \
       const float learning_rate, const float beta1, const float beta2, const float epsilon, \
       const float bias_correction1, const float bias_correction2, const float weight_decay, \
       const bool decouple_weight_decay, cudaStream_t stream);

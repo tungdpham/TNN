@@ -19,7 +19,7 @@ void run_inference(const T *input_data, const float *running_mean_data,
                    const float *running_var_data, const float *gamma_data, const float *beta_data,
                    T *output_data, size_t batch_size, size_t channels, size_t spatial_size,
                    float epsilon, bool affine) {
-  const size_t channel_stride = channels * spatial_size;
+  size_t channel_stride = channels * spatial_size;
 
   parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
     float mean_val = running_mean_data[c];
@@ -27,7 +27,7 @@ void run_inference(const T *input_data, const float *running_mean_data,
     float std_val = std::sqrt(var_val + epsilon);
     const float inv_std = 1.0f / std_val;
 
-    const size_t base_idx = n * channel_stride + c * spatial_size;
+    size_t base_idx = n * channel_stride + c * spatial_size;
 
     const T *input_ptr = input_data + base_idx;
     T *output_ptr = output_data + base_idx;
@@ -53,17 +53,17 @@ void run_forward(const T *input, float *mean, float *inv_std, float *running_mea
                  float *running_var, const float *gamma, const float *beta, T *output,
                  float *norm_cache, size_t N, size_t C, size_t S, float momentum, float epsilon,
                  bool affine) {
-  const size_t total_elements = N * S;
-  const size_t channel_stride = C * S;
+  size_t total_elements = N * S;
+  size_t channel_stride = C * S;
   const float inv_total = 1.0f / static_cast<float>(total_elements);
 
   parallel_for<size_t>(0, C, [&](size_t c) {
     float sum = 0.0f;
-    const size_t c_offset = c * S;
+    size_t c_offset = c * S;
 
     for (size_t n = 0; n < N; ++n) {
-      const size_t n_offset = n * channel_stride;
-      const size_t base_idx = n_offset + c_offset;
+      size_t n_offset = n * channel_stride;
+      size_t base_idx = n_offset + c_offset;
       const T *input_ptr = input + base_idx;
 
       for (size_t s = 0; s < S; ++s) {
@@ -76,8 +76,8 @@ void run_forward(const T *input, float *mean, float *inv_std, float *running_mea
 
     float var_sum = 0.0f;
     for (size_t n = 0; n < N; ++n) {
-      const size_t n_offset = n * channel_stride;
-      const size_t base_idx = n_offset + c_offset;
+      size_t n_offset = n * channel_stride;
+      size_t base_idx = n_offset + c_offset;
       const T *input_ptr = input + base_idx;
 
       for (size_t s = 0; s < S; ++s) {
@@ -100,9 +100,9 @@ void run_forward(const T *input, float *mean, float *inv_std, float *running_mea
     const float mu = mean[c];
     const float istd = inv_std[c];
 
-    const size_t n_offset = n * channel_stride;
-    const size_t c_offset = c * S;
-    const size_t base_idx = n_offset + c_offset;
+    size_t n_offset = n * channel_stride;
+    size_t c_offset = c * S;
+    size_t base_idx = n_offset + c_offset;
 
     const T *input_ptr = input + base_idx;
     T *output_ptr = output + base_idx;
@@ -127,18 +127,18 @@ template <typename T>
 void run_backward(const T *grad_output, const float *norm_input, const float *inv_std,
                   const float *gamma, float *d_gamma, float *d_beta, T *grad_input, size_t N,
                   size_t C, size_t S, bool affine) {
-  const size_t channel_stride = C * S;
-  const size_t M = N * S;
+  size_t channel_stride = C * S;
+  size_t M = N * S;
   const float inv_M = 1.0f / static_cast<float>(M);
 
   parallel_for<size_t>(0, C, [&](size_t c) {
     float sum_dy = 0.0f;
     float sum_dy_x_norm = 0.0f;
-    const size_t c_offset = c * S;
+    size_t c_offset = c * S;
 
     for (size_t n = 0; n < N; ++n) {
-      const size_t n_offset = n * channel_stride;
-      const size_t base_idx = n_offset + c_offset;
+      size_t n_offset = n * channel_stride;
+      size_t base_idx = n_offset + c_offset;
 
       for (size_t s = 0; s < S; ++s) {
         size_t idx = base_idx + s;
@@ -166,9 +166,9 @@ void run_backward(const T *grad_output, const float *norm_input, const float *in
     const float sum_dy = d_beta[c];
     const float sum_dy_x_norm = d_gamma[c];
 
-    const size_t n_offset = n * channel_stride;
-    const size_t c_offset = c * S;
-    const size_t base_idx = n_offset + c_offset;
+    size_t n_offset = n * channel_stride;
+    size_t c_offset = c * S;
+    size_t base_idx = n_offset + c_offset;
 
     const float term1 = (g * istd) * inv_M;
 

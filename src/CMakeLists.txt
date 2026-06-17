@@ -354,16 +354,18 @@ endif()
 
 # Link external dependencies to static modules
 foreach(lib ${SYNET_MODULES})
-    link_tbb(PUBLIC ${lib})
-    link_cuda(PUBLIC ${lib})
-    link_mkl(PUBLIC ${lib})
-    link_dnnl(PUBLIC ${lib})
-    link_openmp(PUBLIC ${lib})
+    link_tbb(PRIVATE ${lib})
+    link_cuda(PRIVATE ${lib})
+    link_mkl(PRIVATE ${lib})
+    link_dnnl(PRIVATE ${lib})
+    link_openmp(PRIVATE ${lib})
 endforeach()
 
 # Link external dependencies to the main shared library
-link_tbb(PUBLIC synet_lib)
 link_cuda(PUBLIC synet_lib)
 link_mkl(PUBLIC synet_lib)
 link_dnnl(PUBLIC synet_lib)
 link_openmp(PUBLIC synet_lib)
+
+link_tbb(PUBLIC synet_lib) # link last so its allocator outlives others
+
