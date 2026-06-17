@@ -52,6 +52,14 @@ public:
 
   ResidualValue data_;
 
+  ResidualsMap()
+      : data_(std::monostate{}) {}
+  ~ResidualsMap() = default;
+  ResidualsMap(const ResidualsMap &) = delete;
+  ResidualsMap &operator=(const ResidualsMap &) = delete;
+  ResidualsMap(ResidualsMap &&) = default;
+  ResidualsMap &operator=(ResidualsMap &&) = default;
+
   ResidualsMap &operator[](const std::string &key) {
     if (data_.index() == 0) {
       data_ = std::map<std::string, ResidualsMap>{};

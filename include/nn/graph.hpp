@@ -8,7 +8,6 @@
 #include <memory>
 #include <set>
 #include <string>
-#include <unordered_map>
 
 #include "nn/edge.hpp"
 #include "nn/graph_context.hpp"
@@ -66,15 +65,7 @@ public:
   Vec<std::string> input_uids() const;
   Vec<std::string> output_uids() const;
   const Device &device() const { return context_->device(); }
-  size_t cached_forward_plan_count() const { return forward_plan_cache_.size(); }
-  bool has_cached_forward_plan(const TensorBundle &input_map) const;
-  size_t cached_forward_plan_execution_count(const TensorBundle &input_map) const;
-  bool cached_forward_plan_profiled(const TensorBundle &input_map) const;
-  size_t cached_forward_plan_spsc_region_count(const TensorBundle &input_map) const;
-  size_t cached_forward_plan_mpsc_region_count(const TensorBundle &input_map) const;
-  size_t cached_forward_plan_profiled_edge_count(const TensorBundle &input_map) const;
   const DELAllocatorV2 *workspace_allocator() const { return workspace_allocator_.get(); }
-  GraphRegionSummary classify_regions();
 
   void add_edge(std::shared_ptr<LayerImpl> layer, const Vec<Node> &producers,
                 const Vec<Node> &consumers);
@@ -123,16 +114,12 @@ private:
   std::shared_ptr<DELAllocatorV2> workspace_allocator_;
   std::map<std::weak_ptr<NodeImpl>, int, std::owner_less<std::weak_ptr<NodeImpl>>> in_degree_;
   std::map<std::weak_ptr<NodeImpl>, int, std::owner_less<std::weak_ptr<NodeImpl>>> out_degree_;
-  std::unordered_map<std::string, ForwardPlanCacheEntry> forward_plan_cache_;
   ExecutionMode mode_ = ExecutionMode::TRAIN;
   size_t node_count_ = 0;
   std::set<std::string> used_uids_;
 
   int node_in_degree(const Node &node) const;
   int node_out_degree(const Node &node) const;
-  std::string make_forward_plan_key(const TensorBundle &input_map) const;
-  const ForwardPlanCacheEntry *find_forward_plan(const TensorBundle &input_map) const;
-  ForwardPlanCacheEntry &get_or_create_forward_plan(const TensorBundle &input_map);
   std::string generate_uid();
 
   Vec<Node> inputs();
