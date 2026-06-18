@@ -1,3 +1,4 @@
+# CMakeLists.txt
 cmake_minimum_required(VERSION 3.18)
 
 project(SYNET LANGUAGES CXX)
@@ -23,7 +24,7 @@ option(ENABLE_TBB "Enable Intel TBB support" ON)
 option(ENABLE_MKL "Enable Intel MKL support" OFF)
 option(ENABLE_DNNL "Enable Intel oneDNN (DNNL) support" OFF)
 option(ENABLE_DEBUG "Enable debug build with sanitizers" OFF)
-option(BUILD_DOCS "Build documentation with Doxygen" ON)
+option(BUILD_DOCS "Build documentation with Doxygen" OFF)
 
 # default to release
 if(NOT CMAKE_BUILD_TYPE)

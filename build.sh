@@ -18,6 +18,7 @@ ENABLE_TBB=ON
 ENABLE_MKL=OFF
 ENABLE_DNNL=OFF
 ENABLE_DEBUG=OFF
+BUILD_DOCS=OFF
 CLEAN_BUILD=false
 VERBOSE=false
 
@@ -41,6 +42,8 @@ show_help() {
     echo "  $0 --tbb            # Enable Intel TBB support (already on by default)"
     echo "  $0 --openmp         # Enable OpenMP support"
     echo "  $0 --dnnl           # Enable Intel oneDNN support"
+    echo "  $0 --mkl            # Enable Intel MKL support"
+    echo "  $0 --docs           # Build documentation with Doxygen"
 }
 
 # parse args
@@ -83,6 +86,10 @@ while [[ $# -gt 0 ]]; do
             ENABLE_CUDA=ON
             shift
             ;;
+        --docs)
+            BUILD_DOCS=ON
+            shift
+            ;;
         *)
             echo -e "${RED}Unknown option: $1${NC}"
             show_help
@@ -100,6 +107,7 @@ echo "  Intel MKL: $ENABLE_MKL"
 echo "  Intel oneDNN: $ENABLE_DNNL"
 echo "  CUDA: $ENABLE_CUDA"
 echo "  Debug Mode: $ENABLE_DEBUG"
+echo "  Build Documentation: $BUILD_DOCS"
 echo ""
 
 # clean build if requested
@@ -125,6 +133,7 @@ CMAKE_ARGS=(
     -DENABLE_MKL="$ENABLE_MKL"
     -DENABLE_DNNL="$ENABLE_DNNL"
     -DENABLE_CUDA="$ENABLE_CUDA"
+    -DBUILD_DOCS="$BUILD_DOCS"
 )
 
 cmake . "${CMAKE_ARGS[@]}"

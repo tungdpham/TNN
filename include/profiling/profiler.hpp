@@ -77,10 +77,13 @@ public:
     return events_;
   }
 
-  void sort(std::function<bool(const Event &a, const Event &b)> comp = [](const Event &a,
-                                                                          const Event &b) {
-    return a.start_time == b.start_time ? a.end_time > b.end_time : a.start_time < b.start_time;
-  }) {
+  void sort() {
+    sort([](const Event &a, const Event &b) {
+      return a.start_time == b.start_time ? a.end_time > b.end_time : a.start_time < b.start_time;
+    });
+  }
+
+  void sort(std::function<bool(const Event &a, const Event &b)> comp) {
     std::lock_guard<std::mutex> lock(event_mutex_);
     std::sort(events_.begin(), events_.end(), comp);
   }
