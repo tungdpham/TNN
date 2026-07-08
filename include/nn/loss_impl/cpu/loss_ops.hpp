@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 namespace loss {
 
@@ -59,4 +59,4 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *grad_outp
 
 }  // namespace loss
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

@@ -1,7 +1,7 @@
 [project]
-name = "synet"
+name = "tunx"
 version = "0.1.0"
-description = "External packages for synet documentation and helper scripts"
+description = "External packages for tunx documentation and helper scripts"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

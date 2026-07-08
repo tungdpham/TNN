@@ -9,10 +9,8 @@
 #include <stdexcept>
 
 #include "device/task.hpp"
-#include "nn/layers_impl/cpu/slice_ops.hpp"
-#include "nn/layers_impl/cuda/slice_ops.hpp"
 
-namespace synet {
+namespace tunx {
 
 SliceLayerImpl::SliceLayerImpl(size_t axis, size_t start, size_t length, const std::string &name)
     : SISOLayerImpl(name),
@@ -51,65 +49,14 @@ Tensor SliceLayerImpl::backward_impl(const Tensor &grad_output, Residuals &resid
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> SliceLayerImpl::slice_forward(const Tensor &input, Tensor &output,
                                                     flowHandle_t handle) const {
-  if constexpr (!std::is_same_v<IO_T, Compute_T>) {
-    throw std::runtime_error(
-        "SliceLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
-  }
-  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("SliceLayerImpl IO tensor dtype mismatch with dispatch IO_T");
-  }
-
-  if (input.device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::slice::slice_forward<Compute_T>, input.data_as<Compute_T>(),
-                           output.data_as<Compute_T>(), input.shape(), axis_, start_, length_);
-  }
-#ifdef USE_CUDA
-  else if (input.device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, cuda::slice::slice_forward<Compute_T>,
-                            input.data_as<Compute_T>(), output.data_as<Compute_T>(), input.shape(),
-                            axis_, start_, length_);
-  }
-#endif
-  else {
-    if (input.device_type() == DeviceType::GPU) {
-      throw std::runtime_error("SliceLayerImpl: GPU execution requires building with USE_CUDA");
-    }
-    throw std::runtime_error("SliceLayerImpl: Unsupported device type");
-  }
-  return nullptr;
+  throw std::runtime_error("Not implemented");
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> SliceLayerImpl::slice_backward(const Tensor &grad_output, Tensor &grad_input,
                                                      const Vec<size_t> &original_shape,
                                                      flowHandle_t handle) const {
-  if constexpr (!std::is_same_v<IO_T, Compute_T>) {
-    throw std::runtime_error(
-        "SliceLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
-  }
-  if (grad_output.dtype() != dtype_of<IO_T>() || grad_input.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("SliceLayerImpl IO tensor dtype mismatch with dispatch IO_T");
-  }
-
-  if (grad_output.device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::slice::slice_backward<Compute_T>,
-                           grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(),
-                           original_shape, axis_, start_, length_);
-  }
-#ifdef USE_CUDA
-  else if (grad_output.device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, cuda::slice::slice_backward<Compute_T>,
-                            grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(),
-                            original_shape, axis_, start_, length_);
-  }
-#endif
-  else {
-    if (grad_output.device_type() == DeviceType::GPU) {
-      throw std::runtime_error("SliceLayerImpl: GPU execution requires building with USE_CUDA");
-    }
-    throw std::runtime_error("SliceLayerImpl: Unsupported device type");
-  }
-  return nullptr;
+  throw std::runtime_error("Not implemented");
 }
 
 Vec<size_t> SliceLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
@@ -142,4 +89,4 @@ std::shared_ptr<SliceLayerImpl> SliceLayerImpl::create_from_config(const LayerCo
   return std::make_shared<SliceLayerImpl>(axis, start, length, config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

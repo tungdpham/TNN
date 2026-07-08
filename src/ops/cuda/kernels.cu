@@ -14,10 +14,10 @@
 #include <cstdint>
 #include <type_traits>
 
-#include "cuda/error_handler.hpp"
+#include "cuda/error_handler.cuh"
 #include "type/cuda/vectorized_types.hpp"
 
-namespace synet {
+namespace tunx {
 namespace ops {
 namespace cuda {
 
@@ -243,7 +243,7 @@ void dispatch_binary(const T* a, const T* b, T* c, size_t size, cudaStream_t str
     int blocks = get_num_blocks(size);
     binary_op_scalar_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size, op);
   }
-  synet::cuda::checkCudaError(cudaGetLastError(), "binary_op", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "binary_op", __FILE__, __LINE__);
 }
 
 template <typename T, typename Func>
@@ -259,7 +259,7 @@ void dispatch_unary(const T* a, T* c, size_t size, cudaStream_t stream, Func op)
     int blocks = get_num_blocks(size);
     unary_op_scalar_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, c, size, op);
   }
-  synet::cuda::checkCudaError(cudaGetLastError(), "unary_op", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "unary_op", __FILE__, __LINE__);
 }
 
 template <typename T, typename Func>
@@ -273,7 +273,7 @@ void dispatch_ternary(const T* a, const T* b, T* c, size_t size, cudaStream_t st
   if (size == 0) return;
   int blocks = get_num_blocks(size);
   ternary_op_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size, op);
-  synet::cuda::checkCudaError(cudaGetLastError(), "ternary_op", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "ternary_op", __FILE__, __LINE__);
 }
 
 template <typename T, int Mode>
@@ -298,7 +298,7 @@ T dispatch_reduce(const T* a, const T* b, T scalar, size_t size, cudaStream_t st
 
   delete[] h_partial;
   cudaFree(d_partial);
-  synet::cuda::checkCudaError(cudaGetLastError(), "reduction", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "reduction", __FILE__, __LINE__);
 
   // For fp16, clamp the result to avoid overflow when converting back
   if constexpr (std::is_same<T, fp16>::value) {
@@ -312,134 +312,134 @@ T dispatch_reduce(const T* a, const T* b, T scalar, size_t size, cudaStream_t st
 }
 
 template <typename T>
-void cuda_add(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void add(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_binary(a, b, c, size, stream, functors::Add<T>());
 }
 template <typename T>
-void cuda_sub(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void sub(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_binary(a, b, c, size, stream, functors::Sub<T>());
 }
 template <typename T>
-void cuda_mul(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void mul(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_binary(a, b, c, size, stream, functors::Mul<T>());
 }
 template <typename T>
-void cuda_div(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void div(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_binary(a, b, c, size, stream, functors::Div<T>());
 }
 template <typename T>
-void cuda_min(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void min(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_binary(a, b, c, size, stream, functors::Min<T>());
 }
 template <typename T>
-void cuda_max(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void max(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_binary(a, b, c, size, stream, functors::Max<T>());
 }
 template <typename T>
-void cuda_equal(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void equal(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_binary(a, b, c, size, stream, functors::Equal<T>());
 }
 template <typename T>
-void cuda_greater(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void greater(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_binary(a, b, c, size, stream, functors::Greater<T>());
 }
 
 template <typename T>
-void cuda_add_scalar(const T* a, T s, T* c, size_t size, cudaStream_t stream) {
+void add_scalar(const T* a, T s, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::AddScalar<T>{s});
 }
 template <typename T>
-void cuda_sub_scalar(const T* a, T s, T* c, size_t size, cudaStream_t stream) {
+void sub_scalar(const T* a, T s, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::SubScalar<T>{s});
 }
 template <typename T>
-void cuda_mul_scalar(const T* a, T s, T* c, size_t size, cudaStream_t stream) {
+void mul_scalar(const T* a, T s, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::MulScalar<T>{s});
 }
 template <typename T>
-void cuda_div_scalar(const T* a, T s, T* c, size_t size, cudaStream_t stream) {
+void div_scalar(const T* a, T s, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::DivScalar<T>{s});
 }
 template <typename T>
-void cuda_scalar_max(const T* a, T s, T* c, size_t size, cudaStream_t stream) {
+void scalar_max(const T* a, T s, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::ScalarMax<T>{s});
 }
 template <typename T>
-void cuda_clamp(const T* a, T min, T max, T* c, size_t size, cudaStream_t stream) {
+void clamp(const T* a, T min, T max, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::Clamp<T>{min, max});
 }
 
 template <typename T>
-void cuda_sub_mul_scalar(const T* a, T sub, T mul, T* c, size_t size, cudaStream_t stream) {
+void sub_mul_scalar(const T* a, T sub, T mul, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::SubMulScalar<T>{sub, mul});
 }
 template <typename T>
-void cuda_mul_add_scalar(const T* a, T mul, T add, T* c, size_t size, cudaStream_t stream) {
+void mul_add_scalar(const T* a, T mul, T add, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::MulAddScalar<T>{mul, add});
 }
 template <typename T>
-void cuda_axpy(T alpha, const T* x, T* y, size_t size, cudaStream_t stream) {
+void axpy(T alpha, const T* x, T* y, size_t size, cudaStream_t stream) {
   int blocks = get_num_blocks(size);
   axpy_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(alpha, x, y, size);
-  synet::cuda::checkCudaError(cudaGetLastError(), "axpy", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "axpy", __FILE__, __LINE__);
 }
 
 template <typename T>
-void cuda_sqrt(const T* a, T* c, size_t size, cudaStream_t stream) {
+void sqrt(const T* a, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::Sqrt<T>());
 }
 template <typename T>
-void cuda_abs(const T* a, T* c, size_t size, cudaStream_t stream) {
+void abs(const T* a, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::Abs<T>());
 }
 template <typename T>
-void cuda_rsqrt(const T* a, T* c, size_t size, cudaStream_t stream) {
+void rsqrt(const T* a, T* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::Rsqrt<T>());
 }
 template <typename T>
-void cuda_rcp(const float* a, float* c, size_t size, cudaStream_t stream) {
+void rcp(const float* a, float* c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::Rcp<T>());
 }
 
 template <typename T>
-void cuda_fmadd(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void fmadd(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_ternary(a, b, c, size, stream, functors::FMAdd<T>());
 }
 template <typename T>
-void cuda_fmsub(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void fmsub(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_ternary(a, b, c, size, stream, functors::FMSub<T>());
 }
 template <typename T>
-void cuda_fnmadd(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
+void fnmadd(const T* a, const T* b, T* c, size_t size, cudaStream_t stream) {
   dispatch_ternary(a, b, c, size, stream, functors::FNMAdd<T>());
 }
 
 template <typename T>
-void cuda_copy(const T* a, T* c, size_t size, cudaStream_t stream) {
+void copy(const T* a, T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   cudaMemcpyAsync(c, a, size * sizeof(T), cudaMemcpyDeviceToDevice, stream);
-  synet::cuda::checkCudaError(cudaGetLastError(), "copy", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "copy", __FILE__, __LINE__);
 }
 
 template <typename T>
-void cuda_h2d_copy(const T* a, T* c, size_t size, cudaStream_t stream) {
+void h2d_copy(const T* a, T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   cudaMemcpy(c, a, size * sizeof(T), cudaMemcpyHostToDevice);
-  synet::cuda::checkCudaError(cudaGetLastError(), "h2d_copy", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "h2d_copy", __FILE__, __LINE__);
 }
 
 template <typename T>
-void cuda_d2h_copy(const T* a, T* c, size_t size, cudaStream_t stream) {
+void d2h_copy(const T* a, T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   cudaMemcpy(c, a, size * sizeof(T), cudaMemcpyDeviceToHost);
-  synet::cuda::checkCudaError(cudaGetLastError(), "d2h_copy", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "d2h_copy", __FILE__, __LINE__);
 }
 
 template <typename T>
-void cuda_set_scalar(T* c, T scalar, size_t size, cudaStream_t stream) {
+void set_scalar(T* c, T scalar, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   if (scalar == T(0)) {
-    cuda_zero(c, size, stream);
+    zero(c, size, stream);
     return;
   }
   constexpr int vec_size = VectoredTraits<T>::size;
@@ -452,51 +452,51 @@ void cuda_set_scalar(T* c, T scalar, size_t size, cudaStream_t stream) {
     int blocks = get_num_blocks(size);
     set_scalar_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(c, scalar, size);
   }
-  synet::cuda::checkCudaError(cudaGetLastError(), "set_scalar", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "set_scalar", __FILE__, __LINE__);
 }
 
 template <typename T>
-void cuda_zero(T* c, size_t size, cudaStream_t stream) {
+void zero(T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   cudaMemsetAsync(c, 0, size * sizeof(T), stream);
-  synet::cuda::checkCudaError(cudaGetLastError(), "zero", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "zero", __FILE__, __LINE__);
 }
 
 template <typename T>
-void cuda_fill_random_uniform(T* data, size_t size, T min_val, T max_val, unsigned long long seed,
-                              cudaStream_t stream) {
+void fill_random_uniform(T* data, size_t size, T min_val, T max_val, unsigned long long seed,
+                         cudaStream_t stream) {
   if (size == 0) return;
   int blocks = get_num_blocks(size);
   fill_random_uniform_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(data, size, min_val, max_val, seed);
-  synet::cuda::checkCudaError(cudaGetLastError(), "fill_random_uniform", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "fill_random_uniform", __FILE__, __LINE__);
 }
 
 template <typename T>
-void cuda_fill_random_normal(T* data, size_t size, T mean, T stddev, unsigned long long seed,
-                             cudaStream_t stream) {
+void fill_random_normal(T* data, size_t size, T mean, T stddev, unsigned long long seed,
+                        cudaStream_t stream) {
   if (size == 0) return;
   int blocks = get_num_blocks(size);
   fill_random_normal_kernel<T><<<blocks, BLOCK_SIZE, 0, stream>>>(data, size, mean, stddev, seed);
-  synet::cuda::checkCudaError(cudaGetLastError(), "fill_random_normal", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "fill_random_normal", __FILE__, __LINE__);
 }
 
 template <typename T>
-T cuda_sum(const T* a, size_t size, cudaStream_t stream) {
+T sum(const T* a, size_t size, cudaStream_t stream) {
   return dispatch_reduce<T, 0>(a, nullptr, (T)0, size, stream);
 }
 
 template <typename T>
-T cuda_dot_product(const T* a, const T* b, size_t size, cudaStream_t stream) {
+T dot_product(const T* a, const T* b, size_t size, cudaStream_t stream) {
   return dispatch_reduce<T, 1>(a, b, (T)0, size, stream);
 }
 
 template <typename T>
-T cuda_norm_squared(const T* a, size_t size, cudaStream_t stream) {
-  return cuda_dot_product(a, a, size, stream);
+T norm_squared(const T* a, size_t size, cudaStream_t stream) {
+  return dot_product(a, a, size, stream);
 }
 
 template <typename T>
-T cuda_sum_squared_diff(const T* a, T mean, size_t size, cudaStream_t stream) {
+T sum_squared_diff(const T* a, T mean, size_t size, cudaStream_t stream) {
   return dispatch_reduce<T, 2>(a, nullptr, mean, size, stream);
 }
 
@@ -528,7 +528,7 @@ __device__ __forceinline__ T device_bswap(T val) {
     return val;
   } else {
     static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
-                  "cuda_bswap: unsupported type size");
+                  "bswap: unsupported type size");
     return val;
   }
 }
@@ -542,11 +542,11 @@ __global__ void bswap_kernel(const T* __restrict__ a, T* __restrict__ c, size_t 
 }
 
 template <typename T>
-void cuda_bswap(const T* a, T* c, size_t size, cudaStream_t stream) {
+void bswap(const T* a, T* c, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   int blocks = get_num_blocks(size);
   bswap_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, c, size);
-  synet::cuda::checkCudaError(cudaGetLastError(), "bswap", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "bswap", __FILE__, __LINE__);
 }
 
 // Cast kernel implementation
@@ -559,16 +559,47 @@ __global__ void cast_kernel(const A_T* __restrict__ a, B_T* __restrict__ b, size
 }
 
 template <typename A_T, typename B_T>
-void cuda_cast(const A_T* a, B_T* b, size_t size, cudaStream_t stream) {
+void cast(const A_T* a, B_T* b, size_t size, cudaStream_t stream) {
   if (size == 0) return;
   int blocks = get_num_blocks(size);
   cast_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, size);
-  synet::cuda::checkCudaError(cudaGetLastError(), "cast", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "cast", __FILE__, __LINE__);
+}
+
+template <typename T>
+__global__ void check_equals_kernel(const T* a, const T* b, size_t size, double eps,
+                                    int* d_error_flag) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    if (fabs((double)a[idx] - (double)b[idx]) > eps) {
+      atomicExch(d_error_flag, 1);
+    }
+  }
+}
+
+template <typename T>
+void check_equals(const T* a, const T* b, size_t size, bool& result, double eps,
+                  cudaStream_t stream) {
+  if (size == 0) {
+    result = true;
+    return;
+  }
+  int* d_error_flag = nullptr;
+  cudaMalloc(&d_error_flag, sizeof(int));
+  cudaMemsetAsync(d_error_flag, 0, sizeof(int), stream);
+  int blocks = get_num_blocks(size);
+  check_equals_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, size, eps, d_error_flag);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "check_equals", __FILE__, __LINE__);
+  int h_error_flag = 0;
+  cudaMemcpyAsync(&h_error_flag, d_error_flag, sizeof(int), cudaMemcpyDeviceToHost, stream);
+  cudaStreamSynchronize(stream);
+  result = (h_error_flag == 0);
+  cudaFree(d_error_flag);
 }
 
 // Explicit template instantiations for cast
 #define INSTANTIATE_CAST(A_T, B_T) \
-  template void cuda_cast<A_T, B_T>(const A_T*, B_T*, size_t, cudaStream_t);
+  template void cast<A_T, B_T>(const A_T*, B_T*, size_t, cudaStream_t);
 
 // fp16 conversions
 INSTANTIATE_CAST(fp16, fp16)
@@ -602,62 +633,64 @@ INSTANTIATE_CAST(int, double)
 
 #undef INSTANTIATE_CAST
 
-#define INSTANTIATE_BIN(T)                                                   \
-  template void cuda_add<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_sub<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_mul<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_div<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_min<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_max<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_equal<T>(const T*, const T*, T*, size_t, cudaStream_t); \
-  template void cuda_greater<T>(const T*, const T*, T*, size_t, cudaStream_t);
+#define INSTANTIATE_BIN(T)                                              \
+  template void add<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void sub<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void mul<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void div<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void min<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void max<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void equal<T>(const T*, const T*, T*, size_t, cudaStream_t); \
+  template void greater<T>(const T*, const T*, T*, size_t, cudaStream_t);
 
-#define INSTANTIATE_FUSED(T)                                                 \
-  template void cuda_fmadd<T>(const T*, const T*, T*, size_t, cudaStream_t); \
-  template void cuda_fmsub<T>(const T*, const T*, T*, size_t, cudaStream_t); \
-  template void cuda_fnmadd<T>(const T*, const T*, T*, size_t, cudaStream_t);
+#define INSTANTIATE_FUSED(T)                                            \
+  template void fmadd<T>(const T*, const T*, T*, size_t, cudaStream_t); \
+  template void fmsub<T>(const T*, const T*, T*, size_t, cudaStream_t); \
+  template void fnmadd<T>(const T*, const T*, T*, size_t, cudaStream_t);
 
-#define INSTANTIATE_SCALAR(T)                                                     \
-  template void cuda_add_scalar<T>(const T*, T, T*, size_t, cudaStream_t);        \
-  template void cuda_sub_scalar<T>(const T*, T, T*, size_t, cudaStream_t);        \
-  template void cuda_mul_scalar<T>(const T*, T, T*, size_t, cudaStream_t);        \
-  template void cuda_div_scalar<T>(const T*, T, T*, size_t, cudaStream_t);        \
-  template void cuda_scalar_max<T>(const T*, T, T*, size_t, cudaStream_t);        \
-  template void cuda_clamp<T>(const T*, T, T, T*, size_t, cudaStream_t);          \
-  template void cuda_sub_mul_scalar<T>(const T*, T, T, T*, size_t, cudaStream_t); \
-  template void cuda_mul_add_scalar<T>(const T*, T, T, T*, size_t, cudaStream_t); \
-  template void cuda_axpy<T>(T, const T*, T*, size_t, cudaStream_t);
+#define INSTANTIATE_SCALAR(T)                                                \
+  template void add_scalar<T>(const T*, T, T*, size_t, cudaStream_t);        \
+  template void sub_scalar<T>(const T*, T, T*, size_t, cudaStream_t);        \
+  template void mul_scalar<T>(const T*, T, T*, size_t, cudaStream_t);        \
+  template void div_scalar<T>(const T*, T, T*, size_t, cudaStream_t);        \
+  template void scalar_max<T>(const T*, T, T*, size_t, cudaStream_t);        \
+  template void clamp<T>(const T*, T, T, T*, size_t, cudaStream_t);          \
+  template void sub_mul_scalar<T>(const T*, T, T, T*, size_t, cudaStream_t); \
+  template void mul_add_scalar<T>(const T*, T, T, T*, size_t, cudaStream_t); \
+  template void axpy<T>(T, const T*, T*, size_t, cudaStream_t);
 
-#define INSTANTIATE_UNARY(T)                                      \
-  template void cuda_sqrt<T>(const T*, T*, size_t, cudaStream_t); \
-  template void cuda_abs<T>(const T*, T*, size_t, cudaStream_t);  \
-  template void cuda_bswap<T>(const T*, T*, size_t, cudaStream_t);
+#define INSTANTIATE_UNARY(T)                                 \
+  template void sqrt<T>(const T*, T*, size_t, cudaStream_t); \
+  template void abs<T>(const T*, T*, size_t, cudaStream_t);  \
+  template void bswap<T>(const T*, T*, size_t, cudaStream_t);
 
-#define INSTANTIATE_UTILS(T)                                                                     \
-  template void cuda_copy<T>(const T*, T*, size_t, cudaStream_t);                                \
-  template void cuda_h2d_copy<T>(const T*, T*, size_t, cudaStream_t);                            \
-  template void cuda_d2h_copy<T>(const T*, T*, size_t, cudaStream_t);                            \
-  template void cuda_set_scalar<T>(T*, T, size_t, cudaStream_t);                                 \
-  template void cuda_zero<T>(T*, size_t, cudaStream_t);                                          \
-  template void cuda_fill_random_uniform<T>(T*, size_t, T, T, unsigned long long, cudaStream_t); \
-  template void cuda_fill_random_normal<T>(T*, size_t, T, T, unsigned long long, cudaStream_t);  \
-  template T cuda_sum<T>(const T*, size_t, cudaStream_t);                                        \
-  template T cuda_dot_product<T>(const T*, const T*, size_t, cudaStream_t);                      \
-  template T cuda_norm_squared<T>(const T*, size_t, cudaStream_t);                               \
-  template T cuda_sum_squared_diff<T>(const T*, T, size_t, cudaStream_t);
+#define INSTANTIATE_UTILS(T)                                                                \
+  template void copy<T>(const T*, T*, size_t, cudaStream_t);                                \
+  template void h2d_copy<T>(const T*, T*, size_t, cudaStream_t);                            \
+  template void d2h_copy<T>(const T*, T*, size_t, cudaStream_t);                            \
+  template void set_scalar<T>(T*, T, size_t, cudaStream_t);                                 \
+  template void zero<T>(T*, size_t, cudaStream_t);                                          \
+  template void fill_random_uniform<T>(T*, size_t, T, T, unsigned long long, cudaStream_t); \
+  template void fill_random_normal<T>(T*, size_t, T, T, unsigned long long, cudaStream_t);  \
+  template void check_equals<T>(const T*, const T*, size_t, bool&, double, cudaStream_t);   \
+  template T sum<T>(const T*, size_t, cudaStream_t);                                        \
+  template T dot_product<T>(const T*, const T*, size_t, cudaStream_t);                      \
+  template T norm_squared<T>(const T*, size_t, cudaStream_t);                               \
+  template T sum_squared_diff<T>(const T*, T, size_t, cudaStream_t);
 
 // Integer-specific binary operations (excluding FMA operations)
-#define INSTANTIATE_BIN_INT(T)                                               \
-  template void cuda_add<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_sub<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_mul<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_div<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_min<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_max<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
-  template void cuda_equal<T>(const T*, const T*, T*, size_t, cudaStream_t); \
-  template void cuda_greater<T>(const T*, const T*, T*, size_t, cudaStream_t);
+#define INSTANTIATE_BIN_INT(T)                                          \
+  template void add<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void sub<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void mul<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void div<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void min<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void max<T>(const T*, const T*, T*, size_t, cudaStream_t);   \
+  template void equal<T>(const T*, const T*, T*, size_t, cudaStream_t); \
+  template void greater<T>(const T*, const T*, T*, size_t, cudaStream_t);
 
 INSTANTIATE_BIN(uint8_t)
+INSTANTIATE_BIN(int8)
 INSTANTIATE_BIN(char)
 INSTANTIATE_BIN(fp16)
 INSTANTIATE_BIN(bf16)
@@ -667,6 +700,7 @@ INSTANTIATE_BIN(int)
 INSTANTIATE_BIN(unsigned long)
 
 // FMA operations may not support all types
+INSTANTIATE_FUSED(int8)
 INSTANTIATE_FUSED(fp16)
 INSTANTIATE_FUSED(bf16)
 INSTANTIATE_FUSED(float)
@@ -674,6 +708,7 @@ INSTANTIATE_FUSED(double)
 
 // Scalar operations
 INSTANTIATE_SCALAR(uint8_t)
+INSTANTIATE_SCALAR(int8)
 INSTANTIATE_SCALAR(char)
 INSTANTIATE_SCALAR(fp16)
 INSTANTIATE_SCALAR(bf16)
@@ -684,6 +719,7 @@ INSTANTIATE_SCALAR(unsigned long)
 
 // Unary operations
 INSTANTIATE_UNARY(uint8_t)
+INSTANTIATE_UNARY(int8)
 INSTANTIATE_UNARY(char)
 INSTANTIATE_UNARY(fp16)
 INSTANTIATE_UNARY(bf16)
@@ -694,6 +730,7 @@ INSTANTIATE_UNARY(unsigned long)
 
 // Utils
 INSTANTIATE_UTILS(uint8_t)
+INSTANTIATE_UTILS(int8)
 INSTANTIATE_UTILS(char)
 INSTANTIATE_UTILS(fp16)
 INSTANTIATE_UTILS(bf16)
@@ -702,21 +739,21 @@ INSTANTIATE_UTILS(double)
 INSTANTIATE_UTILS(int)
 INSTANTIATE_UTILS(unsigned long)
 
-#define INSTANTIATE_COPY(T)                                           \
-  template void cuda_copy<T>(const T*, T*, size_t, cudaStream_t);     \
-  template void cuda_h2d_copy<T>(const T*, T*, size_t, cudaStream_t); \
-  template void cuda_d2h_copy<T>(const T*, T*, size_t, cudaStream_t); \
-  template void cuda_bswap<T>(const T*, T*, size_t, cudaStream_t);
+#define INSTANTIATE_COPY(T)                                      \
+  template void copy<T>(const T*, T*, size_t, cudaStream_t);     \
+  template void h2d_copy<T>(const T*, T*, size_t, cudaStream_t); \
+  template void d2h_copy<T>(const T*, T*, size_t, cudaStream_t); \
+  template void bswap<T>(const T*, T*, size_t, cudaStream_t);
 
 INSTANTIATE_COPY(bool)
 INSTANTIATE_COPY(unsigned short)
 INSTANTIATE_COPY(long)
 INSTANTIATE_COPY(unsigned int)
-INSTANTIATE_COPY(synet::DType_t)
-INSTANTIATE_COPY(synet::CommandType)
-INSTANTIATE_COPY(synet::CompressionType)
-INSTANTIATE_COPY(synet::PacketType)
-INSTANTIATE_COPY(synet::Endianness)
+INSTANTIATE_COPY(tunx::DType_t)
+INSTANTIATE_COPY(tunx::CommandType)
+INSTANTIATE_COPY(tunx::CompressionType)
+INSTANTIATE_COPY(tunx::PacketType)
+INSTANTIATE_COPY(tunx::Endianness)
 
 #undef INSTANTIATE_COPY
 #undef INSTANTIATE_BIN
@@ -724,6 +761,6 @@ INSTANTIATE_COPY(synet::Endianness)
 
 }  // namespace cuda
 }  // namespace ops
-}  // namespace synet
+}  // namespace tunx
 
 #endif

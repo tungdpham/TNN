@@ -6,20 +6,12 @@
  */
 #include "nn/layers_impl/maxpool2d_layer.hpp"
 
-#include "device/task.hpp"
-#include "nn/layers_impl/cpu/maxpool_ops.hpp"
-#ifdef USE_CUDA
-#include "nn/layers_impl/cuda/maxpool_ops.hpp"
-#endif
-#ifdef USE_DNNL
-#include "nn/layers_impl/common/maxpool.hpp"
-#include "nn/layers_impl/cpu/dnnl_maxpool_ops.hpp"
-#include "utils/misc.hpp"
-#endif
 #include <cstddef>
 #include <stdexcept>
 
-namespace synet {
+#include "tensor/tensor_ops.hpp"
+
+namespace tunx {
 
 MaxPool2DLayerImpl::MaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
                                        size_t stride_w, size_t pad_h, size_t pad_w,
@@ -39,17 +31,7 @@ MaxPool2DLayerImpl::MaxPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stri
   }
 }
 
-MaxPool2DLayerImpl::~MaxPool2DLayerImpl() {
-#ifdef USE_DNNL
-  for (auto &pair : dnnl_handle_cache) {
-    if (pair.second) {
-      cpu::dnnl_maxpool::destroy_dnnl_handle(pair.second);
-    }
-  }
-  dnnl_handle_cache.clear();
-  dnnl_stats_cache.clear();
-#endif
-}
+MaxPool2DLayerImpl::~MaxPool2DLayerImpl() {}
 
 Tensor MaxPool2DLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   const auto &shape = input.shape();
@@ -64,43 +46,44 @@ Tensor MaxPool2DLayerImpl::forward_impl(const Tensor &input, Residuals &residual
   size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-#ifdef USE_DNNL
-  if (get_engine_type() == EngineType::CPU) {
-    return dnnl_forward(input, residuals);
-  }
-#endif
+  MaxPool2DStats stats{.batch_size = batch_size,
+                       .height = input_h,
+                       .width = input_w,
+                       .channels = channels,
+                       .pool_h = pool_h_,
+                       .pool_w = pool_w_,
+                       .stride_h = stride_h_,
+                       .stride_w = stride_w_,
+                       .pad_h = pad_h_,
+                       .pad_w = pad_w_};
+
+  DTypeDesc type_desc{
+      .io_dtype = io_dtype_,
+      .param_dtype = param_dtype_,
+      .compute_dtype = compute_dtype_,
+  };
+
+  WorkspaceReq ws_req = engine_->query_maxpool2d_graph(backend_handle_, stats, type_desc);
+
+  Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.dtype());
+  Tensor ws = get_tensor({ws_req.fwd_workspace}, DType_t::BYTE);
 
   if (is_training_) {
     Tensor mask_indices =
-        this->get_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
+        this->get_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32);
     residuals["mask_indices"] = mask_indices;
 
-    Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.dtype());
-
-    run_forward(input, output, batch_size, input_h, input_w, channels, output_h, output_w,
-                mask_indices, this->flow_handle_);
-
-    return output;
+    engine_->maxpool2d_fwd(backend_handle_, stats, input.data_as<void>(), output.data_as<void>(),
+                           mask_indices.data_as<void>(), ws.data_as<void>(), type_desc);
   } else {
-    Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.dtype());
-
-    Tensor mask_indices =
-        this->get_tensor({batch_size, output_h, output_w, channels}, DType_t::INT32_T);
-
-    run_forward(input, output, batch_size, input_h, input_w, channels, output_h, output_w,
-                mask_indices, this->flow_handle_);
-
-    return output;
+    engine_->maxpool2d_infer(backend_handle_, stats, input.data_as<void>(), output.data_as<void>(),
+                             ws.data_as<void>(), type_desc);
   }
+
+  return output;
 }
 
 Tensor MaxPool2DLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
-#ifdef USE_DNNL
-  if (get_engine_type() == EngineType::CPU) {
-    return dnnl_backward(grad_output, residuals);
-  }
-#endif
-
   const Tensor &mask_indices = residuals["mask_indices"];
 
   const auto &grad_shape = grad_output.shape();
@@ -114,94 +97,34 @@ Tensor MaxPool2DLayerImpl::backward_impl(const Tensor &grad_output, Residuals &r
   size_t input_h = (output_h - 1) * stride_h_ - 2 * pad_h_ + pool_h_;
   size_t input_w = (output_w - 1) * stride_w_ - 2 * pad_w_ + pool_w_;
 
+  MaxPool2DStats stats{.batch_size = batch_size,
+                       .height = input_h,
+                       .width = input_w,
+                       .channels = channels,
+                       .pool_h = pool_h_,
+                       .pool_w = pool_w_,
+                       .stride_h = stride_h_,
+                       .stride_w = stride_w_,
+                       .pad_h = pad_h_,
+                       .pad_w = pad_w_};
+
+  DTypeDesc type_desc{
+      .io_dtype = io_dtype_,
+      .param_dtype = param_dtype_,
+      .compute_dtype = compute_dtype_,
+  };
+
   Tensor grad_input = get_tensor({batch_size, input_h, input_w, channels}, grad_output.dtype());
+  fill(grad_input, 0.0f);
 
-  grad_input.fill(0);
+  WorkspaceReq ws_req = engine_->query_maxpool2d_graph(backend_handle_, stats, type_desc);
+  Tensor ws = get_tensor({ws_req.bwd_workspace}, DType_t::BYTE);
 
-  run_backward(grad_output, grad_input, batch_size, channels, output_h, output_w, mask_indices,
-               this->flow_handle_);
+  engine_->maxpool2d_bwd(backend_handle_, stats, grad_output.data_as<void>(),
+                         grad_input.data_as<void>(), mask_indices.data_as<void>(),
+                         ws.data_as<void>(), type_desc);
 
   return grad_input;
-}
-
-template <typename IO_T>
-std::unique_ptr<Task> MaxPool2DLayerImpl::run_forward(const Tensor &input_data, Tensor &output_data,
-                                                      size_t batch_size, size_t height,
-                                                      size_t width, size_t channels,
-                                                      size_t output_h, size_t output_w,
-                                                      Tensor &mask_indices,
-                                                      flowHandle_t handle) const {
-  if (input_data.dtype() != dtype_of<IO_T>() || output_data.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("MaxPool2DLayerImpl: data type mismatch in forward pass");
-  }
-
-  if (input_data.device_type() == DeviceType::CPU) {
-    cpu::maxpool::run_forward<IO_T>(input_data.data_as<IO_T>(), output_data.data_as<IO_T>(),
-                                    mask_indices.data_as<int>(), batch_size, height, width,
-                                    channels, pool_h_, pool_w_, stride_h_, stride_w_, pad_h_,
-                                    pad_w_, output_h, output_w);
-  }
-#ifdef USE_CUDA
-  else if (input_data.device_type() == DeviceType::GPU) {
-    cuda::maxpool::run_forward<IO_T>(input_data.data_as<IO_T>(), output_data.data_as<IO_T>(),
-                                     mask_indices.data_as<int>(), batch_size, height, width,
-                                     channels, pool_h_, pool_w_, stride_h_, stride_w_, pad_h_,
-                                     pad_w_, output_h, output_w);
-  }
-#endif
-  else {
-    throw std::runtime_error("MaxPool2DLayerImpl: unsupported device type");
-  }
-  return nullptr;
-}
-
-std::unique_ptr<Task> MaxPool2DLayerImpl::run_forward(const Tensor &input_data, Tensor &output_data,
-                                                      size_t batch_size, size_t height,
-                                                      size_t width, size_t channels,
-                                                      size_t output_h, size_t output_w,
-                                                      Tensor &mask_indices,
-                                                      flowHandle_t handle) const {
-  DISPATCH_IO_DTYPE(run_forward, input_data, output_data, batch_size, height, width, channels,
-                    output_h, output_w, mask_indices, handle);
-  return nullptr;
-}
-
-template <typename IO_T>
-std::unique_ptr<Task> MaxPool2DLayerImpl::run_backward(const Tensor &gradient_data,
-                                                       Tensor &grad_input_data, size_t batch_size,
-                                                       size_t channels, size_t output_h,
-                                                       size_t output_w, const Tensor &mask_indices,
-                                                       flowHandle_t handle) const {
-  if (gradient_data.dtype() != dtype_of<IO_T>() || grad_input_data.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("MaxPool2DLayerImpl: data type mismatch in backward pass");
-  }
-
-  if (gradient_data.device_type() == DeviceType::CPU) {
-    cpu::maxpool::run_backward<IO_T>(gradient_data.data_as<IO_T>(), grad_input_data.data_as<IO_T>(),
-                                     mask_indices.data_as<int>(), batch_size, channels, output_h,
-                                     output_w);
-  }
-#ifdef USE_CUDA
-  else if (gradient_data.device_type() == DeviceType::GPU) {
-    cuda::maxpool::run_backward<IO_T>(gradient_data.data_as<IO_T>(),
-                                      grad_input_data.data_as<IO_T>(), mask_indices.data_as<int>(),
-                                      batch_size, channels, output_h, output_w);
-  }
-#endif
-  else {
-    throw std::runtime_error("MaxPool2DLayerImpl: unsupported device type");
-  }
-  return nullptr;
-}
-
-std::unique_ptr<Task> MaxPool2DLayerImpl::run_backward(const Tensor &gradient_data,
-                                                       Tensor &grad_input_data, size_t batch_size,
-                                                       size_t channels, size_t output_h,
-                                                       size_t output_w, const Tensor &mask_indices,
-                                                       flowHandle_t handle) const {
-  DISPATCH_IO_DTYPE(run_backward, gradient_data, grad_input_data, batch_size, channels, output_h,
-                    output_w, mask_indices, handle);
-  return nullptr;
 }
 
 LayerConfig MaxPool2DLayerImpl::get_config() const {
@@ -243,71 +166,4 @@ std::shared_ptr<MaxPool2DLayerImpl> MaxPool2DLayerImpl::create_from_config(
                                               config.name);
 }
 
-#ifdef USE_DNNL
-void MaxPool2DLayerImpl::build_dnnl_handle(const Vec<size_t> &input_shape) const {
-  size_t shape_key = get_shape_hash(input_shape);
-  if (dnnl_handle_cache.find(shape_key) == dnnl_handle_cache.end()) {
-    MaxPoolStats new_stats;
-    init_maxpool_stats(new_stats, input_shape[0], input_shape[1], input_shape[2], input_shape[3],
-                       pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_);
-    dnnl_handle_cache[shape_key] = cpu::dnnl_maxpool::initialize_dnnl_handle(new_stats, io_dtype_);
-    dnnl_stats_cache[shape_key] = new_stats;
-  }
-}
-
-Tensor MaxPool2DLayerImpl::dnnl_forward(const Tensor &input, Residuals &residuals) {
-  build_dnnl_handle(input.shape());
-  size_t shape_key = get_shape_hash(input.shape());
-  cpu::dnnl_maxpool::dnnlMaxPoolHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
-  const MaxPoolStats &current_stats = dnnl_stats_cache.at(shape_key);
-
-  Tensor output = get_tensor({current_stats.batch_size, current_stats.output_h,
-                              current_stats.output_w, current_stats.channels},
-                             input.dtype());
-
-  if (this->is_training_) {
-    Tensor pool_ws = get_tensor({current_stats.pool_workspace_size}, DType_t::BYTE);
-    residuals["dnnl_pool_ws"] = pool_ws;
-
-    create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_forward, dnnl_handle, current_stats,
-                    input.data_as<void>(), output.data_as<void>(), pool_ws.data_as<void>(),
-                    nullptr);
-  } else {
-    create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_inference, dnnl_handle,
-                    current_stats, input.data_as<void>(), output.data_as<void>(), nullptr);
-  }
-
-  return output;
-}
-
-Tensor MaxPool2DLayerImpl::dnnl_backward(const Tensor &grad_output, Residuals &residuals) {
-  const Vec<size_t> &grad_shape = grad_output.shape();
-  if (grad_shape.size() != 4) {
-    throw std::runtime_error("MaxPool2DLayerImpl: grad_output must be 4D (NHWC format)");
-  }
-  size_t batch_size = grad_shape[0];
-  size_t output_h = grad_shape[1];
-  size_t output_w = grad_shape[2];
-  size_t channels = grad_shape[3];
-  size_t input_h = (output_h - 1) * stride_h_ - 2 * pad_h_ + pool_h_;
-  size_t input_w = (output_w - 1) * stride_w_ - 2 * pad_w_ + pool_w_;
-
-  Vec<size_t> input_shape = {batch_size, input_h, input_w, channels};
-
-  build_dnnl_handle(input_shape);
-  size_t shape_key = get_shape_hash(input_shape);
-  cpu::dnnl_maxpool::dnnlMaxPoolHandle_t *dnnl_handle = dnnl_handle_cache.at(shape_key);
-  const MaxPoolStats &current_stats = dnnl_stats_cache.at(shape_key);
-
-  Tensor grad_input = get_tensor(input_shape, io_dtype_);
-  Tensor &pool_ws = residuals["dnnl_pool_ws"];
-
-  create_cpu_task(this->flow_handle_, cpu::dnnl_maxpool::run_backward, dnnl_handle, current_stats,
-                  grad_output.data_as<void>(), grad_input.data_as<void>(), pool_ws.data_as<void>(),
-                  nullptr);
-
-  return grad_input;
-}
-#endif  // USE_DNNL
-
-}  // namespace synet
+}  // namespace tunx

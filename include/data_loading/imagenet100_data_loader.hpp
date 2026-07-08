@@ -48,7 +48,7 @@ constexpr float NORMALIZATION_FACTOR = 255.0f;
 constexpr size_t IMAGE_SIZE = NUM_CHANNELS * IMAGE_HEIGHT * IMAGE_WIDTH;
 }  // namespace imagenet100_constants
 
-namespace synet {
+namespace tunx {
 /**
  * ImageNet-100 data loader for JPEG format adapted for CNN (2D RGB images)
  * NHWC format: (Batch, Height, Width, Channels)
@@ -87,7 +87,7 @@ private:
     batch_data = Tensor({actual_batch_size, imagenet100_constants::IMAGE_HEIGHT,
                          imagenet100_constants::IMAGE_WIDTH, imagenet100_constants::NUM_CHANNELS},
                         dtype_of<T>(), allocator_);
-    batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
+    batch_labels = Tensor({actual_batch_size}, DType_t::INT32, allocator_);
 
     T *batch_raw = batch_data.data_as<T>();
     int *labels_raw = batch_labels.data_as<int>();
@@ -497,4 +497,4 @@ public:
     }
   }
 };
-}  // namespace synet
+}  // namespace tunx

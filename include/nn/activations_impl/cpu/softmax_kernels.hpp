@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 
 template <typename T>
@@ -14,4 +14,4 @@ void softmax_gradient(const T *input, const T *grad_output, T *grad_input, size_
                       size_t channels, size_t height, size_t width);
 
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

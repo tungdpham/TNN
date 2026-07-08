@@ -19,7 +19,7 @@
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 class SequentialImpl : public Block {
 private:
   Vec<Layer> layers_;
@@ -79,4 +79,4 @@ public:
   using LayerRef<SequentialImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

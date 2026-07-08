@@ -21,7 +21,7 @@
 #include <cudnn.h>
 #endif
 
-namespace synet {
+namespace tunx {
 class CUDAContext : public Context {
 private:
   std::unordered_map<flowHandle_t, std::unique_ptr<CUDAFlow>> flows_;
@@ -45,6 +45,6 @@ public:
   Endianness get_endianness() const override;
   Flow *getFlow(flowHandle_t handle) override;
 };
-}  // namespace synet
+}  // namespace tunx
 
 #endif  // USE_CUDA

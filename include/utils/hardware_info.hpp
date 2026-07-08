@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace synet {
+namespace tunx {
 
 /**
  * Represents information about a single CPU core
@@ -355,4 +355,4 @@ private:
   std::vector<CpuTimes> prev_core_times_;
 };
 
-}  // namespace synet
+}  // namespace tunx

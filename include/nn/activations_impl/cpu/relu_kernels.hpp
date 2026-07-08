@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 
 template <typename T>
@@ -12,4 +12,4 @@ template <typename T>
 void relu_gradient(const T *input, const T *grad_output, T *grad_input, size_t size);
 
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

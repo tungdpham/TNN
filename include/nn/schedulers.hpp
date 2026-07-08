@@ -15,7 +15,7 @@
 #include "common/config.hpp"
 #include "optimizers.hpp"
 
-namespace synet {
+namespace tunx {
 
 using SchedulerConfig = TConfig;
 
@@ -778,4 +778,4 @@ public:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

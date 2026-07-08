@@ -7,7 +7,7 @@
 #include "augmentation.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * Cutout augmentation (random erasing)
@@ -73,4 +73,4 @@ private:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

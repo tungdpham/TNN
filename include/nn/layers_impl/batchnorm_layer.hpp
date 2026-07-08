@@ -9,22 +9,11 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <unordered_map>
 
-#include "nn/layers_impl/common/batchnorm.hpp"
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-#ifdef USE_CUDNN
-#include <cudnn.h>
-
-#include "cuda/cudnn_batchnorm_ops.hpp"
-#endif
-#ifdef USE_DNNL
-#include "nn/layers_impl/cpu/dnnl_batchnorm_ops.hpp"
-#endif
-
-namespace synet {
+namespace tunx {
 
 class BatchNormLayerImpl : public SISOLayerImpl {
 private:
@@ -36,61 +25,13 @@ private:
 
   Tensor gamma_;
   Tensor beta_;
-  Tensor gamma_gradients_;
-  Tensor beta_gradients_;
+  Tensor grad_gamma_;
+  Tensor grad_beta_;
 
   Tensor running_mean_;
   Tensor running_var_;
-  Tensor dummy_mean_gradients_;
-  Tensor dummy_var_gradients_;
-
-  mutable std::unordered_map<size_t, BatchNormStats> stats_cache;
-
-#ifdef USE_DNNL
-  void build_dnnl_handle(const Vec<size_t> &input_shape) const;
-  Tensor dnnl_forward(const Tensor &input, Residuals &residuals);
-  Tensor dnnl_backward(const Tensor &grad_output, Residuals &residuals);
-
-  mutable std::unordered_map<size_t, cpu::dnnl_batchnorm::dnnlBNHandle_t *> dnnl_handle_cache;
-  mutable std::unordered_map<size_t, BatchNormStats> dnnl_stats_cache;
-#endif
-
-#ifdef USE_CUDNN
-  void build_graph(const Vec<size_t> &input_shape) const;
-
-  mutable std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> forward_training_task(
-      cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const Tensor &input,
-      Tensor &output, const Tensor &gamma, const Tensor &beta, const Tensor &prev_running_mean,
-      const Tensor &prev_running_var, Tensor &next_running_mean, Tensor &next_running_var,
-      Tensor &batch_mean, Tensor &batch_invar, Tensor &relu_mask, Tensor &workspace,
-      flowHandle_t handle);
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> forward_inference_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
-                                               BatchNormStats &stats, const Tensor &input,
-                                               Tensor &output, const Tensor &gamma,
-                                               const Tensor &beta, const Tensor &saved_mean,
-                                               const Tensor &saved_var, Tensor &workspace,
-                                               flowHandle_t handle);
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
-                                      BatchNormStats &stats, const Tensor &grad_output,
-                                      const Tensor &relu_mask, const Tensor &input,
-                                      Tensor &grad_input, const Tensor &gamma,
-                                      Tensor &gamma_gradients, Tensor &beta_gradients,
-                                      const Tensor &batch_mean, const Tensor &batch_invar,
-                                      Tensor &workspace, flowHandle_t handle);
-
-  Tensor cudnn_forward(const Tensor &input, Residuals &residuals);
-  Tensor cudnn_backward(const Tensor &grad_output, Residuals &residuals);
-#endif
-
-  Tensor def_forward(const Tensor &input, Residuals &residuals);
-  Tensor def_backward(const Tensor &grad_output, Residuals &residuals);
+  Tensor grad_dummy_mean_;
+  Tensor grad_dummy_var_;
 
   void init_impl() override;
   Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
@@ -113,28 +54,28 @@ public:
         param_dtype_,
         {num_features_},
         &gamma_,
-        &gamma_gradients_,
+        &grad_gamma_,
     };
     descriptors.push_back(gamma_desc);
     auto beta_desc = ParamDescriptor{
         param_dtype_,
         {num_features_},
         &beta_,
-        &beta_gradients_,
+        &grad_beta_,
     };
     descriptors.push_back(beta_desc);
     auto running_mean_desc = ParamDescriptor{
         param_dtype_,
         {num_features_},
         &running_mean_,
-        &dummy_mean_gradients_,
+        &grad_dummy_mean_,
     };
     descriptors.push_back(running_mean_desc);
     auto running_var_desc = ParamDescriptor{
         param_dtype_,
         {num_features_},
         &running_var_,
-        &dummy_var_gradients_,
+        &grad_dummy_var_,
     };
     descriptors.push_back(running_var_desc);
     return descriptors;
@@ -152,4 +93,4 @@ public:
   using LayerRef<BatchNormLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

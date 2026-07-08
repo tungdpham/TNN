@@ -14,7 +14,7 @@
 #include "device/flow.hpp"
 #include "device_type.hpp"
 
-namespace synet {
+namespace tunx {
 
 class Device {
 public:
@@ -55,4 +55,4 @@ private:
   std::unique_ptr<Context> context_;
 };
 
-}  // namespace synet
+}  // namespace tunx

@@ -3,7 +3,7 @@
 
 #ifdef USE_CUDA
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 
 constexpr int BLOCK_SIZE = 256;
@@ -148,6 +148,6 @@ void elu_gradient<bf16>(const bf16* input, const bf16* grad_output, bf16* grad_i
 }
 
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif

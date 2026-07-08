@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 struct GemmStats {
   size_t M = 0;
   size_t N = 0;
@@ -24,4 +24,4 @@ inline void init_gemm_stats(GemmStats &stats, size_t M, size_t N, size_t K,
   stats.wgrad_workspace_size = 0;
 }
 
-}  // namespace synet
+}  // namespace tunx

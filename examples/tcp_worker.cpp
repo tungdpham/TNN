@@ -10,7 +10,7 @@
 
 #include "threading/thread_wrapper.hpp"
 
-using namespace synet;
+using namespace tunx;
 
 using namespace std;
 
@@ -25,14 +25,14 @@ void print_usage(const char *program_name) {
   cout << "Usage: " << program_name << " [options] <listen_port>" << endl;
   cout << endl;
   cout << "Options:" << endl;
-  cout << "  --gpu              Enable GPU offloading for processing" << endl;
+  cout << "  --gpu              Enable CUDA offloading for processing" << endl;
   cout << "  --io-threads <N>   Number of IO threads for networking (default: 1)" << endl;
   cout << "  --num-threads <N>  Number of worker threads for processing (default: 8)" << endl;
   cout << "  -h, --help         Show this help message" << endl;
   cout << endl;
   cout << "Examples:" << endl;
   cout << "  " << program_name << " 8001                      # Default mode" << endl;
-  cout << "  " << program_name << " --gpu 8001                # Enable GPU processing" << endl;
+  cout << "  " << program_name << " --gpu 8001                # Enable CUDA processing" << endl;
   cout << "  " << program_name << " --io-threads 4 8001       # Use 4 IO threads" << endl;
 }
 
@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
 
   cout << "Network Stage Worker Configuration" << endl;
   cout << "Listen port: " << cfg.listen_port << endl;
-  cout << "GPU offloading: " << (cfg.use_gpu ? "Enabled" : "Disabled") << endl;
+  cout << "CUDA offloading: " << (cfg.use_gpu ? "Enabled" : "Disabled") << endl;
   cout << "IO threads: " << cfg.io_threads << endl;
   cout << "Worker threads: " << cfg.num_threads << endl;
 

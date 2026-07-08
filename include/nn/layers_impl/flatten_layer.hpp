@@ -12,7 +12,7 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class FlattenLayerImpl : public SISOLayerImpl {
 private:
@@ -42,4 +42,4 @@ public:
   using LayerRef<FlattenLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

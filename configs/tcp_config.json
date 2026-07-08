@@ -27,7 +27,7 @@
   "print_layer_profiling": false,
   "print_layer_memory_usage": false,
   "num_microbatches": 2,
-  "device_type": "GPU",
+  "device_type": "CUDA",
   "model_name": "cifar10_resnet9",
   "model_path": "",
   "dataset_name": "cifar10",

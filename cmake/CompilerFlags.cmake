@@ -37,3 +37,15 @@ else()
         $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-Wpedantic>
     )
 endif()
+
+
+if(CUDA_ARCH_NUMBER)
+    set(CMAKE_CUDA_STANDARD 20)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
+    set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
+    set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_OBJECTS 0)
+    set(CMAKE_CUDA_FLAGS "--compiler-options -fPIC" CACHE STRING "CUDA compile flags")
+    set(CMAKE_CUDA_FLAGS_RELEASE "-O2" CACHE STRING "CUDA release flags")
+    set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g -Xcompiler -fsanitize=address -fdevice-sanitize=memcheck" CACHE STRING "CUDA debug flags")
+endif()

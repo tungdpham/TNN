@@ -14,7 +14,7 @@
 #include "nn/activations_impl/cuda/gelu_kernels.hpp"
 #endif
 
-namespace synet {
+namespace tunx {
 
 std::unique_ptr<Task> GELU::apply(const Tensor &input, Tensor &output) const {
   if (input.shape() != output.shape()) {
@@ -53,7 +53,7 @@ std::unique_ptr<Task> GELU::apply_impl(const Tensor &input, Tensor &output,
                            output.data_as<Compute_T>(), size);
   }
 #ifdef USE_CUDA
-  else if (input.device_type() == DeviceType::GPU) {
+  else if (input.device_type() == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::gelu<Compute_T>, input.data_as<Compute_T>(),
                             output.data_as<Compute_T>(), size);
   }
@@ -78,7 +78,7 @@ std::unique_ptr<Task> GELU::compute_gradient_impl(const Tensor &input, const Ten
                            grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(), size);
   }
 #ifdef USE_CUDA
-  else if (input.device_type() == DeviceType::GPU) {
+  else if (input.device_type() == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::gelu_gradient<Compute_T>, input.data_as<Compute_T>(),
                             grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(),
                             size);
@@ -90,4 +90,4 @@ std::unique_ptr<Task> GELU::compute_gradient_impl(const Tensor &input, const Ten
   return nullptr;
 }
 
-}  // namespace synet
+}  // namespace tunx

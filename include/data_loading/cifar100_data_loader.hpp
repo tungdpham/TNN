@@ -31,7 +31,7 @@ constexpr float NORMALIZATION_FACTOR = 255.0f;
 constexpr size_t RECORD_SIZE = 1 + 1 + IMAGE_SIZE;
 }  // namespace cifar100_constants
 
-namespace synet {
+namespace tunx {
 /**
  * Enhanced CIFAR-100 data loader for binary format adapted for CNN (2D RGB images)
  * NHWC format: (Batch, Height, Width, Channels)
@@ -145,7 +145,7 @@ private:
                          cifar100_constants::IMAGE_WIDTH, cifar100_constants::NUM_CHANNELS},
                         dtype_of<T>());
 
-    batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T);
+    batch_labels = Tensor({actual_batch_size}, DType_t::INT32);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       size_t sample_idx = access_order_[this->current_index_ + i];
@@ -287,4 +287,4 @@ public:
     }
   }
 };
-}  // namespace synet
+}  // namespace tunx

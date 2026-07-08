@@ -2,7 +2,10 @@
 #include "device/pool_allocator.hpp"
 #include "nn/example_graphs.hpp"
 #include "nn/graph.hpp"
-using namespace synet;
+#include "tensor/tensor.hpp"
+#include "tensor/tensor_ops.hpp"
+
+using namespace tunx;
 using namespace std;
 
 signed main() {
@@ -17,7 +20,7 @@ signed main() {
     auto pass_start = std::chrono::high_resolution_clock::now();
     Vec<Tensor *> grads = graph.gradients();
     for (auto &grad : grads) {
-      grad->fill(0.0);
+      fill(*grad, 0.0f);
     }
     auto flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();

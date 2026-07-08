@@ -33,7 +33,7 @@ constexpr float NORMALIZATION_FACTOR = 255.0f;
 constexpr size_t RECORD_SIZE = 1 + IMAGE_SIZE;
 }  // namespace cifar10_constants
 
-namespace synet {
+namespace tunx {
 /**
  *  CIFAR-10 data loader for binary format adapted for CNN (2D RGB images)
  *  NHWC format: (Batch, Height, Width, Channels)
@@ -145,7 +145,7 @@ private:
     size_t channels = cifar10_constants::NUM_CHANNELS;
 
     batch_data = Tensor({actual_batch_size, height, width, channels}, dtype_of<T>(), allocator_);
-    batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
+    batch_labels = Tensor({actual_batch_size}, DType_t::INT32, allocator_);
 
     T *data_ptr = batch_data.data_as<T>();
     int *labels_ptr = batch_labels.data_as<int>();
@@ -285,4 +285,4 @@ public:
     }
   }
 };
-}  // namespace synet
+}  // namespace tunx

@@ -7,7 +7,7 @@
 
 #include "distributed/endpoint.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 struct Config {
@@ -26,7 +26,7 @@ void print_usage(const char *program_name) {
   cout << "  --port <number>        TCP port for initial connection (required)" << endl;
   cout << "  --device <name>        IB device name (e.g., mlx5_0) (required)" << endl;
   cout << "  --gid-index <index>    GID index for RoCE (required)" << endl;
-  cout << "  --gpu                  Enable GPU offloading" << endl;
+  cout << "  --gpu                  Enable CUDA offloading" << endl;
   cout << "  -h, --help             Show this help message" << endl;
 }
 

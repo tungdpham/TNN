@@ -29,7 +29,7 @@ constexpr size_t NUM_CHANNELS = 1;
 constexpr float NORMALIZATION_FACTOR = 255.0f;
 }  // namespace mnist_constants
 
-namespace synet {
+namespace tunx {
 /**
  * Enhanced MNIST data loader for CSV format adapted for CNN (2D images)
  * NHWC format: (Batch, Height, Width, Channels)
@@ -161,7 +161,7 @@ private:
     batch_data = Tensor({actual_batch_size, mnist_constants::IMAGE_HEIGHT,
                          mnist_constants::IMAGE_WIDTH, mnist_constants::NUM_CHANNELS},
                         dtype_of<T>(), allocator_);
-    batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
+    batch_labels = Tensor({actual_batch_size}, DType_t::INT32, allocator_);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       size_t sample_idx = access_order_[this->current_index_ + i];
@@ -253,4 +253,4 @@ public:
     }
   }
 };
-}  // namespace synet
+}  // namespace tunx

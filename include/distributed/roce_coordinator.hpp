@@ -11,7 +11,7 @@
 #include "coordinator.hpp"
 #include "roce_communicator.hpp"
 
-namespace synet {
+namespace tunx {
 
 struct RoCEConfig {
   std::string host = "";
@@ -90,4 +90,4 @@ public:
   ~RoCECoordinator() = default;
 };
 
-}  // namespace synet
+}  // namespace tunx

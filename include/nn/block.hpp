@@ -2,7 +2,7 @@
 
 #include "nn/layer.hpp"
 
-namespace synet {
+namespace tunx {
 class Block : public LayerImpl {
 public:
   Block(const std::string &name = "block")
@@ -83,4 +83,4 @@ protected:
     }
   }
 };
-}  // namespace synet
+}  // namespace tunx

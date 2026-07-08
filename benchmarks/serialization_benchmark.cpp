@@ -12,14 +12,14 @@
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
 
-using namespace synet;
+using namespace tunx;
 
 constexpr size_t microbatch_id = 2;
 constexpr size_t data_size = 256 * 512 * 16 * 16;
 
 signed main() {
   Tensor tensor = Tensor({data_size}, DType_t::FP32);
-  tensor.fill_random_normal(0.0, 0.5);
+  fill_normal(tensor, 0.0, 0.5);
   Job job;
   job.pid = microbatch_id;
   job.data = TensorBundle{{{"output", tensor}}};

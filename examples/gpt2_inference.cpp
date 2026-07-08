@@ -10,7 +10,7 @@
 #include "tokenizer/tokenizer.hpp"
 #include "utils/env.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 int main(int argc, char **argv) {
@@ -29,11 +29,11 @@ int main(int argc, char **argv) {
 
   string device_str = "CPU";
   Env::get("DEVICE_TYPE", device_str);
-  DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
-  cout << "Using device: " << (device_type == DeviceType::GPU ? "GPU" : "CPU") << endl;
+  DeviceType device_type = (device_str == "CUDA") ? DeviceType::CUDA : DeviceType::CPU;
+  cout << "Using device: " << (device_type == DeviceType::CUDA ? "CUDA" : "CPU") << endl;
 
   // Create model using ExampleGraphs or load from file
-  const Device &device = device_type == DeviceType::GPU ? getGPU() : getHost();
+  const Device &device = device_type == DeviceType::CUDA ? getGPU() : getHost();
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
   Graph graph = load_or_create_graph("gpt2", model_path, allocator);
 

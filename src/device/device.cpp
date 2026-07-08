@@ -4,7 +4,7 @@
 #include "device/context.hpp"
 #include "device/flow.hpp"
 
-namespace synet {
+namespace tunx {
 Device::Device(DeviceType type, int id, std::unique_ptr<Context> context)
     : type_(type),
       id_(id),
@@ -34,8 +34,8 @@ std::string Device::getName() const {
   switch (type_) {
     case DeviceType::CPU:
       return "CPU Device " + std::to_string(id_);
-    case DeviceType::GPU:
-      return "GPU Device " + std::to_string(id_);
+    case DeviceType::CUDA:
+      return "CUDA Device " + std::to_string(id_);
     default:
       return "Unknown Device";
   }
@@ -77,4 +77,4 @@ void Device::createFlow(flowHandle_t handle) const { context_->createFlow(handle
 
 Flow *Device::getFlow(flowHandle_t handle) const { return context_->getFlow(handle); }
 
-}  // namespace synet
+}  // namespace tunx

@@ -12,7 +12,7 @@
 #include "metrics_impl/cuda/metrics.hpp"
 #endif
 
-namespace synet {
+namespace tunx {
 
 namespace detail {
 
@@ -311,4 +311,4 @@ inline int compute_class_corrects(const Tensor &predictions, const Tensor &targe
                                                                num_classes, threshold));
 }
 
-}  // namespace synet
+}  // namespace tunx

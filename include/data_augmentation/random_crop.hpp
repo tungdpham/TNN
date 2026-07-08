@@ -5,9 +5,10 @@
 #include <vector>
 
 #include "augmentation.hpp"
+#include "tensor/tensor_ops.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * Random crop augmentation with padding
@@ -70,7 +71,7 @@ private:
     size_t padded_size = width + 2 * padding_;
     Tensor padded(Vec<size_t>{1, padded_size, padded_size, channels}, dtype_of<T>());
 
-    padded.fill(0.0);
+    fill(padded, 0.0);
 
     // Copy original image to center of padded image
     for (size_t h = 0; h < height; ++h) {
@@ -92,4 +93,4 @@ private:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

@@ -10,7 +10,7 @@
 #include "dkernels.hpp"
 #include "skernels.hpp"
 
-namespace synet {
+namespace tunx {
 namespace ops {
 namespace cpu {
 
@@ -489,6 +489,19 @@ void bswap(const T *a, T *c, size_t size) {
   }
 }
 
+template <typename T>
+void check_equals(const T *a, const T *b, size_t size, bool &result, double eps) {
+  result = true;
+  for (size_t i = 0; i < size; ++i) {
+    double diff = static_cast<double>(a[i]) - static_cast<double>(b[i]);
+    if (diff < 0) diff = -diff;
+    if (diff > eps) {
+      result = false;
+      break;
+    }
+  }
+}
+
 }  // namespace cpu
 }  // namespace ops
-}  // namespace synet
+}  // namespace tunx

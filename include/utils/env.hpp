@@ -8,7 +8,7 @@
 
 #include "parser.hpp"
 
-namespace synet {
+namespace tunx {
 
 class EnvLoader {
 public:
@@ -134,4 +134,4 @@ public:
     return instance().get(key, var);
   }
 };
-}  // namespace synet
+}  // namespace tunx

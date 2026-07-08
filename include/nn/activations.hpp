@@ -23,7 +23,7 @@
 #include "activations_impl/sigmoid.hpp"
 #include "activations_impl/tanh.hpp"
 
-namespace synet {
+namespace tunx {
 class ActivationFactory {
 private:
   static std::unordered_map<std::string, std::function<std::unique_ptr<ActivationFunction>()>>
@@ -66,4 +66,4 @@ public:
 inline std::unordered_map<std::string, std::function<std::unique_ptr<ActivationFunction>()>>
     ActivationFactory::creators_;
 
-}  // namespace synet
+}  // namespace tunx

@@ -7,7 +7,7 @@
 #include "nn/train.hpp"
 
 using namespace std;
-using namespace synet;
+using namespace tunx;
 
 signed main(int argc, char *argv[]) {
   ExampleGraphs::register_defaults();
@@ -44,7 +44,7 @@ signed main(int argc, char *argv[]) {
   train_config.print_config();
 
   // Prioritize loading existing model, else create from available ones
-  const auto &device = train_config.device_type == DeviceType::GPU ? getGPU(0) : getHost();
+  const auto &device = train_config.device_type == DeviceType::CUDA ? getGPU(0) : getHost();
   auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
 
   auto [train_loader, val_loader] =

@@ -12,7 +12,7 @@
 #include "device/dptr.hpp"
 #include "device/iallocator.hpp"
 
-namespace synet {
+namespace tunx {
 
 // default allocator
 class DeviceAllocator : public IAllocator {
@@ -62,4 +62,4 @@ inline DeviceAllocator& GPUAllocator(int device_id = 0) {
   return DeviceAllocator::instance(getGPU(device_id));
 }
 
-}  // namespace synet
+}  // namespace tunx

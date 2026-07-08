@@ -6,14 +6,14 @@
  */
 #include "nn/layers_impl/avgpool2d_layer.hpp"
 
-#include "device/task.hpp"
-#include "nn/layers_impl/cpu/avgpool_ops.hpp"
-#ifdef USE_CUDA
-#include "nn/layers_impl/cuda/avgpool_ops.hpp"
-#endif
 #include <stdexcept>
 
-namespace synet {
+#include "nn/engines/iengine.hpp"
+#include "tensor/tensor.hpp"
+#include "tensor/tensor_ops.hpp"
+#include "type/type.hpp"
+
+namespace tunx {
 
 AvgPool2DLayerImpl::AvgPool2DLayerImpl(size_t pool_h, size_t pool_w, size_t stride_h,
                                        size_t stride_w, size_t pad_h, size_t pad_w,
@@ -47,10 +47,30 @@ Tensor AvgPool2DLayerImpl::forward_impl(const Tensor &input, Residuals &residual
   size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.dtype());
+  AvgPool2DStats stats{.batch_size = batch_size,
+                       .height = input_h,
+                       .width = input_w,
+                       .channels = channels,
+                       .pool_h = pool_h_,
+                       .pool_w = pool_w_,
+                       .stride_h = stride_h_,
+                       .stride_w = stride_w_,
+                       .pad_h = pad_h_,
+                       .pad_w = pad_w_};
 
-  DISPATCH_IO_DTYPE(run_forward, input, output, batch_size, input_h, input_w, channels, output_h,
-                    output_w, this->flow_handle_);
+  DTypeDesc type_desc{
+      .io_dtype = io_dtype_,
+      .param_dtype = param_dtype_,
+      .compute_dtype = compute_dtype_,
+  };
+
+  WorkspaceReq ws_req = engine_->query_avgpool_graph(backend_handle_, stats, type_desc);
+
+  Tensor output = get_tensor({batch_size, output_h, output_w, channels}, input.dtype());
+  Tensor ws = get_tensor({ws_req.fwd_workspace}, DType_t::BYTE);
+
+  engine_->avgpool_fwd(backend_handle_, stats, input.data_as<void>(), output.data_as<void>(),
+                       ws.data_as<void>(), type_desc);
 
   return output;
 }
@@ -68,70 +88,33 @@ Tensor AvgPool2DLayerImpl::backward_impl(const Tensor &grad_output, Residuals &r
   size_t input_h = (output_h - 1) * stride_h_ + pool_h_ - 2 * pad_h_;
   size_t input_w = (output_w - 1) * stride_w_ + pool_w_ - 2 * pad_w_;
 
-  Tensor grad_input = get_tensor({batch_size, input_h, input_w, channels}, grad_output.dtype());
-  grad_input.fill(0);
+  AvgPool2DStats stats{.batch_size = batch_size,
+                       .height = input_h,
+                       .width = input_w,
+                       .channels = channels,
+                       .pool_h = pool_h_,
+                       .pool_w = pool_w_,
+                       .stride_h = stride_h_,
+                       .stride_w = stride_w_,
+                       .pad_h = pad_h_,
+                       .pad_w = pad_w_};
 
-  DISPATCH_IO_DTYPE(run_backward, grad_output, grad_input, batch_size, input_h, input_w, channels,
-                    output_h, output_w, this->flow_handle_);
+  DTypeDesc type_desc{
+      .io_dtype = io_dtype_,
+      .param_dtype = param_dtype_,
+      .compute_dtype = compute_dtype_,
+  };
+
+  Tensor grad_input = get_tensor({batch_size, input_h, input_w, channels}, grad_output.dtype());
+  fill(grad_input, 0.0f);
+
+  WorkspaceReq ws_req = engine_->query_avgpool_graph(backend_handle_, stats, type_desc);
+  Tensor ws = get_tensor({ws_req.bwd_workspace}, DType_t::BYTE);
+
+  engine_->avgpool_bwd(backend_handle_, stats, grad_output.data_as<void>(),
+                       grad_input.data_as<void>(), ws.data_as<void>(), type_desc);
 
   return grad_input;
-}
-
-template <typename IO_T>
-std::unique_ptr<Task> AvgPool2DLayerImpl::run_forward(const Tensor &input_data, Tensor &output_data,
-                                                      size_t batch_size, size_t height,
-                                                      size_t width, size_t channels,
-                                                      size_t output_h, size_t output_w,
-                                                      flowHandle_t handle) const {
-  if (input_data.dtype() != dtype_of<IO_T>() || output_data.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("AvgPool2DLayerImpl: data type mismatch in forward pass");
-  }
-
-  if (input_data.device_type() == DeviceType::CPU) {
-    cpu::avgpool::run_forward<IO_T>(input_data.data_as<IO_T>(), output_data.data_as<IO_T>(),
-                                    batch_size, height, width, channels, pool_h_, pool_w_,
-                                    stride_h_, stride_w_, pad_h_, pad_w_, output_h, output_w);
-  }
-#ifdef USE_CUDA
-  else if (input_data.device_type() == DeviceType::GPU) {
-    cuda::avgpool::run_forward<IO_T>(input_data.data_as<IO_T>(), output_data.data_as<IO_T>(),
-                                     batch_size, height, width, channels, pool_h_, pool_w_,
-                                     stride_h_, stride_w_, pad_h_, pad_w_, output_h, output_w);
-  }
-#endif
-  else {
-    throw std::runtime_error("AvgPool2DLayerImpl: unsupported device type");
-  }
-  return nullptr;
-}
-
-template <typename IO_T>
-std::unique_ptr<Task> AvgPool2DLayerImpl::run_backward(const Tensor &gradient_data,
-                                                       Tensor &grad_input_data, size_t batch_size,
-                                                       size_t input_h, size_t input_w,
-                                                       size_t channels, size_t output_h,
-                                                       size_t output_w, flowHandle_t handle) const {
-  if (gradient_data.dtype() != dtype_of<IO_T>() || grad_input_data.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("AvgPool2DLayerImpl: data type mismatch in backward pass");
-  }
-
-  if (gradient_data.device_type() == DeviceType::CPU) {
-    cpu::avgpool::run_backward<IO_T>(gradient_data.data_as<IO_T>(), grad_input_data.data_as<IO_T>(),
-                                     batch_size, input_h, input_w, channels, pool_h_, pool_w_,
-                                     stride_h_, stride_w_, pad_h_, pad_w_, output_h, output_w);
-  }
-#ifdef USE_CUDA
-  else if (gradient_data.device_type() == DeviceType::GPU) {
-    cuda::avgpool::run_backward<IO_T>(gradient_data.data_as<IO_T>(),
-                                      grad_input_data.data_as<IO_T>(), batch_size, input_h, input_w,
-                                      channels, pool_h_, pool_w_, stride_h_, stride_w_, pad_h_,
-                                      pad_w_, output_h, output_w);
-  }
-#endif
-  else {
-    throw std::runtime_error("AvgPool2DLayerImpl: unsupported device type");
-  }
-  return nullptr;
 }
 
 LayerConfig AvgPool2DLayerImpl::get_config() const {
@@ -177,4 +160,4 @@ std::shared_ptr<AvgPool2DLayerImpl> AvgPool2DLayerImpl::create_from_config(
                                               config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

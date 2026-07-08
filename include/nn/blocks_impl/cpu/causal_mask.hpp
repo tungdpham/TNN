@@ -4,7 +4,7 @@
 #pragma once
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 
 template <typename T>
@@ -14,4 +14,4 @@ template <typename T>
 void apply_causal_mask(T *scores, size_t batch_count, size_t L, T neg_inf);
 
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

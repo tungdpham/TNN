@@ -3,34 +3,24 @@
 include(GoogleTest)
 
 set(TEST_FILES 
-    tensor_test.cpp
-    slice_ops_test.cpp
-    device_manager_test.cpp
-    cuda_kernels_test.cpp
-    gpu_tensor_test.cpp
-    gpu_tensor_ops_test.cpp
-    cuda_conv2d_nchw_ops_test.cpp
-    cuda_dense_ops_test.cpp
-    cuda_maxpool_ops_test.cpp
-    cuda_loss_funcs_test.cpp
-    cuda_batchnorm_ops_test.cpp
-    layer_device_agnosticity_test.cpp
-    residual_block_test.cpp
-    tiny_imagenet_loader_test.cpp
-    legacy_dense_layer_test.cpp
-    legacy_maxpool2d_layer_test.cpp
-    legacy_avgpool_layer_test.cpp
-    legacy_batchnorm_layer_test.cpp
-    legacy_conv2d_layer_test.cpp
-    groupnorm_layer_test.cpp
-    partitioner_test.cpp
-    archiver_test.cpp
-    bf16_test.cpp
-    fp16_test.cpp
+    test_tensor.cpp
+    test_device_manager.cpp
+    test_cuda_kernels.cpp
+    test_gpu_tensor.cpp
+    test_gpu_tensor_ops.cpp
+    test_cuda_loss_funcs.cpp
+    test_residual_block.cpp
+    test_partitioner.cpp
+    test_archiver.cpp
+    test_bf16.cpp
+    test_fp16.cpp
+    test_cpu_engine.cpp
+    test_cuda_engine.cpp
+    test_cudnn_engine.cpp
 )
 
 foreach(test_file IN LISTS TEST_FILES)
     get_filename_component(test_name ${test_file} NAME_WE)
-    create_executable(${test_file} LIBS synet_lib gtest_main gtest gmock)
+    create_executable(${test_file} LIBS tunx_lib gtest_main gtest gmock)
     gtest_discover_tests(${test_name} DISCOVERY_MODE PRE_TEST)
 endforeach()

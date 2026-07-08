@@ -1,4 +1,4 @@
-Welcome to synet's Documentation!
+Welcome to tunx's Documentation!
 ==================================
 
 .. toctree::
@@ -9,4 +9,4 @@ API Reference
 -------------
 
 .. doxygenindex::
-   :project: synet
+   :project: tunx

@@ -1,3 +1,5 @@
+#include <cudnn_graph.h>
+
 #include "nn/blocks_impl/cuda/softmax.hpp"
 
 #ifdef USE_CUDNN
@@ -7,11 +9,16 @@
 
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 
 template <typename T>
 cudnnDataType_t get_cudnn_data_type();
+
+template <>
+inline cudnnDataType_t get_cudnn_data_type<int8>() {
+  return CUDNN_DATA_INT8;
+}
 
 template <>
 inline cudnnDataType_t get_cudnn_data_type<float>() {
@@ -85,6 +92,6 @@ void softmax_backward(cudnnHandle_t handle, const T* output, const T* grad_outpu
 #undef INSTANTIATE
 
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif

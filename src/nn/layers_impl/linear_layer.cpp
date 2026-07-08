@@ -8,7 +8,7 @@
 
 #include <memory>
 
-namespace synet {
+namespace tunx {
 
 LinearLayerImpl::LinearLayerImpl(const std::string &name)
     : SISOLayerImpl(name),
@@ -39,4 +39,4 @@ std::shared_ptr<LinearLayerImpl> LinearLayerImpl::create_from_config(const Layer
   return std::make_shared<LinearLayerImpl>(config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

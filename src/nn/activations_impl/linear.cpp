@@ -13,7 +13,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 std::unique_ptr<Task> Linear::apply(const Tensor &input, Tensor &output) const {
   if (input.shape() != output.shape()) {
@@ -42,4 +42,4 @@ std::unique_ptr<ActivationFunction> Linear::clone() const {
   return std::make_unique<Linear>(*this);
 }
 
-}  // namespace synet
+}  // namespace tunx

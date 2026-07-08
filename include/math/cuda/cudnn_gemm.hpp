@@ -6,7 +6,7 @@
 
 #include "math/common/gemm.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 namespace cudnn_gemm {
 
@@ -27,11 +27,11 @@ void run_dgrad(feHandle_t *handle, const GemmStats &stats, const void *gradient_
                cudaStream_t stream);
 
 void run_wgrad(feHandle_t *handle, const GemmStats &stats, const void *input_data,
-               const void *gradient_data, void *weight_grad_data, void *workspace_data,
+               const void *gradient_data, void *grad_weight_data, void *workspace_data,
                cudaStream_t stream);
 
 }  // namespace cudnn_gemm
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif

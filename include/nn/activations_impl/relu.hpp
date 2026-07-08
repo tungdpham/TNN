@@ -8,7 +8,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 class ReLU : public ActivationFunction {
 public:
   explicit ReLU();
@@ -30,4 +30,4 @@ private:
                                               Tensor &grad_input, flowHandle_t handle) const;
 };
 
-}  // namespace synet
+}  // namespace tunx

@@ -4,15 +4,15 @@
 #include <tbb/scalable_allocator.h>
 #include <tbb/task_arena.h>
 #endif
-
+#include "type/type.hpp"
 #ifdef _OPENMP
 #include "omp.h"
 #endif
 
-namespace synet {
+namespace tunx {
 
 struct ThreadingConfig {
-  int64_t num_threads = 1;
+  int64 num_threads = 1;
 };
 
 class ThreadWrapper {
@@ -48,4 +48,4 @@ private:
 #endif
 };
 
-}  // namespace synet
+}  // namespace tunx

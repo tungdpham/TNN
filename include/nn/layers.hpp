@@ -1,111 +1,5 @@
-/*
- * Copyright (c) 2025 Tung D. Pham
- *
- * This software is licensed under the MIT License. See the LICENSE file in the
- * project root for the full license text.
- */
 #pragma once
 
-#include <istream>
-#include <memory>
-#include <string>
-
-#include "activations.hpp"
-#include "nn/layer.hpp"
-#include "tensor/tensor_ops.hpp"
-
-namespace synet {
-inline std::unique_ptr<ActivationFunction> create_activation(const std::string &name) {
-  ActivationFactory::register_defaults();
-  return ActivationFactory::create(name);
-}
-
-class LegacyDenseLayerImpl;
-class LegacyConv2DLayerImpl;
-class LegacyMaxPool2DLayerImpl;
-class LegacyAvgPool2DLayerImpl;
-class LegacyBatchNormLayerImpl;
-
-class IdentityLayerImpl;
-class DenseLayerImpl;
-class ActivationLayerImpl;
-class ReLULayerImpl;
-class ELULayerImpl;
-class GELULayerImpl;
-class LeakyReLULayerImpl;
-class LinearLayerImpl;
-class SigmoidLayerImpl;
-class TanhLayerImpl;
-class Conv2DLayerImpl;
-class MaxPool2DLayerImpl;
-class AvgPool2DLayerImpl;
-class BatchNormLayerImpl;
-class DropoutLayerImpl;
-class FlattenLayerImpl;
-class GroupNormLayerImpl;
-class LayerNormLayerImpl;
-class ClassTokenLayerImpl;
-class PositionalEmbeddingLayerImpl;
-class EmbeddingLayerImpl;
-class AttentionBlockImpl;
-class FlashAttentionBlockImpl;
-class ResidualBlockImpl;
-class SliceLayerImpl;
-class SDPALayerImpl;
-class TransposeLayerImpl;
-class SequentialImpl;
-class MSequentialImpl;
-
-// Wrapper classes (LayerRef handles)
-template <typename T>
-class LayerRef;
-class IdentityLayer;
-class DenseLayer;
-class ActivationLayer;
-class ReLULayer;
-class ELULayer;
-class GELULayer;
-class LeakyReLULayer;
-class LinearLayer;
-class SigmoidLayer;
-class TanhLayer;
-class Conv2DLayer;
-class MaxPool2DLayer;
-class AvgPool2DLayer;
-class BatchNormLayer;
-class DropoutLayer;
-class FlattenLayer;
-class GroupNormLayer;
-class LayerNormLayer;
-class ClassTokenLayer;
-class PositionalEmbeddingLayer;
-class EmbeddingLayer;
-class AttentionBlock;
-class FlashAttentionBlock;
-class ResidualBlock;
-class SliceLayer;
-class SDPALayer;
-class TransposeLayer;
-class Sequential;
-class MSequential;
-class AddLayer;
-class SubLayer;
-class MulLayer;
-class DivLayer;
-class LegacyDenseLayer;
-class LegacyConv2DLayer;
-class LegacyMaxPool2DLayer;
-class LegacyAvgPool2DLayer;
-class LegacyBatchNormLayer;
-
-class AddLayerImpl;
-class SubLayerImpl;
-class MulLayerImpl;
-class DivLayerImpl;
-
-}  // namespace synet
-
-// Wrapper to include all layer implementations
 #include "blocks_impl/attention_block.hpp"
 #include "blocks_impl/flash_attention_block.hpp"
 #include "blocks_impl/residual_block.hpp"
@@ -120,7 +14,6 @@ class DivLayerImpl;
 #include "layers_impl/embedding_layer.hpp"
 #include "layers_impl/flatten_layer.hpp"
 #include "layers_impl/gelu_layer.hpp"
-#include "layers_impl/groupnorm_layer.hpp"
 #include "layers_impl/layer_norm_layer.hpp"
 #include "layers_impl/leaky_relu_layer.hpp"
 #include "layers_impl/linear_layer.hpp"
@@ -135,13 +28,34 @@ class DivLayerImpl;
 #include "nn/blocks_impl/flash_attention_block.hpp"
 #include "nn/blocks_impl/msequential.hpp"
 #include "nn/blocks_impl/sequential.hpp"
+#include "nn/graph.hpp"  // IWYU pragma: export
+#include "nn/layer.hpp"
 #include "nn/layers_impl/add_layer.hpp"
 #include "nn/layers_impl/div_layer.hpp"
-#include "nn/layers_impl/identity_layer.hpp"
 #include "nn/layers_impl/mul_layer.hpp"
 #include "nn/layers_impl/sub_layer.hpp"
+#include "tensor/tensor_ops.hpp"
 
-namespace synet {
+namespace tunx {
+inline Node operator+(const Node &a, const Node &b) {
+  auto add_layer = make_layer<AddLayerImpl>();
+  return add_layer(a, b);
+}
+inline Node operator-(const Node &a, const Node &b) {
+  auto sub_layer = make_layer<SubLayerImpl>();
+  return sub_layer(a, b);
+}
+inline Node operator*(const Node &a, const Node &b) {
+  auto mul_layer = make_layer<MulLayerImpl>();
+  return mul_layer(a, b);
+}
+inline Node operator/(const Node &a, const Node &b) {
+  auto div_layer = make_layer<DivLayerImpl>();
+  return div_layer(a, b);
+}
+}  // namespace tunx
+
+namespace tunx {
 
 // Concept to ensure LayerType has TYPE_NAME and create_from_config
 template <typename T>
@@ -178,7 +92,6 @@ public:
   static Layer create(const LayerConfig &config) { return create(config.type, config); }
 
   static void register_defaults() {
-    register_layer_type<IdentityLayerImpl>();
     register_layer_type<DenseLayerImpl>();
     register_layer_type<ActivationLayerImpl>();
     register_layer_type<ReLULayerImpl>();
@@ -193,7 +106,6 @@ public:
     register_layer_type<AvgPool2DLayerImpl>();
     register_layer_type<BatchNormLayerImpl>();
     register_layer_type<DropoutLayerImpl>();
-    register_layer_type<GroupNormLayerImpl>();
     register_layer_type<LayerNormLayerImpl>();
     register_layer_type<FlattenLayerImpl>();
     register_layer_type<ClassTokenLayerImpl>();
@@ -243,11 +155,11 @@ std::unique_ptr<LayerType> load_config(std::istream &file) {
 inline void load_params(std::istream &in, LayerImpl &layer) {
   Vec<ParamDescriptor> params = layer.param_descriptors();
   for (auto &param : params) {
-    ops::load_tensor(*param.data_ptr, in);
+    load(*param.data_ptr, in);
   }
 }
 
 inline std::unordered_map<std::string, std::function<Layer(const LayerConfig &)>>
     LayerFactory::creators_;
 
-}  // namespace synet
+}  // namespace tunx

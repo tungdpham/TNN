@@ -6,7 +6,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 
 template <typename I_T, typename O_T>
@@ -52,4 +52,4 @@ void permute_heads(const I_T *input, O_T *output, size_t B, size_t L, size_t H, 
 #undef INSTANTIATE
 
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

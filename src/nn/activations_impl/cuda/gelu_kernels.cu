@@ -11,7 +11,7 @@
 #include "nn/activations_impl/cuda/gelu_kernels.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 
 template <typename T>
@@ -76,4 +76,4 @@ void gelu_gradient(const T* input, const T* grad_output, T* grad_input, size_t s
 #undef INSTANTIATE
 
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx

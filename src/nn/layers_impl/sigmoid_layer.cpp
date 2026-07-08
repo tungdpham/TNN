@@ -9,7 +9,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace synet {
+namespace tunx {
 
 SigmoidLayerImpl::SigmoidLayerImpl(const std::string &name)
     : SISOLayerImpl(name),
@@ -48,8 +48,8 @@ Tensor SigmoidLayerImpl::backward_impl(const Tensor &grad_output, Residuals &res
     }
   }
 #ifdef USE_CUDA
-  else if (grad_output.device_type() == DeviceType::GPU) {
-    throw std::runtime_error("SigmoidLayerImpl: GPU backward not yet implemented");
+  else if (grad_output.device_type() == DeviceType::CUDA) {
+    throw std::runtime_error("SigmoidLayerImpl: CUDA backward not yet implemented");
   }
 #endif
 
@@ -67,4 +67,4 @@ std::shared_ptr<SigmoidLayerImpl> SigmoidLayerImpl::create_from_config(const Lay
   return std::make_shared<SigmoidLayerImpl>(config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

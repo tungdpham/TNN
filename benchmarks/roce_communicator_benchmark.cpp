@@ -14,7 +14,7 @@
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 struct Config {
@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
 
   for (int i = 0; i < 4; i++) {
     Tensor tensor = Tensor({128, 512, 16, 16}, DType_t::FP32);
-    tensor.fill_random_normal(0.0f, .2f, 12345);
+    fill_normal(tensor, 0.0f, .2f, 12345);
     Job job;
     job.pid = 0;
     job.data = TensorBundle{{{"output", tensor}}};

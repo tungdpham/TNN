@@ -13,9 +13,8 @@
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
-// Element-wise division layer.
 class DivLayerImpl : public LayerImpl {
 protected:
   Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) override;
@@ -56,4 +55,4 @@ public:
   using LayerRef<DivLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

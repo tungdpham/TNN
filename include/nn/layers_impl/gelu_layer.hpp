@@ -13,13 +13,12 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class GELULayerImpl : public SISOLayerImpl {
 private:
   std::unique_ptr<GELU> activation_;
 
-protected:
   Tensor forward_impl(const Tensor &input, Residuals &residualsuals) override;
   Tensor backward_impl(const Tensor &grad_output, Residuals &residualsuals) override;
 
@@ -45,4 +44,4 @@ public:
   using LayerRef<GELULayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

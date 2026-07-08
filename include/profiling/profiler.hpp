@@ -9,7 +9,7 @@
 #include "common/blob.hpp"
 #include "event.hpp"
 
-namespace synet {
+namespace tunx {
 class Profiler {
 public:
   Profiler() = default;
@@ -113,7 +113,7 @@ private:
 template <typename Archiver>
 void archive(Archiver &archiver, const Profiler &profiler) {
   auto events = profiler.get_events();
-  archiver(static_cast<int64_t>(profiler.start_time().time_since_epoch().count()));
+  archiver(static_cast<int64>(profiler.start_time().time_since_epoch().count()));
   archiver(static_cast<uint32_t>(events.size()));
   archiver(make_blob(events.data(), events.size()));
 }
@@ -121,7 +121,7 @@ void archive(Archiver &archiver, const Profiler &profiler) {
 template <typename Archiver>
 void archive(Archiver &archiver, Profiler &profiler) {
   auto &events = profiler.get_events();
-  int64_t start_time_count;
+  int64 start_time_count;
   archiver(start_time_count);
   profiler.init_start_time(Clock::time_point(Clock::duration(start_time_count)));
   uint32_t event_count = 0;
@@ -159,4 +159,4 @@ public:
   static Vec<Event> get_events() { return global_profiler_.get_events(); }
 };
 
-}  // namespace synet
+}  // namespace tunx

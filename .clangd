@@ -1,7 +1,24 @@
 CompileFlags:
   Add:
     - -ferror-limit=0
+    - -Iinclude
+    - -I_deps/cudnn_frontend-src/include
+    - -Ibuild/_deps/cudnn_frontend-src/include
+    - -I_deps/asio-src/asio/include
+    - -I_deps/stb-src
+    - -I_deps/spdlog-src/include
+    - -I_deps/nlohmann_json-src/include
   Remove:
     - -forward-unknown-to-host-compiler
     - --generate-code=*
     - -Xcompiler=*
+    - -rdc=*
+
+---
+If:
+  PathMatch: [.*\.cu, .*\.cuh]
+CompileFlags:
+  Add:
+    - -xcuda
+
+

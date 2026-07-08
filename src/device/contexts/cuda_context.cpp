@@ -1,5 +1,5 @@
-#include <cudnn_graph.h>
 #ifdef USE_CUDA
+#include <cudnn_graph.h>
 #include <cuda_runtime.h>
 #include <nvml.h>
 
@@ -10,7 +10,7 @@
 #include "device/cuda/cuda_context.hpp"
 #include "device/flow.hpp"
 
-namespace synet {
+namespace tunx {
 
 CUDAContext::CUDAContext(int id)
     : Context(),
@@ -141,6 +141,6 @@ Flow *CUDAContext::getFlow(flowHandle_t handle) {
   }
 }
 
-}  // namespace synet
+}  // namespace tunx
 
 #endif  // USE_CUDA

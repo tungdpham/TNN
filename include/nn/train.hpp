@@ -28,7 +28,7 @@
 #include <mkl.h>
 #endif
 
-namespace synet {
+namespace tunx {
 enum class ProfilerType { NONE = 0, NORMAL = 1, CUMULATIVE = 2 };
 enum class TrainingMode { CLASSIFICATION = 0, REGRESSION = 1, CUSTOM = 2 };
 
@@ -40,7 +40,7 @@ struct TrainingConfig {
   // Trainer params
   int epochs = 10;
   size_t batch_size = 32;
-  int64_t max_steps = -1;  // -1 for no limit, otherwise max number of batches per epoch
+  int64 max_steps = -1;  // -1 for no limit, otherwise max number of batches per epoch
   //   "epoch" -> full dataloader epoch, then validation + epoch CSV summary.
   //   "batch" -> fixed-step training loop for GPT/OpenWebText style runs.
   //   "auto"  -> old behavior: epoch if max_steps == -1, batch otherwise.
@@ -48,7 +48,7 @@ struct TrainingConfig {
   float lr_initial = 0.001f;
   int gradient_accumulation_steps = 1;
   int progress_print_interval = 100;
-  int64_t num_threads = 8;  // Typical number of P-Cores on laptop CPUs
+  int64 num_threads = 8;  // Typical number of P-Cores on laptop CPUs
   ProfilerType profiler_type = ProfilerType::NONE;
   bool print_layer_profiling = false;
   bool print_layer_memory_usage = false;
@@ -94,4 +94,4 @@ void train_model(Graph &graph, std::unique_ptr<BaseDataLoader> &train_loader,
                  const std::unique_ptr<Loss> &criterion, std::unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config = TrainingConfig());
 
-}  // namespace synet
+}  // namespace tunx

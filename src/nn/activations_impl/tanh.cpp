@@ -14,7 +14,7 @@
 #include "nn/activations_impl/cuda/tanh_kernels.hpp"
 #endif
 
-namespace synet {
+namespace tunx {
 
 std::unique_ptr<Task> Tanh::apply(const Tensor &input, Tensor &output) const {
   if (input.shape() != output.shape()) {
@@ -56,7 +56,7 @@ std::unique_ptr<Task> Tanh::apply_impl(const Tensor &input, Tensor &output,
                            output.data_as<Compute_T>(), size);
   }
 #ifdef USE_CUDA
-  else if (input.device_type() == DeviceType::GPU) {
+  else if (input.device_type() == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::tanh<Compute_T>, input.data_as<Compute_T>(),
                             output.data_as<Compute_T>(), size);
   }
@@ -81,7 +81,7 @@ std::unique_ptr<Task> Tanh::compute_gradient_impl(const Tensor &input, const Ten
                            grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(), size);
   }
 #ifdef USE_CUDA
-  else if (grad_output.device_type() == DeviceType::GPU) {
+  else if (grad_output.device_type() == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::tanh_gradient<Compute_T>, input.data_as<Compute_T>(),
                             grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(),
                             size);
@@ -93,4 +93,4 @@ std::unique_ptr<Task> Tanh::compute_gradient_impl(const Tensor &input, const Ten
   return nullptr;
 }
 
-}  // namespace synet
+}  // namespace tunx

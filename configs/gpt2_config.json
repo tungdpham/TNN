@@ -8,7 +8,7 @@
   "print_layer_profiling": false,
   "print_layer_memory_usage": false,
   "num_microbatches": 2,
-  "device_type": "GPU",
+  "device_type": "CUDA",
   "model_name": "flash_gpt2_small",
   "model_path": "",
   "dataset_name": "open_webtext",

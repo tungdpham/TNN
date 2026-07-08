@@ -21,7 +21,7 @@
 #include "nn/example_graphs.hpp"
 #include "partitioner/graph_partitioner.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 int main(int argc, char *argv[]) {
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
 
   // hard-coded for now
   auto worker = std::make_unique<TCPWorker>(local_worker_endpoint,
-                                            train_config.device_type == DeviceType::GPU);
+                                            train_config.device_type == DeviceType::CUDA);
 
   auto partitioner = make_unique<GraphPartitioner>(tcp_config.partition_ratios);
 

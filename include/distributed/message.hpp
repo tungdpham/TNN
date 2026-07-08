@@ -17,7 +17,7 @@
 #include "job.hpp"
 #include "profiling/profiler.hpp"
 
-namespace synet {
+namespace tunx {
 using PayloadType = Variant<std::monostate, Job, std::string, bool, Profiler, StageConfig>;
 
 struct MessageHeader {
@@ -139,4 +139,4 @@ void archive(Archiver &archiver, const Message &message) {
   archiver(message.header(), message.data());
 }
 
-}  // namespace synet
+}  // namespace tunx

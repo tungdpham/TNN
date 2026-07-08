@@ -1,7 +1,7 @@
 # CMakeLists.txt
 cmake_minimum_required(VERSION 3.18)
 
-project(SYNET LANGUAGES CXX)
+project(tunx LANGUAGES CXX)
 
 # Add cmake modules directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -58,6 +58,7 @@ endif()
 
 if(ENABLE_CUDA)
     include(FindCUDA)
+    include(FindCUDNN)
 endif()
 
 include(Dependencies)

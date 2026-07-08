@@ -10,4 +10,4 @@
 #include "distributed/tcp_coordinator.hpp"
 #include "distributed/tcp_worker.hpp"
 
-namespace synet {}  // namespace synet
+namespace tunx {}  // namespace tunx

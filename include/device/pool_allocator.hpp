@@ -14,7 +14,7 @@
 #include "device/flow.hpp"
 #include "device/iallocator.hpp"
 
-namespace synet {
+namespace tunx {
 
 // Allocates a device pointer that contains a storage block that can be shared and automatically
 // reclaimed by allocator by installing a custom deleter in device_storage's shared_ptr.
@@ -111,4 +111,4 @@ private:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

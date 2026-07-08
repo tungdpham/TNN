@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 template <typename T>
 void elu(const T *input, T *output, size_t size, T alpha, cudaStream_t stream);
@@ -14,6 +14,6 @@ template <typename T>
 void elu_gradient(const T *input, const T *grad_output, T *grad_input, size_t size, T alpha,
                   cudaStream_t stream);
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif  // USE_CUDA

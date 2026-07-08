@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build script for SYNET project
+# Build script for tunx project
 
 set -e 
 
@@ -33,6 +33,7 @@ show_help() {
     echo "  --tbb               Enable Intel TBB support (on by default)"
     echo "  --openmp            Enable OpenMP support"
     echo "  --mkl               Enable Intel MKL support (off by default)"
+    echo "  --cuda              Enable CUDA support (off by default)"
     echo "  --dnnl              Enable Intel oneDNN (DNNL) support (off by default)"
     echo ""
     echo "Examples:"
@@ -43,6 +44,7 @@ show_help() {
     echo "  $0 --openmp         # Enable OpenMP support"
     echo "  $0 --dnnl           # Enable Intel oneDNN support"
     echo "  $0 --mkl            # Enable Intel MKL support"
+    echo "  $0 --cuda           # Enable CUDA support"
     echo "  $0 --docs           # Build documentation with Doxygen"
 }
 
@@ -99,7 +101,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # print build configuration
-echo -e "${GREEN}SYNET CMake Build Configuration:${NC}"
+echo -e "${GREEN}tunx CMake Build Configuration:${NC}"
 echo "  Build Type: $BUILD_TYPE"
 echo "  OpenMP: $ENABLE_OPENMP"
 echo "  Intel TBB: $ENABLE_TBB"

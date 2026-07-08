@@ -1,6 +1,6 @@
 # doc/conf.py.in
 
-project = 'synet'
+project = 'tunx'
 copyright = '2026, Tung pham'
 author = 'Tung pham'
 release = '1.0'
@@ -11,8 +11,8 @@ extensions = [
 ]
 
 breathe_projects = {
-  "synet": "/home/unixaccount/workspace/synet/doc/xml"
+  "tunx": "/home/unixaccount/workspace/tunx/doc/xml"
 }
-breathe_default_project = "synet"
+breathe_default_project = "tunx"
 
 html_theme = 'sphinx_rtd_theme'

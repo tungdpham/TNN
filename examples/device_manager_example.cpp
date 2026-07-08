@@ -4,7 +4,7 @@
 
 #include "device/device_manager.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 int main() {
@@ -22,7 +22,7 @@ int main() {
     for (const string &device_id : device_ids) {
       const Device &device = manager.getDevice(device_id);
       cout << "  Device " << device_id << ": " << device.getName()
-           << " (Type: " << (device.device_type() == DeviceType::CPU ? "CPU" : "GPU") << ")"
+           << " (Type: " << (device.device_type() == DeviceType::CPU ? "CPU" : "CUDA") << ")"
            << endl;
 
       size_t total_mem = device.getTotalMemory();
@@ -60,18 +60,18 @@ int main() {
     for (const string &device_id : device_ids) {
       if (device_id > "0") {
         const Device &device = manager.getDevice(device_id);
-        if (device.device_type() == DeviceType::GPU) {
-          cout << "Testing allocation on GPU device " << device_id << "..." << endl;
+        if (device.device_type() == DeviceType::CUDA) {
+          cout << "Testing allocation on CUDA device " << device_id << "..." << endl;
 
           size_t test_size = 1024 * 1024 * 1024;
           void *ptr = device.allocateMemory(test_size);
 
           if (ptr != nullptr) {
-            cout << "  Successfully allocated " << test_size << " bytes on GPU" << endl;
+            cout << "  Successfully allocated " << test_size << " bytes on CUDA" << endl;
             device.deallocateMemory(ptr);
-            cout << "  Successfully deallocated GPU memory" << endl;
+            cout << "  Successfully deallocated CUDA memory" << endl;
           } else {
-            cout << "  Failed to allocate GPU memory" << endl;
+            cout << "  Failed to allocate CUDA memory" << endl;
           }
           found_gpu = true;
           break;
@@ -80,7 +80,7 @@ int main() {
     }
 
     if (!found_gpu) {
-      cout << "No GPU devices available for testing" << endl;
+      cout << "No CUDA devices available for testing" << endl;
     }
 
   } catch (const exception &e) {

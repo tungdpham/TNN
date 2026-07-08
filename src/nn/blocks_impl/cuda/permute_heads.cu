@@ -7,7 +7,7 @@
 #include "nn/blocks_impl/cuda/permute_heads.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 
 template <typename I_T, typename O_T>
@@ -44,6 +44,7 @@ void permute_heads(const I_T* input, O_T* output, size_t B, size_t L, size_t H, 
   template void permute_heads<I_T, O_T>(const I_T* input, O_T* output, size_t B, size_t L, \
                                         size_t H, size_t D, cudaStream_t stream);
 #define INSTANTIATE(I_T)       \
+  INSTANTIATE_BOTH(I_T, int8)  \
   INSTANTIATE_BOTH(I_T, fp16)  \
   INSTANTIATE_BOTH(I_T, bf16)  \
   INSTANTIATE_BOTH(I_T, float) \
@@ -55,4 +56,4 @@ void permute_heads(const I_T* input, O_T* output, size_t B, size_t L, size_t H, 
 #undef INSTANTIATE_BOTH
 
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx

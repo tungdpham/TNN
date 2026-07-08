@@ -9,13 +9,11 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <unordered_map>
 
-#include "device/task.hpp"
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class AvgPool2DLayerImpl : public SISOLayerImpl {
 private:
@@ -25,16 +23,6 @@ private:
   size_t stride_w_;
   size_t pad_h_;
   size_t pad_w_;
-
-  template <typename Compute_T>
-  std::unique_ptr<Task> run_forward(const Tensor &input_data, Tensor &output_data,
-                                    size_t batch_size, size_t height, size_t width, size_t channels,
-                                    size_t output_h, size_t output_w, flowHandle_t handle) const;
-  template <typename Compute_T>
-  std::unique_ptr<Task> run_backward(const Tensor &gradient_data, Tensor &grad_input_data,
-                                     size_t batch_size, size_t input_h, size_t input_w,
-                                     size_t channels, size_t output_h, size_t output_w,
-                                     flowHandle_t handle) const;
 
   Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
   Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
@@ -61,4 +49,4 @@ public:
   using LayerRef<AvgPool2DLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

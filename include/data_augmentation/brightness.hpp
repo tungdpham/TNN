@@ -8,7 +8,7 @@
 #include "augmentation.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace synet {
+namespace tunx {
 
 class BrightnessAugmentation : public Augmentation {
 public:
@@ -37,7 +37,7 @@ private:
 
     if (data.dims() != 4) return;
 
-    size_t batch_size = data.dimension(0);
+    size_t batch_size = data.dim(0);
     size_t spatial_size = data.stride(0);
     T *ptr = data.data_as<T>();
 
@@ -60,4 +60,4 @@ private:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

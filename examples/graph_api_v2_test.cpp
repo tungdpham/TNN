@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "data_loading/data_loader_factory.hpp"
+#include "device/device_manager.hpp"
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/graph.hpp"
@@ -10,24 +11,25 @@
 #include "nn/optimizers.hpp"
 
 using namespace std;
-using namespace synet;
+using namespace tunx;
 
-std::shared_ptr<Graph> make_mnist_model() {
+std::shared_ptr<Graph> make_mnist_model(const Device& device) {
   auto graph = make_shared<Graph>();
 
   auto input = graph->input("input");
 
   auto conv2d_1 = Conv2DLayer(1, 8, 5, 5, 1, 1, 0, 0, false, "conv1");
-  auto bn1 = BatchNormLayer(8, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn1");
+  auto bn1 = BatchNormLayer(8, 1e-5, 0.1f, true, true, "bn1");
   auto pool1 = MaxPool2DLayer(3, 3, 3, 3, 0, 0, "pool1");
   auto conv2d_2 = Conv2DLayer(8, 16, 1, 1, 1, 1, 0, 0, false, "conv2_1x1");
-  auto bn2_1x1 = BatchNormLayer(16, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn2_1x1");
+  auto bn2_1x1 = BatchNormLayer(16, 1e-5, 0.1f, true, true, "bn2_1x1");
   auto conv2d_3 = Conv2DLayer(16, 48, 5, 5, 1, 1, 0, 0, false, "conv3");
-  auto bn3 = BatchNormLayer(48, dtype_eps(DType_t::FP32), 0.1f, true, true, "bn3");
+  auto bn3 = BatchNormLayer(48, 1e-5, 0.1f, true, true, "bn3");
   auto pool2 = MaxPool2DLayer(2, 2, 2, 2, 0, 0, "pool2");
   auto flatten = FlattenLayer(1, -1, "flatten");
   auto fc = DenseLayer(192, 10, false, "output");
 
+  // testing
   auto x = conv2d_1(input);
   x = bn1(x);
   x = pool1(x);
@@ -41,7 +43,7 @@ std::shared_ptr<Graph> make_mnist_model() {
   output->set_uid("output");
   graph->set_output(output);
 
-  auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
+  auto& allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
 
   graph->compile(allocator);
 
@@ -51,7 +53,8 @@ std::shared_ptr<Graph> make_mnist_model() {
 signed main() {
   cout << "Testing Graph API v2" << endl;
 
-  auto graph = make_mnist_model();
+  const Device& device = getHost();
+  auto graph = make_mnist_model(device);
 
   auto [train_loader, val_loader] = DataLoaderFactory::create("mnist", "data/mnist");
   if (!train_loader || !val_loader) {
@@ -63,7 +66,7 @@ signed main() {
   Tensor data, labels;
 
   auto criterion = LossFactory::create_crossentropy(true, 1e-15);
-  auto optimizer = OptimizerFactory::create_adam(0.001f, 0.9f, 0.999f);
+  auto optimizer = OptimizerFactory::create_adam(0.01f, 0.9f, 0.999f);
 
   optimizer->attach(*graph);
 
@@ -76,8 +79,8 @@ signed main() {
     int batch_idx = 0;
     // train
     while (train_loader->get_batch(256, data, labels)) {
-      data = data.to_device(getGPU());
-      labels = labels.to_device(getGPU());
+      data = data.to_device(device);
+      labels = labels.to_device(device);
 
       auto input_map = TensorBundle({
           {"input", data},
@@ -97,7 +100,7 @@ signed main() {
           {"output", grad_output},
       });
 
-      auto input_grad_map = graph->backward(output_grad_map);
+      auto grad_input_map = graph->backward(output_grad_map);
 
       optimizer->update();
       optimizer->zero_grads();
@@ -114,8 +117,8 @@ signed main() {
     int val_samples = 0;
     int val_corrects = 0;
     while (val_loader->get_batch(256, data, labels)) {
-      data = data.to_device(getGPU());
-      labels = labels.to_device(getGPU());
+      data = data.to_device(device);
+      labels = labels.to_device(device);
       auto input_map = TensorBundle({
           {"input", data},
       });

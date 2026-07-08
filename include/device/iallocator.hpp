@@ -9,7 +9,7 @@
 #include "device/device.hpp"
 #include "device/dptr.hpp"
 
-namespace synet {
+namespace tunx {
 
 // Allocators should return a dptr whose internal storage is reclaimed by the allocator itself
 class IAllocator {
@@ -28,4 +28,4 @@ public:
 
   virtual const Device &device() const = 0;
 };
-}  // namespace synet
+}  // namespace tunx

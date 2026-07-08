@@ -16,7 +16,7 @@
 
 #include "logging/logger.hpp"
 
-namespace synet {
+namespace tunx {
 
 struct LogMode {
   bool log_loss = true;
@@ -98,4 +98,4 @@ public:
   void flush() { compute_logger_.flush(); }
 };
 
-}  // namespace synet
+}  // namespace tunx

@@ -9,7 +9,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace synet {
+namespace tunx {
 
 LeakyReLULayerImpl::LeakyReLULayerImpl(float negative_slope, const std::string &name)
     : SISOLayerImpl(name),
@@ -34,8 +34,8 @@ Tensor LeakyReLULayerImpl::forward_impl(const Tensor &input, Residuals &residual
       }
     }
 #ifdef USE_CUDA
-    else if (input.device_type() == DeviceType::GPU) {
-      throw std::runtime_error("LeakyReLULayerImpl: GPU mask computation not yet implemented");
+    else if (input.device_type() == DeviceType::CUDA) {
+      throw std::runtime_error("LeakyReLULayerImpl: CUDA mask computation not yet implemented");
     }
 #endif
   } else {
@@ -65,8 +65,8 @@ Tensor LeakyReLULayerImpl::backward_impl(const Tensor &grad_output, Residuals &r
     }
   }
 #ifdef USE_CUDA
-  else if (grad_output.device_type() == DeviceType::GPU) {
-    throw std::runtime_error("LeakyReLULayerImpl: GPU backward not yet implemented");
+  else if (grad_output.device_type() == DeviceType::CUDA) {
+    throw std::runtime_error("LeakyReLULayerImpl: CUDA backward not yet implemented");
   }
 #endif
 
@@ -87,4 +87,4 @@ std::shared_ptr<LeakyReLULayerImpl> LeakyReLULayerImpl::create_from_config(
   return std::make_shared<LeakyReLULayerImpl>(negative_slope, config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

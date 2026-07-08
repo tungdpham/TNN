@@ -9,49 +9,43 @@
 #include <memory>
 #include <stdexcept>
 
-#include "device/task.hpp"
-#include "nn/layers_impl/cpu/relu_ops.hpp"
-#ifdef USE_CUDA
-#include "nn/layers_impl/cuda/relu_ops.hpp"
-#endif
+#include "nn/engines/iengine.hpp"
+#include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 ReLULayerImpl::ReLULayerImpl(const std::string &name)
-    : SISOLayerImpl(name),
-      activation_(std::make_unique<ReLU>()) {}
+    : SISOLayerImpl(name) {}
 
 Tensor ReLULayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   Tensor output = get_tensor(input.shape(), io_dtype_);
-  size_t num_elements = input.size();
+
+  size_t batch_size = input.dims() > 0 ? input.dim(0) : 1;
+  size_t spatial_size = input.dims() > 0 ? input.stride(0) : 1;
+
+  ReLUStats stats{
+      .batch_size = batch_size,
+      .spatial_size = spatial_size,
+  };
+
+  DTypeDesc type_desc{
+      .io_dtype = io_dtype_,
+      .param_dtype = param_dtype_,
+      .compute_dtype = compute_dtype_,
+  };
+
+  WorkspaceReq ws_req = engine_->query_relu_graph(backend_handle_, stats, type_desc);
+  Tensor ws = get_tensor({ws_req.fwd_workspace}, DType_t::BYTE);
 
   if (this->is_training_) {
-    Tensor mask = this->get_tensor(input.shape(), DType_t::UINT8_T);
+    Tensor mask = this->get_tensor(input.shape(), DType_t::BOOL);
     residuals["mask"] = mask;
 
-    // Fused kernel: compute ReLU and mask in a single pass
-    if (input.device_type() == DeviceType::CPU) {
-      DISPATCH_DTYPE(input.dtype(), T, {
-        create_cpu_task(this->flow_handle_, cpu::relu::relu_forward_with_mask<T>,
-                        input.data_as<T>(), output.data_as<T>(), mask.data_as<uint8_t>(),
-                        num_elements);
-      });
-    }
-#ifdef USE_CUDA
-    else if (input.device_type() == DeviceType::GPU) {
-      DISPATCH_DTYPE(input.dtype(), T, {
-        create_cuda_task(this->flow_handle_, cuda::relu::relu_forward_with_mask<T>,
-                         input.data_as<T>(), output.data_as<T>(), mask.data_as<uint8_t>(),
-                         num_elements);
-      });
-    }
-#endif
-    else {
-      throw std::runtime_error("ReLULayerImpl: Unsupported device type");
-    }
+    engine_->relu_fwd(backend_handle_, stats, input.data_as<void>(), output.data_as<void>(),
+                      mask.data_as<bool>(), ws.data_as<void>(), type_desc);
   } else {
-    // Inference mode: just apply activation
-    activation_->apply(input, output);
+    engine_->relu_fwd(backend_handle_, stats, input.data_as<void>(), output.data_as<void>(),
+                      nullptr, ws.data_as<void>(), type_desc);
   }
 
   return output;
@@ -64,27 +58,26 @@ Tensor ReLULayerImpl::backward_impl(const Tensor &grad_output, Residuals &residu
   }
 
   Tensor grad_input = get_tensor(grad_output.shape(), io_dtype_);
-  size_t num_elements = grad_output.size();
 
-  if (grad_output.device_type() == DeviceType::CPU) {
-    DISPATCH_DTYPE(grad_output.dtype(), T, {
-      create_cpu_task(this->flow_handle_, cpu::relu::relu_backward_with_mask<T>,
-                      grad_output.data_as<T>(), grad_input.data_as<T>(), mask.data_as<uint8_t>(),
-                      num_elements);
-    });
-  }
-#ifdef USE_CUDA
-  else if (grad_output.device_type() == DeviceType::GPU) {
-    DISPATCH_DTYPE(grad_output.dtype(), T, {
-      create_cuda_task(this->flow_handle_, cuda::relu::relu_backward_with_mask<T>,
-                       grad_output.data_as<T>(), grad_input.data_as<T>(), mask.data_as<uint8_t>(),
-                       num_elements);
-    });
-  }
-#endif
-  else {
-    throw std::runtime_error("ReLULayerImpl: Unsupported device type");
-  }
+  size_t batch_size = grad_output.dims() > 0 ? grad_output.dim(0) : 1;
+  size_t spatial_size = grad_output.dims() > 0 ? grad_output.stride(0) : 1;
+
+  ReLUStats stats{
+      .batch_size = batch_size,
+      .spatial_size = spatial_size,
+  };
+
+  DTypeDesc type_desc{
+      .io_dtype = io_dtype_,
+      .param_dtype = param_dtype_,
+      .compute_dtype = compute_dtype_,
+  };
+
+  WorkspaceReq ws_req = engine_->query_relu_graph(backend_handle_, stats, type_desc);
+  Tensor ws = get_tensor({ws_req.bwd_workspace}, DType_t::BYTE);
+
+  engine_->relu_bwd(backend_handle_, stats, grad_output.data_as<void>(), grad_input.data_as<void>(),
+                    mask.data_as<bool>(), ws.data_as<void>(), type_desc);
 
   return grad_input;
 }
@@ -100,4 +93,4 @@ std::shared_ptr<ReLULayerImpl> ReLULayerImpl::create_from_config(const LayerConf
   return std::make_shared<ReLULayerImpl>(config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

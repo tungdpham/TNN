@@ -4,11 +4,11 @@
 #pragma once
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 
 template <typename I_T, typename O_T>
 void permute_heads(const I_T *input, O_T *output, size_t B, size_t L, size_t H, size_t D);
 
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

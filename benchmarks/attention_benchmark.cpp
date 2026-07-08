@@ -4,8 +4,9 @@
 #include "nn/blocks_impl/attention_block.hpp"
 #include "nn/blocks_impl/flash_attention_block.hpp"
 #include "tensor/tensor.hpp"
+#include "tensor/tensor_ops.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 constexpr size_t BATCH_SIZE = 16;
@@ -32,7 +33,7 @@ signed main() {
     attn_params[i].data_ptr->copy_to(*flash_attn_params[i].data_ptr);
   }
   Tensor input_data = Tensor({BATCH_SIZE, SEQ_LEN, EMBED_DIM}, DType_t::FP32, getGPU());
-  input_data.fill_random_normal(0.5f, 0.2f, 676767);
+  fill_normal(input_data, 0.5f, 0.2f, 676767);
 
   Residuals residuals;
   Residuals legacy_residuals;

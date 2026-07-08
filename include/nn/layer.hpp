@@ -20,10 +20,11 @@
 #include "common/config.hpp"
 #include "device/del_allocator_v2.hpp"
 #include "device/engine.hpp"
+#include "nn/engine.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 using LayerConfig = TConfig;
 
 struct ParamDescriptor {
@@ -46,44 +47,44 @@ inline size_t get_shapes_bytes(const Vec<Vec<size_t>> &shapes, DType_t dtype) {
 }
 
 namespace detail {
-struct ResidualsMap {
+struct ResidualObject {
 public:
-  using ResidualValue = std::variant<std::monostate, std::map<std::string, ResidualsMap>, Tensor>;
+  using ResidualValue = std::variant<std::monostate, std::map<std::string, ResidualObject>, Tensor>;
 
   ResidualValue data_;
 
-  ResidualsMap()
+  ResidualObject()
       : data_(std::monostate{}) {}
-  ~ResidualsMap() = default;
-  ResidualsMap(const ResidualsMap &) = delete;
-  ResidualsMap &operator=(const ResidualsMap &) = delete;
-  ResidualsMap(ResidualsMap &&) = default;
-  ResidualsMap &operator=(ResidualsMap &&) = default;
+  ~ResidualObject() = default;
+  ResidualObject(const ResidualObject &) = delete;
+  ResidualObject &operator=(const ResidualObject &) = delete;
+  ResidualObject(ResidualObject &&) = default;
+  ResidualObject &operator=(ResidualObject &&) = default;
 
-  ResidualsMap &operator[](const std::string &key) {
+  ResidualObject &operator[](const std::string &key) {
     if (data_.index() == 0) {
-      data_ = std::map<std::string, ResidualsMap>{};
+      data_ = std::map<std::string, ResidualObject>{};
     } else if (data_.index() == 1) {
       // already a map, do nothing
     } else if (data_.index() == 2) {
-      throw std::runtime_error("ResidualsMap: Attempting to index into a leaf node");
+      throw std::runtime_error("ResidualObject: Attempting to index into a leaf node");
     }
 
     return std::get<1>(data_)[key];
   }
 
-  ResidualsMap &operator=(const Tensor &tensor) {
+  ResidualObject &operator=(const Tensor &tensor) {
     if (data_.index() == 0) {
       data_ = tensor;
     } else if (data_.index() == 1) {
-      throw std::runtime_error("ResidualsMap: Attempting to assign a Tensor to a non-leaf node");
+      throw std::runtime_error("ResidualObject: Attempting to assign a Tensor to a non-leaf node");
     }
     return *this;
   }
 
   operator Tensor &() {
     if (data_.index() != 2) {
-      throw std::runtime_error("ResidualsMap: Attempting to convert a non-leaf node to Tensor");
+      throw std::runtime_error("ResidualObject: Attempting to convert a non-leaf node to Tensor");
     }
     return std::get<2>(data_);
   }
@@ -91,10 +92,8 @@ public:
 
 }  // namespace detail
 
-using Residuals = detail::ResidualsMap;
+using Residuals = detail::ResidualObject;
 
-// Single input/output layer interface. Can be easily extended to multiple inputs/outputs later if
-// needed.
 class LayerImpl : public virtual std::enable_shared_from_this<LayerImpl> {
 public:
   LayerImpl() = default;
@@ -126,6 +125,10 @@ public:
   DType_t get_compute_dtype() const;
   LayerImpl &set_training(bool training);
   bool is_training() const;
+  LayerImpl &set_engine(Engine engine);
+  Engine get_engine();
+  void set_backend_handle(void *handle);
+  void *get_backend_handle() const;
 
   virtual Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const = 0;
   std::string name() const { return name_; }
@@ -161,6 +164,7 @@ public:
 
 protected:
   virtual void on_set_engine_type(EngineType engine_type) {}
+  virtual void on_set_engine(Engine engine) {}
   virtual void init_impl() {}
   virtual void on_set_allocator(DELAllocatorV2 &allocator) {}
   virtual void on_set_flow_handle(flowHandle_t handle) {}
@@ -169,12 +173,15 @@ protected:
   virtual void on_set_io_dtype(DType_t dtype) {}
   virtual void on_set_param_dtype(DType_t dtype) {}
   virtual void on_set_compute_dtype(DType_t dtype) {}
+  virtual void on_set_backend_handle(void *handle) {}
   virtual Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) = 0;
   virtual Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) = 0;
 
 protected:
   bool initialized_ = false;
   EngineType engine_type_ = EngineType::UNKNOWN;
+  Engine engine_;
+  void *backend_handle_;
   DELAllocatorV2 *allocator_ = nullptr;
   bool is_training_ = true;
   bool is_fwd_ = false;
@@ -457,4 +464,4 @@ auto make_layer(Args &&...args) -> LayerRef<LayerType> {
                        DISPATCH_DTYPE(this->compute_dtype_, COMP_T,                        \
                                       method_name<IO_T, PARAM_T, COMP_T>(__VA_ARGS__);))); \
   } while (0)
-}  // namespace synet
+}  // namespace tunx

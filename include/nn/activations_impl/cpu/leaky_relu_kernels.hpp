@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 
 template <typename T>
@@ -13,4 +13,4 @@ void leaky_relu_gradient(const T *input, const T *grad_output, T *grad_input, si
                          T negative_slope);
 
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

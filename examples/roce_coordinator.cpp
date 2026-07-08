@@ -11,7 +11,7 @@
 #include "nn/optimizers.hpp"
 #include "partitioner/graph_partitioner.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 void print_usage(const char *program_name) {
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
   Endpoint local_worker_endpoint = Endpoint::roce(roce_config.host, roce_config.port,
                                                   roce_config.device_name, roce_config.gid_index);
   auto local_worker =
-      std::make_unique<RoCEWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
+      std::make_unique<RoCEWorker>(local_worker_endpoint, device_type == DeviceType::CUDA);
   roce_config.worker_endpoints.push_back(local_worker_endpoint);
 
   auto partitioner = std::make_unique<GraphPartitioner>(roce_config.partition_ratios);

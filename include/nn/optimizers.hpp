@@ -21,8 +21,9 @@
 #include "optimizers_impl/cuda/adam_kernels.hpp"
 #include "optimizers_impl/cuda/sgd_kernels.hpp"
 #include "tensor/tensor.hpp"
+#include "tensor/tensor_ops.hpp"
 
-namespace synet {
+namespace tunx {
 
 using OptimizerConfig = TConfig;
 
@@ -111,7 +112,7 @@ protected:
         velocities_[i] =
             Tensor(this->parameters_[i]->shape(), this->parameters_[i]->dtype(),
                    PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
-        velocities_[i].fill(0.0f);
+        fill(velocities_[i], 0.0f);
       }
     }
   }
@@ -135,7 +136,7 @@ private:
       }
     }
 #ifdef USE_CUDA
-    else if (param.device_type() == DeviceType::GPU) {
+    else if (param.device_type() == DeviceType::CUDA) {
       if (momentum_ > 0.0f) {
         create_cuda_task(defaultFlowHandle, cuda::sgd::update_sgd_momentum<T>, param.data_as<T>(),
                          grad.data_as<T>(), velocity.data_as<T>(), size, this->learning_rate_,
@@ -208,10 +209,10 @@ protected:
     for (size_t i = 0; i < this->parameters_.size(); ++i) {
       m_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->dtype(),
                      PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
-      m_[i].fill(0.0f);
+      fill(m_[i], 0.0f);
       v_[i] = Tensor(this->parameters_[i]->shape(), this->parameters_[i]->dtype(),
                      PoolAllocator::instance(this->parameters_[i]->device(), defaultFlowHandle));
-      v_[i].fill(0.0f);
+      fill(v_[i], 0.0f);
     }
     t_ = 0;
   }
@@ -237,7 +238,7 @@ private:
                       decouple_weight_decay_);
     }
 #ifdef USE_CUDA
-    else if (param.device_type() == DeviceType::GPU) {
+    else if (param.device_type() == DeviceType::CUDA) {
       create_cuda_task(defaultFlowHandle, cuda::adam::update_adam<T>, param.data_as<T>(),
                        grad.data_as<T>(), m.data_as<T>(), v.data_as<T>(), size,
                        this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
@@ -285,4 +286,4 @@ public:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

@@ -12,7 +12,7 @@
 #include "coordinator.hpp"
 #include "tcp_communicator.hpp"
 
-namespace synet {
+namespace tunx {
 
 struct TCPConfig {
   std::string host = "";
@@ -94,4 +94,4 @@ public:
   ~NetworkCoordinator() = default;
 };
 
-}  // namespace synet
+}  // namespace tunx

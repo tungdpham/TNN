@@ -18,7 +18,7 @@
 #include "nn/graph.hpp"
 #include "nn/layer.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * @brief Residual block implementing skip connections: output = F(x) + x
@@ -41,7 +41,7 @@ public:
   /**
    * @brief Constructs a residual block
    * @param main_path The main transformation path F(x) as a vector of layers
-   * @param shortcut_path Optional projection path for dimension matching (empty for identity)
+   * @param shortcut_path Optional projection path for dim matching (empty for identity)
    * @param final_activation Activation applied after addition (e.g., "relu")
    * @param name LayerImpl name
    */
@@ -100,4 +100,4 @@ public:
 
   using LayerRef<ResidualBlockImpl>::LayerRef;
 };
-}  // namespace synet
+}  // namespace tunx

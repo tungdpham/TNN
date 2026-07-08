@@ -6,7 +6,7 @@
 #include "nn/layers_impl/legacy_conv2d_layer.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 signed main() {
@@ -25,7 +25,7 @@ signed main() {
   graph.compile(allocator);
 
   Tensor input_data = Tensor({128, 224, 224, 16}, DType_t::FP32, getGPU());
-  input_data.fill_random_normal(0.5f, 0.2f, 676767);
+  fill_normal(input_data, 0.5f, 0.2f, 676767);
 
   Residuals residuals;
   // cold pass
@@ -51,7 +51,7 @@ signed main() {
             << std::endl;
 
   Tensor nchw_input = Tensor({128, 16, 224, 224}, DType_t::FP32, getGPU());
-  nchw_input.fill_random_normal(0.5f, 0.2f, 676767);
+  fill_normal(nchw_input, 0.5f, 0.2f, 676767);
 
   // legacy conv2d benchmark
   // cold pass

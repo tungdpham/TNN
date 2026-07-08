@@ -2,7 +2,7 @@
 
 #include "data_loader.hpp"
 
-namespace synet {
+namespace tunx {
 /**
  * Specialized base class for image classification datasets
  * Provides common functionality for image-based datasets like MNIST, CIFAR,
@@ -35,4 +35,4 @@ protected:
   using BaseDataLoader::rng_;
 };
 
-}  // namespace synet
+}  // namespace tunx

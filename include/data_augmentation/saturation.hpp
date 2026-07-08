@@ -8,7 +8,7 @@
 #include "augmentation.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace synet {
+namespace tunx {
 
 class SaturationAugmentation : public Augmentation {
 public:
@@ -32,16 +32,16 @@ private:
 
   template <typename T>
   void apply_impl(Tensor &data, Tensor &labels) {
-    if (data.dims() != 4 || data.dimension(3) != 3) return;
+    if (data.dims() != 4 || data.dim(3) != 3) return;
 
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
     std::uniform_real_distribution<float> factor_dist(1.0f - saturation_range_,
                                                       1.0f + saturation_range_);
 
-    size_t batch_size = data.dimension(0);
-    size_t height = data.dimension(1);
-    size_t width = data.dimension(2);
-    size_t channels = data.dimension(3);
+    size_t batch_size = data.dim(0);
+    size_t height = data.dim(1);
+    size_t width = data.dim(2);
+    size_t channels = data.dim(3);
 
     T *ptr = data.data_as<T>();
 
@@ -75,4 +75,4 @@ private:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

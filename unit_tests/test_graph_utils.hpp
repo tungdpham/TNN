@@ -4,7 +4,7 @@
 
 #include "nn/graph.hpp"
 
-namespace synet::test {
+namespace tunx::test {
 
 template <typename LayerRefT>
 Graph compile_single_layer(LayerRefT &layer, IAllocator &allocator,
@@ -34,4 +34,4 @@ Graph compile_two_layer_chain(FirstLayerRefT &first_layer, SecondLayerRefT &seco
   return graph;
 }
 
-}  // namespace synet::test
+}  // namespace tunx::test

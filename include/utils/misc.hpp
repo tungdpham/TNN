@@ -6,7 +6,7 @@
 
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 template <typename EnumType>
 constexpr Vec<EnumType> get_enum_vector() {
@@ -51,4 +51,4 @@ inline size_t get_shape_hash(const Vec<size_t> &shape) {
   return seed;
 }
 
-}  // namespace synet
+}  // namespace tunx

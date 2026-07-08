@@ -10,7 +10,11 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace synet {
+#include "tensor/tensor.hpp"
+#include "tensor/tensor_ops.hpp"
+#include "type/type.hpp"
+
+namespace tunx {
 
 PositionalEmbeddingLayerImpl::PositionalEmbeddingLayerImpl(size_t embed_dim, size_t seq_len,
                                                            const std::string &name)
@@ -20,14 +24,12 @@ PositionalEmbeddingLayerImpl::PositionalEmbeddingLayerImpl(size_t embed_dim, siz
 
 void PositionalEmbeddingLayerImpl::init_impl() {
   float bound = static_cast<float>(1.0 / std::sqrt(static_cast<double>(embed_dim_)));
+  long long seed = this->use_seed_ ? this->srand_seed_
+                                   : std::chrono::system_clock::now().time_since_epoch().count();
 
-  if (this->use_seed_) {
-    pos_embedding_.fill_random_normal(-bound, bound, this->srand_seed_);
-  } else {
-    pos_embedding_.fill_random_normal(-bound, bound);
-  }
+  fill_normal(pos_embedding_, 0, bound, seed);
 
-  pos_embedding_gradients_.fill(0.0f);
+  fill(pos_embedding_gradients_, 0.0f);
 }
 
 Tensor PositionalEmbeddingLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
@@ -125,9 +127,9 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::add_positional_embedding(
   }
 #ifdef USE_CUDA
   else if (get_engine_type() == EngineType::CUDA) {
-    // For GPU, we need to manually loop over batches and add
+    // For CUDA, we need to manually loop over batches and add
     for (size_t i = 0; i < batch_size; ++i) {
-      create_cuda_task(handle, ops::cuda::cuda_add<Compute_T>,
+      create_cuda_task(handle, ops::cuda::add<Compute_T>,
                        input.data_as<Compute_T>() + i * sample_size,
                        pos_embedding.data_as<Compute_T>(),
                        output.data_as<Compute_T>() + i * sample_size, sample_size);
@@ -177,7 +179,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayerImpl::accumulate_pos_gradients(
 #ifdef USE_CUDA
   else if (get_engine_type() == EngineType::CUDA) {
     for (size_t i = 0; i < batch_size; ++i) {
-      create_cuda_task(handle, ops::cuda::cuda_add<Compute_T>,
+      create_cuda_task(handle, ops::cuda::add<Compute_T>,
                        pos_embedding_gradients.data_as<Compute_T>(),
                        grad_output.data_as<Compute_T>() + i * sample_size,
                        pos_embedding_gradients.data_as<Compute_T>(), sample_size);
@@ -211,4 +213,4 @@ std::shared_ptr<PositionalEmbeddingLayerImpl> PositionalEmbeddingLayerImpl::crea
   return std::make_shared<PositionalEmbeddingLayerImpl>(embed_dim, seq_len, config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

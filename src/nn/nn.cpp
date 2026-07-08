@@ -5,4 +5,4 @@
  * project root for the full license text.
  */
 
-namespace synet {}  // namespace synet
+namespace tunx {}  // namespace tunx

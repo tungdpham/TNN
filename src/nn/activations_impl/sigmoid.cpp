@@ -14,7 +14,7 @@
 #include "nn/activations_impl/cuda/sigmoid_kernels.hpp"
 #endif
 
-namespace synet {
+namespace tunx {
 
 std::unique_ptr<Task> Sigmoid::apply(const Tensor &input, Tensor &output) const {
   if (input.shape() != output.shape()) {
@@ -59,7 +59,7 @@ std::unique_ptr<Task> Sigmoid::apply_impl(const Tensor &input, Tensor &output,
                            output.data_as<Compute_T>(), size);
   }
 #ifdef USE_CUDA
-  else if (input.device_type() == DeviceType::GPU) {
+  else if (input.device_type() == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::sigmoid<Compute_T>, input.data_as<Compute_T>(),
                             output.data_as<Compute_T>(), size);
   }
@@ -85,7 +85,7 @@ std::unique_ptr<Task> Sigmoid::compute_gradient_impl(const Tensor &input, const 
                            grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(), size);
   }
 #ifdef USE_CUDA
-  else if (grad_output.device_type() == DeviceType::GPU) {
+  else if (grad_output.device_type() == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::sigmoid_gradient<Compute_T>, input.data_as<Compute_T>(),
                             grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(),
                             size);
@@ -97,4 +97,4 @@ std::unique_ptr<Task> Sigmoid::compute_gradient_impl(const Tensor &input, const 
   return nullptr;
 }
 
-}  // namespace synet
+}  // namespace tunx

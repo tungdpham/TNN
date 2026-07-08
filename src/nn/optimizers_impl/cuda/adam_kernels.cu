@@ -4,14 +4,14 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "cuda/error_handler.hpp"
+#include "cuda/error_handler.cuh"
 #include "nn/optimizers_impl/cuda/adam_kernels.hpp"
 #include "type/cuda/vectorized_types.hpp"
 #include "type/type.hpp"
 
 #ifdef USE_CUDA
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 namespace adam {
 
@@ -143,6 +143,6 @@ INSTANTIATE(double)
 
 }  // namespace adam
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif

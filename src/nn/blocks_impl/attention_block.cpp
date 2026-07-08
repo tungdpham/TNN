@@ -20,7 +20,7 @@
 
 #include "ops/ops.hpp"
 
-namespace synet {
+namespace tunx {
 
 AttentionBlockImpl::AttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal,
                                        const std::string &name)
@@ -69,8 +69,8 @@ Vec<Tensor> AttentionBlockImpl::backward_impl(const Vec<Tensor> &grad_outputs,
     throw std::runtime_error("No cached input found");
   }
 
-  size_t batch_size = input.dimension(0);
-  size_t seq_len = input.dimension(1);
+  size_t batch_size = input.dim(0);
+  size_t seq_len = input.dim(1);
 
   Tensor q = q_proj_.forward({input}, residuals["q_proj"])[0];
   Tensor k = k_proj_.forward({input}, residuals["k_proj"])[0];
@@ -310,4 +310,4 @@ std::shared_ptr<AttentionBlockImpl> AttentionBlockImpl::create_from_config(
   return std::make_shared<AttentionBlockImpl>(embed_dim, num_heads, is_causal, config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

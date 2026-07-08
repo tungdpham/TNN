@@ -12,7 +12,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 /**
  * CPU tensor operations that work with raw pointers and dimensions.
@@ -419,13 +419,13 @@ void cpu_cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels, 
 }
 
 /**
- * @brief Slice the tensor along the batch dimension.
+ * @brief Slice the tensor along the batch dim.
  * @param input_data Input tensor data pointer
  * @param result_data Output tensor data pointer
  * @param batch_size Total batch size
  * @param start_batch Starting batch index (inclusive)
  * @param end_batch Ending batch index (exclusive)
- * @param stride_0 Stride for the batch dimension (product of all dimensions except batch)
+ * @param stride_0 Stride for the batch dim (product of all dimensions except batch)
  */
 template <typename T>
 void cpu_slice_batch(const T *input_data, T *result_data, size_t start_batch, size_t end_batch,
@@ -434,12 +434,12 @@ void cpu_slice_batch(const T *input_data, T *result_data, size_t start_batch, si
 }
 
 /**
- * @brief Split the tensor into multiple parts along the batch dimension.
+ * @brief Split the tensor into multiple parts along the batch dim.
  * @param input_data Input tensor data pointer
  * @param results Vector of output data pointers
  * @param batch_size Total batch size
  * @param num_splits Number of splits to create
- * @param stride_0 Stride for the batch dimension (product of all dimensions except batch)
+ * @param stride_0 Stride for the batch dim (product of all dimensions except batch)
  */
 template <typename T>
 void cpu_split(const T *input_data, Vec<T *> &results, size_t batch_size, size_t num_splits,
@@ -454,4 +454,4 @@ void cpu_split(const T *input_data, Vec<T *> &results, size_t batch_size, size_t
 }
 
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

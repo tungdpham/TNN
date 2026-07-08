@@ -7,7 +7,7 @@
 #include "device/iallocator.hpp"
 #include "tokenizer/tokenizer.hpp"
 
-namespace synet {
+namespace tunx {
 
 class OpenWebTextDataLoader : public BaseDataLoader {
 private:
@@ -23,7 +23,7 @@ private:
     }
 
     batch_data = Tensor({batch_size, context_length_}, dtype_of<T>(), allocator_);
-    batch_labels = Tensor({batch_size, context_length_}, DType_t::INT32_T, allocator_);
+    batch_labels = Tensor({batch_size, context_length_}, DType_t::INT32, allocator_);
 
     for (size_t b = 0; b < batch_size; ++b) {
       size_t start_pos;
@@ -128,4 +128,4 @@ private:
   std::uniform_int_distribution<size_t> dist_;
 };
 
-}  // namespace synet
+}  // namespace tunx

@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace synet {
+namespace tunx {
 
 struct flowHandle_t {
   size_t id = 0;
@@ -72,12 +72,14 @@ public:
 };
 
 #endif
-}  // namespace synet
+}  // namespace tunx
 
 namespace std {
 template <>
-struct hash<synet::flowHandle_t> {
-  std::size_t operator()(const synet::flowHandle_t &key) const { return std::hash<size_t>()(key.id); }
+struct hash<tunx::flowHandle_t> {
+  std::size_t operator()(const tunx::flowHandle_t &key) const {
+    return std::hash<size_t>()(key.id);
+  }
 };
 
 }  // namespace std

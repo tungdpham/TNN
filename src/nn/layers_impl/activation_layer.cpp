@@ -7,7 +7,7 @@
 #include "nn/layers_impl/activation_layer.hpp"
 
 #include "nn/activations.hpp"
-namespace synet {
+namespace tunx {
 
 ActivationLayerImpl::ActivationLayerImpl(std::unique_ptr<ActivationFunction> activation,
                                          const std::string &name)
@@ -58,4 +58,4 @@ std::shared_ptr<ActivationLayerImpl> ActivationLayerImpl::create_from_config(
   return std::make_shared<ActivationLayerImpl>(std::move(activation), config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

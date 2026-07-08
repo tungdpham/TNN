@@ -7,7 +7,7 @@
 #include "nn/layers_impl/maxpool2d_layer.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 signed main() {
@@ -29,7 +29,7 @@ signed main() {
   graph.compile(allocator);
 
   Tensor input_data = Tensor({128, 224, 224, 3}, DType_t::FP32, getGPU());
-  input_data.fill_random_normal(0.5f, 0.2f, 676767);
+  fill_normal(input_data, 0.5f, 0.2f, 676767);
 
   Residuals conv_residuals;
   Residuals bn_residuals;

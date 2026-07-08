@@ -14,7 +14,7 @@
 #include "device/dptr.hpp"
 #include "device/task.hpp"
 
-namespace synet {
+namespace tunx {
 
 template <typename IO_T, typename Param_T = IO_T, typename Compute_T = IO_T>
 void gemm(const dptr &A, const dptr &B, const dptr &C, size_t M, size_t N, size_t K,
@@ -32,7 +32,7 @@ void gemm(const dptr &A, const dptr &B, const dptr &C, size_t M, size_t N, size_
                     C.get<IO_T>(), M, N, K, trans_A, trans_B, alpha, beta, lda, ldb, ldc);
   }
 #ifdef USE_CUDA
-  else if (A.device_type() == DeviceType::GPU) {
+  else if (A.device_type() == DeviceType::CUDA) {
     create_cuda_task(defaultFlowHandle, cuda::gemm_ex<IO_T, Param_T, Compute_T>, A.get<IO_T>(),
                      B.get<Param_T>(), C.get<IO_T>(), M, N, K, trans_A, trans_B, alpha, beta, lda,
                      ldb, ldc);
@@ -42,4 +42,4 @@ void gemm(const dptr &A, const dptr &B, const dptr &C, size_t M, size_t N, size_
     throw std::runtime_error("Unsupported device type for gemm.");
   }
 }
-}  // namespace synet
+}  // namespace tunx

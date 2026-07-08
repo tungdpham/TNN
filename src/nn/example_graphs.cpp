@@ -7,29 +7,12 @@
 
 #include "nn/example_graphs.hpp"
 
-#include <memory>
 #include <string>
 
-#include "nn/blocks_impl/attention_block.hpp"
-#include "nn/blocks_impl/flash_attention_block.hpp"
-#include "nn/layers_impl/avgpool2d_layer.hpp"
-#include "nn/layers_impl/batchnorm_layer.hpp"
-#include "nn/layers_impl/class_token_layer.hpp"
-#include "nn/layers_impl/conv2d_layer.hpp"
-#include "nn/layers_impl/dense_layer.hpp"
-#include "nn/layers_impl/dropout_layer.hpp"
-#include "nn/layers_impl/embedding_layer.hpp"
-#include "nn/layers_impl/flatten_layer.hpp"
-#include "nn/layers_impl/gelu_layer.hpp"
-#include "nn/layers_impl/layer_norm_layer.hpp"
-#include "nn/layers_impl/maxpool2d_layer.hpp"
-#include "nn/layers_impl/positional_embedding_layer.hpp"
-#include "nn/layers_impl/relu_layer.hpp"
-#include "nn/layers_impl/slice_layer.hpp"
-#include "nn/node_ops.hpp"
+#include "nn/layers.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 namespace {
 
@@ -679,4 +662,4 @@ void ExampleGraphs::register_defaults() {
   });
 }
 
-}  // namespace synet
+}  // namespace tunx

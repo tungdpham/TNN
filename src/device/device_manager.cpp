@@ -12,7 +12,7 @@
 #include "device/cuda/cuda_context.hpp"
 #endif
 
-namespace synet {
+namespace tunx {
 DeviceManager DeviceManager::instance_;
 
 DeviceManager &DeviceManager::getInstance() { return instance_; }
@@ -45,7 +45,7 @@ void DeviceManager::discoverDevices() {
         cudaGetDeviceProperties(&prop, i);
         std::cout << "Discovered CUDA device with ID: " << i << " (CUDA Device " << i << ": "
                   << prop.name << ")" << std::endl;
-        Device gpu_device(DeviceType::GPU, i, std::make_unique<CUDAContext>(i));
+        Device gpu_device(DeviceType::CUDA, i, std::make_unique<CUDAContext>(i));
         addDevice(std::move(gpu_device));
       } catch (const std::exception &e) {
         std::cerr << "Failed to create CUDA device " << i << ": " << e.what() << std::endl;
@@ -64,7 +64,7 @@ void DeviceManager::discoverDevices() {
 DeviceManager::~DeviceManager() = default;
 
 void DeviceManager::addDevice(Device &&device) {
-  std::string device_type = (device.device_type() == DeviceType::CPU) ? "CPU" : "GPU";
+  std::string device_type = (device.device_type() == DeviceType::CPU) ? "CPU" : "CUDA";
   int id = device.getID();
   devices_.emplace(device_type + ":" + std::to_string(id), std::move(device));
 }
@@ -130,14 +130,14 @@ const Device &getGPU(size_t gpu_index) {
   size_t current_gpu = 0;
   for (std::string id : manager.getAvailableDeviceIDs()) {
     const Device &device = manager.getDevice(id);
-    if (device.device_type() == DeviceType::GPU) {
+    if (device.device_type() == DeviceType::CUDA) {
       if (current_gpu == gpu_index) {
         return device;
       }
       current_gpu++;
     }
   }
-  throw std::runtime_error("Requested GPU index not found");
+  throw std::runtime_error("Requested CUDA index not found");
 }
 
 const Device &getHost() {
@@ -151,4 +151,4 @@ const Device &getHost() {
   throw std::runtime_error("CPU device not found");
 }
 
-}  // namespace synet
+}  // namespace tunx

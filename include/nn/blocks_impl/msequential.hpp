@@ -18,7 +18,7 @@
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class MSequentialImpl : public Block {
 private:
@@ -101,4 +101,4 @@ public:
   using LayerRef<MSequentialImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

@@ -19,7 +19,7 @@
 #include <omp.h>
 #endif
 
-namespace synet {
+namespace tunx {
 
 enum class SchedulePolicy { Static, Auto, Affinity };
 
@@ -89,7 +89,6 @@ static inline void parallel_for(const Index begin, const Index end, Func f,
 template <typename Index = size_t, typename Func>
 inline void parallel_for_2d(const Index dim0, const Index dim1, Func f,
                             SchedulePolicy policy = SchedulePolicy::Static) {
-  assert(dim0 >= 0 && dim1 >= 0 && "Invalid dimensions");
 #if defined(_OPENMP)
   switch (policy) {
     case SchedulePolicy::Static:
@@ -167,4 +166,4 @@ inline void parallel_for_2d(const Index dim0, const Index dim1, Func f,
 #endif
 }
 
-}  // namespace synet
+}  // namespace tunx

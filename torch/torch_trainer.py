@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified single-GPU trainer for SYNET PyTorch reference models.
+Unified single-GPU trainer for tunx PyTorch reference models.
 
 Usage:
     python torch_unified_trainer.py --model resnet9_cifar10
@@ -909,7 +909,7 @@ def validate(model, test_loader, criterion, device, cfg, epoch, val_writer):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Unified SYNET PyTorch Trainer")
+    parser = argparse.ArgumentParser(description="Unified tunx PyTorch Trainer")
     parser.add_argument("--model", type=str, required=True,
                         choices=["resnet9_cifar10", "wrn16_8_cifar100",
                                  "resnet50_tiny_imagenet", "resnet50_imagenet100",

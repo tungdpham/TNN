@@ -2,7 +2,7 @@
 
 #include "data_loading/data_loader.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * A pair of data loaders for training and validation/testing
@@ -35,4 +35,4 @@ public:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

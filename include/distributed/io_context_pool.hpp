@@ -4,7 +4,7 @@
 
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 class IoContextPool {
 public:
   explicit IoContextPool(std::size_t pool_size)
@@ -45,4 +45,4 @@ private:
   std::size_t next_io_context_;
 };
 
-}  // namespace synet
+}  // namespace tunx
