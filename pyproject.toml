@@ -1,0 +1,11 @@
+[project]
+name = "tunx"
+version = "0.1.0"
+description = "External packages for tunx documentation and helper scripts"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "breathe>=4.36.0",
+    "sphinx>=9.1.0",
+    "sphinx-rtd-theme>=3.1.0",
+]

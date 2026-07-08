@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace synet {
+namespace tunx {
 
 struct fp16 {
   uint16_t data;
@@ -156,4 +156,4 @@ inline fp16 operator-(const fp16 &a) { return fp16(-static_cast<float>(a)); }
 
 inline fp16 operator+(const fp16 &a) { return a; }
 
-}  // namespace synet
+}  // namespace tunx

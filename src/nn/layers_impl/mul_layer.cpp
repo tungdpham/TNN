@@ -11,7 +11,7 @@
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 Vec<Vec<size_t>> MulLayerImpl::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   if (input_shapes.size() != 2) {
@@ -81,4 +81,4 @@ std::shared_ptr<MulLayerImpl> MulLayerImpl::create_from_config(const LayerConfig
   return std::make_shared<MulLayerImpl>(config.name.empty() ? "mul" : config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

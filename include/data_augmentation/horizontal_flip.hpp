@@ -6,7 +6,7 @@
 #include "augmentation.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * Horizontal flip augmentation
@@ -61,4 +61,4 @@ private:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

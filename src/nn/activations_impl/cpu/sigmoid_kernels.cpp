@@ -5,7 +5,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 template <typename T>
 void sigmoid(const T *input, T *output, size_t size) {
@@ -30,4 +30,4 @@ void sigmoid_gradient(const T *input, const T *grad_output, T *grad_input, size_
 #undef INSTANTIATE
 
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

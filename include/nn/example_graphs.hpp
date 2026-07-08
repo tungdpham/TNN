@@ -14,7 +14,7 @@
 
 #include "nn/graph.hpp"
 
-namespace synet {
+namespace tunx {
 
 class ExampleGraphs {
 private:
@@ -71,4 +71,4 @@ inline Graph load_or_create_graph(const std::string &graph_name, const std::stri
   }
 }
 
-}  // namespace synet
+}  // namespace tunx

@@ -30,7 +30,7 @@
 
 using namespace std;
 
-namespace synet {
+namespace tunx {
 
 static std::string normalize_train_mode(std::string mode) {
   for (char &c : mode) {
@@ -39,7 +39,7 @@ static std::string normalize_train_mode(std::string mode) {
   if (mode == "epoch" || mode == "batch" || mode == "auto") {
     return mode;
   }
-  std::cerr << "Warning: invalid TRAIN_MODE/SYNET_TRAIN_MODE=\"" << mode
+  std::cerr << "Warning: invalid TRAIN_MODE/tunx_TRAIN_MODE=\"" << mode
             << "\". Expected epoch, batch, or auto. Falling back to auto." << std::endl;
   return "auto";
 }
@@ -118,7 +118,7 @@ void TrainingConfig::print_config() const {
   cout << "  Print LayerImpl Profiling Info: " << (print_layer_profiling ? "Yes" : "No") << endl;
   cout << "  Print LayerImpl Memory Usage: " << (print_layer_memory_usage ? "Yes" : "No") << endl;
   cout << "  Number of Microbatches: " << num_microbatches << endl;
-  cout << "  Device Type: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
+  cout << "  Device Type: " << (device_type == DeviceType::CPU ? "CPU" : "CUDA") << endl;
   cout << "  Data Prefetch: " << (prefetch_data ? "Yes" : "No") << endl;
   cout << "  Prefetch Depth: " << prefetch_depth << endl;
   cout << "  Async Pipeline Flag: " << (async_pipeline ? "Yes" : "No") << endl;
@@ -160,7 +160,7 @@ void TrainingConfig::load_from_json(const string &config_path) {
   num_microbatches = config.value("num_microbatches", num_microbatches);
   if (config.contains("device_type")) {
     string device_str = config["device_type"];
-    device_type = (device_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
+    device_type = (device_str == "CPU") ? DeviceType::CPU : DeviceType::CUDA;
   }
   model_name = config.value("model_name", model_name);
   model_path = config.value("model_path", model_path);
@@ -348,7 +348,7 @@ static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 
   double best_val_accuracy = 0.0;
   const std::string artifact_name = training_artifact_name(config);
-  CsvLogger logger("synet_" + artifact_name, config.log_dir, &config.log_mode);
+  CsvLogger logger("tunx_" + artifact_name, config.log_dir, &config.log_mode);
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
@@ -424,7 +424,7 @@ static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
 
   int grad_accum_counter = 0;
   const std::string artifact_name = training_artifact_name(config);
-  CsvLogger logger("synet_" + artifact_name, config.log_dir, &config.log_mode);
+  CsvLogger logger("tunx_" + artifact_name, config.log_dir, &config.log_mode);
 
   train_loader->reset();
   auto start_time = chrono::high_resolution_clock::now();
@@ -578,7 +578,7 @@ void train_model(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
   cout << "Validation batches: " << val_loader->size() / config.batch_size << endl;
 
   vector<size_t> data_shape = train_loader->get_data_shape();
-  data_shape.insert(data_shape.begin(), config.batch_size);  // add batch dimension
+  data_shape.insert(data_shape.begin(), config.batch_size);  // add batch dim
 
   graph.set_io_dtype(config.io_dtype);
   graph.set_param_dtype(config.param_dtype);
@@ -659,4 +659,4 @@ Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
   return {avg_val_loss, avg_val_accuracy};
 }
 
-}  // namespace synet
+}  // namespace tunx

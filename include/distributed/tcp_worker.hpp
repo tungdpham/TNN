@@ -16,7 +16,7 @@
 #include "tcp_communicator.hpp"
 #include "worker.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * @brief TCP-based pipeline stage worker
@@ -29,7 +29,7 @@ public:
   /**
    * @brief Constructor with optional thread affinity configuration
    * @param listen_port Port to listen on for connections
-   * @param use_gpu Whether to use GPU for processing
+   * @param use_gpu Whether to use CUDA for processing
    * @param use_ecore_affinity Whether to bind worker threads to E-cores for efficiency
    * @param max_ecore_threads Maximum number of E-cores to use (-1 for all available)
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
@@ -48,4 +48,4 @@ public:
 
   ~TCPWorker() {}
 };
-}  // namespace synet
+}  // namespace tunx

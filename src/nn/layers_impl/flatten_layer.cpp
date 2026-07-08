@@ -8,7 +8,7 @@
 
 #include <stdexcept>
 
-namespace synet {
+namespace tunx {
 
 FlattenLayerImpl::FlattenLayerImpl(int start_dim, int end_dim, const std::string &name)
     : SISOLayerImpl(name),
@@ -97,4 +97,4 @@ std::shared_ptr<FlattenLayerImpl> FlattenLayerImpl::create_from_config(const Lay
   return std::make_shared<FlattenLayerImpl>(start_dim, end_dim, config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

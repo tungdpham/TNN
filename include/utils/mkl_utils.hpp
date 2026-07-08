@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace synet {
+namespace tunx {
 namespace mkl {
 
 inline void initialize_mkl() {
@@ -43,12 +43,12 @@ static MklInitializer mkl_init;
  * @param k Number of columns in A (and rows in B)
  * @param alpha Scalar multiplier for A*B
  * @param a Pointer to matrix A
- * @param lda Leading dimension of A
+ * @param lda Leading dim of A
  * @param b Pointer to matrix B
- * @param ldb Leading dimension of B
+ * @param ldb Leading dim of B
  * @param beta Scalar multiplier for C
  * @param c Pointer to matrix C (output)
- * @param ldc Leading dimension of C
+ * @param ldc Leading dim of C
  */
 template <typename T>
 inline void gemm(const char transa, const char transb, const MKL_INT m, const MKL_INT n,
@@ -68,6 +68,6 @@ inline void gemm(const char transa, const char transb, const MKL_INT m, const MK
 }
 
 }  // namespace mkl
-}  // namespace synet
+}  // namespace tunx
 
 #endif  // USE_MKL

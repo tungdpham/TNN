@@ -19,7 +19,7 @@
 #include "threading/thread_wrapper.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 inline bool get_next_batch(BaseDataLoader &loader, BatchPrefetcher *prefetcher, size_t batch_size,
                            Tensor &batch_data, Tensor &batch_labels) {
@@ -61,13 +61,13 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
   while (get_next_batch(*train_loader, prefetcher.get(), config.batch_size, batch_data,
                         batch_labels)) {
     Vec<Tensor> splitted_inputs;
-    ops::split(batch_data, splitted_inputs, config.num_microbatches);
+    split(batch_data, splitted_inputs, config.num_microbatches);
     Vec<TensorBundle> micro_batch_inputs;
     for (size_t i = 0; i < splitted_inputs.size(); ++i) {
       micro_batch_inputs.push_back(TensorBundle{{{"input", splitted_inputs[i]}}});
     }
     Vec<Tensor> micro_batch_labels;
-    ops::split(batch_labels, micro_batch_labels, config.num_microbatches);
+    split(batch_labels, micro_batch_labels, config.num_microbatches);
 
     auto process_start = std::chrono::high_resolution_clock::now();
     auto [loss, corrects] =
@@ -241,13 +241,13 @@ inline void train_semi_async_step(Coordinator &coordinator,
     }
 
     Vec<Tensor> splitted_inputs;
-    ops::split(batch_data, splitted_inputs, config.num_microbatches);
+    split(batch_data, splitted_inputs, config.num_microbatches);
     Vec<TensorBundle> micro_batch_inputs;
     for (size_t i = 0; i < splitted_inputs.size(); ++i) {
       micro_batch_inputs.push_back(TensorBundle{{{"input", splitted_inputs[i]}}});
     }
     Vec<Tensor> micro_batch_labels;
-    ops::split(batch_labels, micro_batch_labels, config.num_microbatches);
+    split(batch_labels, micro_batch_labels, config.num_microbatches);
 
     auto process_start = std::chrono::high_resolution_clock::now();
     auto [loss, corrects] =
@@ -329,7 +329,7 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
                         TrainingConfig config = TrainingConfig()) {
   coordinator.start_profiling();
   ThreadWrapper thread_wrapper({config.num_threads});
-  CsvLogger logger("synet_" + config.model_name, config.log_dir, &config.log_mode);
+  CsvLogger logger("tunx_" + config.model_name, config.log_dir, &config.log_mode);
 
   const bool use_epoch_mode =
       (config.train_mode == "epoch") || (config.train_mode == "auto" && config.max_steps == -1);
@@ -384,7 +384,7 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
     } else {
       TrainingConfig batch_config = config;
       if (batch_config.max_steps <= 0) {
-        batch_config.max_steps = static_cast<int64_t>(train_loader->size());
+        batch_config.max_steps = static_cast<int64>(train_loader->size());
       }
       train_semi_async_step(coordinator, train_loader, criterion, batch_config, logger);
     }
@@ -395,4 +395,4 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
   });
 }
 
-}  // namespace synet
+}  // namespace tunx

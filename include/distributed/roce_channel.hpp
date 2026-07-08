@@ -12,7 +12,7 @@
 #include "distributed/roce_cq.hpp"
 #include "distributed/roce_device.hpp"
 
-namespace synet {
+namespace tunx {
 
 constexpr size_t ROCE_BUFFER_SIZE = 2 * 1024 * 1024;
 constexpr int ROCE_SQ_DEPTH = 32;
@@ -418,4 +418,4 @@ private:
     }
   }
 };
-}  // namespace synet
+}  // namespace tunx

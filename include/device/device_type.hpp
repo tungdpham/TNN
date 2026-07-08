@@ -7,7 +7,7 @@
 
 #pragma once
 
-namespace synet {
+namespace tunx {
 // all supported device types
-enum class DeviceType { CPU, GPU, NULL_DEVICE };
-}  // namespace synet
+enum class DeviceType { CPU, CUDA, NULL_DEVICE };
+}  // namespace tunx

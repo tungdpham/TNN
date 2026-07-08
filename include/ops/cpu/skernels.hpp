@@ -3,7 +3,7 @@
 #include <cmath>
 #include <cstddef>  // For size_t
 
-namespace synet {
+namespace tunx {
 namespace ops {
 namespace cpu {
 namespace fp {
@@ -140,4 +140,4 @@ void fill_random_normal(float *data, size_t size, float mean, float stddev,
 }  // namespace fp
 }  // namespace cpu
 }  // namespace ops
-}  // namespace synet
+}  // namespace tunx

@@ -18,7 +18,7 @@ def smooth(s, k):
         return s
     return s.rolling(k, min_periods=1).mean()
 
-def load_synet(path, all_runs=False):
+def load_tunx(path, all_runs=False):
     df = pd.read_csv(path)
 
     for col in ["step", "batch_loss", "avg_loss", "accuracy_pct", "time_ms"]:
@@ -75,8 +75,8 @@ def load_torch(path, all_runs=False):
 
     return df
 
-def load_synet_val(path):
-    """Load SYNET validation data (epoch-level)"""
+def load_tunx_val(path):
+    """Load tunx validation data (epoch-level)"""
     df = pd.read_csv(path)
     
     for col in ["epoch", "val_accuracy_pct", "loss"]:
@@ -120,7 +120,7 @@ def setup_style():
         "axes.facecolor": "white",
     })
 
-def plot_combined(synet, torch, synet_val, torch_val, out, double_column, xmax, ymax):
+def plot_combined(tunx, torch, tunx_val, torch_val, out, double_column, xmax, ymax):
     setup_style()
 
     # IEEE double column width is ~7.16 inches, height adjusted for 4 subplots
@@ -133,9 +133,9 @@ def plot_combined(synet, torch, synet_val, torch_val, out, double_column, xmax, 
 
     # Subplot 1: Rolling Training Loss
     ax1.plot(
-        synet["global_step"],
-        synet["batch_loss_s"],
-        label="SYNET",
+        tunx["global_step"],
+        tunx["batch_loss_s"],
+        label="tunx",
         color='#1f77b4'
     )
     ax1.plot(
@@ -156,12 +156,12 @@ def plot_combined(synet, torch, synet_val, torch_val, out, double_column, xmax, 
     ax1.legend(frameon=True, loc='upper right')
 
     # Subplot 2: Validation Accuracy over Epochs
-    if synet_val is not None and torch_val is not None:
-        if "val_accuracy_pct" in synet_val.columns and "val_accuracy_percent" in torch_val.columns:
+    if tunx_val is not None and torch_val is not None:
+        if "val_accuracy_pct" in tunx_val.columns and "val_accuracy_percent" in torch_val.columns:
             ax2.plot(
-                synet_val["epoch"],
-                synet_val["val_accuracy_pct"],
-                label="SYNET",
+                tunx_val["epoch"],
+                tunx_val["val_accuracy_pct"],
+                label="tunx",
                 color='#1f77b4',
                 marker='o',
                 markersize=4
@@ -191,11 +191,11 @@ def plot_combined(synet, torch, synet_val, torch_val, out, double_column, xmax, 
         ax2.set_title("(b) Validation Accuracy")
 
     # Subplot 3: TFLOPS over Time
-    if "tflops" in synet.columns and "tflops" in torch.columns:
+    if "tflops" in tunx.columns and "tflops" in torch.columns:
         ax3.plot(
-            synet["global_step"],
-            synet["tflops_s"],
-            label="SYNET",
+            tunx["global_step"],
+            tunx["tflops_s"],
+            label="tunx",
             color='#1f77b4'
         )
         ax3.plot(
@@ -218,11 +218,11 @@ def plot_combined(synet, torch, synet_val, torch_val, out, double_column, xmax, 
         ax3.set_title("(c) Computational Throughput")
 
     # Subplot 4: Throughput (Samples/sec)
-    if "throughput" in synet.columns and "throughput" in torch.columns:
+    if "throughput" in tunx.columns and "throughput" in torch.columns:
         ax4.plot(
-            synet["global_step"],
-            synet["throughput_s"],
-            label="SYNET",
+            tunx["global_step"],
+            tunx["throughput_s"],
+            label="tunx",
             color='#1f77b4'
         )
         ax4.plot(
@@ -275,9 +275,9 @@ def add_smoothed_columns(df, smooth_k):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--synet", default=None, help="SYNET batch training metrics CSV (auto-detected if omitted)")
+    parser.add_argument("--tunx", default=None, help="tunx batch training metrics CSV (auto-detected if omitted)")
     parser.add_argument("--torch", default=None, help="PyTorch batch training metrics CSV (auto-detected if omitted)")
-    parser.add_argument("--synet-val", default=None, help="SYNET epoch-level validation CSV (auto-detected if omitted)")
+    parser.add_argument("--tunx-val", default=None, help="tunx epoch-level validation CSV (auto-detected if omitted)")
     parser.add_argument("--torch-val", default=None, help="PyTorch epoch summary CSV (auto-detected if omitted)")
     parser.add_argument("--out", default=None, help="Output image path (default: plots/resnet50_comparison.png)")
     parser.add_argument("--log-dir", default="logs", help="Directory to search for CSV logs (default: logs)")
@@ -293,12 +293,12 @@ def main():
     log_dir = args.log_dir
 
     # Auto-detect latest log files when paths are not explicitly provided
-    if args.synet is None:
-        args.synet = find_latest(log_dir, "synet_*resnet50*batch*.csv")
-        if args.synet:
-            print(f"Auto-detected SYNET batch CSV: {args.synet}")
+    if args.tunx is None:
+        args.tunx = find_latest(log_dir, "tunx_*resnet50*batch*.csv")
+        if args.tunx:
+            print(f"Auto-detected tunx batch CSV: {args.tunx}")
         else:
-            raise FileNotFoundError(f"No SYNET ResNet-50 batch CSV found in '{log_dir}'. Pass --synet explicitly.")
+            raise FileNotFoundError(f"No tunx ResNet-50 batch CSV found in '{log_dir}'. Pass --tunx explicitly.")
 
     if args.torch is None:
         args.torch = find_latest(log_dir, "resnet50_*rank0_metrics.csv")
@@ -307,10 +307,10 @@ def main():
         else:
             raise FileNotFoundError(f"No PyTorch ResNet-50 metrics CSV found in '{log_dir}'. Pass --torch explicitly.")
 
-    if args.synet_val is None:
-        args.synet_val = find_latest(log_dir, "synet_*resnet50*epoch*.csv")
-        if args.synet_val:
-            print(f"Auto-detected SYNET val CSV: {args.synet_val}")
+    if args.tunx_val is None:
+        args.tunx_val = find_latest(log_dir, "tunx_*resnet50*epoch*.csv")
+        if args.tunx_val:
+            print(f"Auto-detected tunx val CSV: {args.tunx_val}")
 
     if args.torch_val is None:
         args.torch_val = find_latest(log_dir, "resnet50_*rank0_epoch_summary.csv")
@@ -321,29 +321,29 @@ def main():
         os.makedirs("plots", exist_ok=True)
         args.out = os.path.join("plots", "resnet50_comparison.png")
 
-    synet = load_synet(args.synet, all_runs=True)
+    tunx = load_tunx(args.tunx, all_runs=True)
     torch = load_torch(args.torch, all_runs=True)
 
-    synet = add_smoothed_columns(synet, args.smooth)
+    tunx = add_smoothed_columns(tunx, args.smooth)
     torch = add_smoothed_columns(torch, args.smooth)
 
-    print("SYNET training points:", len(synet))
+    print("tunx training points:", len(tunx))
     print("PyTorch training points:", len(torch))
 
     # Load validation data if provided
-    synet_val = None
+    tunx_val = None
     torch_val = None
-    if args.synet_val:
-        synet_val = load_synet_val(args.synet_val)
-        print("SYNET validation epochs:", len(synet_val))
+    if args.tunx_val:
+        tunx_val = load_tunx_val(args.tunx_val)
+        print("tunx validation epochs:", len(tunx_val))
     if args.torch_val:
         torch_val = load_torch_val(args.torch_val)
         print("PyTorch validation epochs:", len(torch_val))
 
     plot_combined(
-        synet=synet,
+        tunx=tunx,
         torch=torch,
-        synet_val=synet_val,
+        tunx_val=tunx_val,
         torch_val=torch_val,
         out=args.out,
         double_column=args.double_column,

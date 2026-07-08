@@ -14,11 +14,30 @@
 #include <queue>
 #include <unordered_map>
 
+#include "device/device_type.hpp"
+#include "nn/engines/cpu_engine.hpp"
+#include "nn/engines/cuda_engine.hpp"
+#include "nn/engines/cudnn_engine.hpp"
 #include "nn/layer.hpp"
 #include "nn/layers.hpp"
-#include "tensor/tensor_ops.hpp"
 
-namespace synet {
+namespace tunx {
+
+static Engine get_default_engine(const Device &device) {
+  switch (device.device_type()) {
+    case tunx::DeviceType::CPU:
+      return make_engine<CPUEngine>();
+#ifdef USE_CUDA
+    case tunx::DeviceType::CUDA:
+#ifdef USE_CUDNN
+      return make_engine<CuDNNEngine>();
+#endif
+      return make_engine<CUDAEngine>();
+#endif
+    default:
+      throw std::runtime_error("Unsupported device type for graph");
+  }
+}
 
 void Graph::compile(IAllocator &allocator) {
   sort();
@@ -37,7 +56,11 @@ void Graph::compile(IAllocator &allocator) {
   }
   context_ = std::make_unique<GraphContext>(allocator, ctx_desc);
   workspace_allocator_ = DELAllocatorV2::create(context_->device(), defaultFlowHandle);
+  Engine engine = get_default_engine(context_->device());
+  void *backend_handle = engine->create_backend_handle();
   for (LayerImpl *layer_ptr : unique_layers) {
+    layer_ptr->set_engine(engine);
+    layer_ptr->set_backend_handle(backend_handle);
     layer_ptr->set_engine_type(allocator.device().get_engine());
     layer_ptr->set_allocator(*workspace_allocator_);
     layer_ptr->init();
@@ -236,13 +259,13 @@ TensorBundle Graph::backward(TensorBundle &output_grad_map, size_t pid) {
     }
     it->second->set_grad(pid, device_tensor, in_degree_[node]);
   }
-  TensorBundle input_grad_map;
+  TensorBundle grad_input_map;
   for (auto it = edges_.rbegin(); it != edges_.rend(); ++it) {
     Edge &edge = *it;
     backward(edge, pid);
     for (auto &producer : edge->producers()) {
       if (is_input(producer)) {
-        input_grad_map.set(producer->uid(), producer->grad(pid));
+        grad_input_map.set(producer->uid(), producer->grad(pid));
       }
     }
   }
@@ -253,7 +276,7 @@ TensorBundle Graph::backward(TensorBundle &output_grad_map, size_t pid) {
       node->clear_grad(pid);
     }
   }
-  return input_grad_map;
+  return grad_input_map;
 }
 
 Node Graph::make_node(std::string uid) {
@@ -387,12 +410,12 @@ void Graph::backward(Edge &edge, size_t pid) {
     consumer->decrement_grad_ref_count(pid);
   }
   Residuals &residuals = edge->residuals(pid);
-  Vec<Tensor> input_grads = edge->layer()->backward(output_grads, residuals);
+  Vec<Tensor> grad_inputs = edge->layer()->backward(output_grads, residuals);
 
   edge->clear_residuals(pid);
   for (size_t i = 0; i < edge->producers().size(); ++i) {
     Node producer = edge->producers()[i];
-    producer->accumulate_grad(pid, input_grads[i], in_degree_[producer]);
+    producer->accumulate_grad(pid, grad_inputs[i], in_degree_[producer]);
   }
 }
 
@@ -556,7 +579,7 @@ void Graph::save_state(std::ostream &stream) const {
       if (!descriptor.data_ptr) {
         throw std::runtime_error("Cannot save uninitialized layer parameter");
       }
-      ops::save_tensor(*descriptor.data_ptr, stream);
+      save(*descriptor.data_ptr, stream);
     }
   }
 }
@@ -661,11 +684,11 @@ Graph Graph::load_state(std::istream &stream, IAllocator &allocator) {
       throw std::runtime_error("Graph state parameter count does not match layer definition");
     }
     for (auto &descriptor : descriptors) {
-      ops::load_tensor(*descriptor.data_ptr, stream);
+      load(*descriptor.data_ptr, stream);
     }
   }
 
   return graph;
 }
 
-}  // namespace synet
+}  // namespace tunx

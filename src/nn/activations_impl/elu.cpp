@@ -14,7 +14,7 @@
 #include "nn/activations_impl/cuda/elu_kernels.hpp"
 #endif
 
-namespace synet {
+namespace tunx {
 ELU::ELU(float alpha)
     : alpha_(alpha) {}
 
@@ -59,7 +59,7 @@ std::unique_ptr<Task> ELU::apply_impl(const Tensor &input, Tensor &output,
                            output.data_as<Compute_T>(), size, alpha_typed);
   }
 #ifdef USE_CUDA
-  else if (input.device_type() == DeviceType::GPU) {
+  else if (input.device_type() == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::elu<Compute_T>, input.data_as<Compute_T>(),
                             output.data_as<Compute_T>(), size, alpha_typed);
   }
@@ -86,7 +86,7 @@ std::unique_ptr<Task> ELU::compute_gradient_impl(const Tensor &input, const Tens
                            alpha_typed);
   }
 #ifdef USE_CUDA
-  else if (grad_output.device_type() == DeviceType::GPU) {
+  else if (grad_output.device_type() == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::elu_gradient<Compute_T>, input.data_as<Compute_T>(),
                             grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(), size,
                             alpha_typed);
@@ -98,4 +98,4 @@ std::unique_ptr<Task> ELU::compute_gradient_impl(const Tensor &input, const Tens
   return nullptr;
 }
 
-}  // namespace synet
+}  // namespace tunx

@@ -11,7 +11,7 @@
 
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 namespace cudnn_gemm {
 
@@ -65,10 +65,10 @@ static fe::DataType_t to_fe_data_type(cudnnDataType_t data_type) {
 }
 
 static void build_fwd_graph(feHandle_t* handle, GemmStats& stats) {
-  const int64_t batch = static_cast<int64_t>(stats.batch_count);
-  const int64_t m = static_cast<int64_t>(stats.M);
-  const int64_t n = static_cast<int64_t>(stats.N);
-  const int64_t k = static_cast<int64_t>(stats.K);
+  const int64 batch = static_cast<int64>(stats.batch_count);
+  const int64 m = static_cast<int64>(stats.M);
+  const int64 n = static_cast<int64>(stats.N);
+  const int64 k = static_cast<int64>(stats.K);
 
   auto io_type = to_fe_data_type(handle->io_data_type);
   auto param_type = to_fe_data_type(handle->param_data_type);
@@ -116,7 +116,7 @@ static void build_fwd_graph(feHandle_t* handle, GemmStats& stats) {
   ensure_ok(graph->check_support(), "fwd_gemm check support");
   ensure_ok(graph->build_plans(), "fwd_gemm build plans");
 
-  int64_t workspace_size = 0;
+  int64 workspace_size = 0;
   ensure_ok(graph->get_workspace_size(workspace_size), "fwd_gemm workspace");
 
   handle->fwd_graph = graph;
@@ -128,10 +128,10 @@ static void build_fwd_graph(feHandle_t* handle, GemmStats& stats) {
 }
 
 static void build_dgrad_graph(feHandle_t* handle, GemmStats& stats) {
-  const int64_t batch = static_cast<int64_t>(stats.batch_count);
-  const int64_t m = static_cast<int64_t>(stats.M);
-  const int64_t n = static_cast<int64_t>(stats.N);
-  const int64_t k = static_cast<int64_t>(stats.K);
+  const int64 batch = static_cast<int64>(stats.batch_count);
+  const int64 m = static_cast<int64>(stats.M);
+  const int64 n = static_cast<int64>(stats.N);
+  const int64 k = static_cast<int64>(stats.K);
 
   auto io_type = to_fe_data_type(handle->io_data_type);
   auto param_type = to_fe_data_type(handle->param_data_type);
@@ -177,7 +177,7 @@ static void build_dgrad_graph(feHandle_t* handle, GemmStats& stats) {
   ensure_ok(graph->check_support(), "dgrad_gemm check support");
   ensure_ok(graph->build_plans(), "dgrad_gemm build plans");
 
-  int64_t workspace_size = 0;
+  int64 workspace_size = 0;
   ensure_ok(graph->get_workspace_size(workspace_size), "dgrad_gemm workspace");
 
   handle->dgrad_graph = graph;
@@ -189,10 +189,10 @@ static void build_dgrad_graph(feHandle_t* handle, GemmStats& stats) {
 }
 
 static void build_wgrad_graph(feHandle_t* handle, GemmStats& stats) {
-  const int64_t batch = static_cast<int64_t>(stats.batch_count);
-  const int64_t m = static_cast<int64_t>(stats.M);
-  const int64_t n = static_cast<int64_t>(stats.N);
-  const int64_t k = static_cast<int64_t>(stats.K);
+  const int64 batch = static_cast<int64>(stats.batch_count);
+  const int64 m = static_cast<int64>(stats.M);
+  const int64 n = static_cast<int64>(stats.N);
+  const int64 k = static_cast<int64>(stats.K);
 
   auto io_type = to_fe_data_type(handle->io_data_type);
   auto param_type = to_fe_data_type(handle->param_data_type);
@@ -242,7 +242,7 @@ static void build_wgrad_graph(feHandle_t* handle, GemmStats& stats) {
   ensure_ok(graph->check_support(), "wgrad_gemm check support");
   ensure_ok(graph->build_plans(), "wgrad_gemm build plans");
 
-  int64_t workspace_size = 0;
+  int64 workspace_size = 0;
   ensure_ok(graph->get_workspace_size(workspace_size), "wgrad_gemm workspace");
 
   handle->wgrad_graph = graph;
@@ -319,7 +319,7 @@ void run_dgrad(feHandle_t* handle, const GemmStats& stats, const void* gradient_
 }
 
 void run_wgrad(feHandle_t* handle, const GemmStats& stats, const void* input_data,
-               const void* gradient_data, void* weight_grad_data, void* workspace_data,
+               const void* gradient_data, void* grad_weight_data, void* workspace_data,
                cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("Invalid feHandle_t in run_wgrad");
@@ -330,8 +330,8 @@ void run_wgrad(feHandle_t* handle, const GemmStats& stats, const void* input_dat
   std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
       {handle->wgrad_gradient, const_cast<void*>(gradient_data)},
       {handle->wgrad_input, const_cast<void*>(input_data)},
-      {handle->wgrad_prev_grad_weight, weight_grad_data},
-      {handle->wgrad_grad_weight, weight_grad_data}};
+      {handle->wgrad_prev_grad_weight, grad_weight_data},
+      {handle->wgrad_grad_weight, grad_weight_data}};
 
   auto status = handle->wgrad_graph->execute(handle->cudnn_handle, variant_pack, workspace_data);
   ensure_ok(status, "wgrad_gemm execute");
@@ -339,6 +339,6 @@ void run_wgrad(feHandle_t* handle, const GemmStats& stats, const void* input_dat
 
 }  // namespace cudnn_gemm
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif

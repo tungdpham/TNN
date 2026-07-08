@@ -8,10 +8,11 @@
 
 #include <stdexcept>
 
+#include "device/flow.hpp"
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 Vec<Vec<size_t>> AddLayerImpl::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   if (input_shapes.size() != 2) {
@@ -49,16 +50,11 @@ Vec<Tensor> AddLayerImpl::backward_impl(const Vec<Tensor> &grad_outputs, Residua
     throw std::runtime_error("AddLayerImpl: expected exactly 1 grad output");
   }
   const Tensor &grad_out = grad_outputs[0];
-  size_t n = grad_out.size();
-
-  // grad_a = grad_out, grad_b = grad_out
   Tensor grad_a = get_tensor(grad_out.shape(), this->io_dtype_);
   Tensor grad_b = get_tensor(grad_out.shape(), this->io_dtype_);
 
-  DISPATCH_DTYPE(grad_out.dtype(), T, {
-    ops::copy<T>(grad_out.data_ptr(), grad_a.data_ptr(), n, this->flow_handle_);
-    ops::copy<T>(grad_out.data_ptr(), grad_b.data_ptr(), n, this->flow_handle_);
-  });
+  grad_out.copy_to(grad_a, flow_handle_);
+  grad_out.copy_to(grad_b, flow_handle_);
 
   return {grad_a, grad_b};
 }
@@ -74,4 +70,4 @@ std::shared_ptr<AddLayerImpl> AddLayerImpl::create_from_config(const LayerConfig
   return std::make_shared<AddLayerImpl>(config.name.empty() ? "add" : config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

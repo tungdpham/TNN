@@ -11,7 +11,7 @@
 #include "augmentation.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * Normalization augmentation
@@ -92,4 +92,4 @@ private:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

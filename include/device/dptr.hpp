@@ -14,7 +14,7 @@
 #include "device/device_type.hpp"
 #include "device/sref.hpp"
 
-namespace synet {
+namespace tunx {
 
 constexpr size_t DEFAULT_ALIGNMENT = 256;
 
@@ -180,4 +180,4 @@ inline dptr make_dptr_t(csref<Device> device, size_t count, size_t alignment = D
   return make_dptr(device, count * sizeof(T), alignment);
 }
 
-}  // namespace synet
+}  // namespace tunx

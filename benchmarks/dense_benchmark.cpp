@@ -6,7 +6,7 @@
 #include "nn/loss.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 constexpr size_t INPUT_FEATURES = 262144;
@@ -36,7 +36,7 @@ signed main() {
   }
 
   Tensor input_data = Tensor({128, INPUT_FEATURES}, DType_t::FP32, getGPU());
-  input_data.fill_random_normal(0.5f, 0.2f, 676767);
+  fill_normal(input_data, 0.5f, 0.2f, 676767);
 
   Residuals residuals;
   // cold pass
@@ -103,7 +103,7 @@ signed main() {
   // test backward
   auto criterion = LossFactory::create_crossentropy();
   Tensor target = Tensor({128, OUTPUT_FEATURES}, DType_t::FP32, getGPU());
-  target.fill_random_normal(0.5f, 0.2f);
+  fill_normal(target, 0.5f, 0.2f);
   Tensor grad = Tensor({128, OUTPUT_FEATURES}, DType_t::FP32, getGPU());
   criterion->compute_gradient(current_output, target, grad);
 

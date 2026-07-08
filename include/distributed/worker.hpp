@@ -35,7 +35,7 @@
 #include "stage_config.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 class Worker {
 public:
@@ -341,4 +341,4 @@ protected:
   std::condition_variable message_available_cv_;
 };
 
-}  // namespace synet
+}  // namespace tunx

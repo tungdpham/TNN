@@ -6,7 +6,7 @@
 
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 class Graph;
 
 class NodeImpl {
@@ -77,4 +77,4 @@ private:
 
 using Node = std::shared_ptr<NodeImpl>;
 
-}  // namespace synet
+}  // namespace tunx

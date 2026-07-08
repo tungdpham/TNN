@@ -13,14 +13,13 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class LeakyReLULayerImpl : public SISOLayerImpl {
 private:
   std::unique_ptr<LeakyReLU> activation_;
   float negative_slope_;
 
-protected:
   Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
   Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
@@ -48,4 +47,4 @@ public:
   using LayerRef<LeakyReLULayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

@@ -7,21 +7,23 @@
 #pragma once
 
 #include <cassert>
-#include <chrono>
 #include <numeric>
 
 #include "device/device.hpp"
 #include "device/device_allocator.hpp"
 #include "device/dptr.hpp"
+#include "device/flow.hpp"
 #include "device/iallocator.hpp"
 #include "device/task.hpp"
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
- * @brief A Tensor class dedicated for ML and DL applications.
+ * @class Tensor
+ * @brief A class dedicated for ML and DL applications.
+ * @details
  * Data layout is assumed to be row-major (C-style) by default.
  * Generic N-dimensional Tensor with various functions. How layers interpret
  * the dimensions is up to the layer's implementation.
@@ -120,7 +122,7 @@ public:
   const dptr data_ptr() const { return data_; }
   const Vec<size_t> &shape() const { return shape_; }
   size_t dims() const { return shape_.size(); }
-  size_t dimension(size_t index) const { return shape_[index]; }
+  size_t dim(size_t index) const { return shape_[index]; }
   size_t stride(size_t index) const { return strides_[index]; }
   size_t size() const { return data_size_; }
   size_t capacity() const { return data_.capacity() / get_dtype_size(dtype_); }
@@ -140,7 +142,7 @@ public:
                   *allocator_);
   }
 
-  std::unique_ptr<Task> copy_to(Tensor &dest) const {
+  std::unique_ptr<Task> copy_to(Tensor &dest, flowHandle_t flow = defaultFlowHandle) const {
     if (data_size_ != dest.data_size_) {
       throw std::invalid_argument("Tensor copy_to: Shape mismatch between source and destination");
     }
@@ -148,44 +150,11 @@ public:
       throw std::invalid_argument(
           "Tensor copy_to: Data type mismatch between source and destination");
     }
-    DISPATCH_ANY_DTYPE(dtype_, T, return ops::cd_copy<T>(data_, dest.data_, data_size_));
-  }
-
-  std::unique_ptr<Task> fill(double value, flowHandle_t handle = defaultFlowHandle) {
     DISPATCH_ANY_DTYPE(dtype_, T,
-                       return ops::set_scalar<T>(data_, static_cast<T>(value), data_size_, handle));
-  }
-
-  std::unique_ptr<Task> fill_random_normal(double mean, double stddev, unsigned long long seed) {
-    DISPATCH_ANY_DTYPE(dtype_, T,
-                       return ops::fill_random_normal(data_, data_size_, static_cast<T>(mean),
-                                                      static_cast<T>(stddev), seed));
-  }
-
-  std::unique_ptr<Task> fill_random_uniform(double low, double high, unsigned long long seed) {
-    DISPATCH_ANY_DTYPE(dtype_, T,
-                       return ops::fill_random_uniform(data_, data_size_, static_cast<T>(low),
-                                                       static_cast<T>(high), seed));
-  }
-
-  std::unique_ptr<Task> fill_random_normal(double mean, double stddev) {
-    unsigned long long seed = static_cast<unsigned long long>(
-        std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
-        reinterpret_cast<uintptr_t>(data_as<void>()));
-    return fill_random_normal(mean, stddev, seed);
-  }
-
-  std::unique_ptr<Task> fill_random_uniform(double low, double high) {
-    unsigned long long seed = static_cast<unsigned long long>(
-        std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
-        reinterpret_cast<uintptr_t>(data_as<void>()));
-    return fill_random_uniform(low, high, seed);
+                       return ops::cd_copy<T>(data_, dest.data_, data_size_, defaultFlowHandle));
   }
 
   Tensor to_device(const Device &target_device) const {
-    if (device() == target_device) {
-      return *this;
-    }
     Tensor result(shape_, dtype_, DeviceAllocator::instance(target_device));
     copy_to(result);
     return result;
@@ -212,6 +181,6 @@ void archive(Archiver &archive, const Tensor &tensor) {
                     tensor.device()));
 }
 
-}  // namespace synet
+}  // namespace tunx
 
 #include "tensor/tensor_arithmetic.hpp"  // IWYU pragma: export

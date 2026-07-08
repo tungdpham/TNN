@@ -8,17 +8,11 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 
-#include "nn/layers_impl/common/layer_norm.hpp"
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
-#ifdef USE_CUDNN
-#include "cuda/cudnn_layer_norm_ops.hpp"
-#include "device/task.hpp"
-#endif
 
-namespace synet {
+namespace tunx {
 
 class LayerNormLayerImpl : public SISOLayerImpl {
 private:
@@ -28,51 +22,8 @@ private:
 
   Tensor gamma_;
   Tensor beta_;
-  Tensor gamma_gradients_;
-  Tensor beta_gradients_;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward(const Tensor &input, Tensor &output, const Tensor &gamma,
-                                    const Tensor &beta, size_t batch_size, size_t channels,
-                                    flowHandle_t handle = defaultFlowHandle) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_backward(const Tensor &grad_output, const Tensor &input,
-                                     const Tensor &gamma, Tensor &grad_input,
-                                     Tensor &gamma_gradients, Tensor &beta_gradients,
-                                     size_t batch_size, size_t channels,
-                                     flowHandle_t handle = defaultFlowHandle) const;
-
-#ifdef USE_CUDNN
-  void build_graph(const Vec<size_t> &input_shape) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> cudnn_run_forward(cuda::cudnn_layer_norm::feHandle_t *fe_handle,
-                                          LayerNormStats &stats, const Tensor &input,
-                                          Tensor &output, const Tensor &gamma, const Tensor &beta,
-                                          Tensor &mean, Tensor &inv_variance, Tensor &workspace,
-                                          size_t batch_size, size_t channels,
-                                          flowHandle_t handle) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> cudnn_run_backward(cuda::cudnn_layer_norm::feHandle_t *fe_handle,
-                                           LayerNormStats &stats, const Tensor &grad_output,
-                                           const Tensor &input, const Tensor &gamma,
-                                           Tensor &grad_input, Tensor &gamma_gradients,
-                                           Tensor &beta_gradients, const Tensor &mean,
-                                           const Tensor &inv_variance, Tensor &workspace,
-                                           size_t batch_size, size_t channels,
-                                           flowHandle_t handle) const;
-
-  Tensor cudnn_forward(const Tensor &input, Residuals &residuals);
-  Tensor cudnn_backward(const Tensor &grad_output, Residuals &residuals);
-
-  mutable std::unordered_map<size_t, cuda::cudnn_layer_norm::feHandle_t *> fe_handle_cache;
-#endif
-  mutable std::unordered_map<size_t, LayerNormStats> stats_cache;
-
-  Tensor def_forward(const Tensor &input, Residuals &residuals);
-  Tensor def_backward(const Tensor &grad_output, Residuals &residuals);
+  Tensor grad_gamma_;
+  Tensor grad_beta_;
 
   void init_impl() override;
   Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
@@ -99,14 +50,14 @@ public:
           param_dtype_,
           {normalized_shape_},
           &gamma_,
-          &gamma_gradients_,
+          &grad_gamma_,
       };
       descriptors.push_back(gamma_desc);
       auto beta_desc = ParamDescriptor{
           param_dtype_,
           {normalized_shape_},
           &beta_,
-          &beta_gradients_,
+          &grad_beta_,
       };
       descriptors.push_back(beta_desc);
     }
@@ -125,4 +76,4 @@ public:
   using LayerRef<LayerNormLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

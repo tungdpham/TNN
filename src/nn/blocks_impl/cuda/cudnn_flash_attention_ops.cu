@@ -9,8 +9,9 @@
 #include <string>
 
 #include "nn/blocks_impl/common/flash_attention.hpp"
+#include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 namespace cudnn_flash_attention {
 
@@ -79,10 +80,10 @@ static fe::DataType_t to_fe_compute_type(cudnnDataType_t data_type) {
 }
 
 static void build_fwd_graph(feHandle_t* handle, AttentionStats& stats) {
-  const int64_t b = static_cast<int64_t>(stats.batch_size);
-  const int64_t h = static_cast<int64_t>(stats.num_heads);
-  const int64_t s = static_cast<int64_t>(stats.seq_len);
-  const int64_t d = static_cast<int64_t>(stats.head_dim);
+  const int64 b = static_cast<int64>(stats.batch_size);
+  const int64 h = static_cast<int64>(stats.num_heads);
+  const int64 s = static_cast<int64>(stats.seq_len);
+  const int64 d = static_cast<int64>(stats.head_dim);
 
   auto io_type = to_fe_data_type(handle->io_data_type);
   auto compute_type = to_fe_compute_type(handle->compute_data_type);
@@ -133,7 +134,7 @@ static void build_fwd_graph(feHandle_t* handle, AttentionStats& stats) {
   ensure_fe_ok(graph->check_support(), "sdpa check support");
   ensure_fe_ok(graph->build_plans(), "sdpa build plans");
 
-  int64_t workspace_size = 0;
+  int64 workspace_size = 0;
   ensure_fe_ok(graph->get_workspace_size(workspace_size), "sdpa workspace");
 
   handle->fwd_graph = graph;
@@ -147,10 +148,10 @@ static void build_fwd_graph(feHandle_t* handle, AttentionStats& stats) {
 }
 
 static void build_bwd_graph(feHandle_t* handle, AttentionStats& stats) {
-  const int64_t b = static_cast<int64_t>(stats.batch_size);
-  const int64_t h = static_cast<int64_t>(stats.num_heads);
-  const int64_t s = static_cast<int64_t>(stats.seq_len);
-  const int64_t d = static_cast<int64_t>(stats.head_dim);
+  const int64 b = static_cast<int64>(stats.batch_size);
+  const int64 h = static_cast<int64>(stats.num_heads);
+  const int64 s = static_cast<int64>(stats.seq_len);
+  const int64 d = static_cast<int64>(stats.head_dim);
 
   auto io_type = to_fe_data_type(handle->io_data_type);
   auto compute_type = to_fe_compute_type(handle->compute_data_type);
@@ -219,7 +220,7 @@ static void build_bwd_graph(feHandle_t* handle, AttentionStats& stats) {
   ensure_fe_ok(graph->check_support(), "sdpa_backward check support");
   ensure_fe_ok(graph->build_plans(), "sdpa_backward build plans");
 
-  int64_t workspace_size = 0;
+  int64 workspace_size = 0;
   ensure_fe_ok(graph->get_workspace_size(workspace_size), "sdpa_backward workspace");
 
   handle->bwd_graph = graph;
@@ -296,6 +297,6 @@ void run_backward(feHandle_t* handle, const AttentionStats& stats, const void* q
 
 }  // namespace cudnn_flash_attention
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif

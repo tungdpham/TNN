@@ -302,9 +302,9 @@ class _BottleneckBlock(nn.Module):
                 nn.Conv2d(in_channels, out_channels, 1, stride=stride, bias=False),
                 nn.BatchNorm2d(out_channels, eps=1e-5, momentum=0.1))
     def forward(self, x):
-        # Match SYNET bottleneck behavior:
+        # Match tunx bottleneck behavior:
         # conv1 -> BN+ReLU, conv2 -> BN+ReLU, conv3 -> BN+ReLU, then residual add.
-        # SYNET does not apply an extra final ReLU after the residual addition.
+        # tunx does not apply an extra final ReLU after the residual addition.
         sc = self.shortcut(x) if self.shortcut is not None else x
         out = F.relu(self.bn1(self.conv1(x)), inplace=True)
         out = F.relu(self.bn2(self.conv2(out)), inplace=True)

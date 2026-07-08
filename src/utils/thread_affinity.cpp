@@ -12,7 +12,7 @@
 #include <cstring>
 #include <iostream>
 
-namespace synet {
+namespace tunx {
 
 bool ThreadAffinity::set_current_thread_affinity(const AffinityConfig &config) const {
 #ifdef __linux__
@@ -263,4 +263,4 @@ void ThreadAffinity::print_affinity_info() const {
   std::cout << "=================================" << std::endl;
 }
 
-}  // namespace synet
+}  // namespace tunx

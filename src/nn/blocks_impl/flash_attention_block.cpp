@@ -25,7 +25,7 @@
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 // Constructor
 FlashAttentionBlockImpl::FlashAttentionBlockImpl(size_t embed_dim, size_t num_heads, bool is_causal,
@@ -63,7 +63,7 @@ Vec<Tensor> FlashAttentionBlockImpl::forward_impl(const Vec<Tensor> &inputs, Res
                                 std::to_string(input.dims()) + "D");
   }
 
-  size_t embed_dim = input.dimension(2);
+  size_t embed_dim = input.dim(2);
 
   if (embed_dim != embed_dim_) {
     throw std::invalid_argument("FlashAttentionBlock: Input embed_dim mismatch");
@@ -333,4 +333,4 @@ std::shared_ptr<FlashAttentionBlockImpl> FlashAttentionBlockImpl::create_from_co
   return std::make_shared<FlashAttentionBlockImpl>(embed_dim, num_heads, is_causal, config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

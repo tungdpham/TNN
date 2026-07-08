@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 namespace sgd {
 
@@ -22,6 +22,6 @@ void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, 
 
 }  // namespace sgd
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif

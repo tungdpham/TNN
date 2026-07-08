@@ -34,7 +34,7 @@
 #include "distributed/roce_channel.hpp"
 #include "endpoint.hpp"
 
-namespace synet {
+namespace tunx {
 
 class RoCECommunicator : public Communicator {
 private:
@@ -390,4 +390,4 @@ private:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

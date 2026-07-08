@@ -12,7 +12,7 @@
 
 #include "nlohmann/json.hpp"
 
-namespace synet {
+namespace tunx {
 
 class Communicator;
 
@@ -262,12 +262,12 @@ void archive(Archiver &archiver, Endpoint &endpoint) {
   }
 }
 
-}  // namespace synet
+}  // namespace tunx
 
-// Hash function specialization for synet::Endpoint
+// Hash function specialization for tunx::Endpoint
 namespace std {
 template <>
-struct hash<synet::Endpoint> {
-  size_t operator()(const synet::Endpoint &endpoint) const noexcept { return endpoint.hash(); }
+struct hash<tunx::Endpoint> {
+  size_t operator()(const tunx::Endpoint &endpoint) const noexcept { return endpoint.hash(); }
 };
 }  // namespace std

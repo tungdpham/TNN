@@ -8,7 +8,7 @@
 
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 template <typename T>
 struct VectoredTraits;
@@ -16,6 +16,12 @@ struct VectoredTraits;
 template <>
 struct VectoredTraits<uint8_t> {
   using type = uchar4;
+  static constexpr int size = 4;
+};
+
+template <>
+struct VectoredTraits<int8> {
+  using type = char4;
   static constexpr int size = 4;
 };
 
@@ -104,12 +110,28 @@ struct Greater {
 template <typename T>
 struct FMAdd;
 template <>
+struct FMAdd<int8> {
+  __device__ int8 operator()(int8 a, int8 b, int8 c) const { return (int8)(a * b + c); }
+};
+template <>
 struct FMAdd<fp16> {
-  __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const { return __hfma(a, b, c); }
+  __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 530
+    return __hfma(a, b, c);
+#else
+    return static_cast<fp16>(static_cast<float>(a) * static_cast<float>(b) + static_cast<float>(c));
+#endif
+  }
 };
 template <>
 struct FMAdd<bf16> {
-  __device__ bf16 operator()(bf16 a, bf16 b, bf16 c) const { return __hfma(a, b, c); }
+  __device__ bf16 operator()(bf16 a, bf16 b, bf16 c) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+    return __hfma(a, b, c);
+#else
+    return static_cast<bf16>(static_cast<float>(a) * static_cast<float>(b) + static_cast<float>(c));
+#endif
+  }
 };
 template <>
 struct FMAdd<float> {
@@ -123,12 +145,28 @@ struct FMAdd<double> {
 template <typename T>
 struct FMSub;
 template <>
+struct FMSub<int8> {
+  __device__ int8 operator()(int8 a, int8 b, int8 c) const { return (int8)(a * b - c); }
+};
+template <>
 struct FMSub<fp16> {
-  __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const { return __hfma(a, b, __hneg(c)); }
+  __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 530
+    return __hfma(a, b, __hneg(c));
+#else
+    return static_cast<fp16>(static_cast<float>(a) * static_cast<float>(b) - static_cast<float>(c));
+#endif
+  }
 };
 template <>
 struct FMSub<bf16> {
-  __device__ bf16 operator()(bf16 a, bf16 b, bf16 c) const { return __hfma(a, b, __hneg(c)); }
+  __device__ bf16 operator()(bf16 a, bf16 b, bf16 c) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+    return __hfma(a, b, __hneg(c));
+#else
+    return static_cast<bf16>(static_cast<float>(a) * static_cast<float>(b) - static_cast<float>(c));
+#endif
+  }
 };
 template <>
 struct FMSub<float> {
@@ -142,12 +180,30 @@ struct FMSub<double> {
 template <typename T>
 struct FNMAdd;
 template <>
+struct FNMAdd<int8> {
+  __device__ int8 operator()(int8 a, int8 b, int8 c) const { return (int8)(-a * b + c); }
+};
+template <>
 struct FNMAdd<fp16> {
-  __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const { return __hfma(__hneg(a), b, c); }
+  __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 530
+    return __hfma(__hneg(a), b, c);
+#else
+    return static_cast<fp16>(-static_cast<float>(a) * static_cast<float>(b) +
+                             static_cast<float>(c));
+#endif
+  }
 };
 template <>
 struct FNMAdd<bf16> {
-  __device__ bf16 operator()(bf16 a, bf16 b, bf16 c) const { return __hfma(__hneg(a), b, c); }
+  __device__ bf16 operator()(bf16 a, bf16 b, bf16 c) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+    return __hfma(__hneg(a), b, c);
+#else
+    return static_cast<bf16>(-static_cast<float>(a) * static_cast<float>(b) +
+                             static_cast<float>(c));
+#endif
+  }
 };
 template <>
 struct FNMAdd<float> {
@@ -163,12 +219,28 @@ struct Sqrt {
   __device__ T operator()(T a) const { return sqrtf((float)a); }
 };
 template <>
+struct Sqrt<int8> {
+  __device__ int8 operator()(int8 a) const { return (int8)sqrtf((float)a); }
+};
+template <>
 struct Sqrt<fp16> {
-  __device__ fp16 operator()(fp16 a) const { return hsqrt(a); }
+  __device__ fp16 operator()(fp16 a) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 530
+    return hsqrt(a);
+#else
+    return static_cast<fp16>(sqrtf(static_cast<float>(a)));
+#endif
+  }
 };
 template <>
 struct Sqrt<bf16> {
-  __device__ bf16 operator()(bf16 a) const { return hsqrt(a); }
+  __device__ bf16 operator()(bf16 a) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+    return hsqrt(a);
+#else
+    return static_cast<bf16>(sqrtf(static_cast<float>(a)));
+#endif
+  }
 };
 template <>
 struct Sqrt<float> {
@@ -192,8 +264,24 @@ struct Rsqrt<float> {
   __device__ float operator()(float a) const { return rsqrtf(a); }
 };
 template <>
+struct Rsqrt<fp16> {
+  __device__ fp16 operator()(fp16 a) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 530
+    return hrsqrt(a);
+#else
+    return static_cast<fp16>(rsqrtf(static_cast<float>(a)));
+#endif
+  }
+};
+template <>
 struct Rsqrt<bf16> {
-  __device__ bf16 operator()(bf16 a) const { return hrsqrt(a); }
+  __device__ bf16 operator()(bf16 a) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+    return hrsqrt(a);
+#else
+    return static_cast<bf16>(rsqrtf(static_cast<float>(a)));
+#endif
+  }
 };
 template <typename T>
 struct Rcp {
@@ -206,11 +294,23 @@ struct Abs {
 };
 template <>
 struct Abs<fp16> {
-  __device__ fp16 operator()(fp16 a) const { return __habs(a); }
+  __device__ fp16 operator()(fp16 a) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 530
+    return __habs(a);
+#else
+    return static_cast<fp16>(fabsf(static_cast<float>(a)));
+#endif
+  }
 };
 template <>
 struct Abs<bf16> {
-  __device__ bf16 operator()(bf16 a) const { return __habs(a); }
+  __device__ bf16 operator()(bf16 a) const {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+    return __habs(a);
+#else
+    return static_cast<bf16>(fabsf(static_cast<float>(a)));
+#endif
+  }
 };
 template <>
 struct Abs<float> {
@@ -273,6 +373,6 @@ struct Axpy {
 };
 
 }  // namespace functors
-}  // namespace synet
+}  // namespace tunx
 
 #endif

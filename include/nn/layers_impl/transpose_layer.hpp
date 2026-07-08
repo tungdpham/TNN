@@ -12,7 +12,7 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class TransposeLayerImpl : public SISOLayerImpl {
 private:
@@ -44,4 +44,4 @@ public:
   using LayerRef<TransposeLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

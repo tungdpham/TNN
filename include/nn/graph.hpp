@@ -15,7 +15,7 @@
 #include "nn/tensor_bundle.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 enum class ExecutionMode {
   TRAIN,
@@ -130,4 +130,4 @@ private:
   void backward(Edge &edge, size_t pid = 0);
 };
 
-}  // namespace synet
+}  // namespace tunx

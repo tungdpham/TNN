@@ -14,7 +14,7 @@ Running the coordinator is similar, but first run the workers, which will receiv
 # Run worker over TCP/IPv4 (default)
 ./bin/tcp_worker 8001
 
-# Run worker with GPU
+# Run worker with CUDA
 ./bin/tcp_worker 8001 --gpu 
 
 # Run network worker with custom number of IO threads (default is 4)

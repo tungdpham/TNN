@@ -11,7 +11,7 @@
 
 #include "nn/siso_layer.hpp"
 
-namespace synet {
+namespace tunx {
 
 class LegacyBatchNormLayerImpl : public SISOLayerImpl {
 private:
@@ -22,43 +22,16 @@ private:
 
   Tensor gamma_;
   Tensor beta_;
-  Tensor gamma_gradients_;
-  Tensor beta_gradients_;
+  Tensor grad_gamma_;
+  Tensor grad_beta_;
 
   Tensor running_mean_;
   Tensor running_var_;
-  Tensor dummy_mean_gradients_;
-  Tensor dummy_var_gradients_;
-
-  std::unique_ptr<Task> forward_task_;
-  std::unique_ptr<Task> backward_task_;
+  Tensor grad_dummy_mean_;
+  Tensor grad_dummy_var_;
 
   Tensor def_forward(const Tensor &input, Residuals &residuals);
   Tensor def_backward(const Tensor &grad_output, Residuals &residuals);
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_inference_impl(const Tensor &input, Tensor &output, size_t batch_size,
-                                           size_t channels, size_t spatial_size,
-                                           flowHandle_t handle = defaultFlowHandle);
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_inference(const Tensor &input, Tensor &output, size_t batch_size,
-                                      size_t channels, size_t spatial_size,
-                                      flowHandle_t handle = defaultFlowHandle);
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward(const Tensor &input, Tensor &batch_mean, Tensor &batch_inv_std,
-                                    Tensor &running_mean, Tensor &running_var, const Tensor &gamma,
-                                    const Tensor &beta, Tensor &output, Tensor &norm,
-                                    size_t batch_size, size_t channels, size_t spatial_size,
-                                    flowHandle_t handle = defaultFlowHandle);
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_backward(const Tensor &grad_output, const Tensor &norm_input,
-                                     const Tensor &inv_std, const Tensor &gamma, Tensor &d_gamma,
-                                     Tensor &d_beta, Tensor &grad_input, size_t batch_size,
-                                     size_t channels, size_t spatial_size,
-                                     flowHandle_t handle = defaultFlowHandle);
 
   void init_impl() override;
   Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
@@ -82,28 +55,28 @@ public:
         param_dtype_,
         {num_features_},
         &gamma_,
-        &gamma_gradients_,
+        &grad_gamma_,
     };
     descriptors.push_back(gamma_desc);
     auto beta_desc = ParamDescriptor{
         param_dtype_,
         {num_features_},
         &beta_,
-        &beta_gradients_,
+        &grad_beta_,
     };
     descriptors.push_back(beta_desc);
     auto running_mean_desc = ParamDescriptor{
         param_dtype_,
         {num_features_},
         &running_mean_,
-        &dummy_mean_gradients_,
+        &grad_dummy_mean_,
     };
     descriptors.push_back(running_mean_desc);
     auto running_var_desc = ParamDescriptor{
         param_dtype_,
         {num_features_},
         &running_var_,
-        &dummy_var_gradients_,
+        &grad_dummy_var_,
     };
     descriptors.push_back(running_var_desc);
     return descriptors;
@@ -122,4 +95,4 @@ public:
   using LayerRef<LegacyBatchNormLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

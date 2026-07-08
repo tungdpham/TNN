@@ -12,24 +12,13 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class ClassTokenLayerImpl : public SISOLayerImpl {
 private:
   size_t embed_dim_;
   Tensor class_token_;
   Tensor class_token_gradients_;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> forward_task(const Tensor &input, Tensor &output, const Tensor &class_token,
-                                     size_t batch_size, size_t seq_len, size_t embed_dim,
-                                     flowHandle_t handle) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> backward_task(const Tensor &grad_output, Tensor &grad_input,
-                                      Tensor &class_token_gradients, const Tensor &class_token,
-                                      size_t batch_size, size_t seq_len, size_t embed_dim,
-                                      flowHandle_t handle) const;
 
   void init_impl() override;
   Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
@@ -48,7 +37,7 @@ public:
     Vec<ParamDescriptor> descriptors;
     auto token_desc = ParamDescriptor{
         param_dtype_,
-        {1, embed_dim_},
+        {embed_dim_},
         &class_token_,
         &class_token_gradients_,
     };
@@ -67,4 +56,4 @@ public:
   using LayerRef<ClassTokenLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

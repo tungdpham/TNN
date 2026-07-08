@@ -11,7 +11,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace synet {
+namespace tunx {
 
 CsvLogger::CsvLogger(const std::string &model_name, const std::string &log_dir,
                      const LogMode *log_mode)
@@ -131,4 +131,4 @@ void CsvLogger::log_epoch(int epoch, const std::unordered_map<std::string, doubl
   epoch_logger_.flush();
 }
 
-}  // namespace synet
+}  // namespace tunx

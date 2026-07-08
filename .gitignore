@@ -104,4 +104,6 @@ __pycache__/
 # doc
 doc/html/
 doc/latex/
+doc/xml/
 doc/Doxyfile.doxygen_docs
+doc/Doxyfile.doxygen_xml

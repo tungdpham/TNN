@@ -1,10 +1,10 @@
 #include <cublas_v2.h>
 
-#include "cuda/error_handler.hpp"
+#include "cuda/error_handler.cuh"
 #include "math/cuda/gemm.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 
 cublasHandle_t get_cublas_handle() {
@@ -17,6 +17,10 @@ cublasHandle_t get_cublas_handle() {
 
 template <typename T>
 struct CudaType;
+template <>
+struct CudaType<int8> {
+  static constexpr cudaDataType_t type = CUDA_R_8I;
+};
 template <>
 struct CudaType<fp16> {
   static constexpr cudaDataType_t type = CUDA_R_16F;
@@ -40,6 +44,10 @@ struct CudaType<int> {
 
 template <typename T>
 struct CublasComputeType;
+template <>
+struct CublasComputeType<int8> {
+  static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_32F;
+};
 template <>
 struct CublasComputeType<fp16> {
   static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_16F;
@@ -77,7 +85,7 @@ void gemm_ex(const A_T* A, const B_T* B, C_T* C, size_t M, size_t N, size_t K, c
   if (status != CUBLAS_STATUS_SUCCESS) {
     throw std::runtime_error("cublasGemmEx failed with status: " + std::to_string(status));
   }
-  synet::cuda::checkCudaError(cudaGetLastError(), "gemm_ex", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "gemm_ex", __FILE__, __LINE__);
 }
 
 template <typename A_T, typename B_T, typename C_T, typename Compute_T>
@@ -100,7 +108,7 @@ void gemm_strided_batched_ex(const A_T* A, const B_T* B, C_T* C, size_t M, size_
     throw std::runtime_error("cublasGemmStridedBatchedEx failed with status: " +
                              std::to_string(status));
   }
-  synet::cuda::checkCudaError(cudaGetLastError(), "gemm_strided_batched_ex", __FILE__, __LINE__);
+  tunx::cuda::checkCudaError(cudaGetLastError(), "gemm_strided_batched_ex", __FILE__, __LINE__);
 }
 
 #define INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, Compute_T)                                     \
@@ -118,6 +126,7 @@ void gemm_strided_batched_ex(const A_T* A, const B_T* B, C_T* C, size_t M, size_
   INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, COMPUTE_T)
 
 #define INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, C_T)         \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, int8)   \
   INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, fp16)   \
   INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, bf16)   \
   INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, float)  \
@@ -125,6 +134,7 @@ void gemm_strided_batched_ex(const A_T* A, const B_T* B, C_T* C, size_t M, size_
   INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, int)
 
 #define INSTANTIATE_CUBLAS_GEMM_B(A_T, B_T)   \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, int8)   \
   INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, fp16)   \
   INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, bf16)   \
   INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, float)  \
@@ -132,6 +142,7 @@ void gemm_strided_batched_ex(const A_T* A, const B_T* B, C_T* C, size_t M, size_
   INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, int)
 
 #define INSTANTIATE(A_T)                 \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, int8)   \
   INSTANTIATE_CUBLAS_GEMM_B(A_T, fp16)   \
   INSTANTIATE_CUBLAS_GEMM_B(A_T, bf16)   \
   INSTANTIATE_CUBLAS_GEMM_B(A_T, float)  \
@@ -146,4 +157,4 @@ void gemm_strided_batched_ex(const A_T* A, const B_T* B, C_T* C, size_t M, size_
 #undef INSTANTIATE_CUBLAS_GEMM
 
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx

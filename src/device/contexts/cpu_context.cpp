@@ -20,7 +20,7 @@
 #include <sys/types.h>
 #endif
 
-namespace synet {
+namespace tunx {
 CPUContext::CPUContext()
     : Context() {
   createFlow(defaultFlowHandle);
@@ -58,7 +58,7 @@ size_t CPUContext::getTotalMemory() const {
   return 0;
 #elif defined(__APPLE__)
   // macOS implementation
-  int64_t physical_memory;
+  int64 physical_memory;
   size_t length = sizeof(physical_memory);
   if (sysctlbyname("hw.memsize", &physical_memory, &length, nullptr, 0) == 0) {
     return static_cast<size_t>(physical_memory);
@@ -190,4 +190,4 @@ Endianness CPUContext::get_endianness() const {
   return (numPtr[0] == 1) ? Endianness::LITTLE : Endianness::BIG;
 }
 
-}  // namespace synet
+}  // namespace tunx

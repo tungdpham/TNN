@@ -11,21 +11,60 @@
 #endif
 #include <vector>
 
-namespace synet {
+namespace tunx {
 template <typename T>
 using Vec = std::vector<T>;
 using std::string;
 
 #if defined(USE_CUDA)
-typedef __half fp16;
-typedef __nv_bfloat16 bf16;
+using fp16 = __half;
+using bf16 = __nv_bfloat16;
 #endif
-typedef float fp32;
-typedef double fp64;
-typedef unsigned char uchar;
+using fp32 = float;
+using fp64 = double;
+using uchar = unsigned char;
+using int8 = int8_t;
+using int16 = int16_t;
+using int32 = int32_t;
+using int64 = int64_t;
+using uint8 = uint8_t;
+using uint16 = uint16_t;
+using uint32 = uint32_t;
+using uint64 = uint64_t;
+
+template <typename T>
+struct is_floating : std::false_type {};
+
+template <>
+struct is_floating<float> : std::true_type {};
+
+template <>
+struct is_floating<double> : std::true_type {};
+
+#if defined(USE_CUDA)
+template <>
+struct is_floating<__half> : std::true_type {};
+
+template <>
+struct is_floating<__nv_bfloat16> : std::true_type {};
+#else
+template <>
+struct is_floating<fp16> : std::true_type {};
+
+template <>
+struct is_floating<bf16> : std::true_type {};
+#endif
 
 template <typename T>
 struct TypeTraits;
+
+template <>
+struct TypeTraits<int8> {
+  static constexpr const char *name = "int8";
+  static const float epsilon;
+  using ComputePrecision = int8;
+  using HigherPrecision = int32;
+};
 
 template <>
 struct TypeTraits<bf16> {
@@ -76,13 +115,14 @@ struct TypeTraits<size_t> {
 enum class DType_t : uint32_t {
   BYTE,
   UINT8_T,
+  INT8,
   BOOL,
   FP16,
   BF16,
   FP32,
   FP64,
-  INT32_T,
-  INT64_T,
+  INT32,
+  INT64,
   SIZE_T,
   UNKNOWN
 };
@@ -98,6 +138,10 @@ constexpr DType_t dtype_of<uchar>() {
 template <>
 constexpr DType_t dtype_of<bool>() {
   return DType_t::BOOL;
+}
+template <>
+constexpr DType_t dtype_of<int8>() {
+  return DType_t::INT8;
 }
 template <>
 constexpr DType_t dtype_of<bf16>() {
@@ -116,12 +160,12 @@ constexpr DType_t dtype_of<double>() {
   return DType_t::FP64;
 }
 template <>
-constexpr DType_t dtype_of<int32_t>() {
-  return DType_t::INT32_T;
+constexpr DType_t dtype_of<int32>() {
+  return DType_t::INT32;
 }
 template <>
-constexpr DType_t dtype_of<int64_t>() {
-  return DType_t::INT64_T;
+constexpr DType_t dtype_of<int64>() {
+  return DType_t::INT64;
 }
 template <>
 constexpr DType_t dtype_of<size_t>() {
@@ -132,6 +176,8 @@ enum class SBool : uint8_t { FALSE = 0, TRUE = 1 };
 
 inline float dtype_eps(DType_t dtype) {
   switch (dtype) {
+    case DType_t::INT8:
+      return TypeTraits<int8>::epsilon;
     case DType_t::FP16:
       return TypeTraits<fp16>::epsilon;
     case DType_t::BF16:
@@ -151,6 +197,8 @@ inline size_t get_dtype_size(DType_t dtype) {
       return sizeof(uchar);
     case DType_t::UINT8_T:
       return sizeof(uint8_t);
+    case DType_t::INT8:
+      return sizeof(int8);
     case DType_t::BOOL:
       return sizeof(bool);
     case DType_t::FP16:
@@ -161,10 +209,10 @@ inline size_t get_dtype_size(DType_t dtype) {
       return sizeof(fp32);
     case DType_t::FP64:
       return sizeof(fp64);
-    case DType_t::INT32_T:
-      return sizeof(int32_t);
-    case DType_t::INT64_T:
-      return sizeof(int64_t);
+    case DType_t::INT32:
+      return sizeof(int32);
+    case DType_t::INT64:
+      return sizeof(int64);
     case DType_t::SIZE_T:
       return sizeof(size_t);
     default:
@@ -178,6 +226,8 @@ inline std::string dtype_to_string(DType_t dtype) {
       return "BYTE";
     case DType_t::UINT8_T:
       return "UINT8_T";
+    case DType_t::INT8:
+      return "INT8";
     case DType_t::BOOL:
       return "BOOL";
     case DType_t::FP16:
@@ -188,9 +238,9 @@ inline std::string dtype_to_string(DType_t dtype) {
       return "FP32";
     case DType_t::FP64:
       return "FP64";
-    case DType_t::INT32_T:
+    case DType_t::INT32:
       return "INT32";
-    case DType_t::INT64_T:
+    case DType_t::INT64:
       return "INT64";
     case DType_t::SIZE_T:
       return "SIZE_T";
@@ -202,6 +252,8 @@ inline std::string dtype_to_string(DType_t dtype) {
 inline DType_t string_to_dtype(const std::string &dtype_str) {
   if (dtype_str == "BYTE" || dtype_str == "UINT8") {
     return DType_t::UINT8_T;
+  } else if (dtype_str == "INT8") {
+    return DType_t::INT8;
   } else if (dtype_str == "BOOL") {
     return DType_t::BOOL;
   } else if (dtype_str == "FP16") {
@@ -213,9 +265,9 @@ inline DType_t string_to_dtype(const std::string &dtype_str) {
   } else if (dtype_str == "FP64" || dtype_str == "DOUBLE") {
     return DType_t::FP64;
   } else if (dtype_str == "INT32") {
-    return DType_t::INT32_T;
+    return DType_t::INT32;
   } else if (dtype_str == "INT64") {
-    return DType_t::INT64_T;
+    return DType_t::INT64;
   } else if (dtype_str == "SIZE_T") {
     return DType_t::SIZE_T;
   } else {
@@ -256,6 +308,11 @@ inline DType_t string_to_dtype(const std::string &dtype_str) {
       __VA_ARGS__;                                           \
       break;                                                 \
     }                                                        \
+    case DType_t::INT8: {                                    \
+      using type_alias = int8;                               \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
     case DType_t::FP16: {                                    \
       using type_alias = fp16;                               \
       __VA_ARGS__;                                           \
@@ -266,8 +323,8 @@ inline DType_t string_to_dtype(const std::string &dtype_str) {
       __VA_ARGS__;                                           \
       break;                                                 \
     }                                                        \
-    case DType_t::INT32_T: {                                 \
-      using type_alias = int32_t;                            \
+    case DType_t::INT32: {                                   \
+      using type_alias = int32;                              \
       __VA_ARGS__;                                           \
       break;                                                 \
     }                                                        \
@@ -289,4 +346,13 @@ inline DType_t string_to_dtype(const std::string &dtype_str) {
   DISPATCH_ANY_DTYPE(dtype_value_a, type_alias_a,                                          \
                      { DISPATCH_ANY_DTYPE(dtype_value_b, type_alias_b, { __VA_ARGS__; }); })
 
-}  // namespace synet
+}  // namespace tunx
+
+namespace std {
+template <>
+struct hash<tunx::DType_t> {
+  size_t operator()(const tunx::DType_t &dtype) const {
+    return hash<uint32_t>()(static_cast<uint32_t>(dtype));
+  }
+};
+}  // namespace std

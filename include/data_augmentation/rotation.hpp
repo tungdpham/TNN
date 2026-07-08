@@ -9,7 +9,7 @@
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * Rotation augmentation
@@ -72,7 +72,7 @@ private:
 
     Tensor rotated(Vec<size_t>{1, height, width, channels}, data.dtype(), data.allocator());
 
-    rotated.fill(0.0);
+    fill(rotated, 0.0);
 
     for (size_t y = 0; y < height; ++y) {
       for (size_t x = 0; x < width; ++x) {
@@ -115,4 +115,4 @@ private:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

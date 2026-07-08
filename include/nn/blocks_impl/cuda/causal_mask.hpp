@@ -6,7 +6,7 @@
 
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 
 template <typename T>
@@ -16,4 +16,4 @@ template <typename T>
 void apply_causal_mask(T *scores, size_t batch_count, size_t L, T neg_inf, cudaStream_t stream = 0);
 
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx

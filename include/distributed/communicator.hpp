@@ -20,7 +20,7 @@
 #include "message_map.hpp"
 #include "utils/misc.hpp"
 
-namespace synet {
+namespace tunx {
 /**
  * @brief Abstract base class for pipeline communication
  * Defines the interface for sending and receiving messages
@@ -156,7 +156,7 @@ public:
     return this->out_message_queue_.size();
   }
 
-  std::unordered_map<std::string, int64_t> get_profile_data() {
+  std::unordered_map<std::string, int64> get_profile_data() {
     std::lock_guard<std::mutex> lock(profile_mutex_);
     return profile_data_;
   }
@@ -175,7 +175,7 @@ protected:
 
   virtual bool disconnect_from_endpoint(const Endpoint &endpoint) = 0;
 
-  void add_profile_data(const std::string &key, int64_t value) {
+  void add_profile_data(const std::string &key, int64 value) {
     std::lock_guard<std::mutex> lock(profile_mutex_);
     auto it = profile_data_.find(key);
     if (it == profile_data_.end()) {
@@ -195,6 +195,6 @@ protected:
 
 private:
   std::mutex profile_mutex_;
-  std::unordered_map<std::string, int64_t> profile_data_;  // profiling data in microseconds
+  std::unordered_map<std::string, int64> profile_data_;  // profiling data in microseconds
 };
-}  // namespace synet
+}  // namespace tunx

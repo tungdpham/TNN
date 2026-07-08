@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 void sgemm(const float *A, const float *B, float *C, size_t M, size_t N, size_t K,
            const bool trans_A, const bool trans_B, const float alpha = 1.0f,
@@ -19,4 +19,4 @@ void sgemm_strided(const float *A, const float *B, float *C, size_t M, size_t N,
                    size_t lda, size_t ldb, size_t ldc);
 
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

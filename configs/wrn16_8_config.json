@@ -9,7 +9,7 @@
   "print_layer_profiling": false,
   "print_layer_memory_usage": false,
   "num_microbatches": 2,
-  "device_type": "GPU",
+  "device_type": "CUDA",
   "model_name": "cifar100_wrn16_8",
   "model_path": "",
   "dataset_name": "cifar100",

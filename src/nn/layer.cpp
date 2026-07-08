@@ -9,14 +9,12 @@
 
 #include <fmt/ranges.h>
 
-#include <fstream>
-
 #include "device/flow.hpp"
 #include "tensor/tensor.hpp"
 #include "tensor/tensor_ops.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 void LayerImpl::set_engine_type(EngineType engine_type) {
   engine_type_ = engine_type;
@@ -135,6 +133,26 @@ LayerImpl &LayerImpl::set_training(bool training) {
 
 bool LayerImpl::is_training() const { return is_training_; }
 
+LayerImpl &LayerImpl::set_engine(Engine engine) {
+  engine_ = engine;
+  on_set_engine(engine);
+  return *this;
+}
+
+Engine LayerImpl::get_engine() {
+  if (!engine_) {
+    throw std::runtime_error("Engine is not set");
+  }
+  return engine_;
+}
+
+void LayerImpl::set_backend_handle(void *backend_handle) {
+  backend_handle_ = backend_handle;
+  on_set_backend_handle(backend_handle);
+}
+
+void *LayerImpl::get_backend_handle() const { return backend_handle_; }
+
 void LayerImpl::save_state(std::ostream &out) const {
   auto config = get_config();
   nlohmann::json j = config.to_json();
@@ -145,7 +163,7 @@ void LayerImpl::save_state(std::ostream &out) const {
   auto descs = param_descriptors();
   for (const auto &desc : descs) {
     Tensor param = *desc.data_ptr;
-    ops::save_tensor(param, out);
+    save(param, out);
   }
 }
 
@@ -156,4 +174,4 @@ Tensor LayerImpl::get_tensor(const Vec<size_t> &shape, DType_t dtype) {
   return Tensor(shape, dtype, *allocator_);
 }
 
-}  // namespace synet
+}  // namespace tunx

@@ -6,17 +6,13 @@
  */
 #pragma once
 
-#include "math/common/gemm.hpp"
-#include "nn/siso_layer.hpp"
-#include "tensor/tensor.hpp"
-#ifdef USE_CUDNN
-#include "math/cuda/cudnn_gemm.hpp"
-#endif
 #include <memory>
 #include <string>
-#include <unordered_map>
 
-namespace synet {
+#include "nn/siso_layer.hpp"
+#include "tensor/tensor.hpp"
+
+namespace tunx {
 
 class DenseLayerImpl : public SISOLayerImpl {
 private:
@@ -25,30 +21,8 @@ private:
   bool use_bias_;
   Tensor weights_;
   Tensor bias_;
-  Tensor weight_gradients_;
-  Tensor bias_gradients_;
-
-#ifdef USE_CUDNN
-  void build_cudnn_graph(const Vec<size_t> &input_shape) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_bgrad(const Tensor &grad_output, Tensor &bias_gradient,
-                                  size_t batch_size, size_t output_features,
-                                  flowHandle_t handle) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> add_bias(Tensor &output, const Tensor &bias, size_t batch_size,
-                                 size_t output_features, flowHandle_t handle) const;
-
-  Tensor cudnn_forward(const Tensor &input, Residuals &residuals);
-  Tensor cudnn_backward(const Tensor &grad_output, Residuals &residuals);
-
-  mutable std::unordered_map<size_t, cuda::cudnn_gemm::feHandle_t *> fe_handle_cache;
-#endif
-  mutable std::unordered_map<size_t, GemmStats> stats_cache;
-
-  Tensor def_forward(const Tensor &input, Residuals &residuals);
-  Tensor def_backward(const Tensor &grad_output, Residuals &residuals);
+  Tensor grad_weights_;
+  Tensor grad_bias_;
 
   void init_impl() override;
   Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
@@ -71,7 +45,7 @@ public:
         param_dtype_,
         {output_features_, input_features_},
         &weights_,
-        &weight_gradients_,
+        &grad_weights_,
     };
     descriptors.push_back(weight_desc);
     if (use_bias_) {
@@ -79,7 +53,7 @@ public:
           param_dtype_,
           {output_features_},
           &bias_,
-          &bias_gradients_,
+          &grad_bias_,
       };
       descriptors.push_back(bias_desc);
     }
@@ -99,4 +73,4 @@ public:
   using LayerRef<DenseLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

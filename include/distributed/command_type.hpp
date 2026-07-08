@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace synet {
+namespace tunx {
 
 /**
  * @brief Enumeration of all possible command types in the pipeline system.
@@ -85,4 +85,4 @@ enum CommandType : uint16_t {
   _COUNT
 };
 
-}  // namespace synet
+}  // namespace tunx

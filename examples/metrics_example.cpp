@@ -10,7 +10,7 @@
 #include "nn/metrics.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace synet;
+using namespace tunx;
 
 int main() {
   // Example: Classification metrics
@@ -29,7 +29,7 @@ int main() {
 
   // Create tensors
   Tensor predictions = Tensor({4, 3}, DType_t::FP32);
-  Tensor targets = Tensor({4}, DType_t::INT32_T);
+  Tensor targets = Tensor({4}, DType_t::INT32);
 
   // Copy data
   std::copy(pred_data.begin(), pred_data.end(), predictions.data_as<float>());

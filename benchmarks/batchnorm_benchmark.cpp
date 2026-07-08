@@ -10,7 +10,7 @@
 #include "nn/layers_impl/legacy_batchnorm_layer.hpp"
 #include "tensor/tensor.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 constexpr size_t BATCH_SIZE = 32;
@@ -39,7 +39,7 @@ signed main() {
   graph.compile(allocator);
 
   Tensor input_data = Tensor({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, DType_t::FP32, getGPU());
-  input_data.fill_random_normal(0.5f, 0.2f, 676767);
+  fill_normal(input_data, 0.5f, 0.2f, 676767);
 
   Residuals residuals;
   Residuals legacy_residuals;

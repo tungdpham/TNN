@@ -3,7 +3,7 @@
 #include "nn/layer.hpp"
 #include "nn/node.hpp"
 
-namespace synet {
+namespace tunx {
 
 class EdgeImpl {
 public:
@@ -44,4 +44,4 @@ private:
 
 using Edge = std::shared_ptr<EdgeImpl>;
 
-}  // namespace synet
+}  // namespace tunx

@@ -10,7 +10,7 @@
 #include "nn/metrics_impl/cuda/metrics.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 namespace metrics {
 
@@ -599,4 +599,4 @@ int compute_class_corrects(const T* predictions, const int* targets, size_t batc
 
 }  // namespace metrics
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx

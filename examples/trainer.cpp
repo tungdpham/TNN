@@ -10,7 +10,7 @@
 #include "nn/train.hpp"
 
 using namespace std;
-using namespace synet;
+using namespace tunx;
 
 signed main(int argc, char *argv[]) {
   ExampleGraphs::register_defaults();

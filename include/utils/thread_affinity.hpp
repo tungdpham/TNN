@@ -14,7 +14,7 @@
 
 #include "utils/hardware_info.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * @brief CPU Core Types for thread affinity
@@ -45,7 +45,8 @@ struct AffinityConfig {
  */
 class ThreadAffinity {
 public:
-  explicit ThreadAffinity(const HardwareInfo &hw_info) : hw_info_(hw_info) {}
+  explicit ThreadAffinity(const HardwareInfo &hw_info)
+      : hw_info_(hw_info) {}
 
   /**
    * @brief Set affinity for current thread to E-cores
@@ -158,7 +159,8 @@ private:
 class ScopedThreadAffinity {
 public:
   ScopedThreadAffinity(const ThreadAffinity &affinity, const AffinityConfig &config)
-      : affinity_(affinity), thread_id_(pthread_self()) {
+      : affinity_(affinity),
+        thread_id_(pthread_self()) {
     // Save current affinity
     if (pthread_getaffinity_np(thread_id_, sizeof(old_mask_), &old_mask_) == 0) {
       saved_affinity_ = true;
@@ -187,4 +189,4 @@ private:
   bool saved_affinity_ = false;
 };
 
-}  // namespace synet
+}  // namespace tunx

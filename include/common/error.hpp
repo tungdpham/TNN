@@ -1,9 +1,9 @@
 #pragma once
 
-namespace synet {
+namespace tunx {
 
 /**
- * @brief Error codes for SYNET library
+ * @brief Error codes for tunx library
  */
 enum class ec {
   SUCCESS = 0,
@@ -24,4 +24,4 @@ enum class ec {
 
 };
 
-}  // namespace synet
+}  // namespace tunx

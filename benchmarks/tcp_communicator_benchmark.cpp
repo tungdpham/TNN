@@ -17,7 +17,7 @@
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 
-using namespace synet;
+using namespace tunx;
 using namespace std;
 
 struct Config {
@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
 
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
   Tensor master_tensor = Tensor({N, H, W, C}, DType_t::FP32, getHost());
-  master_tensor.fill_random_normal(0.0f, 1.0f, 123456);
+  fill_normal(master_tensor, 0.0f, 1.0f, 123456);
   // float *master_data = master_tensor.data_as<float>();
 
   for (int i = 0; i < 4; i++) {

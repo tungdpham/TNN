@@ -11,7 +11,7 @@
 #include "nn/blocks_impl/cuda/permute_heads.hpp"
 #endif
 
-namespace synet {
+namespace tunx {
 
 TransposeLayerImpl::TransposeLayerImpl(const std::string &name)
     : SISOLayerImpl(name) {}
@@ -48,9 +48,9 @@ Tensor TransposeLayerImpl::forward_impl(const Tensor &input, Residuals &residual
   if (input.dims() != 3) {
     throw std::runtime_error("TransposeLayerImpl expects 3D input (Batch, D1, D2)");
   }
-  size_t B = input.dimension(0);
-  size_t L = input.dimension(1);
-  size_t H = input.dimension(2);
+  size_t B = input.dim(0);
+  size_t L = input.dim(1);
+  size_t H = input.dim(2);
   size_t D = 1;
 
   Tensor output = get_tensor({B, H, L}, input.dtype());
@@ -64,10 +64,10 @@ Tensor TransposeLayerImpl::backward_impl(const Tensor &grad_output, Residuals &r
   if (grad_output.dims() != 3) {
     throw std::runtime_error("TransposeLayerImpl: Gradient must be 3D");
   }
-  size_t B = grad_output.dimension(0);
+  size_t B = grad_output.dim(0);
   // Gradient output shape was {B, H, L}, so dim(1) is H, dim(2) is L
-  size_t H = grad_output.dimension(1);
-  size_t L = grad_output.dimension(2);
+  size_t H = grad_output.dim(1);
+  size_t L = grad_output.dim(2);
   size_t D = 1;
 
   Tensor grad_input = get_tensor({B, L, H}, grad_output.dtype());
@@ -94,4 +94,4 @@ std::shared_ptr<TransposeLayerImpl> TransposeLayerImpl::create_from_config(
   return std::make_shared<TransposeLayerImpl>(config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

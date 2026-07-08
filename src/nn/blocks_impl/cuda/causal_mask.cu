@@ -6,7 +6,7 @@
 #include "nn/blocks_impl/cuda/causal_mask.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 
 template <typename T>
@@ -65,4 +65,4 @@ void apply_causal_mask(T* scores, size_t batch_count, size_t L, T neg_inf, cudaS
 #undef INSTANTIATE
 
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx

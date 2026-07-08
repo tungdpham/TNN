@@ -12,7 +12,7 @@
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 namespace loss {
 
@@ -28,9 +28,9 @@ void compute_crossentropy_loss_probs(const T *predictions, const int *labels, fl
     int label = labels[i];
     size_t index = batch_start + label;
 
-    const ComputeT pred =
-        std::clamp(static_cast<ComputeT>(predictions[index]), static_cast<ComputeT>(epsilon),
-                   static_cast<ComputeT>(1.0) - static_cast<ComputeT>(epsilon));
+    const ComputeT pred = std::clamp(
+        static_cast<ComputeT>(predictions[index]), static_cast<ComputeT>(epsilon),
+        static_cast<ComputeT>(static_cast<ComputeT>(1.0) - static_cast<ComputeT>(epsilon)));
     total_loss -= std::log(pred);
   }
 
@@ -51,7 +51,7 @@ void compute_crossentropy_gradient_probs(const T *predictions, const int *labels
     if (c == static_cast<size_t>(label)) {
       ComputeT pred = static_cast<ComputeT>(predictions[idx]);
       ComputeT eps = static_cast<ComputeT>(epsilon);
-      pred = std::clamp(pred, eps, ComputeT(1.0) - eps);
+      pred = std::clamp(pred, eps, static_cast<ComputeT>(ComputeT(1.0) - eps));
       grad_output[idx] = static_cast<T>(-ComputeT(1.0) / pred * inv_batch_size);
     } else {
       grad_output[idx] = static_cast<T>(0.0);
@@ -260,4 +260,4 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *grad_outp
 
 }  // namespace loss
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

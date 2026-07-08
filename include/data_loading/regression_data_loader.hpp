@@ -6,7 +6,7 @@
  */
 #include "data_loader.hpp"
 
-namespace synet {
+namespace tunx {
 /**
  * Specialized base class for regression datasets
  * Provides common functionality for continuous target prediction
@@ -43,4 +43,4 @@ public:
   virtual Vec<float> get_target_stds() const { return {}; }
 };
 
-}  // namespace synet
+}  // namespace tunx

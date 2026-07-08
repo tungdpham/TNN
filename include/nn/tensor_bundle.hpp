@@ -6,7 +6,7 @@
 #include "nn/node.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class TensorBundle {
 private:
@@ -51,4 +51,4 @@ void archive(Archiver &archiver, const TensorBundle &bundle) {
     archiver(entry.second);  // Serialize the Tensor
   }
 }
-}  // namespace synet
+}  // namespace tunx

@@ -7,4 +7,6 @@
 
 #include "tensor/tensor.hpp"
 
-namespace synet {}  // namespace synet
+#include "tensor/tensor_ops.hpp"  // IWYU pragma: keep
+
+namespace tunx {}  // namespace tunx

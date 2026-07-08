@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 template <typename T>
 void softmax(const T *input, T *output, size_t batch_size, size_t channels, size_t height,
@@ -15,6 +15,6 @@ template <typename T>
 void softmax_gradient(const T *input, const T *grad_output, T *grad_input, size_t batch_size,
                       size_t channels, size_t height, size_t width, cudaStream_t stream);
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif  // USE_CUDA

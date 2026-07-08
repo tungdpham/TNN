@@ -12,7 +12,7 @@
 
 #include "device/context.hpp"
 
-namespace synet {
+namespace tunx {
 class CPUContext : public Context {
   std::unordered_map<flowHandle_t, std::unique_ptr<CPUFlow>> flows_;
 
@@ -32,4 +32,4 @@ public:
   Endianness get_endianness() const override;
   Flow *getFlow(flowHandle_t handle) override;
 };
-}  // namespace synet
+}  // namespace tunx

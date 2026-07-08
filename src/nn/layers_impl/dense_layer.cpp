@@ -6,25 +6,16 @@
  */
 #include "nn/layers_impl/dense_layer.hpp"
 
-#include "device/task.hpp"
-#include "nn/layer.hpp"
-#include "nn/layers_impl/cpu/dense_ops.hpp"
-#include "utils/misc.hpp"
-#ifdef USE_CUDNN
-#include "cuda/cudnn/common.hpp"
-#include "device/cuda/cuda_context.hpp"
-#include "math/cuda/cudnn_gemm.hpp"
-#endif
-#ifdef USE_CUDA
-#include "nn/layers_impl/cuda/dense_ops.hpp"
-#endif
 #include <cmath>
-#include <iostream>
 #include <stdexcept>
 
+#include "nn/engines/iengine.hpp"
+#include "nn/layer.hpp"
+#include "tensor/tensor.hpp"
+#include "tensor/tensor_ops.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 DenseLayerImpl::DenseLayerImpl(size_t input_features, size_t output_features, bool use_bias,
                                const std::string &name)
@@ -33,35 +24,22 @@ DenseLayerImpl::DenseLayerImpl(size_t input_features, size_t output_features, bo
       output_features_(output_features),
       use_bias_(use_bias) {}
 
-DenseLayerImpl::~DenseLayerImpl() {
-#ifdef USE_CUDNN
-  for (auto &pair : fe_handle_cache) {
-    cuda::cudnn_gemm::destroy_fe_handle(pair.second);
-  }
-  fe_handle_cache.clear();
-#endif
-}
+DenseLayerImpl::~DenseLayerImpl() {}
 
 void DenseLayerImpl::init_impl() {
   float stddev = static_cast<float>(1.0 / std::sqrt(static_cast<double>(input_features_)));
+  long long seed = this->use_seed_ ? this->srand_seed_
+                                   : std::chrono::system_clock::now().time_since_epoch().count();
 
-  if (this->use_seed_) {
-    weights_.fill_random_normal(0, stddev, this->srand_seed_);
-  } else {
-    weights_.fill_random_normal(0, stddev);
-  }
+  fill_normal(weights_, 0, stddev, seed);
 
   if (use_bias_) {
-    if (this->use_seed_) {
-      bias_.fill_random_normal(0, stddev, this->srand_seed_);
-    } else {
-      bias_.fill_random_normal(0, stddev);
-    }
+    fill_normal(bias_, 0, stddev, seed);
   }
 
-  weight_gradients_.fill(0.0f);
+  fill(grad_weights_, 0.0f);
   if (use_bias_) {
-    bias_gradients_.fill(0.0f);
+    fill(grad_bias_, 0.0f);
   }
 }
 
@@ -70,267 +48,86 @@ Tensor DenseLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
   size_t last_dim = in_shape.back();
 
   if (last_dim != input_features_) {
-    std::cerr << "Input last dimension: " << last_dim << " features, expected: " << input_features_
-              << " features" << std::endl;
     throw std::invalid_argument("Input feature size mismatch in DenseLayerImpl");
   }
+
+  size_t batch_size = 1;
+  for (size_t i = 0; i < in_shape.size() - 1; ++i) {
+    batch_size *= in_shape[i];
+  }
+
+  DenseStats stats{
+      .batch_size = batch_size,
+      .in_features = input_features_,
+      .out_features = output_features_,
+  };
+
+  DTypeDesc type_desc{
+      .io_dtype = io_dtype_,
+      .param_dtype = param_dtype_,
+      .compute_dtype = compute_dtype_,
+  };
+
+  WorkspaceReq ws_req = engine_->query_dense_graph(backend_handle_, stats, type_desc);
 
   if (this->is_training_) {
     residuals["input"] = input;
   }
 
-#ifdef USE_CUDNN
-  if (get_engine_type() == EngineType::CUDA) {
-    return cudnn_forward(input, residuals);
-  } else
-#endif
-  {
-    return def_forward(input, residuals);
-  }
+  Vec<size_t> out_shape = in_shape;
+  out_shape.back() = output_features_;
+  Tensor output = get_tensor(out_shape, io_dtype_);
+  Tensor ws = get_tensor({ws_req.fwd_workspace}, DType_t::BYTE);
+
+  engine_->dense_fwd(backend_handle_, stats, input.data_as<void>(), weights_.data_as<void>(),
+                     use_bias_ ? bias_.data_as<void>() : nullptr, output.data_as<void>(),
+                     ws.data_as<void>(), type_desc);
+
+  return output;
 }
 
 Tensor DenseLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
   if (grad_output.shape().back() != output_features_) {
-    throw std::invalid_argument("Gradient feature size mismatch in DenseLayerImpl. Expected " +
-                                std::to_string(output_features_) + " features in grad_output" +
-                                " but got " + std::to_string(grad_output.shape().back()) +
-                                " features in grad_output" + ".");
-  }
-
-#ifdef USE_CUDNN
-  if (get_engine_type() == EngineType::CUDA) {
-    return cudnn_backward(grad_output, residuals);
-  } else
-#endif
-  {
-    return def_backward(grad_output, residuals);
-  }
-}
-
-Tensor DenseLayerImpl::def_forward(const Tensor &input, Residuals &residuals) {
-  Vec<size_t> input_shape = input.shape();
-  size_t batch_size = 1;
-  for (size_t i = 0; i < input.shape().size() - 1; ++i) {
-    batch_size *= input.shape()[i];
-  }
-
-  Tensor output = get_tensor({batch_size, output_features_}, input.dtype());
-  if (get_engine_type() == EngineType::CPU) {
-    DISPATCH_DTYPE(io_dtype_, T, {
-      create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_forward<T>, input.data_as<T>(),
-                      weights_.data_as<T>(), output.data_as<T>(), batch_size, input_features_,
-                      output_features_);
-      if (use_bias_) {
-        create_cpu_task(this->flow_handle_, cpu::legacy_dense::add_bias<T>, output.data_as<T>(),
-                        bias_.data_as<T>(), batch_size, output_features_);
-      }
-    });
-  } else {
-    throw std::runtime_error("DenseLayerImpl only supports CPU device in def_forward");
-  }
-  return output;
-}
-
-Tensor DenseLayerImpl::def_backward(const Tensor &grad_output, Residuals &residuals) {
-  if (grad_output.shape().back() != output_features_) {
-    throw std::invalid_argument("Gradient feature size mismatch in DenseLayerImpl. Expected " +
-                                std::to_string(output_features_) + " features in grad_output" +
-                                " but got " + std::to_string(grad_output.shape().back()) +
-                                " features in grad_output" + ".");
+    throw std::invalid_argument("Gradient feature size mismatch in DenseLayerImpl.");
   }
 
   const Tensor &input = residuals["input"];
-
-  Vec<size_t> input_shape = input.shape();
-
-  size_t batch_size = 1;
-
-  for (size_t i = 0; i < input_shape.size() - 1; ++i) {
-    batch_size *= input_shape[i];
-  }
-
-  Tensor grad_input = get_tensor(input_shape, grad_output.dtype());
-
-  if (get_engine_type() == EngineType::CPU) {
-    DISPATCH_DTYPE(io_dtype_, T, {
-      create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_wgrad<T>, input.data_as<T>(),
-                      grad_output.data_as<T>(), weight_gradients_.data_as<T>(), batch_size,
-                      input_features_, output_features_);
-      create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_dgrad<T>, grad_output.data_as<T>(),
-                      weights_.data_as<T>(), grad_input.data_as<T>(), batch_size, input_features_,
-                      output_features_);
-      if (use_bias_) {
-        create_cpu_task(this->flow_handle_, cpu::legacy_dense::run_bgrad<T>,
-                        grad_output.data_as<T>(), bias_gradients_.data_as<T>(), batch_size,
-                        output_features_);
-      }
-    });
-  } else {
-    throw std::runtime_error("DenseLayerImpl only supports CPU device in def_backward");
-  }
-  return grad_input;
-}
-
-#ifdef USE_CUDNN
-void DenseLayerImpl::build_cudnn_graph(const Vec<size_t> &input_shape) const {
-  size_t batch_size = 1;
-  for (size_t i = 0; i < input_shape.size() - 1; ++i) {
-    batch_size *= input_shape[i];
-  }
-
-  size_t shape_key = get_shape_hash({batch_size});
-
-  if (fe_handle_cache.find(shape_key) == fe_handle_cache.end()) {
-    cudnnDataType_t io_dtype = cuda::cudnn::to_cudnn_datatype(io_dtype_);
-    cudnnDataType_t param_dtype = cuda::cudnn::to_cudnn_datatype(param_dtype_);
-    cudnnDataType_t compute_dtype = cuda::cudnn::to_cudnn_datatype(compute_dtype_);
-    cudnnHandle_t cudnn_handle = CUDAContext::getCudnnHandle();
-    GemmStats stats;
-
-    init_gemm_stats(stats, batch_size, output_features_, input_features_);
-
-    cuda::cudnn_gemm::feHandle_t *handle = cuda::cudnn_gemm::initialize_fe_handle(
-        cudnn_handle, io_dtype, param_dtype, compute_dtype, stats);
-    fe_handle_cache[shape_key] = handle;
-    stats_cache[shape_key] = stats;
-  }
-}
-
-template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> DenseLayerImpl::run_bgrad(const Tensor &grad_output, Tensor &bias_gradient,
-                                                size_t batch_size, size_t output_features,
-                                                flowHandle_t handle) const {
-  if (grad_output.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("DenseLayerImpl grad_output dtype mismatch with dispatch IO_T");
-  }
-  if (bias_gradient.dtype() != dtype_of<Param_T>()) {
-    throw std::runtime_error(
-        "DenseLayerImpl bias grad_output dtype mismatch with dispatch Param_T");
-  }
-  if (get_engine_type() == EngineType::CPU) {
-    if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-      throw std::runtime_error(
-          "DenseLayerImpl mixed dtype dispatch not implemented for CPU "
-          "(io/param/compute must match).");
-    }
-    return create_cpu_task(handle, cpu::legacy_dense::run_bgrad<IO_T>, grad_output.data_as<IO_T>(),
-                           bias_gradient.data_as<IO_T>(), batch_size, output_features);
-  }
-#ifdef USE_CUDA
-  else if (get_engine_type() == EngineType::CUDA) {
-    return create_cuda_task(handle, cuda::legacy_dense::run_bgrad<IO_T, Param_T, Compute_T>,
-                            grad_output.data_as<IO_T>(), bias_gradient.data_as<Param_T>(),
-                            batch_size, output_features);
-  }
-#endif
-  else {
-    throw std::runtime_error("Unsupported device type for run_bgrad");
-  }
-  return nullptr;
-}
-
-template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> DenseLayerImpl::add_bias(Tensor &output, const Tensor &bias,
-                                               size_t batch_size, size_t output_features,
-                                               flowHandle_t handle) const {
-  if (output.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("DenseLayerImpl output dtype mismatch with dispatch IO_T");
-  }
-  if (bias.dtype() != dtype_of<Param_T>()) {
-    throw std::runtime_error("DenseLayerImpl bias dtype mismatch with dispatch Param_T");
-  }
-  if (get_engine_type() == EngineType::CPU) {
-    if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-      throw std::runtime_error(
-          "DenseLayerImpl mixed dtype dispatch not implemented for CPU "
-          "(io/param/compute must match).");
-    }
-    return create_cpu_task(handle, cpu::legacy_dense::add_bias<IO_T>, output.data_as<IO_T>(),
-                           bias.data_as<IO_T>(), batch_size, output_features);
-  }
-#ifdef USE_CUDA
-  else if (get_engine_type() == EngineType::CUDA) {
-    return create_cuda_task(handle, cuda::legacy_dense::add_bias<IO_T, Param_T, Compute_T>,
-                            output.data_as<IO_T>(), bias.data_as<Param_T>(), batch_size,
-                            output_features);
-  }
-#endif
-  else {
-    throw std::runtime_error("Unsupported device type for add_bias");
-  }
-  return nullptr;
-}
-
-Tensor DenseLayerImpl::cudnn_forward(const Tensor &input, Residuals &residuals) {
-  const Vec<size_t> &in_shape = input.shape();
-
-  build_cudnn_graph(in_shape);
-
-  size_t batch_size = 1;
-  for (size_t i = 0; i < in_shape.size() - 1; ++i) {
-    batch_size *= in_shape[i];
-  }
-  size_t shape_key = get_shape_hash({batch_size});
-
-  cuda::cudnn_gemm::feHandle_t *handle = fe_handle_cache[shape_key];
-  GemmStats &stats = stats_cache[shape_key];
-
-  Vec<size_t> out_shape = input.shape();
-  out_shape.back() = output_features_;
-
-  Tensor output = get_tensor(out_shape, io_dtype_);
-
-  Tensor cudnn_workspace = this->get_tensor({stats.fwd_workspace_size}, DType_t::BYTE);
-
-  create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_forward, handle, stats,
-                   input.data_as<void>(), weights_.data_as<void>(), output.data_as<void>(),
-                   cudnn_workspace.data_as<void>());
-
-  if (use_bias_) {
-    DISPATCH_ON_3_DTYPES_TO_METHOD(add_bias, output, bias_, batch_size, output_features_,
-                                   this->flow_handle_);
-  }
-
-  return output;
-}
-
-Tensor DenseLayerImpl::cudnn_backward(const Tensor &grad_output, Residuals &residuals) {
-  const Tensor &input = residuals["input"];
-
   const Vec<size_t> &in_shape = input.shape();
   size_t batch_size = 1;
   for (size_t i = 0; i < in_shape.size() - 1; ++i) {
     batch_size *= in_shape[i];
   }
 
-  size_t shape_key = get_shape_hash({batch_size});
-  cuda::cudnn_gemm::feHandle_t *handle = fe_handle_cache.at(shape_key);
+  DenseStats stats{
+      .batch_size = batch_size,
+      .in_features = input_features_,
+      .out_features = output_features_,
+  };
 
-  GemmStats &stats = stats_cache.at(shape_key);
+  DTypeDesc type_desc{
+      .io_dtype = io_dtype_,
+      .param_dtype = param_dtype_,
+      .compute_dtype = compute_dtype_,
+  };
 
-  Tensor grad_input = get_tensor(input.shape(), io_dtype_);
+  Tensor grad_input = get_tensor(in_shape, io_dtype_);
+  WorkspaceReq ws_req = engine_->query_dense_graph(backend_handle_, stats, type_desc);
+  Tensor ws = get_tensor({ws_req.bwd_workspace}, DType_t::BYTE);
 
-  Tensor cudnn_workspace = this->get_tensor(
-      {std::max(stats.dgrad_workspace_size, stats.wgrad_workspace_size)}, DType_t::BYTE);
-
-  // Compute weight gradients
-  create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_wgrad, handle, stats,
-                   input.data_as<void>(), grad_output.data_as<void>(),
-                   weight_gradients_.data_as<void>(), cudnn_workspace.data_as<void>());
+  engine_->dense_wgrad(backend_handle_, stats, grad_output.data_as<void>(), input.data_as<void>(),
+                       grad_weights_.data_as<void>(), ws.data_as<void>(), type_desc);
 
   if (use_bias_) {
-    DISPATCH_ON_3_DTYPES_TO_METHOD(run_bgrad, grad_output, bias_gradients_, batch_size,
-                                   output_features_, this->flow_handle_);
+    engine_->dense_bgrad(backend_handle_, stats, grad_output.data_as<void>(),
+                         grad_bias_.data_as<void>(), ws.data_as<void>(), type_desc);
   }
 
-  // Compute input gradients
-  create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_dgrad, handle, stats,
-                   grad_output.data_as<void>(), weights_.data_as<void>(),
-                   grad_input.data_as<void>(), cudnn_workspace.data_as<void>());
+  engine_->dense_dgrad(backend_handle_, stats, grad_output.data_as<void>(),
+                       weights_.data_as<void>(), grad_input.data_as<void>(), ws.data_as<void>(),
+                       type_desc);
 
   return grad_input;
 }
-#endif
 
 LayerConfig DenseLayerImpl::get_config() const {
   LayerConfig config;
@@ -359,4 +156,4 @@ std::shared_ptr<DenseLayerImpl> DenseLayerImpl::create_from_config(const LayerCo
   return std::make_shared<DenseLayerImpl>(input_features, output_features, use_bias, config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

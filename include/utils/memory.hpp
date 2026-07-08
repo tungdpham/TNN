@@ -6,7 +6,7 @@
 #include <fstream>
 #include <string>
 
-namespace synet {
+namespace tunx {
 inline long get_memory_usage_kb() {
   std::ifstream file("/proc/" + std::to_string(getpid()) + "/status");
   std::string line;
@@ -21,4 +21,4 @@ inline long get_memory_usage_kb() {
   return vmrss;
 }
 
-}  // namespace synet
+}  // namespace tunx

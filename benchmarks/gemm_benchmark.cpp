@@ -9,7 +9,7 @@
 #endif
 #include <iostream>
 
-using namespace synet;
+using namespace tunx;
 using namespace cpu;
 
 constexpr size_t N = 64;

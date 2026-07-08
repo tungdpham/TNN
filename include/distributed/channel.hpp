@@ -5,7 +5,7 @@
 
 #include "distributed/peer_context.hpp"
 
-namespace synet {
+namespace tunx {
 
 class Channel {
 public:
@@ -34,4 +34,4 @@ private:
   std::mutex context_mutex_;
 };
 
-}  // namespace synet
+}  // namespace tunx

@@ -3,7 +3,7 @@
 #include "ops/ops.hpp"
 #include "tensor.hpp"
 
-namespace synet {
+namespace tunx {
 inline Tensor &operator+=(Tensor &lhs, const Tensor &rhs) {
   if (lhs.shape() != rhs.shape())
     throw std::invalid_argument("Tensor shapes must match for addition");
@@ -133,4 +133,4 @@ inline Tensor operator*(double scalar, const Tensor &rhs) {
   result *= scalar;
   return result;
 }
-}  // namespace synet
+}  // namespace tunx

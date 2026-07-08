@@ -10,7 +10,7 @@
 #include "threading/thread_handler.hpp"
 #include "threading/thread_wrapper.hpp"
 
-using namespace synet;
+using namespace tunx;
 
 signed main() {
   // Raw copy speed

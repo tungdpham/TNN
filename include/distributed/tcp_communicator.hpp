@@ -40,10 +40,10 @@
 #include "packet.hpp"
 #include "profiling/event.hpp"
 
-namespace synet {
+namespace tunx {
 
 struct IdentityMessage {
-  int32_t listening_port;
+  int32 listening_port;
 };
 
 template <typename Archiver>
@@ -470,4 +470,4 @@ private:
     }
   }
 };
-}  // namespace synet
+}  // namespace tunx

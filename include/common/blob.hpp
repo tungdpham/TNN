@@ -6,7 +6,7 @@
 #include "device/device.hpp"
 #include "device/device_manager.hpp"
 
-namespace synet {
+namespace tunx {
 
 template <typename T>
 struct Blob {
@@ -22,4 +22,4 @@ Blob<T> make_blob(T* data, uint64_t count, const Device& device = getHost()) {
   return Blob<T>{data, count, device};
 }
 
-}  // namespace synet
+}  // namespace tunx

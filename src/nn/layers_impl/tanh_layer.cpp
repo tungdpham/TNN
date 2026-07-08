@@ -9,7 +9,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace synet {
+namespace tunx {
 
 TanhLayerImpl::TanhLayerImpl(const std::string &name)
     : SISOLayerImpl(name),
@@ -47,8 +47,8 @@ Tensor TanhLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residu
     }
   }
 #ifdef USE_CUDA
-  else if (grad_output.device_type() == DeviceType::GPU) {
-    throw std::runtime_error("TanhLayerImpl: GPU backward not yet implemented");
+  else if (grad_output.device_type() == DeviceType::CUDA) {
+    throw std::runtime_error("TanhLayerImpl: CUDA backward not yet implemented");
   }
 #endif
 
@@ -66,4 +66,4 @@ std::shared_ptr<TanhLayerImpl> TanhLayerImpl::create_from_config(const LayerConf
   return std::make_shared<TanhLayerImpl>(config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

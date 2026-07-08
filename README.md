@@ -6,12 +6,19 @@ You should have these dependencies for the main programs installed before buildi
 
 ### Install Required Packages
 
+#### For Ubuntu
 ```bash
 sudo apt install build-essential g++ make cmake git libtbb-dev wget libnuma-dev libibverbs-dev libfmt-dev
 ```
 
-### Install Intel MKL (Recommended for CPU usage)
+#### For Fedora
+```bash
+sudo dnf install cmake gcc-c++ make git tbb-devel wget numactl-devel libibverbs-devel fmt-devel
+```
 
+### Install Intel MKL
+
+#### For Ubuntu
 ```bash
 # 1. Add oneAPI repository
 wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg
@@ -25,7 +32,21 @@ sudo apt install intel-oneapi-mkl-devel intel-oneapi-dnnl-devel
 source /opt/intel/oneapi/setvars.sh
 ```
 
-### Install CUDA (13.0) and cuDNN (9.17+)
+#### Fedora
+```bash
+# 1. Add oneAPI repository
+wget -O- https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://yum.repos.intel.com/oneapi all main" | sudo tee /etc/yum.repos.d/oneAPI.repo
+sudo dnf update
+
+# 2. Install MKL
+sudo dnf install intel-oneapi-mkl-devel intel-oneapi-dnnl-devel
+
+# 3. Source environment variables
+source /opt/intel/oneapi/setvars.sh
+```
+
+### Install CUDA Toolkit and cuDNN (9.17+)
 
 For installing these two dependencies, you need to follow the guide from NVIDIA page.
 
@@ -51,6 +72,9 @@ chmod +x ./build.sh
 
 # Enable CUDA
 ./build.sh --cuda
+
+# Enable DNNL
+./build.sh --dnnl
 
 # Verbose build output
 ./build.sh --verbose
@@ -92,22 +116,7 @@ Download the dataset needed before running the examples.
 [here](https://www.cs.toronto.edu/~kriz/cifar.html)
 - For UJI and UTS indoor positioning dataset, download from their paper.
 
-The structure of your data directory should look like this.
-
-```
-data/
-  mnist/
-    train.csv
-    test.csv
-  cifar-10-batches-bin/ (default extract)
-  cifar-100-binary/ (default extract)
-  uji/ (default extract)
-  uts/
-    train.csv
-    test.csv
-```
-
-Alternatively, you change the path to data in the examples' code.
+Note: You can change the path to data in json config.
 
 # Running the examples
 
@@ -117,17 +126,17 @@ There are two different ways to run the examples. For detailed instructions on h
 
 For Linux with GCC
 ```bash
+cd build/
+
 # To run any of them
-./bin/{executable_name}
+./build/bin/{executable_name}
 
-# Example (for single-model trainer):
-./bin/trainer  # change .env file (there is a .env.example in the)
-
-./bin/trainer --config ./configs/default_config.json # you can update these as you like 
+# For example (for single-model trainer):
+./build/bin/trainer --config ./configs/default_config.json
 ```
 
 For Windows with MSVC, you should see a Release/Debug folder inside bin/. if you are building optimized build, or Debug/ if you want to debug or profile the code.
 ```bash
 # Example:
-./bin/Release/mnist_cnn_trainer.exe
+./build/bin/Release/mnist_cnn_trainer.exe
 ```

@@ -10,13 +10,13 @@
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * Torchvision-like Resize(resize_short_side) + CenterCrop(crop_h, crop_w).
  *
  * For each image in the batch:
- *   1. Bilinearly resizes so that the shorter spatial dimension equals
+ *   1. Bilinearly resizes so that the shorter spatial dim equals
  *      resize_short_side, preserving aspect ratio.
  *   2. Takes a centre-crop of (crop_h, crop_w).
  *
@@ -141,4 +141,4 @@ private:
   }
 };
 
-}  // namespace synet
+}  // namespace tunx

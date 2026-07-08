@@ -14,7 +14,7 @@
 #include "nn/activations_impl/cuda/relu_kernels.hpp"
 #endif
 
-namespace synet {
+namespace tunx {
 ReLU::ReLU() {}
 
 std::unique_ptr<Task> ReLU::apply(const Tensor &input, Tensor &output) const {
@@ -57,7 +57,7 @@ std::unique_ptr<Task> ReLU::apply_impl(const Tensor &input, Tensor &output,
                            output.data_as<Compute_T>(), size);
   }
 #ifdef USE_CUDA
-  else if (input.device_type() == DeviceType::GPU) {
+  else if (input.device_type() == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::relu<Compute_T>, input.data_as<Compute_T>(),
                             output.data_as<Compute_T>(), size);
   }
@@ -82,7 +82,7 @@ std::unique_ptr<Task> ReLU::compute_gradient_impl(const Tensor &input, const Ten
                            grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(), size);
   }
 #ifdef USE_CUDA
-  else if (grad_output.device_type() == DeviceType::GPU) {
+  else if (grad_output.device_type() == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::relu_gradient<Compute_T>, input.data_as<Compute_T>(),
                             grad_output.data_as<Compute_T>(), grad_input.data_as<Compute_T>(),
                             size);
@@ -94,4 +94,4 @@ std::unique_ptr<Task> ReLU::compute_gradient_impl(const Tensor &input, const Ten
   return nullptr;
 }
 
-}  // namespace synet
+}  // namespace tunx

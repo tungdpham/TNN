@@ -9,7 +9,7 @@
 #ifdef USE_CUDNN
 #include <cudnn.h>
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 
 template <typename T>
@@ -21,5 +21,5 @@ void softmax_backward(cudnnHandle_t handle, const T *output, const T *grad_outpu
                       size_t rows, size_t cols, cudaStream_t stream);
 
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 #endif

@@ -11,7 +11,7 @@
 #include "ops/ops.hpp"
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 
 Vec<Vec<size_t>> DivLayerImpl::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   if (input_shapes.size() != 2) {
@@ -67,16 +67,12 @@ Vec<Tensor> DivLayerImpl::backward_impl(const Vec<Tensor> &grad_outputs, Residua
     // grad_a = grad_out / b
     ops::div<T>(grad_out.data_ptr(), b.data_ptr(), grad_a.data_ptr(), n, this->flow_handle_);
 
-    // grad_b = -(grad_out * a) / b^2
-    // Step 1: b_sq = b * b
     Tensor b_sq = get_tensor(grad_out.shape(), this->io_dtype_);
     ops::mul<T>(b.data_ptr(), b.data_ptr(), b_sq.data_ptr(), n, this->flow_handle_);
 
-    // Step 2: numerator = grad_out * a
     Tensor numerator = get_tensor(grad_out.shape(), this->io_dtype_);
     ops::mul<T>(grad_out.data_ptr(), a.data_ptr(), numerator.data_ptr(), n, this->flow_handle_);
 
-    // Step 3: grad_b = numerator / b_sq
     ops::div<T>(numerator.data_ptr(), b_sq.data_ptr(), grad_b.data_ptr(), n, this->flow_handle_);
 
     // Step 4: negate
@@ -98,4 +94,4 @@ std::shared_ptr<DivLayerImpl> DivLayerImpl::create_from_config(const LayerConfig
   return std::make_shared<DivLayerImpl>(config.name.empty() ? "div" : config.name);
 }
 
-}  // namespace synet
+}  // namespace tunx

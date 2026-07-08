@@ -6,18 +6,16 @@
  */
 #include "nn/layers_impl/embedding_layer.hpp"
 
-#include "device/task.hpp"
-#include "nn/layers_impl/cpu/embedding_ops.hpp"
-#include "type/type.hpp"
-#ifdef USE_CUDA
-#include "nn/layers_impl/cuda/embedding_ops.hpp"
-#endif
-
 #include <cmath>
 #include <memory>
 #include <stdexcept>
 
-namespace synet {
+#include "nn/engines/iengine.hpp"
+#include "tensor/tensor.hpp"
+#include "tensor/tensor_ops.hpp"
+#include "type/type.hpp"
+
+namespace tunx {
 
 EmbeddingLayerImpl::EmbeddingLayerImpl(size_t vocab_size, size_t embed_dim, const std::string &name,
                                        size_t padding_idx)
@@ -33,12 +31,9 @@ EmbeddingLayerImpl::EmbeddingLayerImpl(size_t vocab_size, size_t embed_dim, cons
 
 void EmbeddingLayerImpl::init_impl() {
   float stddev = static_cast<float>(1.0 / std::sqrt(static_cast<double>(embed_dim_)));
-
-  if (this->use_seed_) {
-    weight_.fill_random_normal(0, stddev, this->srand_seed_);
-  } else {
-    weight_.fill_random_normal(0, stddev);
-  }
+  long long seed = this->use_seed_ ? this->srand_seed_
+                                   : std::chrono::system_clock::now().time_since_epoch().count();
+  fill_normal(weight_, 0, stddev, seed);
 
   // Set padding idx to zeros if valid
   if (padding_idx_ < vocab_size_) {
@@ -48,7 +43,7 @@ void EmbeddingLayerImpl::init_impl() {
     }
   }
 
-  weight_gradients_.fill(0.0f);
+  fill(grad_weights_, 0.0f);
 }
 
 Tensor EmbeddingLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
@@ -63,8 +58,24 @@ Tensor EmbeddingLayerImpl::forward_impl(const Tensor &input, Residuals &residual
   out_shape.push_back(embed_dim_);
   Tensor output = get_tensor(out_shape, io_dtype_);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_forward_impl, input, weight_, output, num_tokens,
-                                 vocab_size_, embed_dim_, padding_idx_, this->flow_handle_);
+  EmbeddingStats stats{
+      .num_indices = num_tokens,
+      .vocab_size = vocab_size_,
+      .embed_dim = embed_dim_,
+      .padding_idx = padding_idx_,
+  };
+
+  DTypeDesc type_desc{
+      .io_dtype = io_dtype_,
+      .param_dtype = param_dtype_,
+      .compute_dtype = compute_dtype_,
+  };
+
+  WorkspaceReq ws_req = engine_->query_embedding_graph(backend_handle_, stats, type_desc);
+  Tensor ws = get_tensor({ws_req.fwd_workspace}, DType_t::BYTE);
+
+  engine_->embedding_fwd(backend_handle_, stats, input.data_as<void>(), weight_.data_as<void>(),
+                         output.data_as<void>(), ws.data_as<void>(), type_desc);
 
   return output;
 }
@@ -73,87 +84,34 @@ Tensor EmbeddingLayerImpl::backward_impl(const Tensor &grad_output, Residuals &r
   const Tensor &input = residuals["input"];
 
   Tensor grad_input = get_tensor(input.shape(), io_dtype_);
-  grad_input.fill(0);
+  fill(grad_input, 0.0f);
 
   size_t num_tokens = input.size();
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_backward_impl, input, grad_output, weight_gradients_,
-                                 num_tokens, vocab_size_, embed_dim_, padding_idx_,
-                                 this->flow_handle_);
+  EmbeddingStats stats{
+      .num_indices = num_tokens,
+      .vocab_size = vocab_size_,
+      .embed_dim = embed_dim_,
+      .padding_idx = padding_idx_,
+  };
+
+  DTypeDesc type_desc{
+      .io_dtype = io_dtype_,
+      .param_dtype = param_dtype_,
+      .compute_dtype = compute_dtype_,
+  };
+
+  WorkspaceReq ws_req = engine_->query_embedding_graph(backend_handle_, stats, type_desc);
+  Tensor ws = get_tensor({ws_req.bwd_workspace}, DType_t::BYTE);
+
+  Tensor grad_weights_next({vocab_size_, embed_dim_}, param_dtype_);
+
+  engine_->embedding_bwd(backend_handle_, stats, grad_output.data_as<void>(), input.data_as<void>(),
+                         grad_weights_.data_as<void>(), ws.data_as<void>(), type_desc);
+
+  grad_weights_ = grad_weights_next;
 
   return grad_input;
-}
-
-template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> EmbeddingLayerImpl::compute_forward_impl(
-    const Tensor &input, const Tensor &weight, Tensor &output, size_t num_indices,
-    size_t vocab_size, size_t embed_dim, size_t padding_idx, flowHandle_t handle) const {
-  if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-    throw std::runtime_error(
-        "EmbeddingLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
-  }
-  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("EmbeddingLayerImpl IO tensor dtype mismatch with dispatch IO_T");
-  }
-  if (weight.dtype() != dtype_of<Param_T>()) {
-    throw std::runtime_error(
-        "EmbeddingLayerImpl weight tensor dtype mismatch with dispatch Param_T");
-  }
-
-  if (input.device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::embedding::run_forward<Compute_T>,
-                           input.data_as<Compute_T>(), weight.data_as<Compute_T>(),
-                           output.data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
-                           padding_idx);
-  }
-#ifdef USE_CUDA
-  else if (input.device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, cuda::embedding::run_forward<Compute_T>,
-                            input.data_as<Compute_T>(), weight.data_as<Compute_T>(),
-                            output.data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
-                            padding_idx);
-  }
-#endif
-  else {
-    throw std::runtime_error("Unsupported device type for embedding forward");
-  }
-  return nullptr;
-}
-
-template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> EmbeddingLayerImpl::compute_backward_impl(
-    const Tensor &input, const Tensor &grad_output, Tensor &weight_gradients, size_t num_indices,
-    size_t vocab_size, size_t embed_dim, size_t padding_idx, flowHandle_t handle) const {
-  if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-    throw std::runtime_error(
-        "EmbeddingLayerImpl mixed dtype dispatch not implemented (io/param/compute must match).");
-  }
-  if (input.dtype() != dtype_of<IO_T>() || grad_output.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("EmbeddingLayerImpl IO tensor dtype mismatch with dispatch IO_T");
-  }
-  if (weight_gradients.dtype() != dtype_of<Param_T>()) {
-    throw std::runtime_error(
-        "EmbeddingLayerImpl weight grad_output dtype mismatch with dispatch Param_T");
-  }
-
-  if (input.device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, cpu::embedding::run_backward<Compute_T>,
-                           input.data_as<Compute_T>(), grad_output.data_as<Compute_T>(),
-                           weight_gradients.data_as<Compute_T>(), num_indices, vocab_size,
-                           embed_dim, padding_idx);
-  }
-#ifdef USE_CUDA
-  else if (input.device_type() == DeviceType::GPU) {
-    return create_cuda_task(handle, cuda::embedding::run_backward<Compute_T>,
-                            input.data_as<Compute_T>(), grad_output.data_as<Compute_T>(),
-                            weight_gradients.data_as<Compute_T>(), num_indices, vocab_size,
-                            embed_dim, padding_idx);
-  }
-#endif
-  else {
-    throw std::runtime_error("Unsupported device type for embedding backward");
-  }
-  return nullptr;
 }
 
 Vec<size_t> EmbeddingLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
@@ -180,4 +138,4 @@ std::shared_ptr<EmbeddingLayerImpl> EmbeddingLayerImpl::create_from_config(
   return std::make_shared<EmbeddingLayerImpl>(vocab_size, embed_dim, config.name, padding_idx);
 }
 
-}  // namespace synet
+}  // namespace tunx

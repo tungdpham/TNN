@@ -11,7 +11,7 @@
 #include "device/dptr.hpp"
 #include "device/iallocator.hpp"
 
-namespace synet {
+namespace tunx {
 // the buffer of all time. almost like linked list of buffers
 class VBuffer {
 private:
@@ -109,4 +109,4 @@ public:
 
   const dptr get(size_t offset) const { return const_cast<VBuffer *>(this)->get(offset); }
 };
-}  // namespace synet
+}  // namespace tunx

@@ -12,7 +12,7 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class PositionalEmbeddingLayerImpl : public SISOLayerImpl {
 private:
@@ -71,4 +71,4 @@ public:
   using LayerRef<PositionalEmbeddingLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

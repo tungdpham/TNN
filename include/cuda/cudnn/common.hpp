@@ -10,11 +10,11 @@
 
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 namespace cudnn {
 cudnnDataType_t to_cudnn_datatype(DType_t dtype);
 }
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 #endif

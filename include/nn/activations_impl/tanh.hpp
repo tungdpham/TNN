@@ -8,7 +8,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 class Tanh : public ActivationFunction {
 public:
   std::unique_ptr<Task> apply(const Tensor &input, Tensor &output) const override;
@@ -27,4 +27,4 @@ private:
                                               Tensor &grad_input, flowHandle_t handle) const;
 };
 
-}  // namespace synet
+}  // namespace tunx

@@ -4,7 +4,7 @@
 
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 
 constexpr int BLOCK_SIZE = 256;
@@ -140,6 +140,6 @@ void sigmoid_gradient<bf16>(const bf16* input, const bf16* grad_output, bf16* gr
 }
 
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif

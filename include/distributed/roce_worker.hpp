@@ -11,7 +11,7 @@
 #include "roce_communicator.hpp"
 #include "worker.hpp"
 
-namespace synet {
+namespace tunx {
 
 /**
  * @brief RoCE-based pipeline stage worker
@@ -27,7 +27,7 @@ public:
    * @param port TCP port for initial connection setup
    * @param device_name IB device name (e.g., "mlx5_0")
    * @param gid_index GID index for RoCE
-   * @param use_gpu Whether to use GPU for processing
+   * @param use_gpu Whether to use CUDA for processing
    */
   explicit RoCEWorker(Endpoint worker_endpoint, bool use_gpu)
       : Worker(use_gpu) {
@@ -41,4 +41,4 @@ public:
   ~RoCEWorker() override { stop(); }
 };
 
-}  // namespace synet
+}  // namespace tunx

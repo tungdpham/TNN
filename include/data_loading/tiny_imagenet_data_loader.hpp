@@ -37,7 +37,7 @@ constexpr size_t VAL_IMAGES = 10000;
 constexpr size_t IMAGE_SIZE = NUM_CHANNELS * IMAGE_HEIGHT * IMAGE_WIDTH;
 }  // namespace tiny_imagenet_constants
 
-namespace synet {
+namespace tunx {
 /**
  * Tiny ImageNet-200 data loader for JPEG format adapted for CNN (2D RGB images)
  * NHWC format: (Batch, Height, Width, Channels)
@@ -76,7 +76,7 @@ private:
         Vec<size_t>{actual_batch_size, tiny_imagenet_constants::IMAGE_HEIGHT,
                     tiny_imagenet_constants::IMAGE_WIDTH, tiny_imagenet_constants::NUM_CHANNELS},
         dtype_of<T>(), allocator_);
-    batch_labels = Tensor({actual_batch_size}, DType_t::INT32_T, allocator_);
+    batch_labels = Tensor({actual_batch_size}, DType_t::INT32, allocator_);
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       size_t sample_idx = access_order_[this->current_index_ + i];
@@ -391,4 +391,4 @@ public:
     }
   }
 };
-}  // namespace synet
+}  // namespace tunx

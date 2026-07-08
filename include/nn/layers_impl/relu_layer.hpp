@@ -9,16 +9,12 @@
 #include <memory>
 #include <string>
 
-#include "nn/activations_impl/relu.hpp"
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class ReLULayerImpl : public SISOLayerImpl {
-private:
-  std::unique_ptr<ReLU> activation_;
-
 protected:
   Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
   Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
@@ -45,4 +41,4 @@ public:
   using LayerRef<ReLULayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

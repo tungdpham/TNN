@@ -45,7 +45,7 @@
 #include <sys/types.h>
 #endif
 
-namespace synet {
+namespace tunx {
 
 HardwareInfo::HardwareInfo()
     : initialized_(false) {
@@ -1859,4 +1859,4 @@ std::vector<int> HardwareInfo::get_recommended_cpu_affinity(int thread_count) co
   return recommended_cores;
 }
 
-}  // namespace synet
+}  // namespace tunx

@@ -12,7 +12,7 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class EmbeddingLayerImpl : public SISOLayerImpl {
 private:
@@ -20,19 +20,7 @@ private:
   size_t embed_dim_;
   size_t padding_idx_;
   Tensor weight_;
-  Tensor weight_gradients_;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_forward_impl(const Tensor &input, const Tensor &weight,
-                                             Tensor &output, size_t num_indices, size_t vocab_size,
-                                             size_t embed_dim, size_t padding_idx,
-                                             flowHandle_t handle) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_backward_impl(const Tensor &input, const Tensor &grad_output,
-                                              Tensor &grad_weight, size_t num_indices,
-                                              size_t vocab_size, size_t embed_dim,
-                                              size_t padding_idx, flowHandle_t handle) const;
+  Tensor grad_weights_;
 
   void init_impl() override;
   Tensor forward_impl(const Tensor &input, Residuals &residualsuals) override;
@@ -54,7 +42,7 @@ public:
         param_dtype_,
         {vocab_size_, embed_dim_},
         &weight_,
-        &weight_gradients_,
+        &grad_weights_,
     };
     descriptors.push_back(weight_desc);
     return descriptors;
@@ -72,4 +60,4 @@ public:
   using LayerRef<EmbeddingLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

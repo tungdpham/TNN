@@ -13,7 +13,7 @@
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 // Element-wise multiplication layer.
 class MulLayerImpl : public LayerImpl {
@@ -56,4 +56,4 @@ public:
   using LayerRef<MulLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

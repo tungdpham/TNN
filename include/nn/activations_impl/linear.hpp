@@ -8,7 +8,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 class Linear : public ActivationFunction {
 public:
   std::unique_ptr<Task> apply(const Tensor &input, Tensor &output) const override;
@@ -20,4 +20,4 @@ public:
   std::unique_ptr<ActivationFunction> clone() const override;
 };
 
-}  // namespace synet
+}  // namespace tunx

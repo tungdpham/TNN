@@ -13,20 +13,12 @@
 #include "nn/siso_layer.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 
 class DropoutLayerImpl : public SISOLayerImpl {
 private:
   float dropout_rate_;
   mutable std::mt19937 generator_;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward(const Tensor &input, Tensor &output, Tensor &mask,
-                                    flowHandle_t handle) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_backward(const Tensor &grad_output, Tensor &grad_input, Tensor &mask,
-                                     flowHandle_t handle) const;
 
   Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
   Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
@@ -50,4 +42,4 @@ public:
   using LayerRef<DropoutLayerImpl>::LayerRef;
 };
 
-}  // namespace synet
+}  // namespace tunx

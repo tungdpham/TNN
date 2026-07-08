@@ -13,7 +13,7 @@
 
 #include "type/type.hpp"
 
-namespace synet {
+namespace tunx {
 namespace cpu {
 namespace metrics {
 
@@ -253,4 +253,4 @@ int compute_class_corrects(const T* predictions, const int* targets, size_t batc
 
 }  // namespace metrics
 }  // namespace cpu
-}  // namespace synet
+}  // namespace tunx

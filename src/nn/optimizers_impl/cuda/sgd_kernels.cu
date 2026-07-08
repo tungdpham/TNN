@@ -9,7 +9,7 @@
 
 #ifdef USE_CUDA
 
-namespace synet {
+namespace tunx {
 namespace cuda {
 namespace sgd {
 
@@ -68,6 +68,6 @@ INSTANTIATE(double)
 
 }  // namespace sgd
 }  // namespace cuda
-}  // namespace synet
+}  // namespace tunx
 
 #endif

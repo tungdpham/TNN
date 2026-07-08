@@ -1,3 +1,3 @@
 #include "math/gemm.hpp"
 
-namespace synet {}  // namespace synet
+namespace tunx {}  // namespace tunx

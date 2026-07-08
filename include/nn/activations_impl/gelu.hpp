@@ -8,7 +8,7 @@
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
 
-namespace synet {
+namespace tunx {
 class GELU : public ActivationFunction {
 public:
   std::unique_ptr<Task> apply(const Tensor &input, Tensor &output) const override;
@@ -26,4 +26,4 @@ private:
   std::unique_ptr<Task> compute_gradient_impl(const Tensor &input, const Tensor &grad_output,
                                               Tensor &grad_input, flowHandle_t handle) const;
 };
-}  // namespace synet
+}  // namespace tunx

@@ -2,9 +2,9 @@
 function(create_executable target_name source_file)
     add_executable(${target_name} ${source_file})
     
-    # Link core SYNET libraries
+    # Link core tunx libraries
     target_link_libraries(${target_name} PRIVATE 
-        synet_lib
+        tunx_lib
     )
     
     # Link third-party dependencies

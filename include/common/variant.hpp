@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace synet {
+namespace tunx {
 template <typename... Types>
 class Variant {
 public:
@@ -158,4 +158,4 @@ void archive(Archiver& archiver, const Variant<Types...>& variant) {
   variant.visit([&archiver](const auto& value) { archiver(value); });
 }
 
-}  // namespace synet
+}  // namespace tunx

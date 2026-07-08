@@ -7,7 +7,7 @@
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 
-namespace synet {
+namespace tunx {
 struct StageConfig {
   std::string graph_state;
   Vec<std::string> input_uids;
@@ -62,4 +62,4 @@ void archive(Archiver &archiver, StageConfig &config) {
            config.scheduler_config, config.next_stage_endpoint, config.prev_stage_endpoint,
            config.coordinator_endpoint);
 }
-}  // namespace synet
+}  // namespace tunx
