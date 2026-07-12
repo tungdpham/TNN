@@ -6,18 +6,13 @@
  */
 #pragma once
 
-#include "nn/block.hpp"
-#include "nn/blocks_impl/common/flash_attention.hpp"
-#include "nn/layer.hpp"
-#include "nn/layers_impl/dense_layer.hpp"
-#ifdef USE_CUDNN
-#include "device/task.hpp"
-#include "nn/blocks_impl/cuda/cudnn_flash_attention_ops.hpp"
-#endif
 #include <cmath>
 #include <memory>
 #include <string>
-#include <unordered_map>
+
+#include "nn/block.hpp"
+#include "nn/layer.hpp"
+#include "nn/layers_impl/dense_layer.hpp"
 
 namespace tunx {
 
@@ -32,28 +27,6 @@ private:
   DenseLayer k_proj_;
   DenseLayer v_proj_;
   DenseLayer out_proj_;
-
-#ifdef USE_CUDNN
-  void build_graph(const Vec<size_t> &input_shape) const;
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> flash_attention_forward_task(
-      cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
-      const Tensor &q_heads, const Tensor &k_heads, const Tensor &v_heads, Tensor &attn_heads,
-      Tensor &stats_tensor, Tensor &workspace, flowHandle_t handle) const;
-
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> flash_attention_backward_task(
-      cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
-      const Tensor &q_heads, const Tensor &k_heads, const Tensor &v_heads, const Tensor &attn_heads,
-      Tensor &grad_attn_heads, Tensor &stats_tensor, Tensor &grad_q_heads, Tensor &grad_k_heads,
-      Tensor &grad_v_heads, Tensor &workspace, flowHandle_t handle) const;
-
-  Tensor cudnn_forward(const Tensor &input, Residuals &residuals);
-  Tensor cudnn_backward(const Tensor &grad_output, Residuals &residuals);
-
-  mutable std::unordered_map<size_t, cuda::cudnn_flash_attention::feHandle_t *> fe_handle_cache;
-#endif
-  mutable std::unordered_map<size_t, AttentionStats> stats_cache;
 
   // Expects input: [batch_size, seq_len, embed_dim], output: [batch_size, seq_len, embed_dim]
   Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) override;

@@ -5,7 +5,7 @@
 #include "device/pool_allocator.hpp"
 #include "nn/activations_impl/relu.hpp"
 #include "nn/graph.hpp"
-#include "nn/layers.hpp"
+#include "nn/layer_factory.hpp"
 #include "nn/layers_impl/batchnorm_layer.hpp"
 #include "nn/layers_impl/legacy_batchnorm_layer.hpp"
 #include "tensor/tensor.hpp"

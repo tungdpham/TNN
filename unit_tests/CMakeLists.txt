@@ -21,6 +21,10 @@ set(TEST_FILES
 
 foreach(test_file IN LISTS TEST_FILES)
     get_filename_component(test_name ${test_file} NAME_WE)
-    create_executable(${test_file} LIBS tunx_lib gtest_main gtest gmock)
+    if(ENABLE_CUDA)
+        create_executable(${test_file} LIBS tunx_lib gtest_main gtest gmock CUDA::cudart)
+    else()
+        create_executable(${test_file} LIBS tunx_lib gtest_main gtest gmock)
+    endif()
     gtest_discover_tests(${test_name} DISCOVERY_MODE PRE_TEST)
 endforeach()

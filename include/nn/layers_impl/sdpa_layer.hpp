@@ -9,9 +9,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <unordered_map>
 
-#include "device/task.hpp"
 #include "nn/graph.hpp"
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
@@ -26,35 +24,6 @@ private:
   float attn_scale_;  // Attention scale factor (typically 1/sqrt(head_dim))
   bool is_causal_;    // Whether to apply causal masking
   bool is_training_;
-
-#ifdef USE_CUDNN
-  std::unordered_map<size_t, void *> fe_handle_cache_;  // feHandle_t*
-  std::unordered_map<size_t, void *> stats_cache_;      // AttentionStats*
-#endif
-
-  template <typename IO_T>
-  std::unique_ptr<Task> compute_sdpa_forward_impl(const Tensor &q, const Tensor &k, const Tensor &v,
-                                                  Tensor &output, Tensor &scores,
-                                                  Tensor &attn_weights, size_t batch_size,
-                                                  size_t num_heads, size_t seq_len, size_t head_dim,
-                                                  flowHandle_t handle, Residuals &residuals) const;
-
-  template <typename IO_T>
-  std::unique_ptr<Task> compute_sdpa_backward_impl(const Tensor &q, const Tensor &k,
-                                                   const Tensor &v, const Tensor &attn_weights,
-                                                   const Tensor &grad_output, Tensor &grad_scores,
-                                                   Tensor &grad_q, Tensor &grad_k, Tensor &grad_v,
-                                                   size_t batch_size, size_t num_heads,
-                                                   size_t seq_len, size_t head_dim,
-                                                   flowHandle_t handle, Residuals &residuals) const;
-
-#ifdef USE_CUDNN
-  void cudnn_forward(const Tensor &q, const Tensor &k, const Tensor &v, Tensor &output,
-                     Residuals &residuals);
-  void cudnn_backward(const Tensor &q, const Tensor &k, const Tensor &v, const Tensor &output,
-                      const Tensor &grad_output, Tensor &grad_q, Tensor &grad_k, Tensor &grad_v,
-                      Residuals &residuals);
-#endif
 
   Vec<Tensor> forward_impl(const Vec<Tensor> &inputs, Residuals &residuals) override;
   Vec<Tensor> backward_impl(const Vec<Tensor> &grad_outputs, Residuals &residuals) override;

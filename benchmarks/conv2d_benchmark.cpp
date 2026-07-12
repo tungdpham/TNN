@@ -1,7 +1,7 @@
 #include "device/device_manager.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/graph.hpp"
-#include "nn/layers.hpp"
+#include "nn/layer_factory.hpp"
 #include "nn/layers_impl/conv2d_layer.hpp"
 #include "nn/layers_impl/legacy_conv2d_layer.hpp"
 #include "tensor/tensor.hpp"

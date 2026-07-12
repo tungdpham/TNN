@@ -1,6 +1,5 @@
 #pragma once
 
-#include "blocks_impl/attention_block.hpp"
 #include "blocks_impl/flash_attention_block.hpp"
 #include "blocks_impl/residual_block.hpp"
 #include "layers_impl/activation_layer.hpp"
@@ -26,7 +25,6 @@
 #include "layers_impl/tanh_layer.hpp"
 #include "layers_impl/transpose_layer.hpp"
 #include "nn/blocks_impl/flash_attention_block.hpp"
-#include "nn/blocks_impl/msequential.hpp"
 #include "nn/blocks_impl/sequential.hpp"
 #include "nn/graph.hpp"  // IWYU pragma: export
 #include "nn/layer.hpp"
@@ -114,11 +112,10 @@ public:
     register_layer_type<EmbeddingLayerImpl>();
     register_layer_type<SDPALayerImpl>();
     register_layer_type<ResidualBlockImpl>();
-    register_layer_type<AttentionBlockImpl>();
     register_layer_type<FlashAttentionBlockImpl>();
     register_layer_type<TransposeLayerImpl>();
     register_layer_type<SequentialImpl>();
-    register_layer_type<MSequentialImpl>();
+
     register_layer_type<AddLayerImpl>();
     register_layer_type<SubLayerImpl>();
     register_layer_type<MulLayerImpl>();

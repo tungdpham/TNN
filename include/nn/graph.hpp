@@ -127,7 +127,7 @@ private:
 
   void on_add_edge(const Edge &edge);
   void forward_edge(Edge &edge, size_t pid = 0);
-  void backward(Edge &edge, size_t pid = 0);
+  void backward_edge(Edge &edge, size_t pid = 0);
 };
 
 }  // namespace tunx

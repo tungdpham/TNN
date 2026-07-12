@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include "nn/layers.hpp"
+#include "nn/layer_factory.hpp"
 #include "type/type.hpp"
 
 namespace tunx {
@@ -119,13 +119,6 @@ Node slice(Node input, Shape &shape, size_t axis, size_t start, size_t length,
   return layer(input);
 }
 
-Node attention(Node input, Shape &shape, size_t embed_dim, size_t num_heads, bool is_causal,
-               const std::string &name) {
-  auto layer = AttentionBlock(embed_dim, num_heads, is_causal, name);
-  shape = layer.output_shapes({shape})[0];
-  return layer(input);
-}
-
 Node flash_attention(Node input, Shape &shape, size_t embed_dim, size_t num_heads, bool is_causal,
                      const std::string &name) {
   auto layer = FlashAttentionBlock(embed_dim, num_heads, is_causal, name);
@@ -203,12 +196,10 @@ Node bottleneck_residual_block(Node input, Shape &shape, size_t mid_channels, si
 }
 
 Node gpt_block(Node input, Shape &shape, size_t embed_dim, size_t num_heads, size_t ffn_dim,
-               float dropout_rate, bool is_causal, bool use_flash, const std::string &name) {
+               float dropout_rate, bool is_causal, const std::string &name) {
   Shape attn_shape = shape;
   Node attn = layernorm(input, attn_shape, 1e-5f, true, name + "_ln_1");
-  attn = use_flash
-             ? flash_attention(attn, attn_shape, embed_dim, num_heads, is_causal, name + "_attn")
-             : attention(attn, attn_shape, embed_dim, num_heads, is_causal, name + "_attn");
+  attn = flash_attention(attn, attn_shape, embed_dim, num_heads, is_causal, name + "_attn");
   attn = dropout(attn, attn_shape, dropout_rate, name + "_attn_dropout");
   Node x = input + attn;
 
@@ -548,7 +539,7 @@ Graph create_tiny_imagenet_vit_graph(IAllocator &allocator) {
   x = dropout(x, shape, 0.1f, "dropout");
 
   for (size_t i = 0; i < depth; ++i) {
-    x = gpt_block(x, shape, embed_dim, num_heads, embed_dim * mlp_ratio, 0.1f, false, false,
+    x = gpt_block(x, shape, embed_dim, num_heads, embed_dim * mlp_ratio, 0.1f, false,
                   "encoder_" + std::to_string(i));
   }
 
@@ -582,7 +573,7 @@ Graph create_tiny_imagenet_flash_vit_graph(IAllocator &allocator) {
   x = dropout(x, shape, 0.1f, "dropout");
 
   for (size_t i = 0; i < depth; ++i) {
-    x = gpt_block(x, shape, embed_dim, num_heads, embed_dim * mlp_ratio, 0.1f, false, true,
+    x = gpt_block(x, shape, embed_dim, num_heads, embed_dim * mlp_ratio, 0.1f, false,
                   "encoder_" + std::to_string(i));
   }
 
@@ -609,7 +600,7 @@ Graph create_gpt2_graph(IAllocator &allocator, size_t embed_dim, size_t num_head
   x = dropout(x, shape, dropout_rate, "dropout");
 
   for (size_t i = 0; i < num_layers; ++i) {
-    x = gpt_block(x, shape, embed_dim, num_heads, embed_dim * 4, dropout_rate, true, use_flash,
+    x = gpt_block(x, shape, embed_dim, num_heads, embed_dim * 4, dropout_rate, true,
                   name + "_block_" + std::to_string(i));
   }
 

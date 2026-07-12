@@ -4,10 +4,11 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
-#include "nn/blocks_impl/cuda/permute_heads.hpp"
+#include "ops/cuda/permute_heads.hpp"
 #include "type/type.hpp"
 
 namespace tunx {
+namespace ops {
 namespace cuda {
 
 template <typename I_T, typename O_T>
@@ -56,4 +57,5 @@ void permute_heads(const I_T* input, O_T* output, size_t B, size_t L, size_t H, 
 #undef INSTANTIATE_BOTH
 
 }  // namespace cuda
+}  // namespace ops
 }  // namespace tunx

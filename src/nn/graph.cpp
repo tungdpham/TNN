@@ -19,7 +19,7 @@
 #include "nn/engines/cuda_engine.hpp"
 #include "nn/engines/cudnn_engine.hpp"
 #include "nn/layer.hpp"
-#include "nn/layers.hpp"
+#include "nn/layer_factory.hpp"
 
 namespace tunx {
 
@@ -262,7 +262,7 @@ TensorBundle Graph::backward(TensorBundle &output_grad_map, size_t pid) {
   TensorBundle grad_input_map;
   for (auto it = edges_.rbegin(); it != edges_.rend(); ++it) {
     Edge &edge = *it;
-    backward(edge, pid);
+    backward_edge(edge, pid);
     for (auto &producer : edge->producers()) {
       if (is_input(producer)) {
         grad_input_map.set(producer->uid(), producer->grad(pid));
@@ -400,7 +400,7 @@ void Graph::forward_edge(Edge &edge, size_t pid) {
   }
 }
 
-void Graph::backward(Edge &edge, size_t pid) {
+void Graph::backward_edge(Edge &edge, size_t pid) {
   Vec<Tensor> output_grads;
   for (const auto &consumer : edge->consumers()) {
     if (!consumer->grad(pid)) {

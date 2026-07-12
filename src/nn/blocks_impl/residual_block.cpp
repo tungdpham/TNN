@@ -13,7 +13,7 @@
 
 #include "nn/activations.hpp"
 #include "nn/layer.hpp"
-#include "nn/layers.hpp"
+#include "nn/layer_factory.hpp"
 #include "ops/ops.hpp"
 #include "tensor/tensor.hpp"
 

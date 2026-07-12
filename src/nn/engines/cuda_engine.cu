@@ -2147,3 +2147,21 @@ void CUDAEngine::layernorm_bwd(void* backend_handle, const LayerNormStats& stats
 }
 
 }  // namespace tunx
+
+WorkspaceReq CUDAEngine::query_sdpa_graph(void* backend_handle, const AttentionStats& stats,
+                                          DTypeDesc type_desc) {
+  throw std::runtime_error("SDPA is not implemented for generic CUDAEngine. Use CuDNNEngine.");
+}
+
+void CUDAEngine::sdpa_fwd(void* backend_handle, const AttentionStats& stats, const void* q_data,
+                          const void* k_data, const void* v_data, void* o_data, void* stats_data,
+                          void* workspace, DTypeDesc type_desc) {
+  throw std::runtime_error("SDPA forward is not implemented for generic CUDAEngine. Use CuDNNEngine.");
+}
+
+void CUDAEngine::sdpa_bwd(void* backend_handle, const AttentionStats& stats, const void* q_data,
+                          const void* k_data, const void* v_data, const void* o_data,
+                          const void* dO_data, const void* stats_data, void* dQ_data, void* dK_data,
+                          void* dV_data, void* workspace, DTypeDesc type_desc) {
+  throw std::runtime_error("SDPA backward is not implemented for generic CUDAEngine. Use CuDNNEngine.");
+}

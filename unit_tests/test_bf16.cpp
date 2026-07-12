@@ -7,7 +7,7 @@
 #include "nn/blocks_impl/attention_block.hpp"
 #include "nn/example_graphs.hpp"
 #include "nn/graph.hpp"
-#include "nn/layers.hpp"
+#include "nn/layer_factory.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
 #include "nn/loss.hpp"
 #include "type/type.hpp"

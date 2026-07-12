@@ -48,6 +48,8 @@ enum OpType {
   LAYERNORM_FWD,
   LAYERNORM_INFER,
   LAYERNORM_BWD,
+  SDPA_FWD,
+  SDPA_BWD,
 };
 
 struct GraphCacheKey {
@@ -195,6 +197,16 @@ public:
    */
   virtual WorkspaceReq query_layernorm_graph(void* backend_handle, const LayerNormStats& stats,
                                              DTypeDesc type_desc) = 0;
+
+  /**
+   * @brief Queries the workspace memory requirement for SDPA graphs.
+   * @param backend_handle Opaque handle to the backend context.
+   * @param stats SDPA layer configuration.
+   * @param type_desc Data type descriptors.
+   * @return WorkspaceReq specifying forward and backward workspace size in bytes.
+   */
+  virtual WorkspaceReq query_sdpa_graph(void* backend_handle, const AttentionStats& stats,
+                                        DTypeDesc type_desc) = 0;
 
   /**
    * @brief Forward pass for a Dense (Linear) layer.
@@ -657,6 +669,43 @@ public:
                              const void* mean, const void* inv_variance, void* grad_input,
                              void* grad_gamma, void* grad_beta, void* workspace,
                              DTypeDesc type_desc) = 0;
+
+  /**
+   * @brief Forward pass for SDPA (Scaled Dot-Product Attention) layer.
+   * @param backend_handle Opaque handle to the backend context.
+   * @param stats Attention layer configuration.
+   * @param q_data Query tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param k_data Key tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param v_data Value tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param o_data Output tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param stats_data Statistics tensor (e.g. softmax stats). DType: compute_dtype.
+   * @param workspace Workspace buffer.
+   * @param type_desc Data type descriptors.
+   */
+  virtual void sdpa_fwd(void* backend_handle, const AttentionStats& stats, const void* q_data,
+                        const void* k_data, const void* v_data, void* o_data, void* stats_data,
+                        void* workspace, DTypeDesc type_desc) = 0;
+
+  /**
+   * @brief Backward pass for SDPA (Scaled Dot-Product Attention) layer.
+   * @param backend_handle Opaque handle to the backend context.
+   * @param stats Attention layer configuration.
+   * @param q_data Query tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param k_data Key tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param v_data Value tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param o_data Output tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param dO_data Gradient w.r.t output tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param stats_data Statistics tensor from forward pass. DType: compute_dtype.
+   * @param dQ_data Gradient w.r.t Query tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param dK_data Gradient w.r.t Key tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param dV_data Gradient w.r.t Value tensor. Shape: [batch_size, num_heads, seq_len, head_dim], DType: io_dtype.
+   * @param workspace Workspace buffer.
+   * @param type_desc Data type descriptors.
+   */
+  virtual void sdpa_bwd(void* backend_handle, const AttentionStats& stats, const void* q_data,
+                        const void* k_data, const void* v_data, const void* o_data,
+                        const void* dO_data, const void* stats_data, void* dQ_data, void* dK_data,
+                        void* dV_data, void* workspace, DTypeDesc type_desc) = 0;
 
   // --- Legacy APIs ---
 

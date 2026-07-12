@@ -1040,10 +1040,15 @@ WorkspaceReq CPUEngine::query_conv2d_graph(void* backend_handle, const Conv2DSta
 
 WorkspaceReq CPUEngine::query_layernorm_graph(void* backend_handle, const LayerNormStats& stats,
                                               DTypeDesc type_desc) {
-  return {0, 0, 0};
+  return WorkspaceReq{0, 0, 0};
 }
 
-void CPUEngine::dense_fwd(void*, const DenseStats& stats, const void* input, const void* weight,
+WorkspaceReq CPUEngine::query_sdpa_graph(void* backend_handle, const AttentionStats& stats,
+                                         DTypeDesc type_desc) {
+  return WorkspaceReq{0, 0, 0};
+}
+
+void CPUEngine::dense_fwd(void* backend_handle, const DenseStats& stats, const void* input, const void* weight,
                           const void* bias, void* output, void* workspace, DTypeDesc type_desc) {
   DISPATCH_DTYPE(type_desc.compute_dtype, T, {
     dense_fwd_impl<T>(static_cast<const T*>(input), static_cast<const T*>(weight),
@@ -1516,6 +1521,21 @@ void CPUEngine::legacy_conv2d_wgrad(void*, const void* col_data, const void* gra
                  true, T(1.0), T(1.0));
   });
 }
+
+void CPUEngine::sdpa_fwd(void* backend_handle, const AttentionStats& stats, const void* q_data,
+                         const void* k_data, const void* v_data, void* o_data, void* stats_data,
+                         void* workspace, DTypeDesc type_desc) {
+  throw std::runtime_error("SDPA forward is not yet implemented for CPUEngine");
+}
+
+void CPUEngine::sdpa_bwd(void* backend_handle, const AttentionStats& stats, const void* q_data,
+                         const void* k_data, const void* v_data, const void* o_data,
+                         const void* dO_data, const void* stats_data, void* dQ_data, void* dK_data,
+                         void* dV_data, void* workspace, DTypeDesc type_desc) {
+  throw std::runtime_error("SDPA backward is not yet implemented for CPUEngine");
+}
+
+// --- Legacy APIs ---
 
 void CPUEngine::legacy_conv2d_dgrad(void*, const void* gradient_data, const void* weight_data,
                                     void* col_grad_data, size_t output_size, size_t kernel_size,

@@ -19,7 +19,7 @@
 #include "nlohmann/json_fwd.hpp"
 #include "nn/block.hpp"
 #include "nn/layer.hpp"
-#include "nn/layers.hpp"
+#include "nn/layer_factory.hpp"
 #include "type/type.hpp"
 
 namespace tunx {

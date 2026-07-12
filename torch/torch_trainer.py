@@ -33,7 +33,7 @@ import torchvision.transforms as T
 from dotenv import load_dotenv
 
 load_dotenv()
-
+torch.set_float32_matmul_precision('high')
 
 # ======================== Datasets ========================
 
@@ -683,7 +683,7 @@ def get_model_config(model_name: str) -> Dict[str, Any]:
             ),
             "criterion": nn.CrossEntropyLoss(),
             "epochs": int(os.getenv("EPOCHS", "10")),
-            "batch_size": int(os.getenv("BATCH_SIZE", "128")),
+            "batch_size": int(os.getenv("BATCH_SIZE", "256")),
             "lr": float(os.getenv("LR_INITIAL", "0.001")),
             "num_workers": 2,
             "optimizer_type": "adam",
@@ -976,6 +976,12 @@ def main():
     model = cfg["model_cls"]().to(device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f">>> Parameters: {total_params:,}")
+
+    if hasattr(torch, "compile"):
+        print(">>> Compiling model with torch.compile...")
+        model = torch.compile(model, mode="max-autotune")
+    else:
+        print(">>> torch.compile is not supported in this PyTorch version.")
     
     # Loss function
     criterion = cfg["criterion"]

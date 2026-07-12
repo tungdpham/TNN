@@ -2,8 +2,10 @@
 
 #include "device/dptr.hpp"
 #include "ops/cpu/kernels.hpp"
+#include "ops/cpu/permute_heads.hpp"
 #ifdef USE_CUDA
 #include "ops/cuda/kernels.hpp"
+#include "ops/cuda/permute_heads.hpp"
 #endif
 #include <cstddef>
 #include <memory>
@@ -852,6 +854,29 @@ std::unique_ptr<Task> cast(const dptr a, dptr b, size_t size,
 #ifdef USE_CUDA
   else if (device_type == DeviceType::CUDA) {
     return create_cuda_task(handle, cuda::cast<A_T, B_T>, a.get<A_T>(), b.get<B_T>(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename I_T, typename O_T>
+std::unique_ptr<Task> permute_heads(const dptr input, dptr output, size_t B, size_t L, size_t H, size_t D,
+                                    flowHandle_t handle = defaultFlowHandle) {
+  if (input.device() != output.device()) {
+    throw std::runtime_error("permute_heads: All device pointers must be on the same device");
+  }
+
+  const auto &device = input.device();
+  auto device_type = device.device_type();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(handle, cpu::permute_heads<I_T, O_T>, input.get<I_T>(), output.get<O_T>(), B, L, H, D);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::CUDA) {
+    return create_cuda_task(handle, cuda::permute_heads<I_T, O_T>, input.get<I_T>(), output.get<O_T>(), B, L, H, D);
   }
 #endif
   else {

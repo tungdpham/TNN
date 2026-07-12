@@ -5,7 +5,7 @@
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/graph.hpp"
-#include "nn/layers.hpp"
+#include "nn/layer_factory.hpp"
 #include "nn/loss.hpp"
 #include "nn/metrics.hpp"
 #include "nn/optimizers.hpp"

@@ -13,7 +13,7 @@
 #include "device/device_manager.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/blocks_impl/residual_block.hpp"
-#include "nn/layers.hpp"
+#include "nn/layer_factory.hpp"
 #include "tensor/tensor.hpp"
 #include "tensor/tensor_ops.hpp"
 #include "test_graph_utils.hpp"

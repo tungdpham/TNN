@@ -103,4 +103,13 @@ struct ReLUStats {
   size_t spatial_size;
 };
 
+struct AttentionStats {
+  size_t batch_size = 0;
+  size_t num_heads = 0;
+  size_t seq_len = 0;
+  size_t head_dim = 0;
+  float attn_scale = 1.0f;
+  bool is_causal = false;
+};
+
 }  // namespace tunx

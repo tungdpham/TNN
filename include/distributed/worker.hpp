@@ -28,7 +28,7 @@
 #include "message.hpp"
 #include "nn/blocks_impl/sequential.hpp"
 #include "nn/graph.hpp"
-#include "nn/layers.hpp"
+#include "nn/layer_factory.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 #include "profiling/profiler.hpp"
