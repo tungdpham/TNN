@@ -50,6 +50,7 @@ enum OpType {
   LAYERNORM_BWD,
   SDPA_FWD,
   SDPA_BWD,
+  TRANSPOSE,
 };
 
 struct GraphCacheKey {
@@ -207,6 +208,16 @@ public:
    */
   virtual WorkspaceReq query_sdpa_graph(void* backend_handle, const AttentionStats& stats,
                                         DTypeDesc type_desc) = 0;
+
+  /**
+   * @brief Queries the workspace memory requirement for Transpose graphs.
+   * @param backend_handle Opaque handle to the backend context.
+   * @param stats Transpose configuration.
+   * @param type_desc Data type descriptors.
+   * @return WorkspaceReq specifying forward and backward workspace size in bytes.
+   */
+  virtual WorkspaceReq query_transpose_graph(void* backend_handle, const TransposeStats& stats,
+                                             DTypeDesc type_desc) = 0;
 
   /**
    * @brief Forward pass for a Dense (Linear) layer.
@@ -706,6 +717,18 @@ public:
                         const void* k_data, const void* v_data, const void* o_data,
                         const void* dO_data, const void* stats_data, void* dQ_data, void* dK_data,
                         void* dV_data, void* workspace, DTypeDesc type_desc) = 0;
+
+  /**
+   * @brief Generic transposition of any 2 axes.
+   * @param backend_handle Opaque handle to the backend context.
+   * @param stats Transpose configuration.
+   * @param input Input tensor.
+   * @param output Output tensor.
+   * @param workspace Workspace buffer.
+   * @param type_desc Data type descriptors.
+   */
+  virtual void transpose(void* backend_handle, const TransposeStats& stats, const void* input,
+                         void* output, void* workspace, DTypeDesc type_desc) = 0;
 
   // --- Legacy APIs ---
 

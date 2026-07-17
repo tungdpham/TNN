@@ -107,3 +107,6 @@ doc/latex/
 doc/xml/
 doc/Doxyfile.doxygen_docs
 doc/Doxyfile.doxygen_xml
+
+# private
+private/

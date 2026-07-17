@@ -112,4 +112,11 @@ struct AttentionStats {
   bool is_causal = false;
 };
 
+struct TransposeStats {
+  size_t shape[8] = {0};
+  size_t ndim = 0;
+  size_t dim0 = 0;
+  size_t dim1 = 0;
+};
+
 }  // namespace tunx

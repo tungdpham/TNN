@@ -14,7 +14,6 @@
 #include "nn/stats/stats.hpp"
 #include "ops/ops.hpp"
 #include "type/type.hpp"
-#include "utils/misc.hpp"
 
 namespace tunx {
 
@@ -93,14 +92,23 @@ Vec<Tensor> FlashAttentionBlockImpl::forward_impl(const Vec<Tensor> &inputs, Res
   Tensor k = k_proj_.forward({input}, residuals["k_proj"])[0];
   Tensor v = v_proj_.forward({input}, residuals["v_proj"])[0];
 
-  DISPATCH_DTYPE(io_dtype_, T, {
-    ops::permute_heads<T, bf16>(q.data_ptr(), q_heads.data_ptr(), batch_size, seq_len, num_heads_,
-                                head_dim_);
-    ops::permute_heads<T, bf16>(k.data_ptr(), k_heads.data_ptr(), batch_size, seq_len, num_heads_,
-                                head_dim_);
-    ops::permute_heads<T, bf16>(v.data_ptr(), v_heads.data_ptr(), batch_size, seq_len, num_heads_,
-                                head_dim_);
-  });
+  TransposeStats t_stats;
+  t_stats.ndim = 4;
+  t_stats.dim0 = 1;
+  t_stats.dim1 = 2;
+  t_stats.shape[0] = batch_size;
+  t_stats.shape[1] = seq_len;
+  t_stats.shape[2] = num_heads_;
+  t_stats.shape[3] = head_dim_;
+
+  // Flash attention usually casts implicitly, but transpose doesn't.
+  // We use io_dtype_ for the type desc of transpose to match the tensor allocations.
+  DTypeDesc t_desc = type_desc;
+  t_desc.compute_dtype = io_dtype_ == DType_t::FP32 ? DType_t::FP32 : DType_t::BF16;
+
+  engine_->transpose(backend_handle_, t_stats, q.data_as<void>(), q_heads.data_as<void>(), nullptr, t_desc);
+  engine_->transpose(backend_handle_, t_stats, k.data_as<void>(), k_heads.data_as<void>(), nullptr, t_desc);
+  engine_->transpose(backend_handle_, t_stats, v.data_as<void>(), v_heads.data_as<void>(), nullptr, t_desc);
 
   {
     WorkspaceReq ws_req = engine_->query_sdpa_graph(backend_handle_, stats, type_desc);
@@ -112,10 +120,16 @@ Vec<Tensor> FlashAttentionBlockImpl::forward_impl(const Vec<Tensor> &inputs, Res
                       stats_tensor.data_as<void>(), workspace.data_as<void>(), type_desc);
   }
 
-  DISPATCH_DTYPE(io_dtype_, T, {
-    ops::permute_heads<bf16, T>(attn_heads.data_ptr(), attn_out.data_ptr(), batch_size, num_heads_,
-                                seq_len, head_dim_);
-  });
+  TransposeStats t_stats_rev;
+  t_stats_rev.ndim = 4;
+  t_stats_rev.dim0 = 1;
+  t_stats_rev.dim1 = 2;
+  t_stats_rev.shape[0] = batch_size;
+  t_stats_rev.shape[1] = num_heads_;
+  t_stats_rev.shape[2] = seq_len;
+  t_stats_rev.shape[3] = head_dim_;
+
+  engine_->transpose(backend_handle_, t_stats_rev, attn_heads.data_as<void>(), attn_out.data_as<void>(), nullptr, t_desc);
 
   allocator_->flip();
 
@@ -162,17 +176,21 @@ Vec<Tensor> FlashAttentionBlockImpl::backward_impl(const Vec<Tensor> &grad_outpu
       this->get_tensor({batch_size, num_heads_, seq_len, head_dim_},
                        io_dtype_ == DType_t::FP32 ? DType_t::FP32 : DType_t::BF16);
 
+  TransposeStats t_stats;
+  t_stats.ndim = 4;
+  t_stats.dim0 = 1;
+  t_stats.dim1 = 2;
+  t_stats.shape[0] = batch_size;
+  t_stats.shape[1] = seq_len;
+  t_stats.shape[2] = num_heads_;
+  t_stats.shape[3] = head_dim_;
+
+  DTypeDesc t_desc = type_desc;
+  t_desc.compute_dtype = io_dtype_ == DType_t::FP32 ? DType_t::FP32 : DType_t::BF16;
+
   {
     Tensor grad_attn_out = out_proj_.backward({grad_output}, residuals["out_proj"])[0];
-    DISPATCH_DTYPE(io_dtype_, T, {
-      if constexpr (std::is_same_v<T, float>) {
-        ops::permute_heads<T, float>(grad_attn_out.data_ptr(), grad_attn_heads.data_ptr(),
-                                     batch_size, seq_len, num_heads_, head_dim_);
-      } else {
-        ops::permute_heads<T, bf16>(grad_attn_out.data_ptr(), grad_attn_heads.data_ptr(),
-                                    batch_size, seq_len, num_heads_, head_dim_);
-      }
-    });
+    engine_->transpose(backend_handle_, t_stats, grad_attn_out.data_as<void>(), grad_attn_heads.data_as<void>(), nullptr, t_desc);
   }
 
   Tensor grad_q_heads =
@@ -200,27 +218,10 @@ Vec<Tensor> FlashAttentionBlockImpl::backward_impl(const Vec<Tensor> &grad_outpu
     Tensor k = k_proj_.forward({input}, residuals["k_proj"])[0];
     Tensor v = v_proj_.forward({input}, residuals["v_proj"])[0];
 
-    DISPATCH_DTYPE(io_dtype_, T, {
-      if constexpr (std::is_same_v<T, float>) {
-        ops::permute_heads<T, float>(q.data_ptr(), q_heads.data_ptr(), batch_size, seq_len,
-                                     num_heads_, head_dim_);
-        ops::permute_heads<T, float>(k.data_ptr(), k_heads.data_ptr(), batch_size, seq_len,
-                                     num_heads_, head_dim_);
-        ops::permute_heads<T, float>(v.data_ptr(), v_heads.data_ptr(), batch_size, seq_len,
-                                     num_heads_, head_dim_);
-        ops::permute_heads<T, float>(attn_out.data_ptr(), attn_heads.data_ptr(), batch_size,
-                                     seq_len, num_heads_, head_dim_);
-      } else {
-        ops::permute_heads<T, bf16>(q.data_ptr(), q_heads.data_ptr(), batch_size, seq_len,
-                                    num_heads_, head_dim_);
-        ops::permute_heads<T, bf16>(k.data_ptr(), k_heads.data_ptr(), batch_size, seq_len,
-                                    num_heads_, head_dim_);
-        ops::permute_heads<T, bf16>(v.data_ptr(), v_heads.data_ptr(), batch_size, seq_len,
-                                    num_heads_, head_dim_);
-        ops::permute_heads<T, bf16>(attn_out.data_ptr(), attn_heads.data_ptr(), batch_size, seq_len,
-                                    num_heads_, head_dim_);
-      }
-    });
+    engine_->transpose(backend_handle_, t_stats, q.data_as<void>(), q_heads.data_as<void>(), nullptr, t_desc);
+    engine_->transpose(backend_handle_, t_stats, k.data_as<void>(), k_heads.data_as<void>(), nullptr, t_desc);
+    engine_->transpose(backend_handle_, t_stats, v.data_as<void>(), v_heads.data_as<void>(), nullptr, t_desc);
+    engine_->transpose(backend_handle_, t_stats, attn_out.data_as<void>(), attn_heads.data_as<void>(), nullptr, t_desc);
   }
 
   {
@@ -235,14 +236,18 @@ Vec<Tensor> FlashAttentionBlockImpl::backward_impl(const Vec<Tensor> &grad_outpu
                       grad_v_heads.data_as<void>(), workspace.data_as<void>(), type_desc);
   }
 
-  DISPATCH_DTYPE(io_dtype_, T, {
-    ops::permute_heads<bf16, T>(grad_q_heads.data_ptr(), grad_q.data_ptr(), batch_size, num_heads_,
-                                seq_len, head_dim_);
-    ops::permute_heads<bf16, T>(grad_k_heads.data_ptr(), grad_k.data_ptr(), batch_size, num_heads_,
-                                seq_len, head_dim_);
-    ops::permute_heads<bf16, T>(grad_v_heads.data_ptr(), grad_v.data_ptr(), batch_size, num_heads_,
-                                seq_len, head_dim_);
-  });
+  TransposeStats t_stats_rev;
+  t_stats_rev.ndim = 4;
+  t_stats_rev.dim0 = 1;
+  t_stats_rev.dim1 = 2;
+  t_stats_rev.shape[0] = batch_size;
+  t_stats_rev.shape[1] = num_heads_;
+  t_stats_rev.shape[2] = seq_len;
+  t_stats_rev.shape[3] = head_dim_;
+
+  engine_->transpose(backend_handle_, t_stats_rev, grad_q_heads.data_as<void>(), grad_q.data_as<void>(), nullptr, t_desc);
+  engine_->transpose(backend_handle_, t_stats_rev, grad_k_heads.data_as<void>(), grad_k.data_as<void>(), nullptr, t_desc);
+  engine_->transpose(backend_handle_, t_stats_rev, grad_v_heads.data_as<void>(), grad_v.data_as<void>(), nullptr, t_desc);
 
   allocator_->flip();
 

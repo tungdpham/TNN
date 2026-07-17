@@ -128,6 +128,8 @@ public:
    */
   WorkspaceReq query_sdpa_graph(void* backend_handle, const AttentionStats& stats,
                                 DTypeDesc type_desc) override;
+  WorkspaceReq query_transpose_graph(void* backend_handle, const TransposeStats& stats,
+                                     DTypeDesc type_desc) override;
 
   /**
    * @brief Forward pass for a Dense (Linear) layer.
@@ -623,6 +625,10 @@ public:
                 const void* stats_data, void* dQ_data, void* dK_data, void* dV_data,
                 void* workspace, DTypeDesc type_desc) override;
 
+  void transpose(void* backend_handle, const TransposeStats& stats, const void* input,
+                 void* output, void* workspace, DTypeDesc type_desc) override;
+
+  // --- Legacy APIs ---
 private:
   std::unordered_map<GraphCacheKey, std::any> graph_cache_;
 };

@@ -2146,7 +2146,39 @@ void CUDAEngine::layernorm_bwd(void* backend_handle, const LayerNormStats& stats
   });
 }
 
-}  // namespace tunx
+struct CudaTransposeParams {
+  size_t ndim;
+  size_t dim0;
+  size_t dim1;
+  size_t shape[8];
+  size_t strides[8];
+  size_t out_strides[8];
+};
+
+template <typename T>
+__global__ void transpose_kernel(const T* input, T* output, CudaTransposeParams p, size_t total_elements) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= total_elements) return;
+
+  size_t in_idx = idx;
+  size_t out_idx = 0;
+  size_t coords[8];
+
+  for (size_t i = 0; i < p.ndim; ++i) {
+    coords[i] = in_idx / p.strides[i];
+    in_idx %= p.strides[i];
+  }
+  
+  size_t temp = coords[p.dim0];
+  coords[p.dim0] = coords[p.dim1];
+  coords[p.dim1] = temp;
+
+  for (size_t i = 0; i < p.ndim; ++i) {
+    out_idx += coords[i] * p.out_strides[i];
+  }
+  
+  output[out_idx] = input[idx];
+}
 
 WorkspaceReq CUDAEngine::query_sdpa_graph(void* backend_handle, const AttentionStats& stats,
                                           DTypeDesc type_desc) {
@@ -2165,3 +2197,47 @@ void CUDAEngine::sdpa_bwd(void* backend_handle, const AttentionStats& stats, con
                           void* dV_data, void* workspace, DTypeDesc type_desc) {
   throw std::runtime_error("SDPA backward is not implemented for generic CUDAEngine. Use CuDNNEngine.");
 }
+
+WorkspaceReq CUDAEngine::query_transpose_graph(void* backend_handle, const TransposeStats& stats,
+                                               DTypeDesc type_desc) {
+  return WorkspaceReq{0, 0, 0};
+}
+
+void CUDAEngine::transpose(void* backend_handle, const TransposeStats& stats, const void* input,
+                           void* output, void* workspace, DTypeDesc type_desc) {
+  cudaStream_t stream = static_cast<cudaStream_t>(backend_handle);
+  
+  CudaTransposeParams p;
+  p.ndim = stats.ndim;
+  p.dim0 = stats.dim0;
+  p.dim1 = stats.dim1;
+  
+  size_t total_elements = 1;
+  for (int i = static_cast<int>(p.ndim) - 1; i >= 0; --i) {
+    p.shape[i] = stats.shape[i];
+    p.strides[i] = total_elements;
+    total_elements *= p.shape[i];
+  }
+  
+  size_t out_shape[8];
+  for(size_t i=0; i<p.ndim; ++i) out_shape[i] = p.shape[i];
+  std::swap(out_shape[p.dim0], out_shape[p.dim1]);
+  
+  size_t out_total = 1;
+  for (int i = static_cast<int>(p.ndim) - 1; i >= 0; --i) {
+    p.out_strides[i] = out_total;
+    out_total *= out_shape[i];
+  }
+  
+  if (total_elements == 0) return;
+  
+  size_t threads = 256;
+  size_t blocks = (total_elements + threads - 1) / threads;
+  
+  DISPATCH_DTYPE(type_desc.compute_dtype, T, {
+    transpose_kernel<T><<<blocks, threads, 0, stream>>>(
+        static_cast<const T*>(input), static_cast<T*>(output), p, total_elements);
+  });
+}
+
+}  // namespace tunx

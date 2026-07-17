@@ -16,15 +16,13 @@ namespace tunx {
 
 class TransposeLayerImpl : public SISOLayerImpl {
 private:
-  template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> permute(const Tensor &input, Tensor &output, size_t B, size_t L, size_t H,
-                                size_t D, flowHandle_t handle) const;
+  size_t dim0_, dim1_;
 
   Tensor forward_impl(const Tensor &input, Residuals &residuals) override;
   Tensor backward_impl(const Tensor &grad_output, Residuals &residuals) override;
 
 public:
-  TransposeLayerImpl(const std::string &name = "transpose");
+  TransposeLayerImpl(size_t dim0, size_t dim1, const std::string &name = "transpose");
 
   static constexpr const char *TYPE_NAME = "transpose";
 
@@ -38,8 +36,8 @@ public:
 
 class TransposeLayer : public LayerRef<TransposeLayerImpl> {
 public:
-  explicit TransposeLayer(const std::string &name = "transpose")
-      : LayerRef(std::make_shared<TransposeLayerImpl>(name)) {}
+  explicit TransposeLayer(size_t dim0, size_t dim1, const std::string &name = "transpose")
+      : LayerRef(std::make_shared<TransposeLayerImpl>(dim0, dim1, name)) {}
 
   using LayerRef<TransposeLayerImpl>::LayerRef;
 };

@@ -6,92 +6,96 @@
  */
 #include "nn/layers_impl/transpose_layer.hpp"
 
-#include "nn/blocks_impl/cpu/permute_heads.hpp"
-#ifdef USE_CUDA
-#include "nn/blocks_impl/cuda/permute_heads.hpp"
-#endif
+#include <cstddef>
+
+#include "nn/stats/stats.hpp"
 
 namespace tunx {
 
-TransposeLayerImpl::TransposeLayerImpl(const std::string &name)
-    : SISOLayerImpl(name) {}
-
-template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> TransposeLayerImpl::permute(const Tensor &input, Tensor &output, size_t B,
-                                                  size_t L, size_t H, size_t D,
-                                                  flowHandle_t handle) const {
-  if constexpr (!std::is_same_v<IO_T, Compute_T>) {
-    throw std::runtime_error(
-        "TransposeLayerImpl mixed dtype dispatch not implemented (io/compute must match).");
-  }
-  if (input.dtype() != dtype_of<IO_T>() || output.dtype() != dtype_of<IO_T>()) {
-    throw std::runtime_error("TransposeLayerImpl IO tensor dtype mismatch with dispatch IO_T");
-  }
-
-  if (get_engine_type() == EngineType::CPU) {
-    return create_cpu_task(handle, cpu::permute_heads<Compute_T, Compute_T>,
-                           input.data_as<Compute_T>(), output.data_as<Compute_T>(), B, L, H, D);
-  }
-#ifdef USE_CUDA
-  else if (get_engine_type() == EngineType::CUDA) {
-    return create_cuda_task(handle, cuda::permute_heads<Compute_T, Compute_T>,
-                            input.data_as<Compute_T>(), output.data_as<Compute_T>(), B, L, H, D);
-  }
-#endif
-  else {
-    throw std::runtime_error("Unsupported device type for permute_forward");
-  }
-  return nullptr;
-}
+TransposeLayerImpl::TransposeLayerImpl(size_t dim0, size_t dim1, const std::string &name)
+    : SISOLayerImpl(name),
+      dim0_(dim0),
+      dim1_(dim1) {}
 
 Tensor TransposeLayerImpl::forward_impl(const Tensor &input, Residuals &residuals) {
-  if (input.dims() != 3) {
-    throw std::runtime_error("TransposeLayerImpl expects 3D input (Batch, D1, D2)");
+  if (dim0_ >= input.dims() || dim1_ >= input.dims()) {
+    throw std::runtime_error("TransposeLayerImpl: dim0 or dim1 out of bounds");
   }
-  size_t B = input.dim(0);
-  size_t L = input.dim(1);
-  size_t H = input.dim(2);
-  size_t D = 1;
 
-  Tensor output = get_tensor({B, H, L}, input.dtype());
+  Vec<size_t> out_shape = input.shape();
+  std::swap(out_shape[dim0_], out_shape[dim1_]);
+  Tensor output = get_tensor(out_shape, input.dtype());
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(permute, input, output, B, L, H, D, this->flow_handle_);
+  TransposeStats stats;
+  stats.ndim = input.dims();
+  stats.dim0 = dim0_;
+  stats.dim1 = dim1_;
+  for (size_t i = 0; i < input.dims(); ++i) stats.shape[i] = input.dim(i);
+
+  DTypeDesc type_desc{io_dtype_, param_dtype_, compute_dtype_};
+
+  WorkspaceReq ws_req = engine_->query_transpose_graph(this->backend_handle_, stats, type_desc);
+
+  Tensor ws = get_tensor({ws_req.fwd_workspace}, io_dtype_);
+
+  engine_->transpose(backend_handle_, stats, input.data_as<void>(), output.data_as<void>(),
+                     ws.data_as<void>(), type_desc);
+
   return output;
 }
 
 Tensor TransposeLayerImpl::backward_impl(const Tensor &grad_output, Residuals &residuals) {
-  // Gradient is (B, H, L). We want (B, L, H).
-  if (grad_output.dims() != 3) {
-    throw std::runtime_error("TransposeLayerImpl: Gradient must be 3D");
+  if (dim0_ >= grad_output.dims() || dim1_ >= grad_output.dims()) {
+    throw std::runtime_error("TransposeLayerImpl: dim0 or dim1 out of bounds");
   }
-  size_t B = grad_output.dim(0);
-  // Gradient output shape was {B, H, L}, so dim(1) is H, dim(2) is L
-  size_t H = grad_output.dim(1);
-  size_t L = grad_output.dim(2);
-  size_t D = 1;
 
-  Tensor grad_input = get_tensor({B, L, H}, grad_output.dtype());
+  Vec<size_t> in_shape = grad_output.shape();
+  std::swap(in_shape[dim0_], in_shape[dim1_]);
+  Tensor grad_input = get_tensor(in_shape, grad_output.dtype());
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(permute, grad_output, grad_input, B, H, L, D, this->flow_handle_);
+  TransposeStats stats;
+  stats.ndim = grad_output.dims();
+  stats.dim0 = dim0_;
+  stats.dim1 = dim1_;
+  for (size_t i = 0; i < grad_output.dims(); ++i) stats.shape[i] = grad_output.dim(i);
+
+  DTypeDesc type_desc{io_dtype_, param_dtype_, compute_dtype_};
+
+  WorkspaceReq ws_req = engine_->query_transpose_graph(this->backend_handle_, stats, type_desc);
+
+  Tensor ws = get_tensor({ws_req.bwd_workspace}, io_dtype_);
+
+  engine_->transpose(backend_handle_, stats, grad_output.data_as<void>(),
+                     grad_input.data_as<void>(), ws.data_as<void>(), type_desc);
+
   return grad_input;
 }
 
 Vec<size_t> TransposeLayerImpl::compute_output_shape(const Vec<size_t> &input_shape) const {
-  if (input_shape.size() != 3)
-    throw std::runtime_error("TransposeLayerImpl expects 3 dims (B, D1, D2)");
-  return {input_shape[0], input_shape[2], input_shape[1]};
+  if (dim0_ >= input_shape.size() || dim1_ >= input_shape.size()) {
+    throw std::runtime_error("TransposeLayerImpl: dim0 or dim1 out of bounds");
+  }
+  Vec<size_t> out_shape = input_shape;
+  std::swap(out_shape[dim0_], out_shape[dim1_]);
+  return out_shape;
 }
 
 LayerConfig TransposeLayerImpl::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
+  config.set("dim0", dim0_);
+  config.set("dim1", dim1_);
   return config;
 }
 
 std::shared_ptr<TransposeLayerImpl> TransposeLayerImpl::create_from_config(
     const LayerConfig &config) {
-  return std::make_shared<TransposeLayerImpl>(config.name);
+  size_t dim0;
+  size_t dim1;
+  dim0 = config.get<size_t>("dim0");
+  dim1 = config.get<size_t>("dim1");
+  return std::make_shared<TransposeLayerImpl>(dim0, dim1, config.name);
 }
 
 }  // namespace tunx

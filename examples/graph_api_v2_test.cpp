@@ -1,4 +1,5 @@
 #include <iostream>
+#include <memory>
 
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
@@ -9,9 +10,33 @@
 #include "nn/loss.hpp"
 #include "nn/metrics.hpp"
 #include "nn/optimizers.hpp"
+#include "type/type.hpp"
 
 using namespace std;
 using namespace tunx;
+
+std::shared_ptr<Graph> make_mlp(const Device& device) {
+  auto graph = make_shared<Graph>();
+
+  auto input = graph->input();
+
+  auto flatten = FlattenLayer(1, -1, "flatten");
+  auto fc1 = DenseLayer(28 * 28, 100, true, "fc1");
+  auto fc2 = DenseLayer(100, 10, false, "fc2");
+
+  auto x = flatten(input);
+  x = fc1(x);
+  auto output = fc2(x);
+  output->set_uid("output");
+  graph->set_output(output);
+  graph->set_io_dtype(DType_t::BF16);
+  graph->set_param_dtype(DType_t::BF16);
+
+  auto& allocator = PoolAllocator::instance(device, defaultFlowHandle);
+  graph->compile(allocator);
+
+  return graph;
+}
 
 std::shared_ptr<Graph> make_mnist_model(const Device& device) {
   auto graph = make_shared<Graph>();
@@ -54,9 +79,11 @@ signed main() {
   cout << "Testing Graph API v2" << endl;
 
   const Device& device = getHost();
-  auto graph = make_mnist_model(device);
+  // auto graph = make_mnist_model(device);
 
-  auto [train_loader, val_loader] = DataLoaderFactory::create("mnist", "data/mnist");
+  auto graph = make_mlp(device);
+
+  auto [train_loader, val_loader] = DataLoaderFactory::create("mnist", "data/mnist", DType_t::BF16);
   if (!train_loader || !val_loader) {
     cerr << "Failed to create data loaders for MNIST dataset" << endl;
     return 1;
@@ -105,7 +132,9 @@ signed main() {
       optimizer->update();
       optimizer->zero_grads();
 
-      cout << fmt::format("Batch: {}, Loss: {:.4f}", batch_idx, loss) << endl;
+      if (batch_idx % 10 == 0) {
+        cout << fmt::format("Batch: {}, Loss: {:.4f}", batch_idx, loss) << endl;
+      }
 
       ++batch_idx;
     }
