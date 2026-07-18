@@ -1,3 +1,5 @@
+!!! NOTICE: This repository now serve as an archive for the original TNN project. The project has been renamed to tunx. Please visit [here](https://github.com/tungdpham/tunx) to see the latest releases and updates.
+
 # Getting Started
 
 ## Dependencies
