@@ -1,13 +1,14 @@
 #ifdef USE_CUDA
-#include <cudnn_graph.h>
+#include "device/cuda/cuda_context.hpp"
+
 #include <cuda_runtime.h>
+#include <cudnn_graph.h>
 #include <nvml.h>
 
 #include <iostream>
 #include <stdexcept>
 #include <string>
 
-#include "device/cuda/cuda_context.hpp"
 #include "device/flow.hpp"
 
 namespace tunx {
@@ -24,18 +25,6 @@ CUDAContext::CUDAContext(int id)
   nvmlInit_v2();
   createFlow(defaultFlowHandle);
 }
-
-#ifdef USE_CUDNN
-cudnnHandle_t CUDAContext::getCudnnHandle() {
-  cudnnHandle_t cudnn_handle = nullptr;
-  cudnnStatus_t err = cudnnCreate(&cudnn_handle);
-  if (err != CUDNN_STATUS_SUCCESS) {
-    throw std::runtime_error("Failed to create CUDNN handle: " +
-                             std::string(cudnnGetErrorString(err)));
-  }
-  return cudnn_handle;
-}
-#endif
 
 size_t CUDAContext::getTotalMemory() const {
   size_t total_mem = 0;

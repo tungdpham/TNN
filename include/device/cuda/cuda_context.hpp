@@ -29,7 +29,6 @@ private:
 
 public:
   explicit CUDAContext(int id);
-  static cudnnHandle_t getCudnnHandle();
 
   size_t getTotalMemory() const override;
   size_t getAvailableMemory() const override;

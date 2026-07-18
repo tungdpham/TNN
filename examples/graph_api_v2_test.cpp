@@ -78,7 +78,7 @@ std::shared_ptr<Graph> make_mnist_model(const Device& device) {
 signed main() {
   cout << "Testing Graph API v2" << endl;
 
-  const Device& device = getHost();
+  const Device& device = getGPU();
   // auto graph = make_mnist_model(device);
 
   auto graph = make_mlp(device);
